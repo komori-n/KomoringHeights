@@ -381,7 +381,7 @@ endif
 ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 	SOURCES += \
 		engine/user-engine/user-search.cpp \
-    engine/user-engine/komoring_heights.cpp
+		engine/user-engine/komoring_heights.cpp
 endif
 
 
