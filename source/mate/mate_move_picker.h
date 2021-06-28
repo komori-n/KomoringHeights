@@ -72,7 +72,7 @@ namespace Mate
 			{
 #if !defined (USE_PIECE_VALUE)
 				std::cout << "Error! : define USE_PIECE_VALUE" << std::endl;
-#endif
+#else
 
 				// 現在の駒割りに、captureする指し手に対してcaptureする駒を加点して、
 				// あと、駒の移動先の升が受け方の玉から近いかに対して加点して、その指し手の価値として返す。
@@ -215,6 +215,7 @@ namespace Mate
 				{
 					std::cout << m.move << " , " << m.value << std::endl;
 				}
+#endif
 #endif
 			}
 

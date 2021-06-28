@@ -507,6 +507,9 @@
     <ClCompile Include="testcmd\benchmark.cpp">
       <Filter>リソース ファイル\testcmd</Filter>
     </ClCompile>
+    <ClCompile Include="engine\user-engine\komoring_heights.cpp">
+      <Filter>リソース ファイル\engine\user-engine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\docs\USI拡張コマンド.txt">

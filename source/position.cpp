@@ -179,7 +179,7 @@ void Position::init() {
 	//assert(count == 3668); // chessの場合
 
 	// cout << "count = " << count << " , count2 = " << count2 << endl;
-	// chessの2倍の配列時 : count = 16456 , count2 = 4499 
+	// chessの2倍の配列時 : count = 16456 , count2 = 4499
 	// chessの4倍の配列時 : count = 16456 , count2 = 1623
 	ASSERT_LV3(count == 16456);
 #endif
@@ -269,7 +269,7 @@ void Position::set(std::string sfen , StateInfo* si , Thread* th)
 		// 数字は、空の升の数なのでその分だけ筋(File)を進める
 		if (isdigit(token))
 			f -= File(token - '0');
-		// '/'は次の段を意味する                              
+		// '/'は次の段を意味する
 		else if (token == '/')
 		{
 			f = FILE_9;
@@ -621,7 +621,7 @@ Bitboard Position::slider_blockers(Color c, Square s , Bitboard& pinners) const 
 	// ^王 歩 角 飛
 	// このような状況で飛車に対して角を取り除いてから敵玉への射線を考えるので、
 	// 歩がslider_blocker扱いになってしまう。つまり、このコードは間違っているのでは？
-	
+
 	while (snipers)
 	{
 		Square sniperSq = snipers.pop();
@@ -1173,7 +1173,7 @@ void Position::do_move_impl(Move m, StateInfo& new_st, bool givesCheck)
 
 	// 厳密には、これはrootからの手数ではなく、初期盤面からの手数ではあるが。
 	++gamePly;
-	
+
 	// st->previousで遡り可能な手数カウンタ
 	st->pliesFromNull = prev->pliesFromNull + 1;
 
@@ -1257,7 +1257,7 @@ void Position::do_move_impl(Move m, StateInfo& new_st, bool givesCheck)
 
 		// piece_no_of()のときにこの手駒の枚数を参照するのであとで更新。
 		sub_hand(hand[Us], pr);
-		
+
 		// 王手している駒のbitboardを更新する。
 		// 駒打ちなのでこの駒で王手になったに違いない。駒打ちで両王手はありえないので王手している駒はいまtoに置いた駒のみ。
 		if (givesCheck)
@@ -1468,7 +1468,7 @@ void Position::do_move_impl(Move m, StateInfo& new_st, bool givesCheck)
 				case DIRECT_RU: case DIRECT_LD:
 				case DIRECT_RD: case DIRECT_LU:
 					st->checkersBB |= bishopEffect(ksq, pieces()) & pieces(Us, BISHOP_HORSE); break;
-					
+
 #endif
 				default: UNREACHABLE;
 				}
@@ -1578,6 +1578,69 @@ Key Position::key_after(Move m) const {
 	}
 
 	return k + h;
+}
+#endif
+
+#if defined(USE_BOARD_KEY_AFTER)
+// ある指し手を指した後のhash keyを返す。
+Key Position::board_key_after(Move m) const {
+
+  Color Us = side_to_move();
+  auto k = st->board_key_ ^ Zobrist::side;
+
+  // 移動先の升
+  Square to = to_sq(m);
+  ASSERT_LV2(is_ok(to));
+
+  if (is_drop(m))
+  {
+    // --- 駒打ち
+    PieceType pr = move_dropped_piece(m);
+    ASSERT_LV2(PAWN <= pr && pr < PIECE_HAND_NB);
+
+    Piece pc = make_piece(Us, pr);
+
+    // Zobrist keyの更新
+    k += Zobrist::psq[to][pc];
+  }
+  else
+  {
+    // -- 駒の移動
+    Square from = from_sq(m);
+    ASSERT_LV2(is_ok(from));
+
+    // 移動させる駒
+    Piece moved_pc = piece_on(from);
+    ASSERT_LV2(moved_pc != NO_PIECE);
+
+    // 移動先に駒の配置
+    // もし成る指し手であるなら、成った後の駒を配置する。
+    Piece moved_after_pc;
+
+    if (is_promote(m))
+    {
+      moved_after_pc = moved_pc + PIECE_PROMOTE;
+    }
+    else {
+      moved_after_pc = moved_pc;
+    }
+
+    // 移動先の升にある駒
+    Piece to_pc = piece_on(to);
+    if (to_pc != NO_PIECE)
+    {
+      PieceType pr = raw_type_of(to_pc);
+
+      // 捕獲された駒が盤上から消えるので局面のhash keyを更新する
+      k -= Zobrist::psq[to][to_pc];
+    }
+
+    // fromにあったmoved_pcがtoにmoved_after_pcとして移動した。
+    k -= Zobrist::psq[from][moved_pc];
+    k += Zobrist::psq[to][moved_after_pc];
+  }
+
+  return k;
 }
 #endif
 
@@ -1870,7 +1933,7 @@ namespace {
 #else
 		// Aperyの利き実装を用いる場合
 		// bishopEffect()で斜め四方向の利きが一気に求まるのでこれを分かつことはできない。
-			
+
 		// 斜め方向なら斜め方向の升をスキャンしてその上にある角・馬を足す
 		case DIRECT_RU: case DIRECT_LD:
 		case DIRECT_RD: case DIRECT_LU:
@@ -2069,7 +2132,7 @@ RepetitionState Position::is_repetition(int repPly /* = 16 */) const
 	// いるかチェックする必要があるが、そこまでする必要があるとは思えない。ゆえに、このチェックを省略する。
 
 	// 【計測資料 35.】is_repetition() 同一局面をrootより遡って見つけたときに即座に千日手として扱うか。
-	
+
 	// pliesFromNullが未初期化になっていないかのチェックのためのassert
 	ASSERT_LV3(st->pliesFromNull >= 0);
 

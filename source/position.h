@@ -49,7 +49,7 @@ struct StateInfo {
 	// ※　次の局面にdo_move()で進むときに最終的な値が設定される
 	// board_key()は盤面のhash。hand_key()は手駒のhash。それぞれ加算したのがkey() 盤面のhash。
 	// board_key()のほうは、手番も込み。
-	
+
 	Key key()                     const { return long_key(); }
 	Key board_key()               const { return board_long_key(); }
 	Key hand_key()                const { return hand_long_key(); }
@@ -94,12 +94,12 @@ struct StateInfo {
 	// 自駒の駒種Xによって敵玉が王手となる升のbitboard
 	Bitboard checkSquares[PIECE_TYPE_NB];
 
-//  循環局面の何回目であるか  
+//  循環局面の何回目であるか
 //	int        repetition;
 
 	// この手番側の連続王手は何手前からやっているのか(連続王手の千日手の検出のときに必要)
 	int continuousCheck[COLOR_NB];
-  
+
 	// この局面における手番側の持ち駒。優等局面の判定のために必要。
 	Hand hand;
 
@@ -241,7 +241,7 @@ public:
 	// 平手の開始局面なら1が返る。(0ではない)
 	int game_ply() const { return gamePly; }
 
-	// この局面クラスを用いて探索しているスレッドを返す。 
+	// この局面クラスを用いて探索しているスレッドを返す。
 	Thread* this_thread() const { return thisThread; }
 
 	// 盤面上の駒を返す。
@@ -293,7 +293,7 @@ public:
 
 	// 定跡DBや置換表から取り出したMove16(16bit型の指し手)を32bit化する。
 	Move to_move(Move16 m) const;
-	
+
 	// 普通の千日手、連続王手の千日手等を判定する。
 	// そこまでの局面と同一局面であるかを、局面を遡って調べる。
 	// plies_from_root : rootからの手数。ss->plyを渡すこと。
@@ -387,7 +387,7 @@ public:
 #if !defined(LONG_EFFECT_LIBRARY)
 	bool effected_to(Color c, Square sq) const { return attackers_to(c, sq, pieces()); }
 	bool effected_to(Color c, Square sq, Square kingSq) const { return attackers_to(c, sq, pieces() ^ kingSq); }
-#else 
+#else
 	bool effected_to(Color c, Square sq) const { return board_effect[c].effect(sq) != 0; }
 	bool effected_to(Color c, Square sq, Square kingSq) const {
 		return board_effect[c].effect(sq) != 0 ||
@@ -495,6 +495,10 @@ public:
 	// これを計算するのはあまり得策ではないが、詰将棋ルーチンでは置換表を投機的に
 	// prefetchできるとずいぶん速くなるのでこの関数を用意しておく。
 	Key key_after(Move m) const;
+#endif
+
+#if defined(USE_BOARD_KEY_AFTER)
+  Key board_key_after(Move m) const;
 #endif
 
 	// --- misc
@@ -665,7 +669,7 @@ private:
 	// 注意1 : kingを配置したときには、このクラスのkingSqaure[]を更新しないといけないが、
 	// この関数のなかでは行っていないので呼び出し側で更新すること。
 	// 注意2 : evalListのほうの更新もこの関数のなかでは行っていないので必要ならば呼び出し側で更新すること。
-	// 例) 
+	// 例)
 	// if (type_of(pc) == KING)
 	//		kingSquare[color_of(pc)] = sq;
 	// もしくはupdate_kingSquare()を呼び出すこと。
