@@ -155,7 +155,7 @@ const string engine_info() {
 #undef TOSTRING
 #else
 			ENGINE_NAME
-#endif			
+#endif
 			<< ' '
 			<< EVAL_TYPE_NAME << ' '
 			<< ENGINE_VERSION << std::setfill('0')
@@ -171,7 +171,7 @@ const string engine_info() {
 
 			<< endl
 #if !defined(YANEURAOU_ENGINE_DEEP)
-			<< "id author by yaneurao" << std::endl;
+			<< "id author by yaneurao , komori-n" << std::endl;
 #else
 			<< "id author by Tadao Yamaoka , yaneurao" << std::endl;
 #endif
@@ -465,7 +465,7 @@ void* aligned_ttmem_alloc(size_t allocSize , void*& mem , size_t align /* ignore
 void* aligned_ttmem_alloc(size_t allocSize, void*& mem , size_t align) {
 
 	//constexpr size_t alignment = 64; // assumed cache line size
-	
+
 	// 引数で指定された値でalignmentされていて欲しい。
 	const size_t alignment = align;
 
@@ -886,7 +886,7 @@ namespace Tools
 			buffer,					// マップ先ワイド文字列を入れるバッファのアドレス
 			length					// バッファのサイズ
 		);
- 
+
 		if (result == 0)
 			return std::wstring(); // 何故かエラーなのだ…。
 
@@ -1441,7 +1441,7 @@ namespace StringExtension
 
 	// 数字に相当する文字か
 	bool is_number(char c) { return '0' <= c && c <= '9'; }
-	
+
 	// 行の末尾の"\r","\n",スペース、"\t"を除去した文字列を返す。
 	std::string trim(const std::string& input)
 	{
@@ -1673,7 +1673,7 @@ namespace Directory {
 	}
 }
 
-#elif defined(__GNUC__) 
+#elif defined(__GNUC__)
 
 #include <direct.h>
 namespace Directory {
