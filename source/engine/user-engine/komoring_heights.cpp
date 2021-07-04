@@ -1002,10 +1002,10 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
   std::unordered_set<Key> parents{};
   SearchImpl<true>(n, kInfinitePnDn, kInfinitePnDn, 0, parents, entry);
 
+  if (!tt_.ValidateEntry<true>(n, 0, *entry)) {
+    entry = tt_.LookUp<true, false>(n, 0).second;
+  }
   // <for-debug>
-  // if (!tt_.ValidateEntry<true>(n, 0, *entry)) {
-  //   entry = tt_.LookUp<true, false>(n, 0).second;
-  // }
   // sync_cout << "info string pn=" << entry->pn << " dn=" << entry->dn << " num_searched=" << searched_node_
   //           << " generation=" << entry->generation << sync_endl;
   // </for-debug>
