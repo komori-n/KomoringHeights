@@ -45,9 +45,6 @@ void MainThread::search() {
 
   // 通常の go コマンドで呼ばれたときは resign を返す
   if (Search::Limits.mate == 0) {
-    while (!Threads.stop && Search::Limits.infinite) {
-      Tools::sleep(1);
-    }
     sync_cout << "bestmove resign" << sync_endl;
     return;
   }
