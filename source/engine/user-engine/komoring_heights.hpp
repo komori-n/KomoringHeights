@@ -1,5 +1,5 @@
 ﻿#ifndef KOMORING_HEIGHTS_HPP_
-#define KOMORING_HEIGHTS_HPP
+#define KOMORING_HEIGHTS_HPP_
 
 #include <array>
 #include <atomic>
