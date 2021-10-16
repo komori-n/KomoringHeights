@@ -226,7 +226,7 @@ struct ChildNodeCache {
  * このようにすることで、いずれの場合の子局面選択も「min_n が最小となる子局面を選択する」という処理に帰着できる。
  *
  * @note コンストラクタ時点で子局面の TTEntry が存在しない場合、エントリの作成は実際の探索まで遅延される。
- * その場合 ChildNodeCache::entry が nullptr になる可能性がある。証明駒／反証駒の
+ * その場合 ChildNodeCache::entry が nullptr になる可能性がある。
  */
 template <bool kOrNode>
 class MoveSelector {
