@@ -381,7 +381,8 @@ endif
 ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 	SOURCES += \
 		engine/user-engine/user-search.cpp \
-		engine/user-engine/komoring_heights.cpp
+		engine/user-engine/komoring_heights.cpp \
+    engine/user-engine/ttentry.cpp
 endif
 
 
@@ -527,6 +528,6 @@ pgo:
 	$(MAKE) profuse
 
 clean:
-	rm -f $(OBJECTS) $(DEPENDS) $(TARGET) ${OBJECTS:.o=.gcda}
+	rm -rf $(OBJECTS) $(DEPENDS) $(TARGET) ${OBJECTS:.o=.gcda} ${OBJDIR}
 
 -include $(DEPENDS)

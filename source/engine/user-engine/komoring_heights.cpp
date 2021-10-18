@@ -10,23 +10,20 @@
 #include "../../extra/all.h"
 
 namespace {
+using komori::PnDn;
+using komori::TTEntry;
 using komori::internal::ChildNodeCache;
 using komori::internal::ClusterIterator;
 using komori::internal::kMaxCheckMovesPerNode;
-using komori::internal::PnDn;
 using komori::internal::PositionMateKind;
 using komori::internal::TranspositionTable;
 using komori::internal::TTCluster;
-using komori::internal::TTEntry;
 
 constexpr std::size_t kCacheLineSize = 64;
 constexpr std::size_t kCacheLineMask = kCacheLineSize - 1;
 constexpr std::size_t kDefaultHashSizeMb = 1024;
 constexpr std::size_t kHashfullCalcClusters = 100;
-/// 千日手が絡む TTEntry は generation で区別できるようにする
-constexpr std::uint32_t kRepeat = std::numeric_limits<std::uint32_t>::max();
-/// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
-constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
+
 /// 何局面読んだら generation を進めるか
 constexpr std::uint32_t kNumSearchedPerGeneration = 128;
 /// FirstSearch の初期深さ。数値実験してみた感じたと、1 ではあまり効果がなく、3 だと逆に遅くなるので
@@ -418,7 +415,7 @@ ClusterIterator LowerBoundUnroll(TTCluster& cluster, std::uint32_t hash_high) {
   do {                                   \
     auto half = 1 << (kLoopCnt - 1 - i); \
     auto mid = begin + half - 1;         \
-    if (mid->hash_high < hash_high) {    \
+    if (mid->HashHigh() < hash_high) {   \
       begin = mid + 1;                   \
     }                                    \
   } while (false)
@@ -442,20 +439,20 @@ ClusterIterator LowerBoundUnroll(TTCluster& cluster, std::uint32_t hash_high) {
 ClusterIterator LowerBoundUnroll(ClusterIterator begin, ClusterIterator end, std::uint32_t hash_high) {
   auto len = static_cast<ptrdiff_t>(end - begin);
 
-#define UNROLL_IMPL()                 \
-  do {                                \
-    if (len == 0) {                   \
-      return begin;                   \
-    }                                 \
-                                      \
-    auto half = len / 2;              \
-    auto mid = begin + half;          \
-    if (mid->hash_high < hash_high) { \
-      len -= half + 1;                \
-      begin = mid + 1;                \
-    } else {                          \
-      len = half;                     \
-    }                                 \
+#define UNROLL_IMPL()                  \
+  do {                                 \
+    if (len == 0) {                    \
+      return begin;                    \
+    }                                  \
+                                       \
+    auto half = len / 2;               \
+    auto mid = begin + half;           \
+    if (mid->HashHigh() < hash_high) { \
+      len -= half + 1;                 \
+      begin = mid + 1;                 \
+    } else {                           \
+      len = half;                      \
+    }                                  \
   } while (false)
 
   // 高々 8 回二分探索すれば必ず答えが見つかる
@@ -475,12 +472,8 @@ ClusterIterator LowerBoundUnroll(ClusterIterator begin, ClusterIterator end, std
 
 /// cluster の中で最も最近アクセスしていないエントリを探す
 ClusterIterator SelectRemovedEntry(TTCluster& cluster) {
-  auto r = std::min_element(cluster.second.begin(), cluster.second.end(), [](const TTEntry& lhs, const TTEntry& rhs) {
-    if ((lhs.pn == 0) + (lhs.dn == 0) != (rhs.pn == 0) + (rhs.dn == 0)) {
-      return (lhs.pn == 0) + (lhs.dn == 0) < (rhs.pn == 0) + (rhs.dn == 0);
-    }
-    return lhs.generation < rhs.generation;
-  });
+  auto r = std::min_element(cluster.second.begin(), cluster.second.end(),
+                            [](const TTEntry& lhs, const TTEntry& rhs) { return lhs.Generation() < rhs.Generation(); });
 
   return r;
 }
@@ -543,30 +536,23 @@ std::pair<bool, TTEntry*> TranspositionTable::LookUpImpl(TTCluster& cluster,
   auto end = cluster.second.begin() + cluster.first;
 
   for (; itr != end; ++itr) {
-    if (itr->hash_high != hash_high) {
+    if (itr->HashHigh() != hash_high) {
       break;
     }
     // 完全一致するエントリが見つかった
-    if (hand == itr->hand && depth == itr->depth) {
+    if (itr->ExactOrDeducable(hand, depth)) {
       return std::make_pair(true, &*itr);
     }
 
     // 千日手含みの局面は優等局面の情報を使わない
-    if (itr->generation != kRepeat) {
-      if (hand_is_equal_or_superior(hand, itr->hand)) {
-        if (itr->pn == 0) {
-          return std::make_pair(true, &*itr);
-        } else if (depth <= itr->depth) {  // 自分よりも浅い探索結果は使わない（無限ループになりうるため）
-          // 優等局面よりも不詰に近いはず
-          max_dn = std::max(max_dn, itr->dn);
-        }
-      } else if (hand_is_equal_or_superior(itr->hand, hand)) {
-        if (itr->dn == 0) {
-          return std::make_pair(true, &*itr);
-        } else if (depth <= itr->depth) {  // 自分よりも浅い探索結果は使わない（無限ループになりうるため）
-          // 劣等局面よりも詰に近いはず
-          max_pn = std::max(max_pn, itr->pn);
-        }
+    if (!itr->IsRepetitionDisprovenNode()) {
+      if (itr->IsSuperiorAndShallower(hand, depth)) {
+        // 優等局面よりも不詰に近いはず
+        max_dn = std::max(max_dn, itr->Dn());
+      }
+      if (itr->IsInferiorAndShallower(hand, depth)) {
+        // 劣等局面よりも詰に近いはず
+        max_pn = std::max(max_pn, itr->Pn());
       }
     }
   }
@@ -582,7 +568,7 @@ std::pair<bool, TTEntry*> TranspositionTable::LookUpImpl(TTCluster& cluster,
       i++;
 
       std::move(search_end, unused, search_end + 1);
-      *search_end = {hash_high, hand, max_pn, max_dn, depth, 0};
+      *search_end = {hash_high, hand, max_pn, max_dn, depth};
       return std::make_pair(false, &*search_end);
     }
 
@@ -593,14 +579,14 @@ std::pair<bool, TTEntry*> TranspositionTable::LookUpImpl(TTCluster& cluster,
     std::move_backward(insert_pos, cluster.second.end() - 1, cluster.second.end());
 
     // insert_pos に空きを作ったのでここに構築する
-    *insert_pos = {hash_high, hand, max_pn, max_dn, depth, 0};
+    *insert_pos = {hash_high, hand, max_pn, max_dn, depth};
     return std::make_pair(false, &*insert_pos);
   } else {
     // dummy_entry_ に結果を詰めて返す
-    dummy_entry_ = {hash_high, hand, max_pn, max_dn, depth, 0};
+    dummy_entry_ = {hash_high, hand, max_pn, max_dn, depth};
     return std::make_pair(false, &dummy_entry_);
   }
-}
+}  // namespace internal
 
 template <bool kOrNode>
 void TranspositionTable::GetChildCluster(const Position& n,
@@ -620,23 +606,21 @@ void TranspositionTable::GetChildCluster(const Position& n,
 }
 
 void TranspositionTable::SetProven(TTEntry& entry, Hand hand) {
-  entry.pn = 0;
-  entry.dn = kInfinitePnDn;
-  entry.hand = hand;
+  entry.SetProven(hand);
 
   auto& cluster = GetClusterOfEntry(entry);
-  auto search_begin = LowerBound(cluster, entry.hash_high);
+  auto search_begin = LowerBound(cluster, entry.HashHigh());
   auto end = cluster.second.begin() + cluster.first;
 
   // 優等局面を消して、それ以外の局面は左へ詰める => 優等でない局面をコピーする
   auto itr = search_begin;
   auto top = search_begin;
   for (itr = search_begin; itr != end; ++itr) {
-    if (itr->hash_high != entry.hash_high) {
+    if (itr->HashHigh() != entry.HashHigh()) {
       break;
     }
 
-    if (&entry == &*itr || !hand_is_equal_or_superior(itr->hand, hand)) {
+    if (&entry == &*itr || !hand_is_equal_or_superior(itr->Hand(), hand)) {
       if (top != itr) {
         *top = *itr;
       }
@@ -652,22 +636,20 @@ void TranspositionTable::SetProven(TTEntry& entry, Hand hand) {
 }
 
 void TranspositionTable::SetDisproven(TTEntry& entry, Hand hand) {
-  entry.pn = kInfinitePnDn;
-  entry.dn = 0;
-  entry.hand = hand;
+  entry.SetDisproven(hand);
 
   auto& cluster = GetClusterOfEntry(entry);
-  auto search_begin = LowerBound(cluster, entry.hash_high);
+  auto search_begin = LowerBound(cluster, entry.HashHigh());
   auto end = cluster.second.begin() + cluster.first;
 
   auto itr = search_begin;
   auto top = search_begin;
   for (itr = search_begin; itr != end; ++itr) {
-    if (itr->hash_high != entry.hash_high) {
+    if (itr->HashHigh() != entry.HashHigh()) {
       break;
     }
 
-    if (&entry == &*itr || !hand_is_equal_or_superior(hand, itr->hand)) {
+    if (&entry == &*itr || !hand_is_equal_or_superior(hand, itr->Hand())) {
       if (top != itr) {
         *top = *itr;
       }
@@ -682,9 +664,7 @@ void TranspositionTable::SetDisproven(TTEntry& entry, Hand hand) {
 }
 
 void TranspositionTable::SetRepetitionDisproven(TTEntry& entry) {
-  entry.pn = kInfinitePnDn;
-  entry.dn = 0;
-  entry.generation = kRepeat;
+  entry.SetRepetitionDisproven();
 }
 
 template <bool kOrNode>
@@ -707,13 +687,11 @@ bool TranspositionTable::ValidateEntry(const TTCluster& cluster,
   if (&entry < begin || end <= &entry) {
     return false;
   }
-  if (entry.hash_high != hash_high) {
+  if (entry.HashHigh() != hash_high) {
     return false;
   }
 
-  return (entry.hand == hand && entry.depth == depth) ||
-         (entry.generation != kRepeat && entry.pn == 0 && hand_is_equal_or_superior(hand, entry.hand)) ||
-         (entry.generation != kRepeat && entry.dn == 0 && hand_is_equal_or_superior(entry.hand, hand));
+  return entry.ExactOrDeducable(hand, depth);
 }
 
 int TranspositionTable::Hashfull() const {
@@ -748,7 +726,7 @@ ClusterIterator TranspositionTable::UpperBound(ClusterIterator begin,
   while (len > 0) {
     auto half = len / 2;
     auto mid = begin + half;
-    if (mid->hash_high <= hash_high) {
+    if (mid->HashHigh() <= hash_high) {
       len -= half + 1;
       begin = mid + 1;
     } else {
@@ -761,7 +739,7 @@ ClusterIterator TranspositionTable::UpperBound(ClusterIterator begin,
 bool TranspositionTable::IsSorted(ClusterIterator begin, ClusterIterator end) const {
   for (auto itr = begin; itr != end - 1; ++itr) {
     auto next = itr + 1;
-    if (itr->hash_high > next->hash_high) {
+    if (itr->HashHigh() > next->HashHigh()) {
       return false;
     }
   }
@@ -780,9 +758,9 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, D
 
     tt.GetChildCluster<kOrNode>(n, child.move, child.cluster, child.hash_high, child.hand);
     auto [found, entry] = tt_.LookUpImpl<false>(*child.cluster, child.hash_high, child.hand, depth_ + 1);
-    child.min_n = kOrNode ? entry->pn : entry->dn;
-    child.sum_n = kOrNode ? entry->dn : entry->pn;
-    child.generation = entry->generation;
+    child.min_n = kOrNode ? entry->Pn() : entry->Dn();
+    child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
+    child.generation = entry->Generation();
     if (found) {
       child.entry = entry;
     } else {
@@ -823,9 +801,9 @@ void MoveSelector<kOrNode>::Update() {
     }
 
     auto old_sum_n = child.sum_n;
-    child.min_n = kOrNode ? entry->pn : entry->dn;
-    child.sum_n = kOrNode ? entry->dn : entry->pn;
-    child.generation = entry->generation;
+    child.min_n = kOrNode ? entry->Pn() : entry->Dn();
+    child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
+    child.generation = entry->Generation();
 
     sum_n_ = std::min(sum_n_ - old_sum_n + child.sum_n, kInfinitePnDn);
   }
@@ -838,13 +816,12 @@ void MoveSelector<kOrNode>::Update() {
     for (std::size_t i = 0; i < children_len_; ++i) {
       auto& child = children_[i];
       auto* entry = child.entry;
-      if (entry == nullptr) {
+      if (entry == nullptr || !tt_.ValidateEntry(*child.cluster, child.hash_high, child.hand, depth_ + 1, *entry)) {
         continue;
       }
 
       if (child.min_n != 0 && child.sum_n != 0) {
-        // generation == 0 にすると未探索局面と区別がつかない（ゆえに n 手詰めルーチンが走ってしまう）ので 1 にする
-        entry->generation = std::min(entry->generation, std::uint32_t{1});
+        entry->MarkDeleteCandidate();
       }
     }
   }
@@ -873,9 +850,9 @@ bool MoveSelector<kOrNode>::IsRepetitionDisproven() const {
 
   if constexpr (kOrNode) {
     // 1 つでも千日手に向かう手があるなら、この局面はそれが原因で不詰になっているかもしれない
-    return children_[children_len_ - 1].generation == kRepeat;
+    return children_[children_len_ - 1].generation == kRepetitionDisproven;
   } else {
-    return children_[0].generation == kRepeat;
+    return children_[0].generation == kRepetitionDisproven;
   }
 }
 
@@ -973,10 +950,10 @@ template <bool kOrNode>
 Hand MoveSelector<kOrNode>::FrontHand() const {
   auto& child = children_[0];
   if (child.entry != nullptr) {
-    return child.entry->hand;
+    return child.entry->Hand();
   } else {
     auto* entry = tt_.LookUpImpl<false>(*child.cluster, child.hash_high, child.hand, depth_ + 1).second;
-    return entry->hand;
+    return entry->Hand();
   }
 }
 }  // namespace internal
@@ -1006,19 +983,19 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
     entry = tt_.LookUp<true, false>(n, 0).second;
   }
   // <for-debug>
-  // sync_cout << "info string pn=" << entry->pn << " dn=" << entry->dn << " num_searched=" << searched_node_
-  //           << " generation=" << entry->generation << sync_endl;
+  sync_cout << "info string pn=" << entry->Pn() << " dn=" << entry->Dn() << " num_searched=" << searched_node_
+            << " generation=" << entry->Generation() << sync_endl;  //
   // </for-debug>
 
   stop_ = nullptr;
-  return entry->pn == 0;
+  return entry->IsProvenNode();
 }
 
 Move DfPnSearcher::BestMove(const Position& n) {
   MovePicker<true> move_picker{n};
   for (auto&& move : MovePicker<true>{n}) {
     const auto& entry = *tt_.LookUpChild<true, false>(n, move.move, 1).second;
-    if (entry.pn == 0) {
+    if (entry.IsProvenNode()) {
       return move.move;
     }
   }
@@ -1063,7 +1040,7 @@ void DfPnSearcher::SearchImpl(Position& n,
                               PnDn thdn,
                               Depth depth,
                               std::unordered_set<Key>& parents,
-                              internal::TTEntry* entry) {
+                              TTEntry* entry) {
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
   if (depth + 1 > max_depth_ || parents.find(n.key()) != parents.end()) {
     tt_.SetRepetitionDisproven(*entry);
@@ -1071,7 +1048,7 @@ void DfPnSearcher::SearchImpl(Position& n,
   }
 
   // 初探索の時は n 手詰めルーチンを走らせる
-  if (entry->generation == 0) {
+  if (entry->IsFirstVisit()) {
     auto output = FirstSearch<kOrNode>(n, depth, kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth);
     if (output.first != PositionMateKind::kUnknown) {
       return;
@@ -1091,8 +1068,6 @@ void DfPnSearcher::SearchImpl(Position& n,
   // これらの処理は、SEARCH_IMPL_RETURN ラベル以降で行っている。
 
   while (searched_node_ < max_search_node_ && !*stop_) {
-    entry->generation = Generation(searched_node_);
-
     if (selector->Pn() == 0) {
       tt_.SetProven(*entry, selector->ProofHand());
       goto SEARCH_IMPL_RETURN;
@@ -1107,9 +1082,8 @@ void DfPnSearcher::SearchImpl(Position& n,
       goto SEARCH_IMPL_RETURN;
     }
 
-    entry->pn = selector->Pn();
-    entry->dn = selector->Dn();
-    if (entry->pn >= thpn || entry->dn >= thdn) {
+    entry->Update(selector->Pn(), selector->Dn(), searched_node_);
+    if (entry->Pn() >= thpn || entry->Dn() >= thdn) {
       goto SEARCH_IMPL_RETURN;
     }
 
@@ -1148,18 +1122,23 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
   // OrNode は高速一手詰めルーチンで高速に詰みかどうか判定できる
   if (kOrNode && !n.in_check()) {
     if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
+      HandSet proof_hand = HandSet::Zero();
       auto& entry = *tt_.LookUp<kOrNode, true>(n, depth).second;
-      entry.generation = Generation(searched_node_);
-      auto proof_hand = BeforeHand(n, move, HAND_ZERO);
-      tt_.SetProven(entry, proof_hand);
-      return std::make_pair(PositionMateKind::kProven, proof_hand);
+
+      StateInfo st_info;
+      n.do_move(move, st_info);
+      proof_hand |= BeforeHand(n, move, AddIfHandGivesOtherEvasions(n, HAND_ZERO));
+      n.undo_move(move);
+
+      proof_hand &= entry.Hand();
+      tt_.SetProven(entry, proof_hand.Get());
+      return std::make_pair(PositionMateKind::kProven, proof_hand.Get());
     }
   }
 
   MovePicker<kOrNode> move_picker{n};
   if (move_picker.empty()) {
     auto& entry = *tt_.LookUp<kOrNode, true>(n, depth).second;
-    entry.generation = Generation(searched_node_);
     if constexpr (kOrNode) {
       Hand disproof_hand = RemoveIfHandGivesOtherChecks(n, CollectHand(n));
       tt_.SetDisproven(entry, disproof_hand);
@@ -1183,12 +1162,12 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
     for (const auto& move : move_picker) {
       auto [found, child_entry] = tt_.LookUpChild<kOrNode, false>(n, move.move, depth + 1);
       FirstSearchOutput output;
-      if (found && child_entry->pn == 0) {
+      if (found && child_entry->IsProvenNode()) {
         output.first = PositionMateKind::kProven;
-        output.second = child_entry->hand;
-      } else if (found, child_entry->dn == 0 && child_entry->generation != kRepeat) {
+        output.second = child_entry->Hand();
+      } else if (found, child_entry->IsNonRepetitionDisprovenNode()) {
         output.first = PositionMateKind::kDisproven;
-        output.second = child_entry->hand;
+        output.second = child_entry->Hand();
       } else {
         // 近接王手以外は時間の無駄なので無視する
         if (!IsStepCheck(n, move)) {
@@ -1204,7 +1183,6 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
 
       if (output.first == PositionMateKind::kProven) {
         auto& entry = *tt_.LookUp<kOrNode, true>(n, depth).second;
-        entry.generation = Generation(searched_node_);
         auto proof_hand = BeforeHand(n, move.move, output.second);
         tt_.SetProven(entry, proof_hand);
         return std::make_pair(PositionMateKind::kProven, proof_hand);
@@ -1221,7 +1199,6 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
       disproof_hand |= n.hand_of(n.side_to_move());
       auto hand = RemoveIfHandGivesOtherChecks(n, disproof_hand.Get());
       auto& entry = *tt_.LookUp<kOrNode, true>(n, depth).second;
-      entry.generation = Generation(searched_node_);
       tt_.SetDisproven(entry, hand);
 
       return std::make_pair(ret, hand);
@@ -1232,12 +1209,12 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
     for (const auto& move : move_picker) {
       auto [found, child_entry] = tt_.LookUpChild<kOrNode, false>(n, move.move, depth + 1);
       FirstSearchOutput output;
-      if (found && child_entry->pn == 0) {
+      if (found && child_entry->IsProvenNode()) {
         output.first = PositionMateKind::kProven;
-        output.second = child_entry->hand;
-      } else if (found && child_entry->dn == 0 && child_entry->generation != kRepeat) {
+        output.second = child_entry->Hand();
+      } else if (found && child_entry->IsNonRepetitionDisprovenNode()) {
         output.first = PositionMateKind::kDisproven;
-        output.second = child_entry->hand;
+        output.second = child_entry->Hand();
       } else {
         StateInfo st_info;
         n.do_move(move.move, st_info);
@@ -1247,7 +1224,6 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
 
       if (output.first == PositionMateKind::kDisproven) {
         auto& entry = *tt_.LookUp<kOrNode, true>(n, depth).second;
-        entry.generation = Generation(searched_node_);
         tt_.SetDisproven(entry, output.second);
         return std::make_pair(PositionMateKind::kDisproven, output.second);
       }
@@ -1262,7 +1238,6 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
     if (ret == PositionMateKind::kProven) {
       proof_hand &= n.hand_of(~n.side_to_move());
       auto& entry = *tt_.LookUp<kOrNode, true>(n, depth).second;
-      entry.generation = Generation(searched_node_);
       auto hand = AddIfHandGivesOtherEvasions(n, proof_hand.Get());
       tt_.SetProven(entry, hand);
 
@@ -1300,7 +1275,7 @@ DfPnSearcher::MateMove DfPnSearcher::SearchPv(std::unordered_map<Key, MateMove>&
   Key repetition_start = 0;
   for (const auto& move : move_picker) {
     const auto& child_entry = *tt_.LookUpChild<kOrNode, false>(n, move.move, depth + 1).second;
-    if (child_entry.pn != 0) {
+    if (!child_entry.IsProvenNode()) {
       continue;
     }
 
@@ -1352,13 +1327,13 @@ template void DfPnSearcher::SearchImpl<true>(Position& n,
                                              PnDn thdn,
                                              Depth depth,
                                              std::unordered_set<Key>& parents,
-                                             internal::TTEntry* entry);
+                                             TTEntry* entry);
 template void DfPnSearcher::SearchImpl<false>(Position& n,
                                               PnDn thpn,
                                               PnDn thdn,
                                               Depth depth,
                                               std::unordered_set<Key>& parents,
-                                              internal::TTEntry* entry);
+                                              TTEntry* entry);
 template DfPnSearcher::MateMove DfPnSearcher::SearchPv<true>(std::unordered_map<Key, MateMove>& memo,
                                                              Position& n,
                                                              Depth depth);

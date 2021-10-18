@@ -10,12 +10,10 @@
 #include <vector>
 
 #include "../../types.h"
+#include "ttentry.hpp"
 
 namespace komori {
 namespace internal {
-
-/// pn/dn を表す型
-using PnDn = std::uint64_t;
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
 constexpr Depth kMaxNumMateMoves = 3000;
 /// 1 Cluster ごとの entry 数。小さくすればするほど高速に動作するが、エントリが上書きされやすくなるために
@@ -29,15 +27,6 @@ enum class PositionMateKind {
   kUnknown,   ///< 不明
   kProven,    ///< 詰み
   kDisproven  ///< 不詰
-};
-
-/// Position の探索情報を格納するための構造体
-struct TTEntry {
-  std::uint32_t hash_high;  ///< board_keyの上位32bit
-  Hand hand;                ///< 攻め方のhand。pn==0なら証明駒、dn==0なら反証駒を表す。
-  PnDn pn, dn;              ///< pn, dn
-  Depth depth;  ///< 探索深さ。千日手回避のためにdepthが違う局面は別局面として扱う
-  std::uint32_t generation;  ///< 探索世代。古いものから順に上書きされる
 };
 
 /// TTEntryのカタマリ。第1要素に使用中のentry数が格納されている（二分探索の高速化のため）
@@ -353,12 +342,7 @@ class DfPnSearcher {
    * @param entry 現局面の TTEntry。引数として渡すことで LookUp 回数をへらすことができる。
    */
   template <bool kOrNode>
-  void SearchImpl(Position& n,
-                  internal::PnDn thpn,
-                  internal::PnDn thdn,
-                  Depth depth,
-                  std::unordered_set<Key>& parents,
-                  internal::TTEntry* entry);
+  void SearchImpl(Position& n, PnDn thpn, PnDn thdn, Depth depth, std::unordered_set<Key>& parents, TTEntry* entry);
 
   /**
    * @brief 局面 n で固定深さ depth の探索を行う
