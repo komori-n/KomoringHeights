@@ -55,7 +55,7 @@ class TTEntry {
   auto HashHigh() const { return hash_high_; }
   auto Hand() const { return hand_; }
 
-  //  private:
+ private:
   std::uint32_t hash_high_;  ///< board_keyの上位32bit
   ::Hand hand_;              ///< 攻め方のhand。pn==0なら証明駒、dn==0なら反証駒を表す。
   PnDn pn_, dn_;             ///< pn, dn。直接参照禁止。
