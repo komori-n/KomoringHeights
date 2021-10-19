@@ -606,8 +606,6 @@ void TranspositionTable::GetChildCluster(const Position& n,
 }
 
 void TranspositionTable::SetProven(TTEntry& entry, Hand hand) {
-  entry.SetProven(hand);
-
   auto& cluster = GetClusterOfEntry(entry);
   auto search_begin = LowerBound(cluster, entry.HashHigh());
   auto end = cluster.second.begin() + cluster.first;
@@ -615,17 +613,35 @@ void TranspositionTable::SetProven(TTEntry& entry, Hand hand) {
   // 優等局面を消して、それ以外の局面は左へ詰める => 優等でない局面をコピーする
   auto itr = search_begin;
   auto top = search_begin;
+  bool wrote_proof_hand = false;
   for (itr = search_begin; itr != end; ++itr) {
     if (itr->HashHigh() != entry.HashHigh()) {
       break;
     }
 
-    if (&entry == &*itr || !hand_is_equal_or_superior(itr->Hand(), hand)) {
+    if (itr->UpdateWithProofHand(hand)) {
+      // itr はもういらない
+      // [top, end) は後で消すのでここでは何もしない
+    } else {
+      // itr はまだ必要
+
+      if (!wrote_proof_hand && itr->IsWritableNewProofHand()) {
+        itr->AddHand(hand);
+        wrote_proof_hand = true;
+      }
+
       if (top != itr) {
         *top = *itr;
       }
       top++;
     }
+  }
+
+  if (!wrote_proof_hand) {
+    // まだ証明駒を保存できていないので、top を潰して証明駒を書く。
+    // 引数で渡された entry は UpdateWithProofHand(hand) == false のため、必ず top は空きエントリ。
+    top->SetProven(hand);
+    top++;
   }
 
   // エントリを消した場合は、以降のエントリをすべて左に詰める
@@ -636,25 +652,36 @@ void TranspositionTable::SetProven(TTEntry& entry, Hand hand) {
 }
 
 void TranspositionTable::SetDisproven(TTEntry& entry, Hand hand) {
-  entry.SetDisproven(hand);
-
   auto& cluster = GetClusterOfEntry(entry);
   auto search_begin = LowerBound(cluster, entry.HashHigh());
   auto end = cluster.second.begin() + cluster.first;
 
   auto itr = search_begin;
   auto top = search_begin;
+  bool wrote_disproof_hand = false;
   for (itr = search_begin; itr != end; ++itr) {
     if (itr->HashHigh() != entry.HashHigh()) {
       break;
     }
 
-    if (&entry == &*itr || !hand_is_equal_or_superior(hand, itr->Hand())) {
+    if (itr->UpdateWithDisproofHand(hand)) {
+      // itr はもういらない
+    } else {
+      if (!wrote_disproof_hand && itr->IsWritableNewDisproofHand()) {
+        itr->AddHand(hand);
+        wrote_disproof_hand = true;
+      }
+
       if (top != itr) {
         *top = *itr;
       }
       top++;
     }
+  }
+
+  if (!wrote_disproof_hand) {
+    top->SetDisproven(hand);
+    top++;
   }
 
   if (top != itr) {
@@ -950,10 +977,10 @@ template <bool kOrNode>
 Hand MoveSelector<kOrNode>::FrontHand() const {
   auto& child = children_[0];
   if (child.entry != nullptr) {
-    return child.entry->Hand();
+    return child.entry->ProperHand(child.hand);
   } else {
     auto* entry = tt_.LookUpImpl<false>(*child.cluster, child.hash_high, child.hand, depth_ + 1).second;
-    return entry->Hand();
+    return entry->ProperHand(child.hand);
   }
 }
 }  // namespace internal
@@ -1124,13 +1151,14 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
     if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
       HandSet proof_hand = HandSet::Zero();
       auto& entry = *tt_.LookUp<kOrNode, true>(n, depth).second;
+      auto curr_hand = entry.FirstHand();
 
       StateInfo st_info;
       n.do_move(move, st_info);
       proof_hand |= BeforeHand(n, move, AddIfHandGivesOtherEvasions(n, HAND_ZERO));
       n.undo_move(move);
 
-      proof_hand &= entry.Hand();
+      proof_hand &= curr_hand;
       tt_.SetProven(entry, proof_hand.Get());
       return std::make_pair(PositionMateKind::kProven, proof_hand.Get());
     }
@@ -1164,10 +1192,10 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
       FirstSearchOutput output;
       if (found && child_entry->IsProvenNode()) {
         output.first = PositionMateKind::kProven;
-        output.second = child_entry->Hand();
+        output.second = child_entry->ProperHand(AfterHand(n, move.move, n.hand_of(n.side_to_move())));
       } else if (found, child_entry->IsNonRepetitionDisprovenNode()) {
         output.first = PositionMateKind::kDisproven;
-        output.second = child_entry->Hand();
+        output.second = child_entry->ProperHand(AfterHand(n, move.move, n.hand_of(n.side_to_move())));
       } else {
         // 近接王手以外は時間の無駄なので無視する
         if (!IsStepCheck(n, move)) {
@@ -1211,10 +1239,10 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
       FirstSearchOutput output;
       if (found && child_entry->IsProvenNode()) {
         output.first = PositionMateKind::kProven;
-        output.second = child_entry->Hand();
+        output.second = child_entry->ProperHand(n.hand_of(~n.side_to_move()));
       } else if (found && child_entry->IsNonRepetitionDisprovenNode()) {
         output.first = PositionMateKind::kDisproven;
-        output.second = child_entry->Hand();
+        output.second = child_entry->ProperHand(n.hand_of(~n.side_to_move()));
       } else {
         StateInfo st_info;
         n.do_move(move.move, st_info);
