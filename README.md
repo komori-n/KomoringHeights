@@ -7,12 +7,16 @@
 
 # About this project
 
-KomoringHeightsは、df-pnアルゴリズムを用いたやねうら王ベースの詰将棋ソルバーです。
+KomoringHeights は、df-pnアルゴリズムを用いたやねうら王ベースの詰将棋ソルバーです。
 ミクロコスモスをはじめとする長手数の詰将棋を解くことを目的としています。
+
+KomoringHeights 本体は `source/engine/user-engine` 以下に格納されています。
 
 # 技術解説
 
-* TBD.
+* [詰将棋に対するdf-pnアルゴリズムの解説 | コウモリのちょーおんぱ](https://komorinfo.com/blog/df-pn-basics/)
+* [詰将棋探索における証明駒／反証駒の活用方法 | コウモリのちょーおんぱ](https://komorinfo.com/blog/proof-piece-and-disproof-piece/)
+* [詰将棋ソルバーにおけるGHI問題対策 | コウモリのちょーおんぱ](https://komorinfo.com/blog/and-or-tree-ghi-problem/)
 
 # Contributing
 
