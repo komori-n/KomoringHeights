@@ -626,7 +626,7 @@ void TranspositionTable::SetProven(TTEntry& entry, Hand hand) {
       // itr はまだ必要
 
       if (!wrote_proof_hand && itr->IsWritableNewProofHand()) {
-        itr->AddHand(hand);
+        itr->SetProven(hand);
         wrote_proof_hand = true;
       }
 
@@ -668,7 +668,7 @@ void TranspositionTable::SetDisproven(TTEntry& entry, Hand hand) {
       // itr はもういらない
     } else {
       if (!wrote_disproof_hand && itr->IsWritableNewDisproofHand()) {
-        itr->AddHand(hand);
+        itr->SetDisproven(hand);
         wrote_disproof_hand = true;
       }
 
@@ -1151,7 +1151,7 @@ DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth dep
     if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
       HandSet proof_hand = HandSet::Zero();
       auto& entry = *tt_.LookUp<kOrNode, true>(n, depth).second;
-      auto curr_hand = entry.FirstHand();
+      auto curr_hand = n.hand_of(n.side_to_move());
 
       StateInfo st_info;
       n.do_move(move, st_info);
