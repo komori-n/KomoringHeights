@@ -124,39 +124,39 @@ class TTEntry {
    * 格納される。現在のノード種別は IsXxxNode() により判定できる。
    *
    * [0, 4)   hash_high
-   * [4, 28)
+   * [4, 8) generation
+   * [8, 32)
    *   a. known（Proven または NonRepetitionDisproven）
-   *     [4, 8)   hand1
-   *     [8, 12)  hand2
+   *     [8, 12)   hand1
+   *     [12, 16)  hand2
    *     ...
-   *     [24, 28) hand6
+   *     [28, 32) hand6
    *   b. unknown
-   *     [4, 8)   hand
    *     [8, 16)  pn
    *     [16, 24) dn
-   *     [24, 28) depth
-   * [28, 32) generation
+   *     [24, 28)   hand
+   *     [28, 32) depth
    */
   union {
     /// known_ か unknown_ か判断できない局面
     struct {
-      std::uint32_t hash_high;  ///< board_keyの上位32bit
-      std::array<std::uint32_t, 6> dummy;
+      std::uint32_t hash_high;        ///< board_keyの上位32bit
       komori::Generation generation;  ///< 探索世代。古いものから順に上書きされる
+      std::array<std::uint32_t, 6> dummy;
     } common_;
     /// 証明済または反証済局面
     struct {
       std::uint32_t hash_high;                  ///< board_keyの上位32bit
-      std::array<Hand, kTTEntryHandLen> hands;  ///< 証明駒または反証駒
       komori::Generation generation;            ///< 探索世代。古いものから順に上書きされる
+      std::array<Hand, kTTEntryHandLen> hands;  ///< 証明駒または反証駒
     } known_;
     /// 証明済でも反証済でもない局面
     struct {
-      std::uint32_t hash_high;  ///< board_keyの上位32bit
-      Hand hand;                ///< 攻め方のhand。pn==0なら証明駒、dn==0なら反証駒を表す。
-      PnDn pn, dn;              ///< pn, dn。直接参照禁止。
-      Depth depth;  ///< 探索深さ。千日手回避のためにdepthが違う局面は別局面として扱う
+      std::uint32_t hash_high;        ///< board_keyの上位32bit
       komori::Generation generation;  ///< 探索世代。古いものから順に上書きされる
+      PnDn pn, dn;                    ///< pn, dn。直接参照禁止。
+      Hand hand;                      ///< 攻め方のhand。pn==0なら証明駒、dn==0なら反証駒を表す。
+      Depth depth;  ///< 探索深さ。千日手回避のためにdepthが違う局面は別局面として扱う
     } unknown_;
   };
 

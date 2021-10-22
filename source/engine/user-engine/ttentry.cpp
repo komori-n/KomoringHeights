@@ -16,7 +16,7 @@ constexpr std::size_t Log2(T val) {
 
 namespace komori {
 TTEntry::TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth depth)
-    : unknown_{hash_high, hand, pn, dn, depth, kFirstSearch} {}
+    : unknown_{hash_high, kFirstSearch, pn, dn, hand, depth} {}
 
 bool TTEntry::ExactOrDeducable(Hand hand, Depth depth) const {
   switch (Generation()) {
