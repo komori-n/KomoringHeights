@@ -10,6 +10,8 @@ namespace komori {
 using PnDn = std::uint64_t;
 /// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
 constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
+/// 1局面の最大王手/王手回避の着手数
+inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
 
 using Generation = std::uint32_t;
 

@@ -20,8 +20,6 @@ constexpr Depth kMaxNumMateMoves = 3000;
 /// 1 Cluster ごとの entry 数。小さくすればするほど高速に動作するが、エントリが上書きされやすくなるために
 /// 超手数の詰み探索に失敗する確率が上がる。
 constexpr std::size_t kClusterSize = 128;
-/// 1局面の最大王手/王手回避の着手数
-constexpr std::size_t kMaxCheckMovesPerNode = 100;
 
 /// 局面に対する詰みの状態を現す列挙型
 enum class PositionMateKind {
