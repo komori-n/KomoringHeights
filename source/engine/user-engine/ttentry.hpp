@@ -1,18 +1,20 @@
 #ifndef TTENTRY_HPP_
 #define TTENTRY_HPP_
 
+#include <optional>
+
 #include "typedefs.hpp"
 
 namespace komori {
-
-/// エントリに保存する証明駒／反証駒の数。sizeof(known_) == sizeof(unknown) になるように設定する
-inline constexpr std::size_t kTTEntryHandLen = 6;
 
 /// Position の探索情報を格納するための構造体
 class TTEntry {
  public:
   TTEntry() = default;
   TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth depth);
+
+  static TTEntry WithProofHand(std::uint32_t hash_high, Hand proof_hand);
+  static TTEntry WithDisproofHand(std::uint32_t hash_high, Hand disproof_hand);
 
   /// (hand, depth) に一致しているか、`hand` を証明／反証できる内容なら true
   bool ExactOrDeducable(Hand hand, Depth depth) const;
@@ -102,6 +104,9 @@ class TTEntry {
   auto HashHigh() const { return common_.hash_high; }
 
  private:
+  /// エントリに保存する証明駒／反証駒の数。sizeof(known_) == sizeof(unknown) になるように設定する
+  static inline constexpr std::size_t kTTEntryHandLen = 6;
+
   /// entry の内容をもとに、持ち駒 `hand` を持っていれば詰みだと言えるなら true、それ以外なら false
   bool DoesProve(Hand hanD) const;
   /// entry の内容をもとに、持ち駒 `hand` を持っていれば不詰だと言えるなら true、それ以外なら false
@@ -157,6 +162,76 @@ class TTEntry {
 
   static_assert(sizeof(common_) == sizeof(unknown_));
   static_assert(sizeof(common_) == sizeof(known_));
+};
+
+/**
+ * @brief TTEntry のうち、hash の下位ビットが近いものを集めたデータ構造
+ *
+ * entry は `hash_high` の昇順でソートされた状態で格納する。
+ */
+class TTCluster {
+ public:
+  static inline constexpr std::size_t kClusterSize = 128;
+  using Iterator = TTEntry*;
+  using ConstIterator = const TTEntry*;
+
+  Iterator begin() { return &(data_[0]); }
+  ConstIterator begin() const { return &(data_[0]); }
+  Iterator end() { return begin() + size_; }
+  ConstIterator end() const { return begin() + size_; }
+
+  /// `hash_high` 以上となる最初の entry を返す
+  Iterator LowerBound(std::uint32_t hash_high);
+  /// `hash_high` より大きい最初の entry を返す
+  Iterator UpperBound(std::uint32_t hash_high);
+  /// `entry` が cluster 内に存在するアドレスかどうかをチェックする
+  bool DoesContain(Iterator entry) const { return begin() <= entry && entry < end(); }
+  /// 格納している enyry の個数
+  std::size_t Size() const { return size_; }
+  /// entry をすべて削除する
+  void Clear() { size_ = 0; }
+
+  /// 新たな entry をクラスタに追加する。クラスタに空きがない場合は、最も必要なさそうなエントリを削除する
+  Iterator Add(TTEntry&& entry);
+
+  /**
+   * @brief 条件に合致するエントリを探す。
+   *
+   * もし条件に合致するエントリが見つからなかった場合、新規作成して cluster に追加する。
+   */
+  Iterator LookUpWithCreation(std::uint32_t hash_high, Hand hand, Depth depth);
+  /**
+   * @brief 条件に合致するエントリを探す。
+   *
+   * もし条件に合致するエントリが見つからなかった場合、cluster には追加せずダミーの entry を返す。
+   * ダミーの entry は、次回の LookUpWithoutCreation() 呼び出しするまでの間だけ有効である。
+   */
+  Iterator LookUpWithoutCreation(std::uint32_t hash_high, Hand hand, Depth depth);
+
+  /**
+   * @brief `proof_hand` による詰みを報告する
+   *
+   * @caution
+   * 高速化のために、「hash_high 以外のエントリを消すケースは発生しない」という仮定を置いている。
+   * すなわち、既存エントリが kProven に変化するケースは考慮しているが、エントリを増やす操作は考慮していない。
+   */
+  void SetProven(std::uint32_t hash_high, Hand proof_hand);
+  /// `disproof_hand` による不詰を報告する
+  void SetDisproven(std::uint32_t hash_high, Hand disproof_hand);
+
+ private:
+  /// LookUpWithCreation() と LookUpWithoutCreation() の実装本体。
+  template <bool kCreateIfNotExist>
+  Iterator LookUp(std::uint32_t hash_high, Hand hand, Depth depth);
+
+  void RemoveLeastUsefulEntry();
+  /// size_ == kCluster のとき専用のLowerBound実装
+  Iterator LowerBoundAll(std::uint32_t hash_high);
+  /// size_ < kCluster のとき専用のLowerBound実装
+  Iterator LowerBoundPartial(std::uint32_t hash_high);
+
+  std::size_t size_;
+  std::array<TTEntry, kClusterSize> data_;
 };
 
 }  // namespace komori
