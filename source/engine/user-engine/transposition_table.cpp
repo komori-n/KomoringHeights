@@ -1,5 +1,6 @@
 #include "transposition_table.hpp"
 
+#include "proof_hand.hpp"
 #include "ttentry.hpp"
 
 namespace {

@@ -383,6 +383,7 @@ ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 		engine/user-engine/user-search.cpp \
 		engine/user-engine/komoring_heights.cpp \
 		engine/user-engine/ttentry.cpp \
+		engine/user-engine/proof_hand.cpp \
 		engine/user-engine/transposition_table.cpp
 endif
 
