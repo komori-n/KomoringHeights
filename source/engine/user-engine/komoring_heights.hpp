@@ -159,8 +159,6 @@ class DfPnSearcher {
   std::vector<Move> BestMoves(const Position& n);
 
  private:
-  using FirstSearchOutput = std::pair<internal::PositionMateKind, Hand>;
-
   /// SearchPV で使用する局面の探索情報を保存する構造体
   struct MateMove {
     internal::PositionMateKind kind{internal::PositionMateKind::kUnknown};
@@ -189,14 +187,6 @@ class DfPnSearcher {
                   std::unordered_set<Key>& parents,
                   const LookUpQuery& query,
                   TTEntry* entry);
-
-  /**
-   * @brief 局面 n で固定深さ depth の探索を行う
-   *
-   * 局面 n を初めて探索する際に呼ぶ。探索前に固定深さの探索をすることで、全体として少しだけ高速化される。
-   */
-  template <bool kOrNode>
-  FirstSearchOutput FirstSearch(Position& n, Depth depth, Depth remain_depth);
 
   /**
    * @brief 局面 n の最善応手を再帰的に探索する

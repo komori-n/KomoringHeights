@@ -65,6 +65,7 @@ class LookUpQuery {
 
   /// query 時点の手駒を返す
   Hand GetHand() const { return hand_; }
+  std::uint32_t HashHigh() const { return hash_high_; }
 
  private:
   TTCluster* cluster_;

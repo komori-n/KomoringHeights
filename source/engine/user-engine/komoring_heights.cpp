@@ -8,63 +8,21 @@
 #include <algorithm>
 
 #include "../../extra/all.h"
+#include "leaf_search.hpp"
 #include "move_picker.hpp"
 #include "proof_hand.hpp"
 
 namespace {
-using komori::PnDn;
-using komori::TTEntry;
 using komori::internal::ChildNodeCache;
 using komori::internal::PositionMateKind;
 
-constexpr std::size_t kCacheLineSize = 64;
-constexpr std::size_t kCacheLineMask = kCacheLineSize - 1;
 constexpr std::size_t kDefaultHashSizeMb = 1024;
-constexpr std::size_t kHashfullCalcClusters = 100;
 
-/// 何局面読んだら generation を進めるか
-constexpr std::uint32_t kNumSearchedPerGeneration = 128;
 /// FirstSearch の初期深さ。数値実験してみた感じたと、1 ではあまり効果がなく、3 だと逆に遅くなるので
 /// 2 ぐらいがちょうどよい
 constexpr std::size_t kFirstSearchOrDepth = 1;
 constexpr std::size_t kFirstSearchAndDepth = 2;
 
-/// val 以上の 2 の累乗数を返す
-template <typename T>
-T RoundUpToPow2(T val) {
-  T ans{1};
-  while (ans < val) {
-    ans <<= 1;
-  }
-  return ans;
-}
-
-template <typename T>
-constexpr std::size_t LogCeil(T val) {
-  std::size_t ret = 0;
-  T x = 1;
-  while (val > x) {
-    ret++;
-    x <<= 1;
-  }
-  return ret;
-}
-
-/// 現在の探索局面数に対応する generation を計算する
-constexpr std::uint32_t Generation(std::uint64_t num_searched) {
-  return 1 + static_cast<std::uint32_t>(num_searched / kNumSearchedPerGeneration);
-}
-
-/// OrNode で move が近接王手となるか判定する
-bool IsStepCheck(const Position& n, Move move) {
-  auto us = n.side_to_move();
-  auto them = ~us;
-  auto king_sq = n.king_square(them);
-  Piece pc = n.moved_piece_after(move);
-  PieceType pt = type_of(pc);
-
-  return komori::StepEffect(pt, us, to_sq(move)).test(king_sq);
-}
 }  // namespace
 
 namespace komori {
@@ -371,8 +329,8 @@ void DfPnSearcher::SearchImpl(Position& n,
 
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
-    auto output = FirstSearch<kOrNode>(n, depth, kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth);
-    if (output.first != PositionMateKind::kUnknown) {
+    auto res_entry = LeafSearch<kOrNode>(tt_, n, depth, kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth, query);
+    if (res_entry->IsProvenNode() || res_entry->IsDisprovenNode()) {
       return;
     }
   }
@@ -436,139 +394,6 @@ SEARCH_IMPL_RETURN:
     and_selectors_.pop_back();
   }
   parents.erase(n.key());
-}
-
-template <bool kOrNode>
-DfPnSearcher::FirstSearchOutput DfPnSearcher::FirstSearch(Position& n, Depth depth, Depth remain_depth) {
-  // OrNode は高速一手詰めルーチンで高速に詰みかどうか判定できる
-  if (kOrNode && !n.in_check()) {
-    if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
-      HandSet proof_hand = HandSet::Zero();
-      auto query = tt_.GetQuery<kOrNode>(n, depth);
-      auto curr_hand = n.hand_of(n.side_to_move());
-
-      StateInfo st_info;
-      n.do_move(move, st_info);
-      proof_hand |= BeforeHand(n, move, AddIfHandGivesOtherEvasions(n, HAND_ZERO));
-      n.undo_move(move);
-
-      proof_hand &= curr_hand;
-      query.SetProven(proof_hand.Get());
-      return std::make_pair(PositionMateKind::kProven, proof_hand.Get());
-    }
-  }
-
-  MovePicker<kOrNode> move_picker{n};
-  if (move_picker.empty()) {
-    auto query = tt_.GetQuery<kOrNode>(n, depth);
-    if constexpr (kOrNode) {
-      Hand disproof_hand = RemoveIfHandGivesOtherChecks(n, CollectHand(n));
-      query.SetDisproven(disproof_hand);
-      return std::make_pair(PositionMateKind::kDisproven, disproof_hand);
-    } else {
-      auto proof_hand = AddIfHandGivesOtherEvasions(n, HAND_ZERO);
-      query.SetProven(proof_hand);
-      return std::make_pair(PositionMateKind::kProven, proof_hand);
-    }
-  }
-
-  if (remain_depth <= 1) {
-    // 一手詰ではなく探索深さが残っていて かつ 指し手の選択肢がある
-    // => この局面は残り1手で詰まないし、不詰でもないので探索しなくてよい
-    return std::make_pair(PositionMateKind::kUnknown, HAND_ZERO);
-  }
-
-  if constexpr (kOrNode) {
-    auto ret = PositionMateKind::kDisproven;
-    HandSet disproof_hand = HandSet::Full();
-    for (const auto& move : move_picker) {
-      auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1);
-      auto child_entry = child_query.LookUpWithoutCreation();
-      FirstSearchOutput output;
-      if (child_entry->IsProvenNode()) {
-        output.first = PositionMateKind::kProven;
-        output.second = child_entry->ProperHand(AfterHand(n, move.move, n.hand_of(n.side_to_move())));
-      } else if (child_entry->IsNonRepetitionDisprovenNode()) {
-        output.first = PositionMateKind::kDisproven;
-        output.second = child_entry->ProperHand(AfterHand(n, move.move, n.hand_of(n.side_to_move())));
-      } else {
-        // 近接王手以外は時間の無駄なので無視する
-        if (!IsStepCheck(n, move)) {
-          ret = PositionMateKind::kUnknown;
-          continue;
-        }
-
-        StateInfo st_info;
-        n.do_move(move.move, st_info);
-        output = FirstSearch<!kOrNode>(n, depth + 1, remain_depth - 1);
-        n.undo_move(move.move);
-      }
-
-      if (output.first == PositionMateKind::kProven) {
-        auto query = tt_.GetQuery<kOrNode>(n, depth);
-        auto proof_hand = BeforeHand(n, move.move, output.second);
-        query.SetProven(proof_hand);
-        return std::make_pair(PositionMateKind::kProven, proof_hand);
-      }
-
-      if (ret == PositionMateKind::kDisproven && output.first == PositionMateKind::kDisproven) {
-        disproof_hand &= BeforeHand(n, move.move, output.second);
-      } else if (output.first == PositionMateKind::kUnknown) {
-        ret = PositionMateKind::kUnknown;
-      }
-    }
-
-    if (ret == PositionMateKind::kDisproven) {
-      disproof_hand |= n.hand_of(n.side_to_move());
-      auto hand = RemoveIfHandGivesOtherChecks(n, disproof_hand.Get());
-      auto query = tt_.GetQuery<kOrNode>(n, depth);
-      query.SetDisproven(hand);
-
-      return std::make_pair(ret, hand);
-    }
-  } else {  // kOrNode == false
-    auto ret = PositionMateKind::kProven;
-    HandSet proof_hand = HandSet::Zero();
-    for (const auto& move : move_picker) {
-      auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1);
-      auto child_entry = child_query.LookUpWithoutCreation();
-      FirstSearchOutput output;
-      if (child_entry->IsProvenNode()) {
-        output.first = PositionMateKind::kProven;
-        output.second = child_entry->ProperHand(n.hand_of(~n.side_to_move()));
-      } else if (child_entry->IsNonRepetitionDisprovenNode()) {
-        output.first = PositionMateKind::kDisproven;
-        output.second = child_entry->ProperHand(n.hand_of(~n.side_to_move()));
-      } else {
-        StateInfo st_info;
-        n.do_move(move.move, st_info);
-        output = FirstSearch<!kOrNode>(n, depth + 1, remain_depth - 1);
-        n.undo_move(move.move);
-      }
-
-      if (output.first == PositionMateKind::kDisproven) {
-        auto query = tt_.GetQuery<kOrNode>(n, depth);
-        query.SetDisproven(output.second);
-        return std::make_pair(PositionMateKind::kDisproven, output.second);
-      }
-
-      if (ret == PositionMateKind::kProven && output.first == PositionMateKind::kProven) {
-        proof_hand |= output.second;
-      } else if (output.first == PositionMateKind::kUnknown) {
-        ret = PositionMateKind::kUnknown;
-      }
-    }
-
-    if (ret == PositionMateKind::kProven) {
-      proof_hand &= n.hand_of(~n.side_to_move());
-      auto query = tt_.GetQuery<kOrNode>(n, depth);
-      auto hand = AddIfHandGivesOtherEvasions(n, proof_hand.Get());
-      query.SetProven(hand);
-
-      return std::make_pair(ret, proof_hand.Get());
-    }
-  }
-  return std::make_pair(PositionMateKind::kUnknown, HAND_ZERO);
 }
 
 template <bool kOrNode>
