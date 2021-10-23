@@ -78,6 +78,7 @@ class TTEntry {
   bool IsFirstVisit() const;
   /// エントリを削除候補に設定する。次回の GC 時に優先的に削除される
   void MarkDeleteCandidate();
+  bool IsMarked() const;
 
   /**
    * @brief エントリに保存されている持ち駒を返す
@@ -100,7 +101,8 @@ class TTEntry {
   /// エントリが NonRepetitionDisproven で、まだ反証駒を保存できる余地があるなら true
   bool IsWritableNewDisproofHand() const;
 
-  auto Generation() const { return common_.generation; }
+  auto StateGeneration() const { return common_.s_gen; }
+  auto Generation() const { return GetGeneration(common_.s_gen); }
   auto HashHigh() const { return common_.hash_high; }
 
  private:
@@ -111,6 +113,8 @@ class TTEntry {
   bool DoesProve(Hand hanD) const;
   /// entry の内容をもとに、持ち駒 `hand` を持っていれば不詰だと言えるなら true、それ以外なら false
   bool DoesDisprove(Hand hand) const;
+
+  auto NodeState() const { return GetState(common_.s_gen); }
 
   /// unknown_ が有効なら true
   bool IsUnknownNode() const;
@@ -141,19 +145,19 @@ class TTEntry {
     /// known_ か unknown_ か判断できない局面
     struct {
       std::uint32_t hash_high;        ///< board_keyの上位32bit
-      komori::Generation generation;  ///< 探索世代。古いものから順に上書きされる
+      komori::StateGeneration s_gen;  ///< 探索世代。古いものから順に上書きされる
       std::array<std::uint32_t, 6> dummy;
     } common_;
     /// 証明済または反証済局面
     struct {
       std::uint32_t hash_high;                  ///< board_keyの上位32bit
-      komori::Generation generation;            ///< 探索世代。古いものから順に上書きされる
+      komori::StateGeneration s_gen;            ///< 探索世代。古いものから順に上書きされる
       std::array<Hand, kTTEntryHandLen> hands;  ///< 証明駒または反証駒
     } known_;
     /// 証明済でも反証済でもない局面
     struct {
       std::uint32_t hash_high;        ///< board_keyの上位32bit
-      komori::Generation generation;  ///< 探索世代。古いものから順に上書きされる
+      komori::StateGeneration s_gen;  ///< 探索世代。古いものから順に上書きされる
       PnDn pn, dn;                    ///< pn, dn。直接参照禁止。
       Hand hand;                      ///< 攻め方のhand。pn==0なら証明駒、dn==0なら反証駒を表す。
       Depth depth;  ///< 探索深さ。千日手回避のためにdepthが違う局面は別局面として扱う
@@ -190,6 +194,7 @@ class TTCluster {
   std::size_t Size() const { return size_; }
   /// entry をすべて削除する
   void Clear() { size_ = 0; }
+  void Sweep();
 
   /// 新たな entry をクラスタに追加する。クラスタに空きがない場合は、最も必要なさそうなエントリを削除する
   Iterator Add(TTEntry&& entry);

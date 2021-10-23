@@ -1,5 +1,6 @@
-#include "leaf_search.hpp"
+#include "node_travels.hpp"
 
+#include "../../mate/mate.h"
 #include "move_picker.hpp"
 #include "proof_hand.hpp"
 #include "transposition_table.hpp"
@@ -141,6 +142,35 @@ TTEntry* LeafSearch(TranspositionTable& tt, Position& n, Depth depth, Depth rema
   }
 }
 
+template <bool kOrNode>
+void MarkDeleteCandidates(TranspositionTable& tt,
+                          Position& n,
+                          Depth depth,
+                          std::unordered_set<Key>& parents,
+                          const LookUpQuery& query,
+                          TTEntry* entry) {
+  entry->MarkDeleteCandidate();
+
+  MovePicker<kOrNode> move_picker{n};
+  for (const auto& move : move_picker) {
+    auto child_query = tt.GetChildQuery<kOrNode>(n, move.move, depth + 1);
+    auto child_entry = child_query.LookUpWithoutCreation();
+
+    if (!query.DoesStored(child_entry) || child_entry->IsProvenNode() || child_entry->IsNonRepetitionDisprovenNode()) {
+      continue;
+    }
+
+    StateInfo st_info;
+    n.do_move(move.move, st_info);
+    if (parents.find(n.key()) == parents.end()) {
+      parents.insert(n.key());
+      MarkDeleteCandidates<!kOrNode>(tt, n, depth + 1, parents, child_query, child_entry);
+      parents.erase(n.key());
+    }
+    n.undo_move(move.move);
+  }
+}
+
 template TTEntry* LeafSearch<false>(TranspositionTable& tt,
                                     Position& n,
                                     Depth depth,
@@ -151,4 +181,16 @@ template TTEntry* LeafSearch<true>(TranspositionTable& tt,
                                    Depth depth,
                                    Depth max_depth,
                                    const LookUpQuery& query);
+template void MarkDeleteCandidates<false>(TranspositionTable& tt,
+                                          Position& n,
+                                          Depth depth,
+                                          std::unordered_set<Key>& parents,
+                                          const LookUpQuery& query,
+                                          TTEntry* entry);
+template void MarkDeleteCandidates<true>(TranspositionTable& tt,
+                                         Position& n,
+                                         Depth depth,
+                                         std::unordered_set<Key>& parents,
+                                         const LookUpQuery& query,
+                                         TTEntry* entry);
 }  // namespace komori

@@ -88,6 +88,8 @@ class TranspositionTable {
   /// 以前の探索結果をすべて削除し、新たな探索をを始める
   void NewSearch();
 
+  void Sweep();
+
   /// 局面 `n` で探索深さ `depth` のとき、LookUp 用の構造体を取得する
   template <bool kOrNode>
   LookUpQuery GetQuery(const Position& n, Depth depth);
@@ -109,8 +111,6 @@ class TranspositionTable {
   TTCluster* tt_{nullptr};
   /// 置換表に保存されているクラスタ数
   std::uint64_t num_clusters_{0};
-  /// `tt_` にアクセスするためのビットマスク
-  std::uint64_t clusters_mask_{0};
 };
 }  // namespace komori
 #endif  // TRANSPOSITION_TABLE_HPP_

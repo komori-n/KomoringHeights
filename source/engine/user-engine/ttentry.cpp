@@ -19,10 +19,10 @@ TTEntry::TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth dep
     : unknown_{hash_high, kFirstSearch, pn, dn, hand, depth} {}
 
 bool TTEntry::ExactOrDeducable(Hand hand, Depth depth) const {
-  switch (Generation()) {
-    case kProven:
+  switch (NodeState()) {
+    case kProvenState:
       return DoesProve(hand);
-    case kNonRepetitionDisproven:
+    case kNonRepetitionDisprovenState:
       return DoesDisprove(hand);
     default:
       return unknown_.hand == hand && unknown_.depth == depth;
@@ -52,11 +52,11 @@ bool TTEntry::IsInferiorAndShallower(Hand hand, Depth depth) const {
 }
 
 PnDn TTEntry::Pn() const {
-  switch (Generation()) {
-    case kProven:
+  switch (NodeState()) {
+    case kProvenState:
       return 0;
-    case kNonRepetitionDisproven:
-    case kRepetitionDisproven:
+    case kNonRepetitionDisprovenState:
+    case kRepetitionDisprovenState:
       return kInfinitePnDn;
     default:
       return unknown_.pn;
@@ -64,11 +64,11 @@ PnDn TTEntry::Pn() const {
 }
 
 PnDn TTEntry::Dn() const {
-  switch (Generation()) {
-    case kProven:
+  switch (NodeState()) {
+    case kProvenState:
       return kInfinitePnDn;
-    case kNonRepetitionDisproven:
-    case kRepetitionDisproven:
+    case kNonRepetitionDisprovenState:
+    case kRepetitionDisprovenState:
       return 0;
     default:
       return unknown_.dn;
@@ -78,11 +78,11 @@ PnDn TTEntry::Dn() const {
 void TTEntry::Update(PnDn pn, PnDn dn, std::uint64_t num_searched) {
   unknown_.pn = pn;
   unknown_.dn = dn;
-  unknown_.generation = CalcGeneration(num_searched);
+  unknown_.s_gen = MakeStateGeneration(kOtherState, CalcGeneration(num_searched));
 }
 
 bool TTEntry::IsProvenNode() const {
-  return Generation() == kProven;
+  return NodeState() == kProvenState;
 }
 
 bool TTEntry::IsDisprovenNode() const {
@@ -90,16 +90,16 @@ bool TTEntry::IsDisprovenNode() const {
 }
 
 bool TTEntry::IsNonRepetitionDisprovenNode() const {
-  return Generation() == kNonRepetitionDisproven;
+  return NodeState() == kNonRepetitionDisprovenState;
 }
 
 bool TTEntry::IsRepetitionDisprovenNode() const {
-  return Generation() == kRepetitionDisproven;
+  return NodeState() == kRepetitionDisprovenState;
 }
 
 bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
-  switch (Generation()) {
-    case kProven: {
+  switch (NodeState()) {
+    case kProvenState: {
       std::size_t idx = 0;
       // proof_hand で証明可能な手は消す。それ以外は手前から詰め直して残す。
       for (std::size_t i = 0; i < kTTEntryHandLen; ++i) {
@@ -120,7 +120,7 @@ bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
       return idx == 0;
     }
 
-    case kNonRepetitionDisproven:
+    case kNonRepetitionDisprovenState:
       return false;
 
     default:
@@ -133,11 +133,11 @@ bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
 }
 
 bool TTEntry::UpdateWithDisproofHand(Hand disproof_hand) {
-  switch (Generation()) {
-    case kProven:
+  switch (NodeState()) {
+    case kProvenState:
       return false;
 
-    case kNonRepetitionDisproven: {
+    case kNonRepetitionDisprovenState: {
       std::size_t idx = 0;
       for (std::size_t i = 0; i < kTTEntryHandLen; ++i) {
         auto& ph = known_.hands[i];
@@ -167,7 +167,7 @@ bool TTEntry::UpdateWithDisproofHand(Hand disproof_hand) {
 }
 
 void TTEntry::SetProven(Hand hand) {
-  if (Generation() == kProven) {
+  if (NodeState() == kProvenState) {
     for (auto& proven_hand : known_.hands) {
       if (proven_hand == kNullHand) {
         proven_hand = hand;
@@ -175,7 +175,7 @@ void TTEntry::SetProven(Hand hand) {
       }
     }
   } else {
-    known_.generation = kProven;
+    known_.s_gen = UpdateState(kProvenState, known_.s_gen);
     known_.hands[0] = hand;
     for (std::size_t i = 1; i < kTTEntryHandLen; ++i) {
       known_.hands[i] = kNullHand;
@@ -192,7 +192,7 @@ void TTEntry::SetDisproven(Hand hand) {
       }
     }
   } else {
-    known_.generation = kNonRepetitionDisproven;
+    known_.s_gen = UpdateState(kNonRepetitionDisprovenState, known_.s_gen);
     known_.hands[0] = hand;
     for (std::size_t i = 1; i < kTTEntryHandLen; ++i) {
       known_.hands[i] = kNullHand;
@@ -203,20 +203,24 @@ void TTEntry::SetDisproven(Hand hand) {
 void TTEntry::SetRepetitionDisproven() {
   unknown_.pn = kInfinitePnDn;
   unknown_.dn = 0;
-  unknown_.generation = kRepetitionDisproven;
+  unknown_.s_gen = UpdateState(kRepetitionDisprovenState, known_.s_gen);
 }
 
 bool TTEntry::IsFirstVisit() const {
-  return Generation() == kFirstSearch;
+  return StateGeneration() == kFirstSearch;
 }
 
 void TTEntry::MarkDeleteCandidate() {
-  common_.generation = kMarkDeleted;
+  common_.s_gen = kMarkDeleted;
+}
+
+bool TTEntry::IsMarked() const {
+  return StateGeneration() == kMarkDeleted;
 }
 
 Hand TTEntry::ProperHand(Hand hand) const {
-  switch (Generation()) {
-    case kProven:
+  switch (NodeState()) {
+    case kProvenState:
       for (const auto& proof_hand : known_.hands) {
         if (proof_hand == kNullHand) {
           break;
@@ -227,7 +231,7 @@ Hand TTEntry::ProperHand(Hand hand) const {
       }
       return hand;
 
-    case kNonRepetitionDisproven:
+    case kNonRepetitionDisprovenState:
       for (const auto& disproof_hand : known_.hands) {
         if (disproof_hand == kNullHand) {
           break;
@@ -316,6 +320,11 @@ TTCluster::Iterator TTCluster::UpperBound(std::uint32_t hash_high) {
     }
   }
   return curr;
+}
+
+void TTCluster::Sweep() {
+  auto new_end = std::remove_if(begin(), end(), [](const TTEntry& entry) { return entry.IsMarked(); });
+  size_ = static_cast<std::size_t>(new_end - begin());
 }
 
 TTCluster::Iterator TTCluster::Add(TTEntry&& entry) {
@@ -459,9 +468,16 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
 }
 
 void TTCluster::RemoveLeastUsefulEntry() {
+  auto old_size = Size();
+  Sweep();
+  if (Size() != old_size) {
+    return;
+  }
+
   // 最も Generation が小さいエントリを消す
-  auto removed_entry = std::min_element(
-      begin(), end(), [](const TTEntry& lhs, const TTEntry& rhs) { return lhs.Generation() < rhs.Generation(); });
+  auto removed_entry = std::min_element(begin(), end(), [](const TTEntry& lhs, const TTEntry& rhs) {
+    return lhs.StateGeneration() < rhs.StateGeneration();
+  });
 
   std::move(removed_entry + 1, end(), removed_entry);
   size_--;
@@ -473,13 +489,13 @@ TTCluster::Iterator TTCluster::LowerBoundAll(std::uint32_t hash_high) {
   static_assert(kClusterSize == 1 << kLoopCnt);
 
   auto curr = begin();
-#define UNROLL_IMPL(i)                   \
-  do {                                   \
-    auto half = 1 << (kLoopCnt - 1 - i); \
-    auto mid = curr + half - 1;          \
-    if (mid->HashHigh() < hash_high) {   \
-      curr = mid + 1;                    \
-    }                                    \
+#define UNROLL_IMPL(i)                     \
+  do {                                     \
+    auto half = 1 << (kLoopCnt - 1 - (i)); \
+    auto mid = curr + half - 1;            \
+    if (mid->HashHigh() < hash_high) {     \
+      curr = mid + 1;                      \
+    }                                      \
   } while (false)
 
   UNROLL_IMPL(0);

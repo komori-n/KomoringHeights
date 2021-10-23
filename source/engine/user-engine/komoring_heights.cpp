@@ -3,13 +3,12 @@
 #endif
 
 #include "komoring_heights.hpp"
-#include "../../types.h"
 
 #include <algorithm>
 
-#include "../../extra/all.h"
-#include "leaf_search.hpp"
+#include "../../mate/mate.h"
 #include "move_picker.hpp"
+#include "node_travels.hpp"
 #include "proof_hand.hpp"
 
 namespace {
@@ -29,7 +28,7 @@ namespace komori {
 namespace internal {
 
 template <bool kOrNode>
-MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, Depth depth, PnDn th_sum_n)
+MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, Depth depth)
     : n_{n}, tt_(tt), depth_{depth}, children_len_{0}, sum_n_{0} {
   // 各子局面の LookUp を行い、min_n の昇順になるように手を並べ替える
   auto move_picker = MovePicker<kOrNode, true>{n};
@@ -42,7 +41,7 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, D
     auto entry = child.query.LookUpWithoutCreation();
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
-    child.generation = entry->Generation();
+    child.generation = entry->StateGeneration();
     if (child.query.DoesStored(entry)) {
       child.entry = entry;
     } else {
@@ -61,9 +60,9 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, D
 }
 
 template <bool kOrNode>
-void MoveSelector<kOrNode>::Update() {
+void MoveSelector<kOrNode>::Update(std::unordered_set<Key>& parents) {
   // 各子局面のエントリを更新する
-  for (std::size_t i = 0; i < std::min(children_len_, std::size_t{3}); ++i) {
+  for (std::size_t i = 0; i < std::min(children_len_, std::size_t{2}); ++i) {
     auto& child = children_[i];
     auto* entry = child.query.RefreshWithoutCreation(child.entry);
     if (child.query.DoesStored(entry)) {
@@ -75,7 +74,7 @@ void MoveSelector<kOrNode>::Update() {
     auto old_sum_n = child.sum_n;
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
-    child.generation = entry->Generation();
+    child.generation = entry->StateGeneration();
 
     sum_n_ = std::min(sum_n_ - old_sum_n + child.sum_n, kInfinitePnDn);
   }
@@ -94,7 +93,7 @@ void MoveSelector<kOrNode>::Update() {
 
       entry = child.query.RefreshWithoutCreation(entry);
       if (entry->Pn() != 0 && entry->Dn() != 0) {
-        entry->MarkDeleteCandidate();
+        MarkDeleteCandidates<kOrNode>(tt_, const_cast<Position&>(n_), depth_, parents, child.query, entry);
       }
     }
   }
@@ -123,9 +122,9 @@ bool MoveSelector<kOrNode>::IsRepetitionDisproven() const {
 
   if constexpr (kOrNode) {
     // 1 つでも千日手に向かう手があるなら、この局面はそれが原因で不詰になっているかもしれない
-    return children_[children_len_ - 1].generation == kRepetitionDisproven;
+    return GetState(children_[children_len_ - 1].generation) == kRepetitionDisprovenState;
   } else {
-    return children_[0].generation == kRepetitionDisproven;
+    return GetState(children_[0].generation) == kRepetitionDisprovenState;
   }
 }
 
@@ -263,7 +262,7 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
 
   // <for-debug>
   sync_cout << "info string pn=" << entry->Pn() << " dn=" << entry->Dn() << " num_searched=" << searched_node_
-            << " generation=" << entry->Generation() << sync_endl;  //
+            << " generation=" << entry->StateGeneration() << sync_endl;  //
   // </for-debug>
 
   stop_ = nullptr;
@@ -339,9 +338,14 @@ void DfPnSearcher::SearchImpl(Position& n,
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
   internal::MoveSelector<kOrNode>* selector = nullptr;
   if constexpr (kOrNode) {
-    selector = &or_selectors_.emplace_back(n, tt_, depth, thdn);
+    selector = &or_selectors_.emplace_back(n, tt_, depth);
   } else {
-    selector = &and_selectors_.emplace_back(n, tt_, depth, thpn);
+    selector = &and_selectors_.emplace_back(n, tt_, depth);
+  }
+
+  if (searched_node_ % 10'000'000 == 0) {
+    tt_.Sweep();
+    entry = query.RefreshWithCreation(entry);
   }
 
   // これ以降で return する場合、parents の復帰と selector の返却を行う必要がある。
@@ -383,7 +387,7 @@ void DfPnSearcher::SearchImpl(Position& n,
 
     // GC の影響で entry の位置が変わっている場合があるのでループの最後で再取得する
     entry = query.RefreshWithCreation(entry);
-    selector->Update();
+    selector->Update(parents);
   }
 
 SEARCH_IMPL_RETURN:

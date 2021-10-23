@@ -19,8 +19,8 @@
 
 // インクリメント用
 #define ENABLE_INCR_OPERATORS_ON(T)													\
-inline T& operator++(T& d) { return d = T(int(d) + 1); }							\
-inline T& operator--(T& d) { return d = T(int(d) - 1); }
+constexpr inline T& operator++(T& d) { return d = T(int(d) + 1); }							\
+constexpr inline T& operator--(T& d) { return d = T(int(d) - 1); }
 
 #define ENABLE_FULL_OPERATORS_ON(T)													\
 	ENABLE_BASE_OPERATORS_ON(T)														\
@@ -111,7 +111,7 @@ ENABLE_RANGE_OPERATORS_ON(Piece, NO_PIECE, PIECE_NB)
 // --- N回ループを展開するためのマクロ
 
 // N 回ループを展開させる。t は lambda で書く。(Aperyのコードを参考にしています)
-// 
+//
 // 使い方)
 //   Unroller<5>()([&](const int i){std::cout << i << " ";});
 // と書くと5回展開されて、

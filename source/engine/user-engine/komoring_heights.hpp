@@ -64,10 +64,10 @@ class MoveSelector {
   MoveSelector& operator=(MoveSelector&&) = delete;
   ~MoveSelector() = default;
 
-  MoveSelector(const Position& n, TranspositionTable& tt, Depth depth, PnDn th_sum_n);
+  MoveSelector(const Position& n, TranspositionTable& tt, Depth depth);
 
   /// 子局面の entry の再 LookUp を行い、現曲面の pn/dn を計算し直す
-  void Update();
+  void Update(std::unordered_set<Key>& parents);
 
   bool empty() const;
 

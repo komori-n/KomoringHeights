@@ -66,16 +66,15 @@ bool LookUpQuery::IsValid(TTEntry* entry) const {
   return cluster_->DoesContain(entry) && hash_high_ == entry->HashHigh() && entry->ExactOrDeducable(hand_, depth_);
 }
 
-TranspositionTable::TranspositionTable(void) {}
+TranspositionTable::TranspositionTable(void) = default;
 
 void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
-  std::uint64_t new_num_clusters = RoundDownToPow2(hash_size_mb * 1024 * 1024 / sizeof(TTCluster));
+  std::uint64_t new_num_clusters = hash_size_mb * 1024 * 1024 / sizeof(TTCluster);
   if (num_clusters_ == new_num_clusters) {
     return;
   }
 
   num_clusters_ = new_num_clusters;
-  clusters_mask_ = num_clusters_ - 1;
   tt_raw_.resize(new_num_clusters * sizeof(TTCluster) + kCacheLineSize);
   auto tt_addr = (reinterpret_cast<std::uintptr_t>(tt_raw_.data()) + kCacheLineSize) & ~kCacheLineSize;
   tt_ = reinterpret_cast<TTCluster*>(tt_addr);
@@ -86,6 +85,12 @@ void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
 void TranspositionTable::NewSearch() {
   for (std::uint64_t i = 0; i < num_clusters_; ++i) {
     tt_[i].Clear();
+  }
+}
+
+void TranspositionTable::Sweep() {
+  for (std::uint64_t i = 0; i < num_clusters_; ++i) {
+    tt_[i].Sweep();
   }
 }
 
@@ -124,7 +129,7 @@ int TranspositionTable::Hashfull() const {
 }
 
 TTCluster& TranspositionTable::ClusterOf(Key board_key) {
-  return tt_[board_key & clusters_mask_];
+  return tt_[board_key % num_clusters_];
 }
 
 template LookUpQuery TranspositionTable::GetQuery<false>(const Position& n, Depth depth);
