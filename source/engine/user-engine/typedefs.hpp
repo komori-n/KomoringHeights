@@ -13,6 +13,8 @@ using PnDn = std::uint64_t;
 constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
 /// 1局面の最大王手/王手回避の着手数
 inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
+/// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
+constexpr Depth kMaxNumMateMoves = 3000;
 
 using StateGeneration = std::uint32_t;
 using NodeState = StateGeneration;

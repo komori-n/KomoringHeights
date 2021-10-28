@@ -13,7 +13,6 @@
 
 namespace {
 using komori::internal::ChildNodeCache;
-using komori::internal::PositionMateKind;
 
 constexpr std::size_t kDefaultHashSizeMb = 1024;
 
@@ -284,24 +283,22 @@ Move DfPnSearcher::BestMove(const Position& n) {
 std::vector<Move> DfPnSearcher::BestMoves(const Position& n) {
   // 局面を書き換えるために const を外す。関数終了までに、p は n と同じ状態に戻しておかなければならない
   auto& p = const_cast<Position&>(n);
-  std::unordered_map<Key, MateMove> memo;
+  std::unordered_map<Key, Move> memo;
 
-  MateMove mate_move = SearchPv<true>(memo, p, 0);
+  MateMovesSearch<true>(tt_, memo, p, 0);
 
   std::vector<Move> result;
   std::array<StateInfo, internal::kMaxNumMateMoves> st_info;
   auto st_info_p = st_info.data();
   // 探索メモをたどって詰手順を復元する
-  while (mate_move.move != MOVE_NONE) {
-    result.push_back(mate_move.move);
-    p.do_move(mate_move.move, *st_info_p++);
+  while (memo.find(p.key()) != memo.end()) {
+    auto move = memo[p.key()];
+    result.push_back(move);
+    p.do_move(move, *st_info_p++);
 
-    Key key = p.key();
-    if (result.size() >= internal::kMaxNumMateMoves || memo.find(key) == memo.end()) {
+    if (result.size() >= internal::kMaxNumMateMoves) {
       break;
     }
-
-    mate_move = memo[key];
   }
 
   // 動かした p をもとの n の状態に戻す
@@ -400,69 +397,6 @@ SEARCH_IMPL_RETURN:
   parents.erase(n.key());
 }
 
-template <bool kOrNode>
-DfPnSearcher::MateMove DfPnSearcher::SearchPv(std::unordered_map<Key, MateMove>& memo, Position& n, Depth depth) {
-  auto key = n.key();
-  if (auto itr = memo.find(key); itr != memo.end()) {
-    if (itr->second.kind != PositionMateKind::kProven) {
-      itr->second.repetition_start = key;
-    }
-    return itr->second;
-  }
-
-  memo[key] = {};
-  // 子局面の LookUp はやや重いので、OrNode の場合は高速一手詰めルーチンで early return できないか試してみる
-  if (kOrNode && !n.in_check()) {
-    if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
-      return memo[key] = {PositionMateKind::kProven, move, 1, 0};
-    }
-  }
-
-  MovePicker<kOrNode> move_picker{n};
-  if (!kOrNode && move_picker.empty()) {
-    return memo[key] = {PositionMateKind::kProven, MOVE_NONE, 0, 0};
-  }
-
-  // OrNode では最短で詰むように、AndNode では最長で詰むように手を選ぶ
-  memo[key].num_moves = kOrNode ? internal::kMaxNumMateMoves : 0;
-  Key repetition_start = 0;
-  for (const auto& move : move_picker) {
-    auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1);
-    auto child_entry = child_query.LookUpWithoutCreation();
-    if (!child_entry->IsProvenNode()) {
-      continue;
-    }
-
-    StateInfo state_info;
-    n.do_move(move.move, state_info);
-    MateMove child_mate_move = SearchPv<!kOrNode>(memo, n, depth + 1);
-    n.undo_move(move.move);
-
-    if (child_mate_move.kind == PositionMateKind::kProven) {
-      if ((kOrNode && memo[key].num_moves > child_mate_move.num_moves + 1) ||
-          (!kOrNode && memo[key].num_moves < child_mate_move.num_moves + 1)) {
-        memo[key].num_moves = child_mate_move.num_moves + 1;
-        memo[key].move = move.move;
-      }
-    } else if (child_mate_move.repetition_start != 0 && child_mate_move.repetition_start != key) {
-      repetition_start = child_mate_move.repetition_start;
-    }
-  }
-
-  if (memo[key].num_moves != (kOrNode ? internal::kMaxNumMateMoves : 0)) {
-    memo[key].kind = PositionMateKind::kProven;
-    repetition_start = 0;
-    memo[key].repetition_start = 0;
-  }
-
-  if (repetition_start == 0) {
-    return memo[key];
-  } else {
-    memo.erase(key);
-    return {PositionMateKind::kUnknown, MOVE_NONE, 0, repetition_start};
-  }
-}
-
 void DfPnSearcher::PrintProgress(const Position& n, Depth depth) const {
   auto curr_time = std::chrono::system_clock::now();
   auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
@@ -490,10 +424,4 @@ template void DfPnSearcher::SearchImpl<false>(Position& n,
                                               std::unordered_set<Key>& parents,
                                               const LookUpQuery& query,
                                               TTEntry* entry);
-template DfPnSearcher::MateMove DfPnSearcher::SearchPv<true>(std::unordered_map<Key, MateMove>& memo,
-                                                             Position& n,
-                                                             Depth depth);
-template DfPnSearcher::MateMove DfPnSearcher::SearchPv<false>(std::unordered_map<Key, MateMove>& memo,
-                                                              Position& n,
-                                                              Depth depth);
 }  // namespace komori

@@ -17,16 +17,6 @@ namespace komori {
 namespace internal {
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
 constexpr Depth kMaxNumMateMoves = 3000;
-/// 1 Cluster ごとの entry 数。小さくすればするほど高速に動作するが、エントリが上書きされやすくなるために
-/// 超手数の詰み探索に失敗する確率が上がる。
-constexpr std::size_t kClusterSize = 128;
-
-/// 局面に対する詰みの状態を現す列挙型
-enum class PositionMateKind {
-  kUnknown,   ///< 不明
-  kProven,    ///< 詰み
-  kDisproven  ///< 不詰
-};
 
 /// 探索中に子局面の情報を一時的に覚えておくための構造体
 struct ChildNodeCache {
@@ -159,14 +149,6 @@ class DfPnSearcher {
   std::vector<Move> BestMoves(const Position& n);
 
  private:
-  /// SearchPV で使用する局面の探索情報を保存する構造体
-  struct MateMove {
-    internal::PositionMateKind kind{internal::PositionMateKind::kUnknown};
-    Move move{Move::MOVE_NONE};
-    Depth num_moves{internal::kMaxNumMateMoves};
-    Key repetition_start{};
-  };
-
   /**
    * @brief df-pn 探索の本体。pn と dn がいい感じに小さいノードから順に最良優先探索を行う。
    *
@@ -187,15 +169,6 @@ class DfPnSearcher {
                   std::unordered_set<Key>& parents,
                   const LookUpQuery& query,
                   TTEntry* entry);
-
-  /**
-   * @brief 局面 n の最善応手を再帰的に探索する
-   *
-   * OrNode では最短に、AndNode では最長になるように tt_ へ保存された手を選択する。
-   * メモ化再帰により探索を効率化する。memo をたどることで最善応手列（PV）を求めることができる。
-   */
-  template <bool kOrNode>
-  MateMove SearchPv(std::unordered_map<Key, MateMove>& memo, Position& n, Depth depth);
 
   void PrintProgress(const Position& n, Depth depth) const;
 

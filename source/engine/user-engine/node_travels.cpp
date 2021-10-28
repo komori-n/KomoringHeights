@@ -7,6 +7,9 @@
 #include "ttentry.hpp"
 
 namespace {
+constexpr int kNonProven = -1;
+constexpr int kRepetitionNonProven = -2;
+
 template <bool kOrNode>
 inline Hand OrHand(const Position& n) {
   if constexpr (kOrNode) {
@@ -171,6 +174,59 @@ void MarkDeleteCandidates(TranspositionTable& tt,
   }
 }
 
+template <bool kOrNode>
+int MateMovesSearch(TranspositionTable& tt, std::unordered_map<Key, Move>& memo, Position& n, int depth) {
+  auto key = n.key();
+  if (auto itr = memo.find(key); itr != memo.end()) {
+    return kRepetitionNonProven;
+  }
+
+  if (kOrNode && !n.in_check()) {
+    if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
+      memo[key] = move;
+      return 1;
+    }
+  }
+
+  memo[key] = Move::MOVE_NONE;
+  Move curr_move = Move::MOVE_NONE;
+  Depth curr_depth = kOrNode ? kMaxNumMateMoves : 0;
+  for (const auto& move : MovePicker<kOrNode>{n}) {
+    auto child_query = tt.GetChildQuery<kOrNode>(n, move.move, depth + 1);
+    auto child_entry = child_query.LookUpWithoutCreation();
+    if (!child_entry->IsProvenNode()) {
+      continue;
+    }
+
+    StateInfo state_info;
+    n.do_move(move.move, state_info);
+    auto child_depth = MateMovesSearch<!kOrNode>(tt, memo, n, depth + 1);
+    n.undo_move(move.move);
+
+    if (child_depth >= 0) {
+      if constexpr (kOrNode) {
+        if (curr_depth > child_depth + 1) {
+          curr_move = move.move;
+          curr_depth = child_depth + 1;
+        }
+      } else {
+        if (curr_depth < child_depth + 1) {
+          curr_move = move.move;
+          curr_depth = child_depth + 1;
+        }
+      }
+    }
+  }
+
+  if (kOrNode && curr_depth == kMaxNumMateMoves) {
+    memo.erase(key);
+    return kRepetitionNonProven;
+  }
+
+  memo[key] = curr_move;
+  return curr_depth;
+}
+
 template TTEntry* LeafSearch<false>(TranspositionTable& tt,
                                     Position& n,
                                     Depth depth,
@@ -193,4 +249,9 @@ template void MarkDeleteCandidates<true>(TranspositionTable& tt,
                                          std::unordered_set<Key>& parents,
                                          const LookUpQuery& query,
                                          TTEntry* entry);
+template int MateMovesSearch<false>(TranspositionTable& tt,
+                                    std::unordered_map<Key, Move>& memo,
+                                    Position& n,
+                                    int depth);
+template int MateMovesSearch<true>(TranspositionTable& tt, std::unordered_map<Key, Move>& memo, Position& n, int depth);
 }  // namespace komori

@@ -23,6 +23,9 @@ void MarkDeleteCandidates(TranspositionTable& tt,
                           const LookUpQuery& query,
                           TTEntry* entry);
 
+template <bool kOrNode>
+int MateMovesSearch(TranspositionTable& tt, std::unordered_map<Key, Move>& memo, Position& n, int depth);
+
 }  // namespace komori
 
 #endif  // NODE_TRAVELS_HPP_
