@@ -75,7 +75,7 @@ std::vector<Move> DfPnSearcher::BestMoves(const Position& n) {
   MateMovesSearch<true>(tt_, memo, p, 0);
 
   std::vector<Move> result;
-  std::array<StateInfo, internal::kMaxNumMateMoves> st_info;
+  std::array<StateInfo, kMaxNumMateMoves> st_info;
   auto st_info_p = st_info.data();
   // 探索メモをたどって詰手順を復元する
   while (memo.find(p.key()) != memo.end()) {
@@ -83,7 +83,7 @@ std::vector<Move> DfPnSearcher::BestMoves(const Position& n) {
     result.push_back(move);
     p.do_move(move, *st_info_p++);
 
-    if (result.size() >= internal::kMaxNumMateMoves) {
+    if (result.size() >= kMaxNumMateMoves) {
       break;
     }
   }

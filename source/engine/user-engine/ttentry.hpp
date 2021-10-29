@@ -10,6 +10,7 @@ namespace komori {
 /// Position の探索情報を格納するための構造体
 class TTEntry {
  public:
+  /// キャッシュできるようにデフォルトコンストラクタを有効にする
   TTEntry() = default;
   TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth depth);
 

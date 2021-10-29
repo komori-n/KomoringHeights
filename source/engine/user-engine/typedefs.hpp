@@ -8,33 +8,53 @@
 #include "../../types.h"
 
 namespace komori {
-using PnDn = std::uint64_t;
-/// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
-constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
 /// 1局面の最大王手/王手回避の着手数
 inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
 constexpr Depth kMaxNumMateMoves = 3000;
 
+/// 証明数／反証数を格納する型。将来、(1,1) 以外の初期値を使うことを考慮して 64 bit 分確保する。
+using PnDn = std::uint64_t;
+/// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
+constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
+
+/**
+ * @brief 置換表世代（Generation）と局面状態（NodeState）を1つの整数にまとめたもの。
+ *
+ * [0, 30):  Generation
+ * [31, 32): NodeState
+ */
 using StateGeneration = std::uint32_t;
+/// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
 using NodeState = StateGeneration;
+/// 置換表の世代を表す型。
 using Generation = StateGeneration;
 
-inline constexpr StateGeneration kFirstSearch = 1;
+/// 削除候補（優先的にGCで消される）
 inline constexpr StateGeneration kMarkDeleted = 0;
-inline constexpr int kStateShift = 30;
+/// 未探索
+inline constexpr StateGeneration kFirstSearch = 1;
+
+/// StateGeneration から Generation 部分を得るためのマスク
 inline constexpr StateGeneration kGenerationMask = 0x3fff'ffffu;
+/// StateGeneration から NodeState 部分を得るためのマスク
 inline constexpr StateGeneration kStateMask = 0xc000'0000u;
-inline constexpr NodeState kProvenState = 0x03u;
-inline constexpr NodeState kNonRepetitionDisprovenState = 0x02u;
-inline constexpr NodeState kRepetitionDisprovenState = 0x01u;
+/// NodeState を得るためのビットシフト幅
+inline constexpr int kStateShift = 30;
+
+/// 詰み／不詰が不明
 inline constexpr NodeState kOtherState = 0x00u;
+/// 千日手による不詰
+inline constexpr NodeState kRepetitionDisprovenState = 0x01u;
+/// 厳密な不詰
+inline constexpr NodeState kNonRepetitionDisprovenState = 0x02u;
+/// 詰み
+inline constexpr NodeState kProvenState = 0x03u;
 
 /// 何局面読んだら generation を進めるか
 constexpr std::uint32_t kNumSearchedPerGeneration = 128;
-
 inline constexpr Generation CalcGeneration(std::uint64_t num_searched) {
-  return kMarkDeleted + static_cast<Generation>(num_searched / kNumSearchedPerGeneration);
+  return kFirstSearch + static_cast<Generation>(num_searched / kNumSearchedPerGeneration);
 }
 
 inline constexpr Generation GetGeneration(StateGeneration s_gen) {

@@ -15,11 +15,6 @@
 #include "ttentry.hpp"
 
 namespace komori {
-namespace internal {
-/// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
-constexpr Depth kMaxNumMateMoves = 3000;
-
-}  // namespace internal
 
 /// df-pn探索の本体
 class DfPnSearcher {
@@ -80,7 +75,7 @@ class DfPnSearcher {
   std::atomic_bool* stop_{nullptr};
   std::uint64_t searched_node_{};
   std::chrono::system_clock::time_point start_time_;
-  Depth max_depth_{internal::kMaxNumMateMoves};
+  Depth max_depth_{kMaxNumMateMoves};
   std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};
 };
 }  // namespace komori
