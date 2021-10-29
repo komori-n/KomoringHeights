@@ -38,6 +38,9 @@ class MovePicker {
       auto them = ~us;
       auto king_color = kOrNode ? them : us;
       auto king_sq = n.king_square(king_color);
+      constexpr int pt_tbl[] = {
+          0, 1, 2, 2, 3, 5, 5, 5, 8, 5, 5, 5, 5, 8, 8, 8,
+      };
       for (ExtMove* itr = move_list_.data(); itr != last_; ++itr) {
         const auto& move = itr->move;
         auto to = to_sq(move);
@@ -50,21 +53,13 @@ class MovePicker {
         if (!is_drop(move) && !is_promote(move)) {
           auto from = from_sq(move);
           if ((pt == PAWN || pt == BISHOP || pt == ROOK)) {
-            itr->value += 1000;  // 歩、角、飛車を成らないのは大きく減点する（打ち歩詰めの時以外は考える必要ない）
+            itr->value += 100;  // 歩、角、飛車を成らないのは大きく減点する（打ち歩詰めの時以外は考える必要ない）
           }
         }
 
-        itr->value -= 10 * dist(king_sq, to);
-
-        if constexpr (kOrNode) {
-          itr->value -= 2 * (attackers_to_us.pop_count() + is_drop(move)) - attackers_to_them.pop_count();
-          itr->value -= pt;
-        } else {
-          if (pt == KING) {
-            itr->value -= 15;
-          }
-          itr->value += attackers_to_them.pop_count() - 2 * attackers_to_us.pop_count();
-        }
+        itr->value -= pt_tbl[pt];
+        itr->value -= 2 * (attackers_to_us.pop_count() + is_drop(move)) - attackers_to_them.pop_count();
+        itr->value += dist(king_sq, to);
       }
     }
   }
