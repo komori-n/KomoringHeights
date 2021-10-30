@@ -15,7 +15,10 @@ void user_test(Position& pos_, std::istringstream& is) {}
 
 // USIに追加オプションを設定したいときは、この関数を定義すること。
 // USI::init()のなかからコールバックされる。
-void USI::extra_option(USI::OptionsMap& o) {}
+void USI::extra_option(USI::OptionsMap& o) {
+  o["DepthLimit"] << Option(0, 0, INT_MAX);
+  o["NodesLimit"] << Option(0, 0, INT64_MAX);
+}
 
 // 起動時に呼び出される。時間のかからない探索関係の初期化処理はここに書くこと。
 void Search::init() {}

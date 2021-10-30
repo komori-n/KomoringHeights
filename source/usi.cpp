@@ -172,7 +172,7 @@ namespace USI
 				<< " seldepth " << rootMoves[i].selDepth
 #if defined(USE_PIECE_VALUE)
 				<< " score "    << USI::value(v)
-#endif				
+#endif
 				;
 
 			// これが現在探索中の指し手であるなら、それがlowerboundかupperboundかは表示させる
@@ -333,7 +333,7 @@ void is_ready(bool skipCorruptCheck)
 			if (++count >= 50 /* 5秒 */)
 			{
 				count = 0;
-				sync_cout << sync_endl; // 改行を送信する。	
+				sync_cout << sync_endl; // 改行を送信する。
 
 				// 定跡の読み込み部などで"info string.."で途中経過を出力する場合、
 				// sync_cout ～ sync_endlを用いて送信しないと、この改行を送るタイミングとかち合うと
@@ -405,7 +405,9 @@ void is_ready(bool skipCorruptCheck)
 	// isreadyに対してはreadyokを返すまで次のコマンドが来ないことは約束されているので
 	// このタイミングで各種変数の初期化もしておく。
 
+#if !defined(USER_ENGINE)
 	TT.resize(size_t(Options["USI_Hash"]));
+#endif
 
 	Search::clear();
 
@@ -592,7 +594,7 @@ void go_cmd(const Position& pos, istringstream& is , StateListPtr& states , bool
 
 	// エンジンオプションによる探索制限(0なら無制限)
 	// このあと、depthもしくはnodesが指定されていたら、その値で上書きされる。(この値は無視される)
-	
+
 	limits.depth = Options.count("DepthLimit") ? (int)Options["DepthLimit"] : 0;
 	limits.nodes = Options.count("NodesLimit") ? (u64)Options["NodesLimit"] : 0;
 
@@ -954,7 +956,7 @@ void USI::loop(int argc, char* argv[])
 		// この局面での1手詰め判定
 		else if (token == "mate1") cout << pos.mate1ply() << endl;
 #endif
-		
+
 #if defined (ENABLE_TEST_CMD)
 		// テストコマンド
 		else if (token == "test") Test::test_cmd(pos, is);

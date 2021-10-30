@@ -23,7 +23,7 @@ namespace USI {
 		return std::lexicographical_compare(s1.begin(), s1.end(), s2.begin(), s2.end(),
 			[](char c1, char c2) { return tolower(c1) < tolower(c2); });
 	}
-	
+
 	// 前回のOptions["EvalDir"]
 	std::string last_eval_dir;
 
@@ -45,10 +45,14 @@ namespace USI {
 		// そもそもで言うとsetoptionに対してそんなに時間のかかることをするとGUI側がtimeoutになる懸念もある。
 		// Stockfishもこうすべきだと思う。
 
+#if defined(USER_ENGINE)
+		o["Threads"] << Option(1, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
+#else
 		o["Threads"] << Option(4, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
 #endif
+#endif
 
-#if !defined(TANUKI_MATE_ENGINE) && !defined(YANEURAOU_MATE_ENGINE)
+#if !defined(TANUKI_MATE_ENGINE) && !defined(YANEURAOU_MATE_ENGINE) && !defined(USER_ENGINE)
 		// 置換表のサイズ。[MB]で指定。
 		o["USI_Hash"] << Option(16, 1, MaxHashMB, [](const Option&o) { /* TT.resize(o); */ });
 
@@ -119,11 +123,11 @@ namespace USI {
 		});
 
 #else
-		
+
 		// TANUKI_MATE_ENGINEのとき
 		o["USI_Hash"] << Option(4096, 1, MaxHashMB);
 
-#endif // !defined(TANUKI_MATE_ENGINE) && !defined(YANEURAOU_MATE_ENGINE)
+#endif // !defined(TANUKI_MATE_ENGINE) && !defined(YANEURAOU_MATE_ENGINE) && !defined(USER_ENGINE)
 
 		// cin/coutの入出力をファイルにリダイレクトする
 		o["WriteDebugLog"] << Option(false, [](const Option& o) { start_logger(o); });
