@@ -36,6 +36,7 @@ void DfPnSearcher::Resize(std::uint64_t size_mb) {
 bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
   tt_.NewSearch();
   searched_node_ = 0;
+  searched_depth_ = 0;
   stop_ = &stop_flag;
   start_time_ = std::chrono::system_clock::now();
 
@@ -109,6 +110,7 @@ void DfPnSearcher::SearchImpl(Position& n,
     entry->SetRepetitionDisproven();
     return;
   }
+  searched_depth_ = std::max(searched_depth_, depth);
 
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
@@ -189,8 +191,8 @@ void DfPnSearcher::PrintProgress(const Position& n, Depth depth) const {
   auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
   time_ms = std::max(time_ms, decltype(time_ms){1});
   auto nps = searched_node_ * 1000ULL / time_ms;
-  sync_cout << "info depth " << depth << " time " << time_ms << " nodes " << searched_node_ << " nps " << nps
-            << " hashfull " << tt_.Hashfull()
+  sync_cout << "info depth " << depth << " seldepth " << searched_depth_ << " score cp 0 "
+            << " time " << time_ms << " nodes " << searched_node_ << " nps " << nps << " hashfull " << tt_.Hashfull()
 #if defined(KEEP_LAST_MOVE)
             << " pv " << n.moves_from_start()
 #endif
