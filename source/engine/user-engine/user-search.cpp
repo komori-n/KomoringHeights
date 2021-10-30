@@ -46,12 +46,6 @@ void MainThread::search() {
   //  Thread::search();
   //  for (auto th : Threads.slaves) th->wait_for_search_finished();
 
-  // 通常の go コマンドで呼ばれたときは resign を返す
-  if (Search::Limits.mate == 0) {
-    sync_cout << "bestmove resign" << sync_endl;
-    return;
-  }
-
   Timer time;
   time.reset();
 
@@ -69,20 +63,43 @@ void MainThread::search() {
   }
   thread.join();
 
+  bool is_mate_search = Search::Limits.mate != 0;
   if (time_up()) {
-    sync_cout << "checkmate timeout" << sync_endl;
+    if (is_mate_search) {
+      sync_cout << "checkmate timeout" << sync_endl;
+    } else {
+      sync_cout << "info score mate - string timeout" << sync_endl;
+    }
   } else if (search_end) {
     if (search_result) {
       auto best_moves = g_searcher.BestMoves(rootPos);
       std::ostringstream oss;
-      oss << "checkmate";
+      if (is_mate_search) {
+        oss << "checkmate ";
+      } else {
+        oss << "info score mate +" << best_moves.size() << " pv ";
+      }
       for (const auto& move : best_moves) {
         oss << " " << move;
       }
       sync_cout << oss.str() << sync_endl;
     } else {
-      sync_cout << "checkmate nomate" << sync_endl;
+      if (is_mate_search) {
+        sync_cout << "checkmate nomate" << sync_endl;
+      } else {
+        sync_cout << "info score mate - string disproven" << sync_endl;
+      }
     }
+  }
+
+  // 通常の go コマンドで呼ばれたときは resign を返す
+  if (Search::Limits.mate == 0) {
+		// "go infinite"に対してはstopが送られてくるまで待つ。
+		while (!Threads.stop && Search::Limits.infinite) {
+			Tools::sleep(1);
+    }
+    sync_cout << "bestmove resign" << sync_endl;
+    return;
   }
 }
 
