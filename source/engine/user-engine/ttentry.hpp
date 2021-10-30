@@ -1,6 +1,7 @@
 #ifndef TTENTRY_HPP_
 #define TTENTRY_HPP_
 
+#include <array>
 #include <optional>
 
 #include "typedefs.hpp"

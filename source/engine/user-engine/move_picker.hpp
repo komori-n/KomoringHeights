@@ -1,6 +1,8 @@
 #ifndef MOVE_PICKER_HPP_
 #define MOVE_PICKER_HPP_
 
+#include <array>
+
 namespace komori {
 
 /// 詰将棋専用 MovePicker

@@ -1,6 +1,8 @@
 #ifndef PROOF_HAND_HPP_
 #define PROOF_HAND_HPP_
 
+#include <array>
+
 #include "typedefs.hpp"
 
 namespace komori {
