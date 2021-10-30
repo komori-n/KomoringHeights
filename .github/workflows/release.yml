@@ -135,6 +135,10 @@ jobs:
           cp main/Copying.txt release-android/android
           cp -r main/source/ release-android/andorid
           cp -r main/docs/ release-android/android
+      - name: make installation zip file for android
+        run: |
+          zip -jr release-android/android/KomoringHeights.zip release-android/android/KomoringHeights
+          rm -rf release-android/android/KomoringHeights
       - name: Display structure of downloaded files
         run: ls -R release-windows release-android
       - name: make build-windows zip/7z
