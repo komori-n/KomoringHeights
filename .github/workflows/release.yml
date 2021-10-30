@@ -1,0 +1,210 @@
+name: CI Build&Release
+
+on:
+  push:
+    tags:
+      # 動作条件を変えたい場合、 workflow-syntax-for-github-actions#フィルタパターンのチートシート 参照。
+      # https://docs.github.com/ja/free-pro-team@latest/actions/reference/workflow-syntax-for-github-actions
+      - "kh-v*"
+      - "kh-V*"
+
+jobs:
+  build-msys2-windows:
+    # ubuntu-latest = windows-2019
+    # https://docs.github.com/ja/free-pro-team@latest/actions/reference/specifications-for-github-hosted-runners
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        target: [normal]
+        archcpu:
+          [
+            "ZEN2,ZEN1,AVX512VNNI,AVX512,AVX2,SSE42",
+            "SSE41,SSSE3,SSE2,NO_SSE",
+            "ZEN3,AVXVNNI,OTHER",
+          ]
+        edition:
+          - USER_ENGINE
+        compiler: [clang++, g++]
+        exclude:
+          # Release target exclude: archcpu ZEN3,AVXVNNI,OTHER
+          # `-march=cascadelake`: LLVM8, GCC9 support (AVX512VNNI)
+          # `-march=alderlake` : LLVM12, GCC11 support (AVX-VNNI)
+          # `-march=znver3`: LLVM12 support
+          - archcpu: "ZEN3,AVXVNNI,OTHER"
+          # Release target exclude: archcpu 'SSE41,SSSE3,SSE2,NO_SSE' and target 'tournament,evallearn'
+          - target: tournament
+            archcpu: "SSE41,SSSE3,SSE2,NO_SSE"
+          - target: evallearn
+            archcpu: "SSE41,SSSE3,SSE2,NO_SSE"
+          - target: gensfen
+            archcpu: "SSE41,SSSE3,SSE2,NO_SSE"
+    steps:
+      - name: Checkout own repository
+        uses: actions/checkout@v2
+        with:
+          path: main
+
+      - name: Install pkg
+        run: |
+          $ErrorActionPreference = 'Continue'
+          C:\msys64\usr\bin\bash.exe -lc 'pacman --needed --noconfirm -Syuu'
+          C:\msys64\usr\bin\bash.exe -lc 'pacman --needed --noconfirm -Syuu'
+          C:\msys64\usr\bin\bash.exe -lc 'pacman --needed --noconfirm -Syuu pactoys-git'
+          C:\msys64\usr\bin\bash.exe -lc 'pacboy --needed --noconfirm -Sy clang:m openblas:x openmp:x toolchain:m base-devel:'
+          $ErrorActionPreference = 'Stop'
+
+      - name: make
+        run: |
+          $env:PATH+=';C:\msys64';
+          .\main\script\msys2_build.ps1 -Edition ${{ matrix.edition }} -Compiler ${{ matrix.compiler }} -Target ${{ matrix.target }} -Cpu ${{ matrix.archcpu }}
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: build-windows_${{ github.run_number }}_${{ github.sha }}
+          path: ./main/build/**/*
+
+  build-android:
+    # ubuntu-latest = ubuntu-18.04 => ubuntu-20.04
+    # https://github.com/actions/virtual-environments/issues/1816
+    # https://docs.github.com/ja/free-pro-team@latest/actions/reference/specifications-for-github-hosted-runners
+    runs-on: ubuntu-20.04
+
+    strategy:
+      matrix:
+        edition:
+          - USER_ENGINE
+
+    steps:
+      - name: Setup Android NDK r21e
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r21e
+
+      - name: Checkout own repository
+        uses: actions/checkout@v2
+        with:
+          path: main
+
+      - name: ndk-build
+        run: ./main/script/android_build.sh -e ${{ matrix.edition }}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: build-android_${{ github.run_number }}_${{ github.sha }}
+          path: ./main/build/**/*
+
+  release-pkg:
+    name: Release package
+    needs:
+      - build-msys2-windows
+      - build-android
+    # ubuntu-latest = ubuntu-18.04 => ubuntu-20.04
+    # https://github.com/actions/virtual-environments/issues/1816
+    # https://docs.github.com/ja/free-pro-team@latest/actions/reference/specifications-for-github-hosted-runners
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Set version
+        id: version
+        run: |
+          REPOSITORY=$(echo ${{ github.repository }} | sed -e "s#.*/##")
+          VERSION=$(echo ${{ github.ref }} | sed -e "s#refs/tags/##g")
+          echo ::set-output name=version::$VERSION
+          echo ::set-output name=filename::$REPOSITORY-$VERSION
+      - uses: actions/checkout@v2
+        with:
+          path: main
+      - name: Download artifact to get build-windows
+        uses: actions/download-artifact@v2
+        with:
+          name: build-windows_${{ github.run_number }}_${{ github.sha }}
+          path: release-windows
+      - name: Download artifact to get build-android
+        uses: actions/download-artifact@v2
+        with:
+          name: build-android_${{ github.run_number }}_${{ github.sha }}
+          path: release-android
+      - name: Display structure of downloaded files
+        run: ls -R release-windows release-android
+      - name: copy docs
+        run: |
+          cp main/Copying.txt release-windows/windows
+          cp -r main/source/ release-windows/windows
+          cp -r main/docs/ release-windows/windows
+          cp main/Copying.txt release-android/android
+          cp -r main/source/ release-android/andorid
+          cp -r main/docs/ release-android/android
+      - name: Display structure of downloaded files
+        run: ls -R release-windows release-android
+      - name: make build-windows zip/7z
+        run: |
+          7z a -tzip build-windows.zip windows
+          7z a -t7z build-windows.7z windows
+        working-directory: release-windows
+      - name: make build-android zip/7z
+        run: |
+          7z a -tzip build-android.zip android
+          7z a -t7z build-android.7z android
+        working-directory: release-android
+      - name: Archive Size
+        id: archive_size
+        run: |
+          echo ::set-output name=windows_zip::$(stat -c%s "release-windows/build-windows.zip" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
+          echo ::set-output name=windows_7z::$(stat -c%s "release-windows/build-windows.7z" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
+          echo ::set-output name=android_zip::$(stat -c%s "release-android/build-android.zip" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
+          echo ::set-output name=android_7z::$(stat -c%s "release-android/build-android.7z" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: KomoringHeights ${{ steps.version.outputs.version }}
+          body: |
+            - [${{ steps.version.outputs.filename }}-windows.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.zip) (${{ steps.archive_size.outputs.windows_zip }})
+            - [${{ steps.version.outputs.filename }}-windows.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.7z) (${{ steps.archive_size.outputs.windows_7z }})
+            - [${{ steps.version.outputs.filename }}-android.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-android.zip) (${{ steps.archive_size.outputs.android_zip }})
+            - [${{ steps.version.outputs.filename }}-android.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-android.7z) (${{ steps.archive_size.outputs.android_7z }})
+
+          # ドラフト（下書き）状態にしない(false)
+          draft: false
+          # 先行リリースのフラグを付ける(true)
+          prerelease: true
+      - name: Upload release asset build-windows.zip
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release-windows/build-windows.zip
+          asset_name: ${{ steps.version.outputs.filename }}-windows.zip
+          asset_content_type: application/zip
+      - name: Upload release asset build-windows.7z
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release-windows/build-windows.7z
+          asset_name: ${{ steps.version.outputs.filename }}-windows.7z
+          asset_content_type: application/octet-stream
+      - name: Upload release asset build-android.zip
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release-android/build-android.zip
+          asset_name: ${{ steps.version.outputs.filename }}-android.zip
+          asset_content_type: application/zip
+      - name: Upload release asset build-android.7z
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release-android/build-android.7z
+          asset_name: ${{ steps.version.outputs.filename }}-android.7z
+          asset_content_type: application/octet-stream
