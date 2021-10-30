@@ -19,14 +19,6 @@ jobs:
     strategy:
       matrix:
         edition:
-          - YANEURAOU_ENGINE_NNUE
-          - YANEURAOU_ENGINE_NNUE_HALFKPE9
-          - YANEURAOU_ENGINE_NNUE_KP256
-          - YANEURAOU_ENGINE_KPPT
-          - YANEURAOU_ENGINE_KPP_KKPT
-          - YANEURAOU_ENGINE_MATERIAL*
-          - YANEURAOU_MATE_ENGINE
-          - TANUKI_MATE_ENGINE
           - USER_ENGINE
 
     steps:
