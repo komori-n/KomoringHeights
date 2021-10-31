@@ -68,33 +68,44 @@ Move DfPnSearcher::BestMove(const Position& n) {
   return MOVE_NONE;
 }
 
-std::vector<Move> DfPnSearcher::BestMoves(const Position& n) {
-  // 局面を書き換えるために const を外す。関数終了までに、p は n と同じ状態に戻しておかなければならない
-  auto& p = const_cast<Position&>(n);
+std::vector<Move> DfPnSearcher::BestMoves(Position& n) {
   std::unordered_map<Key, Move> memo;
 
-  MateMovesSearch<true>(tt_, memo, p, 0);
+  MateMovesSearch<true>(tt_, memo, n, 0);
 
   std::vector<Move> result;
-  std::array<StateInfo, kMaxNumMateMoves> st_info;
+  std::vector<StateInfo> st_info;
   auto st_info_p = st_info.data();
   // 探索メモをたどって詰手順を復元する
-  while (memo.find(p.key()) != memo.end()) {
-    auto move = memo[p.key()];
+  while (memo.find(n.key()) != memo.end()) {
+    auto move = memo[n.key()];
     result.push_back(move);
-    p.do_move(move, *st_info_p++);
+    st_info.push_back({});
+    n.do_move(move, st_info.back());
 
     if (result.size() >= kMaxNumMateMoves) {
       break;
     }
   }
 
-  // 動かした p をもとの n の状態に戻す
+  // 動かした n をもとの n の状態に戻す
   for (auto itr = result.crbegin(); itr != result.crend(); ++itr) {
-    p.undo_move(*itr);
+    n.undo_move(*itr);
   }
 
   return result;
+}
+
+std::string DfPnSearcher::Info(int depth) const {
+  auto curr_time = std::chrono::system_clock::now();
+  auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
+  time_ms = std::max(time_ms, decltype(time_ms){1});
+  auto nps = searched_node_ * 1000ULL / time_ms;
+
+  std::ostringstream oss;
+  oss << "depth " << depth << " seldepth " << searched_depth_ << " score cp 0 "
+      << " time " << time_ms << " nodes " << searched_node_ << " nps " << nps << " hashfull " << tt_.Hashfull();
+  return oss.str();
 }
 
 template <bool kOrNode>
@@ -165,8 +176,7 @@ void DfPnSearcher::SearchImpl(Position& n,
     auto [child_thpn, child_thdn] = selector->ChildThreshold(thpn, thdn);
     auto best_move = selector->FrontMove();
 
-    StateInfo state_info;
-    n.do_move(best_move, state_info);
+    n.do_move(best_move, st_info_[depth]);
     SearchImpl<!kOrNode>(n, child_thpn, child_thdn, depth + 1, parents, selector->FrontLookUpQuery(),
                          selector->FrontTTEntry());
     n.undo_move(best_move);
@@ -187,12 +197,7 @@ SEARCH_IMPL_RETURN:
 }
 
 void DfPnSearcher::PrintProgress(const Position& n, Depth depth) const {
-  auto curr_time = std::chrono::system_clock::now();
-  auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
-  time_ms = std::max(time_ms, decltype(time_ms){1});
-  auto nps = searched_node_ * 1000ULL / time_ms;
-  sync_cout << "info depth " << depth << " seldepth " << searched_depth_ << " score cp 0 "
-            << " time " << time_ms << " nodes " << searched_node_ << " nps " << nps << " hashfull " << tt_.Hashfull()
+  sync_cout << "info " << Info(depth)
 #if defined(KEEP_LAST_MOVE)
             << " pv " << n.moves_from_start()
 #endif

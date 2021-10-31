@@ -41,7 +41,9 @@ class DfPnSearcher {
   /// 局面 n が詰む場合、最善手を返す。詰まない場合は MOVE_NONE を返す。
   Move BestMove(const Position& n);
   /// 局面 n が詰む場合、最善応手列を返す。詰まない場合は {} を返す。
-  std::vector<Move> BestMoves(const Position& n);
+  std::vector<Move> BestMoves(Position& n);
+
+  std::string Info(int depth) const;
 
  private:
   /**
@@ -71,6 +73,7 @@ class DfPnSearcher {
   /// Selector を格納する領域。stack に積むと stackoverflow になりがちなため
   std::vector<MoveSelector<true>> or_selectors_{};
   std::vector<MoveSelector<false>> and_selectors_{};
+  std::array<StateInfo, kMaxNumMateMoves> st_info_{};
 
   std::atomic_bool* stop_{nullptr};
   std::uint64_t searched_node_{};
