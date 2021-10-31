@@ -60,22 +60,6 @@ void MoveSelector<kOrNode>::Update(std::unordered_set<Key>& parents) {
 
   std::sort(children_.begin(), children_.begin() + children_len_,
             [this](const auto& lhs, const auto& rhs) { return Compare(lhs, rhs); });
-
-  if (MinN() == 0) {
-    // MinN() == 0 ではないエントリは今後使う可能性が薄いので削除候補にする
-    for (std::size_t i = 1; i < children_len_; ++i) {
-      auto& child = children_[i];
-      auto* entry = child.entry;
-      if (entry == nullptr) {
-        continue;
-      }
-
-      entry = child.query.RefreshWithoutCreation(entry);
-      if (entry->Pn() != 0 && entry->Dn() != 0) {
-        MarkDeleteCandidates<kOrNode>(tt_, const_cast<Position&>(n_), depth_, parents, child.query, entry);
-      }
-    }
-  }
 }
 
 template <bool kOrNode>

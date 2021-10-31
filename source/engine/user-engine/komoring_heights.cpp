@@ -71,17 +71,15 @@ Move DfPnSearcher::BestMove(const Position& n) {
 std::vector<Move> DfPnSearcher::BestMoves(Position& n) {
   std::unordered_map<Key, Move> memo;
 
-  MateMovesSearch<true>(tt_, memo, n, 0);
+  node_travels_.MateMovesSearch<true>(memo, n, 0);
 
   std::vector<Move> result;
-  std::vector<StateInfo> st_info;
-  auto st_info_p = st_info.data();
+  Depth depth = 0;
   // 探索メモをたどって詰手順を復元する
   while (memo.find(n.key()) != memo.end()) {
     auto move = memo[n.key()];
     result.push_back(move);
-    st_info.push_back({});
-    n.do_move(move, st_info.back());
+    n.do_move(move, st_info_[depth++]);
 
     if (result.size() >= kMaxNumMateMoves) {
       break;
@@ -125,7 +123,8 @@ void DfPnSearcher::SearchImpl(Position& n,
 
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
-    auto res_entry = LeafSearch<kOrNode>(tt_, n, depth, kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth, query);
+    auto res_entry =
+        node_travels_.LeafSearch<kOrNode>(n, depth, kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth, query);
     if (res_entry->IsProvenNode() || res_entry->IsDisprovenNode()) {
       return;
     }

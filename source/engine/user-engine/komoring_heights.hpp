@@ -11,6 +11,7 @@
 
 #include "../../types.h"
 #include "move_selector.hpp"
+#include "node_travels.hpp"
 #include "transposition_table.hpp"
 #include "ttentry.hpp"
 
@@ -70,6 +71,7 @@ class DfPnSearcher {
   void PrintProgress(const Position& n, Depth depth) const;
 
   TranspositionTable tt_{};
+  NodeTravels node_travels_{tt_};
   /// Selector を格納する領域。stack に積むと stackoverflow になりがちなため
   std::vector<MoveSelector<true>> or_selectors_{};
   std::vector<MoveSelector<false>> and_selectors_{};

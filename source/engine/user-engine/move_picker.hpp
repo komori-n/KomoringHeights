@@ -3,6 +3,8 @@
 
 #include <array>
 
+#include "typedefs.hpp"
+
 namespace komori {
 
 /// 詰将棋専用 MovePicker
@@ -11,28 +13,30 @@ class MovePicker {
  public:
   MovePicker() = delete;
   MovePicker(const MovePicker&) = delete;
-  MovePicker(MovePicker&&) = delete;
+  MovePicker(MovePicker&& rhs) noexcept = default;
   MovePicker& operator=(const MovePicker&) = delete;
-  MovePicker& operator=(MovePicker&&) = delete;
+  MovePicker& operator=(MovePicker&& rhs) noexcept = default;
   ~MovePicker() = default;
 
   explicit MovePicker(const Position& n) {
     bool judge_check = false;
+    ExtMove* last = nullptr;
     if constexpr (kOrNode) {
       if (n.in_check()) {
-        last_ = generateMoves<EVASIONS_ALL>(n, move_list_.data());
+        last = generateMoves<EVASIONS_ALL>(n, move_list_.data());
         // 逆王手になっているかチェックする必要がある
         judge_check = true;
       } else {
-        last_ = generateMoves<CHECKS_ALL>(n, move_list_.data());
+        last = generateMoves<CHECKS_ALL>(n, move_list_.data());
       }
     } else {
-      last_ = generateMoves<EVASIONS_ALL>(n, move_list_.data());
+      last = generateMoves<EVASIONS_ALL>(n, move_list_.data());
     }
 
     // OrNodeで王手ではない手と違法手を取り除く
-    last_ = std::remove_if(move_list_.data(), last_,
-                           [&](const auto& m) { return (judge_check && !n.gives_check(m.move)) || !n.legal(m.move); });
+    last = std::remove_if(move_list_.data(), last,
+                          [&](const auto& m) { return (judge_check && !n.gives_check(m.move)) || !n.legal(m.move); });
+    size_ = last - &move_list_[0];
 
     // オーダリング情報を付加したほうが定数倍速くなる
     if constexpr (kOrdering) {
@@ -43,7 +47,7 @@ class MovePicker {
       constexpr int pt_tbl[] = {
           0, 1, 2, 2, 3, 5, 5, 5, 8, 5, 5, 5, 5, 8, 8, 8,
       };
-      for (ExtMove* itr = move_list_.data(); itr != last_; ++itr) {
+      for (ExtMove* itr = move_list_.data(); itr != last; ++itr) {
         const auto& move = itr->move;
         auto to = to_sq(move);
         auto attackers_to_us = n.attackers_to(us, to);
@@ -66,14 +70,14 @@ class MovePicker {
     }
   }
 
-  std::size_t size() const { return static_cast<std::size_t>(last_ - move_list_.data()); }
+  std::size_t size() const { return size_; }
   ExtMove* begin() { return move_list_.data(); }
-  ExtMove* end() { return last_; }
+  ExtMove* end() { return begin() + size_; }
   bool empty() const { return size() == 0; }
 
  private:
   std::array<ExtMove, kMaxCheckMovesPerNode> move_list_;
-  ExtMove* last_;
+  std::size_t size_;
 };
 
 }  // namespace komori
