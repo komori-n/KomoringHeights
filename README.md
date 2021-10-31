@@ -1,7 +1,7 @@
-![Make CI (MSYS2 for Windows)](https://github.com/yaneurao/YaneuraOu/workflows/Make%20CI%20(MSYS2%20for%20Windows)/badge.svg?event=push)
-![Make CI (MinGW for Windows)](https://github.com/yaneurao/YaneuraOu/workflows/Make%20CI%20(MinGW%20for%20Windows)/badge.svg?event=push)
-![Make CI (for Ubuntu Linux)](https://github.com/yaneurao/YaneuraOu/workflows/Make%20CI%20(for%20Ubuntu%20Linux)/badge.svg?event=push)
-![NDK CI (for Android)](https://github.com/yaneurao/YaneuraOu/workflows/NDK%20CI%20(for%20Android)/badge.svg?event=push)
+![Make CI (MSYS2 for Windows)](https://github.com/komori-n/KomoringHeights/workflows/Make%20CI%20(MSYS2%20for%20Windows)/badge.svg?event=push)
+![Make CI (MinGW for Windows)](https://github.com/komori-n/KomoringHeights/workflows/Make%20CI%20(MinGW%20for%20Windows)/badge.svg?event=push)
+![Make CI (for Ubuntu Linux)](https://github.com/komori-n/KomoringHeights/workflows/Make%20CI%20(for%20Ubuntu%20Linux)/badge.svg?event=push)
+![NDK CI (for Android)](https://github.com/komori-n/KomoringHeights/workflows/NDK%20CI%20(for%20Android)/badge.svg?event=push)
 
 # About this project
 
