@@ -132,13 +132,8 @@ jobs:
           cp main/Copying.txt release-windows/windows
           cp -r main/source/ release-windows/windows
           cp -r main/docs/ release-windows/windows
-          cp main/Copying.txt release-android/android
-          cp -r main/source/ release-android/andorid
-          cp -r main/docs/ release-android/android
-      - name: make installation zip file for android
-        run: |
-          zip -jr release-android/android/KomoringHeights.zip release-android/android/KomoringHeights
-          rm -rf release-android/android/KomoringHeights
+          cp main/Copying.txt release-android/android/KomoringHeights
+          cp -r main/docs/ release-android/android/KomoringHeights
       - name: Display structure of downloaded files
         run: ls -R release-windows release-android
       - name: make build-windows zip/7z
@@ -148,8 +143,7 @@ jobs:
         working-directory: release-windows
       - name: make build-android zip/7z
         run: |
-          7z a -tzip build-android.zip android
-          7z a -t7z build-android.7z android
+          zip -jr build-android.zip android/KomoringHeights
         working-directory: release-android
       - name: Archive Size
         id: archive_size
@@ -157,7 +151,6 @@ jobs:
           echo ::set-output name=windows_zip::$(stat -c%s "release-windows/build-windows.zip" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
           echo ::set-output name=windows_7z::$(stat -c%s "release-windows/build-windows.7z" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
           echo ::set-output name=android_zip::$(stat -c%s "release-android/build-android.zip" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
-          echo ::set-output name=android_7z::$(stat -c%s "release-android/build-android.7z" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
@@ -170,7 +163,6 @@ jobs:
             - [${{ steps.version.outputs.filename }}-windows.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.zip) (${{ steps.archive_size.outputs.windows_zip }})
             - [${{ steps.version.outputs.filename }}-windows.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.7z) (${{ steps.archive_size.outputs.windows_7z }})
             - [${{ steps.version.outputs.filename }}-android.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-android.zip) (${{ steps.archive_size.outputs.android_zip }})
-            - [${{ steps.version.outputs.filename }}-android.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-android.7z) (${{ steps.archive_size.outputs.android_7z }})
 
           # ドラフト（下書き）状態にしない(false)
           draft: false
@@ -203,12 +195,3 @@ jobs:
           asset_path: release-android/build-android.zip
           asset_name: ${{ steps.version.outputs.filename }}-android.zip
           asset_content_type: application/zip
-      - name: Upload release asset build-android.7z
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: release-android/build-android.7z
-          asset_name: ${{ steps.version.outputs.filename }}-android.7z
-          asset_content_type: application/octet-stream
