@@ -18,17 +18,9 @@ jobs:
     strategy:
       matrix:
         edition:
-          - YANEURAOU_ENGINE_NNUE
-          - YANEURAOU_ENGINE_NNUE_HALFKPE9
-          - YANEURAOU_ENGINE_NNUE_KP256
-          - YANEURAOU_ENGINE_KPPT
-          - YANEURAOU_ENGINE_KPP_KKPT
-          - YANEURAOU_ENGINE_MATERIAL*
-          - YANEURAOU_MATE_ENGINE
-          - TANUKI_MATE_ENGINE
           - USER_ENGINE
         compiler: [clang++, g++]
-        target: ["normal,tournament", gensfen, evallearn]
+        target: ["normal,tournament"]
         archcpu:
           [
             "AVX512VNNI,AVX512,AVX2,SSE42,SSE41,SSSE3,SSE2,ZEN1,ZEN2",
@@ -36,23 +28,6 @@ jobs:
             "ZEN3,AVXVNNI,OTHER",
           ]
         exclude:
-          # 以下のエディションには機械学習の実装が存在しない
-          # There is no machine learning implementation for the following editions
-          - edition: YANEURAOU_ENGINE_MATERIAL*
-            target: evallearn
-          - edition: YANEURAOU_MATE_ENGINE
-            target: evallearn
-          - edition: TANUKI_MATE_ENGINE
-            target: evallearn
-          - edition: USER_ENGINE
-            target: evallearn
-          # 以下のエディションはgensfenに対応しない
-          - edition: YANEURAOU_MATE_ENGINE
-            target: gensfen
-          - edition: TANUKI_MATE_ENGINE
-            target: gensfen
-          - edition: USER_ENGINE
-            target: gensfen
           # 自動ビルドチェックから除外
           # Build check exclude: archcpu ZEN3,AVXVNNI,OTHER
           # `-march=cascadelake`: LLVM8, GCC9 support (AVX512VNNI)

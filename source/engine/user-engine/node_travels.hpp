@@ -2,6 +2,7 @@
 #define NODE_TRAVELS_HPP_
 
 #include <unordered_set>
+#include <unordered_map>
 
 #include "typedefs.hpp"
 
