@@ -68,7 +68,7 @@ void MainThread::search() {
     if (is_mate_search) {
       sync_cout << "checkmate timeout" << sync_endl;
     } else {
-      sync_cout << "info score mate - string timeout" << sync_endl;
+      sync_cout << "info " << g_searcher.Info(0) << " score mate -1 pv" << sync_endl;
     }
   } else if (search_end) {
     if (search_result) {
@@ -77,7 +77,7 @@ void MainThread::search() {
       if (is_mate_search) {
         oss << "checkmate ";
       } else {
-        oss << "info score mate +" << best_moves.size() << " pv ";
+        oss << "info " << g_searcher.Info(0) << " score mate +" << best_moves.size() << " pv ";
       }
       for (const auto& move : best_moves) {
         oss << " " << move;
@@ -87,16 +87,16 @@ void MainThread::search() {
       if (is_mate_search) {
         sync_cout << "checkmate nomate" << sync_endl;
       } else {
-        sync_cout << "info score mate - string disproven" << sync_endl;
+        sync_cout << "info " << g_searcher.Info(0) << " score mate -1 pv" << sync_endl;
       }
     }
   }
 
   // 通常の go コマンドで呼ばれたときは resign を返す
   if (Search::Limits.mate == 0) {
-		// "go infinite"に対してはstopが送られてくるまで待つ。
-		while (!Threads.stop && Search::Limits.infinite) {
-			Tools::sleep(1);
+    // "go infinite"に対してはstopが送られてくるまで待つ。
+    while (!Threads.stop && Search::Limits.infinite) {
+      Tools::sleep(1);
     }
     sync_cout << "bestmove resign" << sync_endl;
     return;
