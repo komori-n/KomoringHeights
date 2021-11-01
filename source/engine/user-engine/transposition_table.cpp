@@ -117,7 +117,7 @@ LookUpQuery TranspositionTable::GetChildQuery(const Position& n, Move move, Dept
   std::uint32_t hash_high = key >> 32;
   auto& cluster = ClusterOf(key);
 
-  return {&cluster, hash_high, hand, depth + 1};
+  return {&cluster, hash_high, hand, depth};
 }
 
 int TranspositionTable::Hashfull() const {
