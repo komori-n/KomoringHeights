@@ -1,13 +1,17 @@
 ﻿#include "../../types.h"
 
+#include <mutex>
+
 #include "../../extra/all.h"
 
 #include "komoring_heights.hpp"
+#include "path_keys.hpp"
 
 #if defined(USER_ENGINE)
 
 namespace {
 komori::DfPnSearcher g_searcher;
+std::once_flag g_path_key_init_flag;
 }  // namespace
 
 // USI拡張コマンド"user"が送られてくるとこの関数が呼び出される。実験に使ってください。
@@ -25,6 +29,7 @@ void Search::init() {}
 
 // isreadyコマンドの応答中に呼び出される。時間のかかる処理はここに書くこと。
 void Search::clear() {
+  std::call_once(g_path_key_init_flag, komori::PathKeyInit);
   g_searcher.Init();
   g_searcher.Resize(Options["USI_Hash"]);
 

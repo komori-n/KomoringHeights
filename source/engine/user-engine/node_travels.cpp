@@ -4,6 +4,7 @@
 
 #include "../../mate/mate.h"
 #include "move_picker.hpp"
+#include "path_keys.hpp"
 #include "proof_hand.hpp"
 #include "transposition_table.hpp"
 #include "ttentry.hpp"
@@ -99,7 +100,7 @@ TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, c
     bool unknown_flag = false;
     HandSet lose_hand = kOrNode ? HandSet::Full() : HandSet::Zero();
     for (const auto& move : move_picker) {
-      auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1);
+      auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, query.PathKey());
       auto child_entry = child_query.LookUpWithoutCreation();
 
       if (!query.DoesStored(child_entry) || child_entry->IsFirstVisit()) {
@@ -115,12 +116,11 @@ TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, c
         UndoMove(n, move.move);
       }
 
-      if ((kOrNode && child_entry->IsProvenNode()) || (!kOrNode && child_entry->IsNonRepetitionDisprovenNode())) {
+      if ((kOrNode && child_entry->IsProvenNode()) || (!kOrNode && child_entry->IsDisprovenNode())) {
         // win
         DeclareWin<kOrNode>(query, ProperChildHand<kOrNode>(n, move.move, child_entry));
         goto SEARCH_FOUND;
-      } else if ((!kOrNode && child_entry->IsProvenNode()) ||
-                 (kOrNode && child_entry->IsNonRepetitionDisprovenNode())) {
+      } else if ((!kOrNode && child_entry->IsProvenNode()) || (kOrNode && child_entry->IsDisprovenNode())) {
         // lose
         if (!unknown_flag) {
           // unknown のときは lose_hand を真面目に更新する必要がない
@@ -176,10 +176,10 @@ void NodeTravels::MarkDeleteCandidates(Position& n,
 
   auto& move_picker = PushMovePicker<kOrNode>(n);
   for (const auto& move : move_picker) {
-    auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1);
+    auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, query.PathKey());
     auto child_entry = child_query.LookUpWithoutCreation();
 
-    if (!query.DoesStored(child_entry) || child_entry->IsProvenNode() || child_entry->IsNonRepetitionDisprovenNode()) {
+    if (!query.DoesStored(child_entry) || child_entry->IsProvenNode() || child_entry->IsDisprovenNode()) {
       continue;
     }
 
@@ -195,7 +195,7 @@ void NodeTravels::MarkDeleteCandidates(Position& n,
 }
 
 template <bool kOrNode>
-int NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& memo, Position& n, int depth) {
+int NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& memo, Position& n, int depth, Key path_key) {
   auto key = n.key();
   if (auto itr = memo.find(key); itr != memo.end() || depth > kMaxNumMateMoves) {
     return kRepetitionNonProven;
@@ -214,14 +214,15 @@ int NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& memo, Position& 
 
   auto& move_picker = PushMovePicker<kOrNode>(n);
   for (const auto& move : move_picker) {
-    auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1);
+    auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, path_key);
     auto child_entry = child_query.LookUpWithoutCreation();
     if (!child_entry->IsProvenNode()) {
       continue;
     }
 
+    auto path_key_after = PathKeyAfter(path_key, move.move, depth);
     DoMove(n, move.move, depth);
-    auto child_depth = MateMovesSearch<!kOrNode>(memo, n, depth + 1);
+    auto child_depth = MateMovesSearch<!kOrNode>(memo, n, depth + 1, path_key_after);
     UndoMove(n, move.move);
 
     if (child_depth >= 0) {
@@ -281,6 +282,12 @@ template void NodeTravels::MarkDeleteCandidates<true>(Position& n,
                                                       std::unordered_set<Key>& parents,
                                                       const LookUpQuery& query,
                                                       TTEntry* entry);
-template int NodeTravels::MateMovesSearch<false>(std::unordered_map<Key, Move>& memo, Position& n, int depth);
-template int NodeTravels::MateMovesSearch<true>(std::unordered_map<Key, Move>& memo, Position& n, int depth);
+template int NodeTravels::MateMovesSearch<false>(std::unordered_map<Key, Move>& memo,
+                                                 Position& n,
+                                                 int depth,
+                                                 Key path_key);
+template int NodeTravels::MateMovesSearch<true>(std::unordered_map<Key, Move>& memo,
+                                                Position& n,
+                                                int depth,
+                                                Key path_key);
 }  // namespace komori

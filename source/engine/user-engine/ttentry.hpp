@@ -17,8 +17,9 @@ class TTEntry {
 
   static TTEntry WithProofHand(std::uint32_t hash_high, Hand proof_hand);
   static TTEntry WithDisproofHand(std::uint32_t hash_high, Hand disproof_hand);
+  static TTEntry WithRepetitionPathKey(std::uint32_t hash_high, Key path_key);
 
-  /// (hand, depth) に一致しているか、`hand` を証明／反証できる内容なら true
+  /// (hand, depth) に一致しているか、`hand` を証明／反証できる内容なら true。千日手ノードでは常に false が返る
   bool ExactOrDeducable(Hand hand, Depth depth) const;
   /// 探索深さが depth 以下で hand の優等局面なら true（渡された hand よりも詰みに近いはず）
   bool IsSuperiorAndShallower(Hand hand, Depth depth) const;
@@ -32,14 +33,16 @@ class TTEntry {
   /// 証明数と反証数を更新する。（詰み／不詰の局面では `SetProven()` / `SetDisproven()` を用いる）
   void Update(PnDn pn, PnDn dn, std::uint64_t num_searched);
 
-  /// 詰みかどうか
+  /// 詰みノードかどうか
   bool IsProvenNode() const;
-  /// 不詰（千日手含む）かどうか
+  /// 不詰ノードかどうか
   bool IsDisprovenNode() const;
-  /// 千日手ではない不詰かどうか
-  bool IsNonRepetitionDisprovenNode() const;
-  /// 千日手による不詰かどうか
-  bool IsRepetitionDisprovenNode() const;
+  /// 千日手ノードかどうか
+  bool IsRepetitionNode() const;
+  /// 詰みでも不詰でも千日手でもないノードかどうか
+  bool IsUnknownNode() const;
+  ///詰みでも不詰でも千日手でもないノードで、かつ千日手の可能性があるノードかどうか
+  bool IsMaybeRepetitionNode() const;
 
   /**
    * @brief 新たに証明駒を与えて、必要ないエントリを消す。このエントリ自体が不必要だと判断されたら true が返る。
@@ -58,6 +61,12 @@ class TTEntry {
    * @return bool          エントリ自体が必要なくなったら true、まだ有用なら false
    */
   bool UpdateWithDisproofHand(Hand disproof_hand);
+  /**
+   * @brief hand で千日手が発生したことを報告する
+   *
+   * @param hand   持ち駒
+   */
+  void UpdateWithRepetitionHand(Hand hand);
 
   /**
    * @brief 証明駒 `hand` による詰みを報告する
@@ -74,13 +83,15 @@ class TTEntry {
   /// 反証駒 `hand` による不詰を報告する
   void SetDisproven(Hand hand);
   /// 千日手による不詰を報告する
-  void SetRepetitionDisproven();
+  void SetRepetition(Key path_key);
+  /// （Unknown 限定）千日手の可能性があることを報告する
+  void MarkMaybeRepetition();
 
   /// エントリが未探索節点（まだ一度も Update() していない）かどうかを判定する
   bool IsFirstVisit() const;
   /// エントリを削除候補に設定する。次回の GC 時に優先的に削除される
   void MarkDeleteCandidate();
-  bool IsMarked() const;
+  bool IsMarkedDeleteCandidate() const;
 
   /**
    * @brief エントリに保存されている持ち駒を返す
@@ -88,7 +99,7 @@ class TTEntry {
    * a. 置換表が Proven のとき
    * `hand` を証明する証明駒を返す。該当する証明駒がなければ hand をそのまま返す。
    *
-   * b. 置換表が NonRepetitionDisproven のとき
+   * b. 置換表が Disproven のとき
    * `hand` を反証する反証駒を返す。該当する反証駒がなければ hand をそのまま返す。
    *
    * c. Otherwise
@@ -100,8 +111,12 @@ class TTEntry {
   Hand ProperHand(Hand hand) const;
   /// エントリが Proven で、まだ証明駒を保存できる余地があるなら true
   bool IsWritableNewProofHand() const;
-  /// エントリが NonRepetitionDisproven で、まだ反証駒を保存できる余地があるなら true
+  /// エントリが Disproven で、まだ反証駒を保存できる余地があるなら true
   bool IsWritableNewDisproofHand() const;
+  /// エントリが Repetition で、まだ証明駒を保存できる余地があるなら false
+  bool IsWritableNewRepetition() const;
+
+  bool CheckRepetition(Key path_key) const;
 
   auto StateGeneration() const { return common_.s_gen; }
   auto Generation() const { return GetGeneration(common_.s_gen); }
@@ -110,6 +125,8 @@ class TTEntry {
  private:
   /// エントリに保存する証明駒／反証駒の数。sizeof(known_) == sizeof(unknown) になるように設定する
   static inline constexpr std::size_t kTTEntryHandLen = 6;
+  /// エントリに保存する千日手手順の数。sizeof(known_) == sizeof(repetition_) になるように設定する
+  static inline constexpr std::size_t kTTEntryPathKeyLen = 3;
 
   /// entry の内容をもとに、持ち駒 `hand` を持っていれば詰みだと言えるなら true、それ以外なら false
   bool DoesProve(Hand hanD) const;
@@ -118,26 +135,27 @@ class TTEntry {
 
   auto NodeState() const { return GetState(common_.s_gen); }
 
-  /// unknown_ が有効なら true
-  bool IsUnknownNode() const;
-
   /**
    * Entry の内容によってデータ構造の使い方を変える。証明／反証済みでない局面の場合、hand, pn, dn, depth を格納する。
    * 一方、証明／反証済み局面の場合、pn, dn, depth は必要ないのでこの領域にも証明駒／反証駒を格納する。
    *
    * Entry が証明／反証済みかどうかは末尾の generation によって区別することができる。
-   * 証明済みの場合は kProven、反証済みの kNonRepetitionDisproven、それ以外の場合は置換表の世代（generation）が
+   * 証明済みの場合は kProven、反証済みの kDisproven、それ以外の場合は置換表の世代（generation）が
    * 格納される。現在のノード種別は IsXxxNode() により判定できる。
    *
    * [0, 4)   hash_high
    * [4, 8) generation
    * [8, 32)
-   *   a. known（Proven または NonRepetitionDisproven）
+   *   a. known（Proven または kDisproven）
    *     [8, 12)   hand1
    *     [12, 16)  hand2
    *     ...
    *     [28, 32) hand6
-   *   b. unknown
+   *   b. repetition
+   *     [8, 16)   path_key1
+   *     [16, 24)  path_key2
+   *     [24, 32)  path_key3
+   *   c. unknown
    *     [8, 16)  pn
    *     [16, 24) dn
    *     [24, 28)   hand
@@ -150,6 +168,12 @@ class TTEntry {
       komori::StateGeneration s_gen;  ///< 探索世代。古いものから順に上書きされる
       std::array<std::uint32_t, 6> dummy;
     } common_;
+    /// 千日手による不詰局面
+    struct {
+      std::uint32_t hash_high;
+      komori::StateGeneration s_gen;
+      std::array<Key, kTTEntryPathKeyLen> path_keys;
+    } repetition_;
     /// 証明済または反証済局面
     struct {
       std::uint32_t hash_high;                  ///< board_keyの上位32bit
@@ -167,6 +191,7 @@ class TTEntry {
   };
 
   static_assert(sizeof(common_) == sizeof(unknown_));
+  static_assert(sizeof(common_) == sizeof(repetition_));
   static_assert(sizeof(common_) == sizeof(known_));
 };
 
@@ -206,14 +231,14 @@ class TTCluster {
    *
    * もし条件に合致するエントリが見つからなかった場合、新規作成して cluster に追加する。
    */
-  Iterator LookUpWithCreation(std::uint32_t hash_high, Hand hand, Depth depth);
+  Iterator LookUpWithCreation(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
   /**
    * @brief 条件に合致するエントリを探す。
    *
    * もし条件に合致するエントリが見つからなかった場合、cluster には追加せずダミーの entry を返す。
    * ダミーの entry は、次回の LookUpWithoutCreation() 呼び出しするまでの間だけ有効である。
    */
-  Iterator LookUpWithoutCreation(std::uint32_t hash_high, Hand hand, Depth depth);
+  Iterator LookUpWithoutCreation(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
 
   /**
    * @brief `proof_hand` による詰みを報告する
@@ -225,11 +250,13 @@ class TTCluster {
   void SetProven(std::uint32_t hash_high, Hand proof_hand);
   /// `disproof_hand` による不詰を報告する
   void SetDisproven(std::uint32_t hash_high, Hand disproof_hand);
+  /// `path_key` による不詰を報告する。hand は千日手フラグを立てるために必要。
+  void SetRepetition(std::uint32_t hash_high, Key path_key, Hand hand);
 
  private:
   /// LookUpWithCreation() と LookUpWithoutCreation() の実装本体。
   template <bool kCreateIfNotExist>
-  Iterator LookUp(std::uint32_t hash_high, Hand hand, Depth depth);
+  Iterator LookUp(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
 
   void RemoveLeastUsefulEntry();
   /// size_ == kCluster のとき専用のLowerBound実装

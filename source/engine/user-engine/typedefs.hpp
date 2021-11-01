@@ -36,20 +36,22 @@ inline constexpr StateGeneration kMarkDeleted = 0;
 inline constexpr StateGeneration kFirstSearch = 1;
 
 /// StateGeneration から Generation 部分を得るためのマスク
-inline constexpr StateGeneration kGenerationMask = 0x3fff'ffffu;
+inline constexpr StateGeneration kGenerationMask = 0x1fff'ffffu;
 /// StateGeneration から NodeState 部分を得るためのマスク
-inline constexpr StateGeneration kStateMask = 0xc000'0000u;
+inline constexpr StateGeneration kStateMask = 0xe000'0000u;
 /// NodeState を得るためのビットシフト幅
-inline constexpr int kStateShift = 30;
+inline constexpr int kStateShift = 29;
 
-/// 詰み／不詰が不明
+/// 千日手が絡まないノード
 inline constexpr NodeState kOtherState = 0x00u;
-/// 千日手による不詰
-inline constexpr NodeState kRepetitionDisprovenState = 0x01u;
-/// 厳密な不詰
-inline constexpr NodeState kNonRepetitionDisprovenState = 0x02u;
-/// 詰み
-inline constexpr NodeState kProvenState = 0x03u;
+/// 千日手による不詰かもしれない通常ノード
+inline constexpr NodeState kMaybeRepetitionState = 0x01u;
+/// 千日手ノード
+inline constexpr NodeState kRepetitionState = 0x02u;
+/// 不詰ノード
+inline constexpr NodeState kDisprovenState = 0x03u;
+/// 詰みノード
+inline constexpr NodeState kProvenState = 0x04u;
 
 /// 何局面読んだら generation を進めるか
 constexpr std::uint32_t kNumSearchedPerGeneration = 128;

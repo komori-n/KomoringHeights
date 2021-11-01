@@ -29,7 +29,7 @@ class LookUpQuery {
   LookUpQuery(LookUpQuery&&) noexcept = default;
   LookUpQuery& operator=(const LookUpQuery&) = delete;
   LookUpQuery& operator=(LookUpQuery&&) noexcept = default;
-  LookUpQuery(TTCluster* cluster, std::uint32_t hash_high, Hand hand, Depth depth);
+  LookUpQuery(TTCluster* cluster, std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
 
   /// Query によるエントリ問い合わせを行う。もし見つからなかった場合は新規作成して cluster に追加する
   TTEntry* LookUpWithCreation() const;
@@ -58,6 +58,8 @@ class LookUpQuery {
   void SetProven(Hand proof_hand) const;
   /// 調べていた局面が反証駒 `disproof_hand` で詰みであることを報告する
   void SetDisproven(Hand disproof_hand) const;
+  /// 調べていた局面が千日手による不詰であることを報告する
+  void SetRepetition() const;
   /// `entry` が cluster に存在するエントリかを問い合わせる。（ダミーエントリのチェックに使用する）
   bool DoesStored(TTEntry* entry) const;
   /// `entry` が有効（前回呼び出しから移動していない）かどうかをチェックする
@@ -66,12 +68,14 @@ class LookUpQuery {
   /// query 時点の手駒を返す
   Hand GetHand() const { return hand_; }
   std::uint32_t HashHigh() const { return hash_high_; }
+  Key PathKey() const { return path_key_; }
 
  private:
   TTCluster* cluster_;
   std::uint32_t hash_high_;
   Hand hand_;
   Depth depth_;
+  Key path_key_;
 };
 
 /**
@@ -92,11 +96,11 @@ class TranspositionTable {
 
   /// 局面 `n` で探索深さ `depth` のとき、LookUp 用の構造体を取得する
   template <bool kOrNode>
-  LookUpQuery GetQuery(const Position& n, Depth depth);
+  LookUpQuery GetQuery(const Position& n, Depth depth, Key path_key);
   /// 局面 `n` から `move` で進めた局面で探索深さ `depth` の、LookUp 用の構造体を取得する
   /// なお、depth は 局面を進めた時点の探索深さを渡す必要がある。
   template <bool kOrNode>
-  LookUpQuery GetChildQuery(const Position& n, Move move, Depth depth);
+  LookUpQuery GetChildQuery(const Position& n, Move move, Depth depth, Key path_key);
 
   /// ハッシュ使用率を返す（戻り値は千分率）
   int Hashfull() const;

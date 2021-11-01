@@ -7,7 +7,7 @@
 namespace komori {
 
 template <bool kOrNode>
-MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, Depth depth)
+MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, Depth depth, Key path_key)
     : n_{n}, tt_(tt), depth_{depth}, children_len_{0}, sum_n_{0} {
   // 各子局面の LookUp を行い、min_n の昇順になるように手を並べ替える
   auto move_picker = MovePicker<kOrNode, true>{n};
@@ -16,7 +16,7 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, D
     child.move = move.move;
     child.value = move.value;
 
-    child.query = tt.GetChildQuery<kOrNode>(n, child.move, depth_ + 1);
+    child.query = tt.GetChildQuery<kOrNode>(n, child.move, depth_ + 1, path_key);
     auto entry = child.query.LookUpWithoutCreation();
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
@@ -83,7 +83,7 @@ bool MoveSelector<kOrNode>::IsRepetitionDisproven() const {
     return false;
   }
 
-  return GetState(children_[0].generation) == kRepetitionDisprovenState;
+  return GetState(children_[0].generation) == kRepetitionState;
 }
 
 template <bool kOrNode>

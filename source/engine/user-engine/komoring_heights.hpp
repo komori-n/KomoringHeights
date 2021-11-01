@@ -39,8 +39,6 @@ class DfPnSearcher {
   /// df-pn 探索本体。局面 n が詰むかを調べる
   bool Search(Position& n, std::atomic_bool& stop_flag);
 
-  /// 局面 n が詰む場合、最善手を返す。詰まない場合は MOVE_NONE を返す。
-  Move BestMove(const Position& n);
   /// 局面 n が詰む場合、最善応手列を返す。詰まない場合は {} を返す。
   std::vector<Move> BestMoves(Position& n);
 
