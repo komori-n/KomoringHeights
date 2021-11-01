@@ -83,12 +83,7 @@ bool MoveSelector<kOrNode>::IsRepetitionDisproven() const {
     return false;
   }
 
-  if constexpr (kOrNode) {
-    // 1 つでも千日手に向かう手があるなら、この局面はそれが原因で不詰になっているかもしれない
-    return GetState(children_[children_len_ - 1].generation) == kRepetitionDisprovenState;
-  } else {
-    return GetState(children_[0].generation) == kRepetitionDisprovenState;
-  }
+  return GetState(children_[0].generation) == kRepetitionDisprovenState;
 }
 
 template <bool kOrNode>
