@@ -122,9 +122,9 @@ void DfPnSearcher::SearchImpl(Position& n,
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
   MoveSelector<kOrNode>* selector = nullptr;
   if constexpr (kOrNode) {
-    selector = &or_selectors_.emplace_back(n, tt_, depth, query.PathKey());
+    selector = &or_selectors_.emplace_back(n, tt_, parents, depth, query.PathKey());
   } else {
-    selector = &and_selectors_.emplace_back(n, tt_, depth, query.PathKey());
+    selector = &and_selectors_.emplace_back(n, tt_, parents, depth, query.PathKey());
   }
 
   if (searched_node_ % 10'000'000 == 0) {
@@ -170,7 +170,7 @@ void DfPnSearcher::SearchImpl(Position& n,
 
     // GC の影響で entry の位置が変わっている場合があるのでループの最後で再取得する
     entry = query.RefreshWithCreation(entry);
-    selector->Update(parents);
+    selector->Update();
   }
 
 SEARCH_IMPL_RETURN:
