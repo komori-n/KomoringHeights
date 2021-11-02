@@ -22,6 +22,7 @@ void user_test(Position& pos_, std::istringstream& is) {}
 void USI::extra_option(USI::OptionsMap& o) {
   o["DepthLimit"] << Option(0, 0, INT_MAX);
   o["NodesLimit"] << Option(0, 0, INT64_MAX);
+  o["PvInterval"] << Option(1000, 0, 1000000);
 }
 
 // 起動時に呼び出される。時間のかからない探索関係の初期化処理はここに書くこと。
@@ -63,8 +64,16 @@ void MainThread::search() {
   });
 
   auto time_up = [&]() { return Search::Limits.mate && time.elapsed() >= Search::Limits.mate; };
+  Timer timer;
+  timer.reset();
+  TimePoint pv_interval = Options["PvInterval"];
+  TimePoint last_pv_out = 0;
   while (!Threads.stop && !time_up() && !search_end) {
     Tools::sleep(100);
+    if (pv_interval && timer.elapsed() > last_pv_out + pv_interval) {
+      g_searcher.SetPrintFlag();
+      last_pv_out = timer.elapsed();
+    }
   }
   thread.join();
 

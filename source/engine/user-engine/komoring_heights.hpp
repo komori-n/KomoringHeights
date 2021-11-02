@@ -36,6 +36,9 @@ class DfPnSearcher {
   /// 探索深さ上限を設定する
   void SetMaxDepth(Depth max_depth) { max_depth_ = max_depth; }
 
+  /// 探索情報のPrintを指示する。Printが完了したらフラグはfalseになる
+  void SetPrintFlag() { print_flag_ = true; }
+
   /// df-pn 探索本体。局面 n が詰むかを調べる
   bool Search(Position& n, std::atomic_bool& stop_flag);
 
@@ -76,6 +79,7 @@ class DfPnSearcher {
   std::array<StateInfo, kMaxNumMateMoves> st_info_{};
 
   std::atomic_bool* stop_{nullptr};
+  std::atomic_bool print_flag_{false};
   std::uint64_t searched_node_{};
   Depth searched_depth_{};
   std::chrono::system_clock::time_point start_time_;

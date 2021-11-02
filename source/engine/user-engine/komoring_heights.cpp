@@ -108,6 +108,10 @@ void DfPnSearcher::SearchImpl(Position& n,
     return;
   }
   searched_depth_ = std::max(searched_depth_, depth);
+  if (print_flag_) {
+    PrintProgress(n, depth);
+    print_flag_ = false;
+  }
 
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
@@ -156,9 +160,6 @@ void DfPnSearcher::SearchImpl(Position& n,
     }
 
     ++searched_node_;
-    if (searched_node_ % 1'000'000 == 0) {
-      PrintProgress(n, depth);
-    }
 
     auto [child_thpn, child_thdn] = selector->ChildThreshold(thpn, thdn);
     auto best_move = selector->FrontMove();
