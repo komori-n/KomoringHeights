@@ -499,6 +499,7 @@ constexpr int MAX_PLY_NUM = 246;
 #define USE_MATE_1PLY
 #define USE_MATE_SOLVER
 #define KEEP_LAST_MOVE
+#define USE_KEY_AFTER
 #define USE_BOARD_KEY_AFTER
 #endif
 

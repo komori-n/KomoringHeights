@@ -40,7 +40,7 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
   stop_ = &stop_flag;
   start_time_ = std::chrono::system_clock::now();
 
-  auto query = tt_.GetQuery<true>(n, 0);
+  auto query = tt_.GetQuery<true>(n, 0, 0);
   auto* entry = query.LookUpWithCreation();
   std::unordered_set<Key> parents{};
   SearchImpl<true>(n, kInfinitePnDn, kInfinitePnDn, 0, parents, query, entry);
@@ -56,22 +56,10 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
   return entry->IsProvenNode();
 }
 
-Move DfPnSearcher::BestMove(const Position& n) {
-  MovePicker<true> move_picker{n};
-  for (auto&& move : MovePicker<true>{n}) {
-    auto query = tt_.GetChildQuery<true>(n, move.move, 1);
-    if (auto* entry = query.LookUpWithoutCreation(); entry->IsProvenNode()) {
-      return move.move;
-    }
-  }
-
-  return MOVE_NONE;
-}
-
 std::vector<Move> DfPnSearcher::BestMoves(Position& n) {
   std::unordered_map<Key, Move> memo;
 
-  node_travels_.MateMovesSearch<true>(memo, n, 0);
+  node_travels_.MateMovesSearch<true>(memo, n, 0, 0);
 
   std::vector<Move> result;
   Depth depth = 0;
@@ -116,7 +104,7 @@ void DfPnSearcher::SearchImpl(Position& n,
                               TTEntry* entry) {
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
   if (depth + 1 > max_depth_ || parents.find(n.key()) != parents.end()) {
-    entry->SetRepetitionDisproven();
+    query.SetRepetition();
     return;
   }
   searched_depth_ = std::max(searched_depth_, depth);
@@ -134,9 +122,9 @@ void DfPnSearcher::SearchImpl(Position& n,
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
   MoveSelector<kOrNode>* selector = nullptr;
   if constexpr (kOrNode) {
-    selector = &or_selectors_.emplace_back(n, tt_, depth);
+    selector = &or_selectors_.emplace_back(n, tt_, parents, depth, query.PathKey());
   } else {
-    selector = &and_selectors_.emplace_back(n, tt_, depth);
+    selector = &and_selectors_.emplace_back(n, tt_, parents, depth, query.PathKey());
   }
 
   if (searched_node_ % 10'000'000 == 0) {
@@ -154,7 +142,7 @@ void DfPnSearcher::SearchImpl(Position& n,
     } else if (selector->Dn() == 0) {
       if (selector->IsRepetitionDisproven()) {
         // 千日手のため負け
-        entry->SetRepetitionDisproven();
+        query.SetRepetition();
       } else {
         // 普通に詰まない
         query.SetDisproven(selector->DisproofHand());
@@ -182,7 +170,7 @@ void DfPnSearcher::SearchImpl(Position& n,
 
     // GC の影響で entry の位置が変わっている場合があるのでループの最後で再取得する
     entry = query.RefreshWithCreation(entry);
-    selector->Update(parents);
+    selector->Update();
   }
 
 SEARCH_IMPL_RETURN:

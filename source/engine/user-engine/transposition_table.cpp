@@ -1,5 +1,6 @@
 #include "transposition_table.hpp"
 
+#include "path_keys.hpp"
 #include "proof_hand.hpp"
 #include "ttentry.hpp"
 
@@ -21,15 +22,15 @@ T RoundDownToPow2(T val) {
 }  // namespace
 
 namespace komori {
-LookUpQuery::LookUpQuery(TTCluster* cluster, std::uint32_t hash_high, Hand hand, Depth depth)
-    : cluster_{cluster}, hash_high_{hash_high}, hand_{hand}, depth_{depth} {}
+LookUpQuery::LookUpQuery(TTCluster* cluster, std::uint32_t hash_high, Hand hand, Depth depth, Key path_key)
+    : cluster_{cluster}, hash_high_{hash_high}, hand_{hand}, depth_{depth}, path_key_{path_key} {}
 
 TTEntry* LookUpQuery::LookUpWithCreation() const {
-  return cluster_->LookUpWithCreation(hash_high_, hand_, depth_);
+  return cluster_->LookUpWithCreation(hash_high_, hand_, depth_, path_key_);
 }
 
 TTEntry* LookUpQuery::LookUpWithoutCreation() const {
-  return cluster_->LookUpWithoutCreation(hash_high_, hand_, depth_);
+  return cluster_->LookUpWithoutCreation(hash_high_, hand_, depth_, path_key_);
 }
 
 TTEntry* LookUpQuery::RefreshWithCreation(TTEntry* entry) const {
@@ -58,12 +59,17 @@ void LookUpQuery::SetDisproven(Hand disproof_hand) const {
   cluster_->SetDisproven(hash_high_, disproof_hand);
 }
 
+void LookUpQuery::SetRepetition() const {
+  cluster_->SetRepetition(hash_high_, path_key_, hand_);
+}
+
 bool LookUpQuery::DoesStored(TTEntry* entry) const {
   return cluster_->DoesContain(entry);
 }
 
 bool LookUpQuery::IsValid(TTEntry* entry) const {
-  return cluster_->DoesContain(entry) && hash_high_ == entry->HashHigh() && entry->ExactOrDeducable(hand_, depth_);
+  return cluster_->DoesContain(entry) && hash_high_ == entry->HashHigh() && entry->ExactOrDeducable(hand_, depth_) &&
+         !entry->IsMaybeRepetitionNode();
 }
 
 TranspositionTable::TranspositionTable(void) = default;
@@ -95,17 +101,17 @@ void TranspositionTable::Sweep() {
 }
 
 template <bool kOrNode>
-LookUpQuery TranspositionTable::GetQuery(const Position& n, Depth depth) {
+LookUpQuery TranspositionTable::GetQuery(const Position& n, Depth depth, Key path_key) {
   Key key = n.state()->board_key();
   std::uint32_t hash_high = key >> 32;
 
   auto& cluster = ClusterOf(key);
   auto hand = n.hand_of(kOrNode ? n.side_to_move() : ~n.side_to_move());
-  return {&cluster, hash_high, hand, depth};
+  return {&cluster, hash_high, hand, depth, path_key};
 }
 
 template <bool kOrNode>
-LookUpQuery TranspositionTable::GetChildQuery(const Position& n, Move move, Depth depth) {
+LookUpQuery TranspositionTable::GetChildQuery(const Position& n, Move move, Depth depth, Key path_key) {
   Hand hand;
   if constexpr (kOrNode) {
     hand = AfterHand(n, move, n.hand_of(n.side_to_move()));
@@ -117,7 +123,9 @@ LookUpQuery TranspositionTable::GetChildQuery(const Position& n, Move move, Dept
   std::uint32_t hash_high = key >> 32;
   auto& cluster = ClusterOf(key);
 
-  return {&cluster, hash_high, hand, depth};
+  Key path_key_after = PathKeyAfter(path_key, move, depth - 1);
+
+  return {&cluster, hash_high, hand, depth, path_key_after};
 }
 
 int TranspositionTable::Hashfull() const {
@@ -132,8 +140,8 @@ TTCluster& TranspositionTable::ClusterOf(Key board_key) {
   return tt_[board_key % num_clusters_];
 }
 
-template LookUpQuery TranspositionTable::GetQuery<false>(const Position& n, Depth depth);
-template LookUpQuery TranspositionTable::GetQuery<true>(const Position& n, Depth depth);
-template LookUpQuery TranspositionTable::GetChildQuery<false>(const Position& n, Move move, Depth depth);
-template LookUpQuery TranspositionTable::GetChildQuery<true>(const Position& n, Move move, Depth depth);
+template LookUpQuery TranspositionTable::GetQuery<false>(const Position& n, Depth depth, Key path_key);
+template LookUpQuery TranspositionTable::GetQuery<true>(const Position& n, Depth depth, Key path_key);
+template LookUpQuery TranspositionTable::GetChildQuery<false>(const Position& n, Move move, Depth depth, Key path_key);
+template LookUpQuery TranspositionTable::GetChildQuery<true>(const Position& n, Move move, Depth depth, Key path_key);
 }  // namespace komori

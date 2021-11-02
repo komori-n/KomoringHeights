@@ -4,10 +4,18 @@
 #include "node_travels.hpp"
 #include "proof_hand.hpp"
 
+namespace {
+constexpr komori::StateGeneration kObviousRepetition = komori::MakeStateGeneration(komori::kRepetitionState, 0);
+}  // namespace
+
 namespace komori {
 
 template <bool kOrNode>
-MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, Depth depth)
+MoveSelector<kOrNode>::MoveSelector(const Position& n,
+                                    TranspositionTable& tt,
+                                    const std::unordered_set<Key>& parents,
+                                    Depth depth,
+                                    Key path_key)
     : n_{n}, tt_(tt), depth_{depth}, children_len_{0}, sum_n_{0} {
   // 各子局面の LookUp を行い、min_n の昇順になるように手を並べ替える
   auto move_picker = MovePicker<kOrNode, true>{n};
@@ -15,8 +23,20 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, D
     auto& child = children_[children_len_++];
     child.move = move.move;
     child.value = move.value;
+    auto child_key = n.key_after(move.move);
+    if (parents.find(child_key) != parents.end()) {
+      child.min_n = kOrNode ? kInfinitePnDn : 0;
+      child.sum_n = kOrNode ? 0 : kInfinitePnDn;
+      child.generation = kObviousRepetition;
+      child.entry = nullptr;
+      if constexpr (!kOrNode) {
+        sum_n_ = kInfinitePnDn;
+        break;
+      }
+      continue;
+    }
 
-    child.query = tt.GetChildQuery<kOrNode>(n, child.move, depth_ + 1);
+    child.query = tt.GetChildQuery<kOrNode>(n, child.move, depth_ + 1, path_key);
     auto entry = child.query.LookUpWithoutCreation();
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
@@ -39,10 +59,14 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n, TranspositionTable& tt, D
 }
 
 template <bool kOrNode>
-void MoveSelector<kOrNode>::Update(std::unordered_set<Key>& parents) {
+void MoveSelector<kOrNode>::Update() {
   // 各子局面のエントリを更新する
   for (std::size_t i = 0; i < std::min(children_len_, std::size_t{2}); ++i) {
     auto& child = children_[i];
+    if (child.generation == kObviousRepetition) {
+      continue;
+    }
+
     auto* entry = child.query.RefreshWithoutCreation(child.entry);
     if (child.query.DoesStored(entry)) {
       child.entry = entry;
@@ -83,7 +107,7 @@ bool MoveSelector<kOrNode>::IsRepetitionDisproven() const {
     return false;
   }
 
-  return GetState(children_[0].generation) == kRepetitionDisprovenState;
+  return GetState(children_[0].generation) == kRepetitionState;
 }
 
 template <bool kOrNode>

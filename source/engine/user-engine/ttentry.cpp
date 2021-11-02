@@ -2,6 +2,7 @@
 
 namespace {
 constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
+constexpr Key kNullKey = Key{0};
 
 /// log2(val) 以上の最小の整数を返す
 template <typename T>
@@ -22,8 +23,10 @@ bool TTEntry::ExactOrDeducable(Hand hand, Depth depth) const {
   switch (NodeState()) {
     case kProvenState:
       return DoesProve(hand);
-    case kNonRepetitionDisprovenState:
+    case kDisprovenState:
       return DoesDisprove(hand);
+    case kRepetitionState:
+      return false;
     default:
       return unknown_.hand == hand && unknown_.depth == depth;
   }
@@ -31,15 +34,22 @@ bool TTEntry::ExactOrDeducable(Hand hand, Depth depth) const {
 
 TTEntry TTEntry::WithProofHand(std::uint32_t hash_high, Hand proof_hand) {
   TTEntry entry{};
-  entry.unknown_.hash_high = hash_high;
+  entry.common_.hash_high = hash_high;
   entry.SetProven(proof_hand);
   return entry;
 }
 
 TTEntry TTEntry::WithDisproofHand(std::uint32_t hash_high, Hand disproof_hand) {
   TTEntry entry{};
-  entry.unknown_.hash_high = hash_high;
+  entry.common_.hash_high = hash_high;
   entry.SetDisproven(disproof_hand);
+  return entry;
+}
+
+TTEntry TTEntry::WithRepetitionPathKey(std::uint32_t hash_high, Key path_key) {
+  TTEntry entry{};
+  entry.common_.hash_high = hash_high;
+  entry.SetRepetition(path_key);
   return entry;
 }
 
@@ -55,8 +65,8 @@ PnDn TTEntry::Pn() const {
   switch (NodeState()) {
     case kProvenState:
       return 0;
-    case kNonRepetitionDisprovenState:
-    case kRepetitionDisprovenState:
+    case kDisprovenState:
+    case kRepetitionState:
       return kInfinitePnDn;
     default:
       return unknown_.pn;
@@ -67,8 +77,8 @@ PnDn TTEntry::Dn() const {
   switch (NodeState()) {
     case kProvenState:
       return kInfinitePnDn;
-    case kNonRepetitionDisprovenState:
-    case kRepetitionDisprovenState:
+    case kDisprovenState:
+    case kRepetitionState:
       return 0;
     default:
       return unknown_.dn;
@@ -86,15 +96,19 @@ bool TTEntry::IsProvenNode() const {
 }
 
 bool TTEntry::IsDisprovenNode() const {
-  return IsNonRepetitionDisprovenNode() || IsRepetitionDisprovenNode();
+  return NodeState() == kDisprovenState;
 }
 
-bool TTEntry::IsNonRepetitionDisprovenNode() const {
-  return NodeState() == kNonRepetitionDisprovenState;
+bool TTEntry::IsRepetitionNode() const {
+  return NodeState() == kRepetitionState;
 }
 
-bool TTEntry::IsRepetitionDisprovenNode() const {
-  return NodeState() == kRepetitionDisprovenState;
+bool TTEntry::IsUnknownNode() const {
+  return NodeState() == kOtherState || NodeState() == kMaybeRepetitionState;
+}
+
+bool TTEntry::IsMaybeRepetitionNode() const {
+  return NodeState() == kMaybeRepetitionState;
 }
 
 bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
@@ -120,7 +134,8 @@ bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
       return idx == 0;
     }
 
-    case kNonRepetitionDisprovenState:
+    case kDisprovenState:
+    case kRepetitionState:
       return false;
 
     default:
@@ -135,9 +150,10 @@ bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
 bool TTEntry::UpdateWithDisproofHand(Hand disproof_hand) {
   switch (NodeState()) {
     case kProvenState:
+    case kRepetitionState:
       return false;
 
-    case kNonRepetitionDisprovenState: {
+    case kDisprovenState: {
       std::size_t idx = 0;
       for (std::size_t i = 0; i < kTTEntryHandLen; ++i) {
         auto& ph = known_.hands[i];
@@ -166,8 +182,16 @@ bool TTEntry::UpdateWithDisproofHand(Hand disproof_hand) {
   }
 }
 
+void TTEntry::UpdateWithRepetitionHand(Hand hand) {
+  if (IsUnknownNode()) {
+    if (unknown_.hand == hand) {
+      MarkMaybeRepetition();
+    }
+  }
+}
+
 void TTEntry::SetProven(Hand hand) {
-  if (NodeState() == kProvenState) {
+  if (IsProvenNode()) {
     for (auto& proven_hand : known_.hands) {
       if (proven_hand == kNullHand) {
         proven_hand = hand;
@@ -184,7 +208,7 @@ void TTEntry::SetProven(Hand hand) {
 }
 
 void TTEntry::SetDisproven(Hand hand) {
-  if (IsNonRepetitionDisprovenNode()) {
+  if (IsDisprovenNode()) {
     for (auto& disproof_hand : known_.hands) {
       if (disproof_hand == kNullHand) {
         disproof_hand = hand;
@@ -192,7 +216,7 @@ void TTEntry::SetDisproven(Hand hand) {
       }
     }
   } else {
-    known_.s_gen = UpdateState(kNonRepetitionDisprovenState, known_.s_gen);
+    known_.s_gen = UpdateState(kDisprovenState, known_.s_gen);
     known_.hands[0] = hand;
     for (std::size_t i = 1; i < kTTEntryHandLen; ++i) {
       known_.hands[i] = kNullHand;
@@ -200,10 +224,27 @@ void TTEntry::SetDisproven(Hand hand) {
   }
 }
 
-void TTEntry::SetRepetitionDisproven() {
-  unknown_.pn = kInfinitePnDn;
-  unknown_.dn = 0;
-  unknown_.s_gen = UpdateState(kRepetitionDisprovenState, known_.s_gen);
+void TTEntry::SetRepetition(Key path_key) {
+  if (IsRepetitionNode()) {
+    for (auto& p : repetition_.path_keys) {
+      if (p == kNullKey) {
+        p = path_key;
+        return;
+      }
+    }
+  } else {
+    repetition_.s_gen = UpdateState(kRepetitionState, common_.s_gen);
+    repetition_.path_keys[0] = path_key;
+    for (std::size_t i = 1; i < kTTEntryPathKeyLen; ++i) {
+      repetition_.path_keys[i] = kNullKey;
+    }
+  }
+}
+
+void TTEntry::MarkMaybeRepetition() {
+  unknown_.s_gen = UpdateState(kMaybeRepetitionState, unknown_.s_gen);
+  unknown_.pn = 1;
+  unknown_.dn = 1;
 }
 
 bool TTEntry::IsFirstVisit() const {
@@ -214,7 +255,7 @@ void TTEntry::MarkDeleteCandidate() {
   common_.s_gen = kMarkDeleted;
 }
 
-bool TTEntry::IsMarked() const {
+bool TTEntry::IsMarkedDeleteCandidate() const {
   return StateGeneration() == kMarkDeleted;
 }
 
@@ -231,7 +272,7 @@ Hand TTEntry::ProperHand(Hand hand) const {
       }
       return hand;
 
-    case kNonRepetitionDisprovenState:
+    case kDisprovenState:
       for (const auto& disproof_hand : known_.hands) {
         if (disproof_hand == kNullHand) {
           break;
@@ -252,7 +293,28 @@ bool TTEntry::IsWritableNewProofHand() const {
 }
 
 bool TTEntry::IsWritableNewDisproofHand() const {
-  return IsNonRepetitionDisprovenNode() && known_.hands[kTTEntryHandLen - 1] == kNullHand;
+  return IsDisprovenNode() && known_.hands[kTTEntryHandLen - 1] == kNullHand;
+}
+
+bool TTEntry::IsWritableNewRepetition() const {
+  return IsRepetitionNode() && repetition_.path_keys[kTTEntryPathKeyLen - 1] == kNullKey;
+}
+
+bool TTEntry::CheckRepetition(Key path_key) const {
+  if (!IsRepetitionNode()) {
+    return false;
+  }
+
+  for (const auto& p : repetition_.path_keys) {
+    if (p == kNullKey) {
+      break;
+    }
+
+    if (p == path_key) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool TTEntry::DoesProve(Hand hand) const {
@@ -291,10 +353,6 @@ bool TTEntry::DoesDisprove(Hand hand) const {
   return false;
 }
 
-bool TTEntry::IsUnknownNode() const {
-  return !IsProvenNode() && !IsNonRepetitionDisprovenNode();
-}
-
 // -----------------------------------------------------------------------------
 
 TTCluster::Iterator TTCluster::LowerBound(std::uint32_t hash_high) {
@@ -323,7 +381,7 @@ TTCluster::Iterator TTCluster::UpperBound(std::uint32_t hash_high) {
 }
 
 void TTCluster::Sweep() {
-  auto new_end = std::remove_if(begin(), end(), [](const TTEntry& entry) { return entry.IsMarked(); });
+  auto new_end = std::remove_if(begin(), end(), [](const TTEntry& entry) { return entry.IsMarkedDeleteCandidate(); });
   size_ = static_cast<std::size_t>(new_end - begin());
 }
 
@@ -340,12 +398,12 @@ TTCluster::Iterator TTCluster::Add(TTEntry&& entry) {
   return insert_pos;
 }
 
-TTCluster::Iterator TTCluster::LookUpWithCreation(std::uint32_t hash_high, Hand hand, Depth depth) {
-  return LookUp<true>(hash_high, hand, depth);
+TTCluster::Iterator TTCluster::LookUpWithCreation(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key) {
+  return LookUp<true>(hash_high, hand, depth, path_key);
 }
 
-TTCluster::Iterator TTCluster::LookUpWithoutCreation(std::uint32_t hash_high, Hand hand, Depth depth) {
-  return LookUp<false>(hash_high, hand, depth);
+TTCluster::Iterator TTCluster::LookUpWithoutCreation(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key) {
+  return LookUp<false>(hash_high, hand, depth, path_key);
 }
 
 void TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand) {
@@ -430,8 +488,30 @@ void TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand) {
   }
 }
 
+void TTCluster::SetRepetition(std::uint32_t hash_high, Key path_key, Hand hand) {
+  auto itr = LowerBound(hash_high);
+  auto end_entry = end();
+  bool wrote_repetition_key = false;
+  for (; itr != end_entry; ++itr) {
+    if (itr->HashHigh() != hash_high) {
+      break;
+    }
+
+    itr->UpdateWithRepetitionHand(hand);
+
+    if (!wrote_repetition_key && itr->IsWritableNewRepetition()) {
+      itr->SetRepetition(path_key);
+      wrote_repetition_key = true;
+    }
+  }
+
+  if (!wrote_repetition_key) {
+    Add(TTEntry::WithRepetitionPathKey(hash_high, path_key));
+  }
+}
+
 template <bool kCreateIfNotExist>
-TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth depth) {
+TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key) {
   PnDn max_pn = 1;
   PnDn max_dn = 1;
   auto end_entry = end();
@@ -442,19 +522,27 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
 
     // 完全一致するエントリが見つかった
     if (itr->ExactOrDeducable(hand, depth)) {
+      if (itr->IsMaybeRepetitionNode()) {
+        for (auto itr2 = LowerBound(hash_high); itr2 != end_entry; ++itr2) {
+          if (itr2->HashHigh() != hash_high) {
+            break;
+          }
+
+          if (itr2->CheckRepetition(path_key)) {
+            return itr2;
+          }
+        }
+      }
       return itr;
     }
 
-    // 千日手含みの局面は優等局面の情報を使わない
-    if (!itr->IsRepetitionDisprovenNode()) {
-      if (itr->IsSuperiorAndShallower(hand, depth)) {
-        // 優等局面よりも不詰に近いはず
-        max_dn = std::max(max_dn, itr->Dn());
-      }
-      if (itr->IsInferiorAndShallower(hand, depth)) {
-        // 劣等局面よりも詰に近いはず
-        max_pn = std::max(max_pn, itr->Pn());
-      }
+    if (itr->IsSuperiorAndShallower(hand, depth)) {
+      // 優等局面よりも不詰に近いはず
+      max_dn = std::max(max_dn, itr->Dn());
+    }
+    if (itr->IsInferiorAndShallower(hand, depth)) {
+      // 劣等局面よりも詰に近いはず
+      max_pn = std::max(max_pn, itr->Pn());
     }
   }
 
@@ -546,7 +634,7 @@ TTCluster::Iterator TTCluster::LowerBoundPartial(std::uint32_t hash_high) {
   return curr;
 }
 
-template TTCluster::Iterator TTCluster::LookUp<false>(std::uint32_t hash_high, Hand hand, Depth depth);
-template TTCluster::Iterator TTCluster::LookUp<true>(std::uint32_t hash_high, Hand hand, Depth depth);
+template TTCluster::Iterator TTCluster::LookUp<false>(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
+template TTCluster::Iterator TTCluster::LookUp<true>(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
 
 }  // namespace komori
