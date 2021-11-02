@@ -57,7 +57,7 @@ class DfPnSearcher {
    * @param thpn dn のしきい値。n の探索中に dn がこの値以上になったら探索を打ち切る。
    * @param depth 探索深さ
    * @param parents root から現局面までで通過した局面の key の一覧。千日手判定に用いる。
-   * @param TBD.
+   * @param query 現局面の置換表クエリ。引数として渡すことで高速化をはかる。
    * @param entry 現局面の TTEntry。引数として渡すことで LookUp 回数をへらすことができる。
    */
   template <bool kOrNode>
