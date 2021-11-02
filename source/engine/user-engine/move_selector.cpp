@@ -157,7 +157,11 @@ bool MoveSelector<kOrNode>::Compare(const ChildNodeCache& lhs, const ChildNodeCa
     return lhs.min_n < rhs.min_n;
   }
   if (lhs.generation != rhs.generation) {
-    return lhs.generation < rhs.generation;
+    if constexpr (kOrNode) {
+      return lhs.generation < rhs.generation;
+    } else {
+      return lhs.generation > rhs.generation;
+    }
   }
   return lhs.value < rhs.value;
 }
