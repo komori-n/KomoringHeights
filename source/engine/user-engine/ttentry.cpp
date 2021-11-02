@@ -21,11 +21,11 @@ TTEntry::TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth dep
 
 bool TTEntry::ExactOrDeducable(Hand hand, Depth depth) const {
   switch (NodeState()) {
-    case kProvenState:
+    case NodeState::kProvenState:
       return DoesProve(hand);
-    case kDisprovenState:
+    case NodeState::kDisprovenState:
       return DoesDisprove(hand);
-    case kRepetitionState:
+    case NodeState::kRepetitionState:
       return false;
     default:
       return unknown_.hand == hand && unknown_.depth == depth;
@@ -63,10 +63,10 @@ bool TTEntry::IsInferiorAndShallower(Hand hand, Depth depth) const {
 
 PnDn TTEntry::Pn() const {
   switch (NodeState()) {
-    case kProvenState:
+    case NodeState::kProvenState:
       return 0;
-    case kDisprovenState:
-    case kRepetitionState:
+    case NodeState::kDisprovenState:
+    case NodeState::kRepetitionState:
       return kInfinitePnDn;
     default:
       return unknown_.pn;
@@ -75,10 +75,10 @@ PnDn TTEntry::Pn() const {
 
 PnDn TTEntry::Dn() const {
   switch (NodeState()) {
-    case kProvenState:
+    case NodeState::kProvenState:
       return kInfinitePnDn;
-    case kDisprovenState:
-    case kRepetitionState:
+    case NodeState::kDisprovenState:
+    case NodeState::kRepetitionState:
       return 0;
     default:
       return unknown_.dn;
@@ -88,32 +88,32 @@ PnDn TTEntry::Dn() const {
 void TTEntry::Update(PnDn pn, PnDn dn, std::uint64_t num_searched) {
   unknown_.pn = pn;
   unknown_.dn = dn;
-  unknown_.s_gen = MakeStateGeneration(kOtherState, CalcGeneration(num_searched));
+  unknown_.s_gen = komori::StateGeneration{NodeState::kOtherState, CalcGeneration(num_searched)};
 }
 
 bool TTEntry::IsProvenNode() const {
-  return NodeState() == kProvenState;
+  return NodeState() == NodeState::kProvenState;
 }
 
 bool TTEntry::IsDisprovenNode() const {
-  return NodeState() == kDisprovenState;
+  return NodeState() == NodeState::kDisprovenState;
 }
 
 bool TTEntry::IsRepetitionNode() const {
-  return NodeState() == kRepetitionState;
+  return NodeState() == NodeState::kRepetitionState;
 }
 
 bool TTEntry::IsUnknownNode() const {
-  return NodeState() == kOtherState || NodeState() == kMaybeRepetitionState;
+  return NodeState() == NodeState::kOtherState || NodeState() == NodeState::kMaybeRepetitionState;
 }
 
 bool TTEntry::IsMaybeRepetitionNode() const {
-  return NodeState() == kMaybeRepetitionState;
+  return NodeState() == NodeState::kMaybeRepetitionState;
 }
 
 bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
   switch (NodeState()) {
-    case kProvenState: {
+    case NodeState::kProvenState: {
       std::size_t idx = 0;
       // proof_hand で証明可能な手は消す。それ以外は手前から詰め直して残す。
       for (std::size_t i = 0; i < kTTEntryHandLen; ++i) {
@@ -134,8 +134,8 @@ bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
       return idx == 0;
     }
 
-    case kDisprovenState:
-    case kRepetitionState:
+    case NodeState::kDisprovenState:
+    case NodeState::kRepetitionState:
       return false;
 
     default:
@@ -149,11 +149,11 @@ bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
 
 bool TTEntry::UpdateWithDisproofHand(Hand disproof_hand) {
   switch (NodeState()) {
-    case kProvenState:
-    case kRepetitionState:
+    case NodeState::kProvenState:
+    case NodeState::kRepetitionState:
       return false;
 
-    case kDisprovenState: {
+    case NodeState::kDisprovenState: {
       std::size_t idx = 0;
       for (std::size_t i = 0; i < kTTEntryHandLen; ++i) {
         auto& ph = known_.hands[i];
@@ -199,7 +199,7 @@ void TTEntry::SetProven(Hand hand) {
       }
     }
   } else {
-    known_.s_gen = UpdateState(kProvenState, known_.s_gen);
+    known_.s_gen.node_state = NodeState::kProvenState;
     known_.hands[0] = hand;
     for (std::size_t i = 1; i < kTTEntryHandLen; ++i) {
       known_.hands[i] = kNullHand;
@@ -216,7 +216,7 @@ void TTEntry::SetDisproven(Hand hand) {
       }
     }
   } else {
-    known_.s_gen = UpdateState(kDisprovenState, known_.s_gen);
+    known_.s_gen.node_state = NodeState::kDisprovenState;
     known_.hands[0] = hand;
     for (std::size_t i = 1; i < kTTEntryHandLen; ++i) {
       known_.hands[i] = kNullHand;
@@ -233,7 +233,7 @@ void TTEntry::SetRepetition(Key path_key) {
       }
     }
   } else {
-    repetition_.s_gen = UpdateState(kRepetitionState, common_.s_gen);
+    repetition_.s_gen.node_state = NodeState::kRepetitionState;
     repetition_.path_keys[0] = path_key;
     for (std::size_t i = 1; i < kTTEntryPathKeyLen; ++i) {
       repetition_.path_keys[i] = kNullKey;
@@ -242,7 +242,7 @@ void TTEntry::SetRepetition(Key path_key) {
 }
 
 void TTEntry::MarkMaybeRepetition() {
-  unknown_.s_gen = UpdateState(kMaybeRepetitionState, unknown_.s_gen);
+  unknown_.s_gen.node_state = NodeState::kMaybeRepetitionState;
   unknown_.pn = 1;
   unknown_.dn = 1;
 }
@@ -261,7 +261,7 @@ bool TTEntry::IsMarkedDeleteCandidate() const {
 
 Hand TTEntry::ProperHand(Hand hand) const {
   switch (NodeState()) {
-    case kProvenState:
+    case NodeState::kProvenState:
       for (const auto& proof_hand : known_.hands) {
         if (proof_hand == kNullHand) {
           break;
@@ -272,7 +272,7 @@ Hand TTEntry::ProperHand(Hand hand) const {
       }
       return hand;
 
-    case kDisprovenState:
+    case NodeState::kDisprovenState:
       for (const auto& disproof_hand : known_.hands) {
         if (disproof_hand == kNullHand) {
           break;
@@ -562,9 +562,19 @@ void TTCluster::RemoveLeastUsefulEntry() {
     return;
   }
 
-  // 最も Generation が小さいエントリを消す
+  // 最も必要なさそうなエントリを消す
   auto removed_entry = std::min_element(begin(), end(), [](const TTEntry& lhs, const TTEntry& rhs) {
-    return lhs.StateGeneration() < rhs.StateGeneration();
+    auto lstate = lhs.StateGeneration().node_state;
+    auto lgen = lhs.StateGeneration().generation;
+    auto rstate = rhs.StateGeneration().node_state;
+    auto rgen = rhs.StateGeneration().generation;
+    if (lstate != rstate) {
+      if (lstate != NodeState::kOtherState && lstate != NodeState::kMaybeRepetitionState &&
+          rstate != NodeState::kOtherState && rstate != NodeState::kMaybeRepetitionState) {
+        return lstate < rstate;
+      }
+    }
+    return lgen < rgen;
   });
 
   std::move(removed_entry + 1, end(), removed_entry);

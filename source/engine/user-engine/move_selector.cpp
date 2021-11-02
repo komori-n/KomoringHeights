@@ -5,7 +5,7 @@
 #include "proof_hand.hpp"
 
 namespace {
-constexpr komori::StateGeneration kObviousRepetition = komori::MakeStateGeneration(komori::kRepetitionState, 0);
+constexpr komori::StateGeneration kObviousRepetition = komori::StateGeneration{komori::NodeState::kRepetitionState, 0};
 }  // namespace
 
 namespace komori {
@@ -27,7 +27,7 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
     if (parents.find(child_key) != parents.end()) {
       child.min_n = kOrNode ? kInfinitePnDn : 0;
       child.sum_n = kOrNode ? 0 : kInfinitePnDn;
-      child.generation = kObviousRepetition;
+      child.s_gen = kObviousRepetition;
       child.entry = nullptr;
       if constexpr (!kOrNode) {
         sum_n_ = kInfinitePnDn;
@@ -40,7 +40,7 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
     auto entry = child.query.LookUpWithoutCreation();
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
-    child.generation = entry->StateGeneration();
+    child.s_gen = entry->StateGeneration();
     if (child.query.DoesStored(entry)) {
       child.entry = entry;
     } else {
@@ -63,7 +63,7 @@ void MoveSelector<kOrNode>::Update() {
   // 各子局面のエントリを更新する
   for (std::size_t i = 0; i < std::min(children_len_, std::size_t{2}); ++i) {
     auto& child = children_[i];
-    if (child.generation == kObviousRepetition) {
+    if (child.s_gen == kObviousRepetition) {
       continue;
     }
 
@@ -77,7 +77,7 @@ void MoveSelector<kOrNode>::Update() {
     auto old_sum_n = child.sum_n;
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
-    child.generation = entry->StateGeneration();
+    child.s_gen = entry->StateGeneration();
 
     sum_n_ = std::min(sum_n_ - old_sum_n + child.sum_n, kInfinitePnDn);
   }
@@ -107,7 +107,7 @@ bool MoveSelector<kOrNode>::IsRepetitionDisproven() const {
     return false;
   }
 
-  return GetState(children_[0].generation) == kRepetitionState;
+  return children_[0].s_gen.node_state == NodeState::kRepetitionState;
 }
 
 template <bool kOrNode>
@@ -180,11 +180,14 @@ bool MoveSelector<kOrNode>::Compare(const ChildNodeCache& lhs, const ChildNodeCa
   if (lhs.min_n != rhs.min_n) {
     return lhs.min_n < rhs.min_n;
   }
-  if (lhs.generation != rhs.generation) {
+
+  auto lstate = lhs.s_gen.node_state;
+  auto rstate = rhs.s_gen.node_state;
+  if (lstate != rstate) {
     if constexpr (kOrNode) {
-      return lhs.generation < rhs.generation;
+      return static_cast<std::uint32_t>(lstate) < static_cast<std::uint32_t>(rstate);
     } else {
-      return lhs.generation > rhs.generation;
+      return static_cast<std::uint32_t>(lstate) > static_cast<std::uint32_t>(rstate);
     }
   }
   return lhs.value < rhs.value;

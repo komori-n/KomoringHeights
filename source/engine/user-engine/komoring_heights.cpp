@@ -49,7 +49,8 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
 
   // <for-debug>
   sync_cout << "info string pn=" << entry->Pn() << " dn=" << entry->Dn() << " num_searched=" << searched_node_
-            << " generation=" << entry->StateGeneration() << sync_endl;  //
+            << " node_state=" << entry->StateGeneration().node_state
+            << " generation=" << entry->StateGeneration().generation << sync_endl;
   // </for-debug>
 
   stop_ = nullptr;

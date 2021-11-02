@@ -119,7 +119,6 @@ class TTEntry {
   bool CheckRepetition(Key path_key) const;
 
   auto StateGeneration() const { return common_.s_gen; }
-  auto Generation() const { return GetGeneration(common_.s_gen); }
   auto HashHigh() const { return common_.hash_high; }
 
  private:
@@ -133,7 +132,7 @@ class TTEntry {
   /// entry の内容をもとに、持ち駒 `hand` を持っていれば不詰だと言えるなら true、それ以外なら false
   bool DoesDisprove(Hand hand) const;
 
-  auto NodeState() const { return GetState(common_.s_gen); }
+  komori::NodeState NodeState() const { return common_.s_gen.node_state; }
 
   /**
    * Entry の内容によってデータ構造の使い方を変える。証明／反証済みでない局面の場合、hand, pn, dn, depth を格納する。

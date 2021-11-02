@@ -1,6 +1,7 @@
 #ifndef TYPEDEFS_HPP_
 #define TYPEDEFS_HPP_
 
+#include <cinttypes>
 #include <limits>
 
 #include "../../bitboard.h"
@@ -18,61 +19,42 @@ using PnDn = std::uint64_t;
 /// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
 constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
 
+/// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
+enum class NodeState : std::uint32_t {
+  kOtherState,
+  kMaybeRepetitionState,
+  kRepetitionState,
+  kDisprovenState,
+  kProvenState,
+};
+
+inline std::ostream& operator<<(std::ostream& os, NodeState node_state) {
+  os << static_cast<std::uint32_t>(node_state);
+  return os;
+}
+
 /**
  * @brief 置換表世代（Generation）と局面状態（NodeState）を1つの整数にまとめたもの。
- *
- * [0, 30):  Generation
- * [31, 32): NodeState
  */
-using StateGeneration = std::uint32_t;
-/// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
-using NodeState = StateGeneration;
+struct StateGeneration {
+  NodeState node_state : 3;
+  std::uint32_t generation : 29;
+};
+
+inline bool operator==(const StateGeneration& lhs, const StateGeneration& rhs) {
+  return lhs.node_state == rhs.node_state && lhs.generation == rhs.generation;
+}
+
 /// 置換表の世代を表す型。
-using Generation = StateGeneration;
+using Generation = std::uint32_t;
 
-/// 削除候補（優先的にGCで消される）
-inline constexpr StateGeneration kMarkDeleted = 0;
-/// 未探索
-inline constexpr StateGeneration kFirstSearch = 1;
-
-/// StateGeneration から Generation 部分を得るためのマスク
-inline constexpr StateGeneration kGenerationMask = 0x1fff'ffffu;
-/// StateGeneration から NodeState 部分を得るためのマスク
-inline constexpr StateGeneration kStateMask = 0xe000'0000u;
-/// NodeState を得るためのビットシフト幅
-inline constexpr int kStateShift = 29;
-
-/// 千日手が絡まないノード
-inline constexpr NodeState kOtherState = 0x00u;
-/// 千日手による不詰かもしれない通常ノード
-inline constexpr NodeState kMaybeRepetitionState = 0x01u;
-/// 千日手ノード
-inline constexpr NodeState kRepetitionState = 0x02u;
-/// 不詰ノード
-inline constexpr NodeState kDisprovenState = 0x03u;
-/// 詰みノード
-inline constexpr NodeState kProvenState = 0x04u;
+inline constexpr StateGeneration kMarkDeleted = {NodeState::kOtherState, 0};
+inline constexpr StateGeneration kFirstSearch = {NodeState::kOtherState, 1};
 
 /// 何局面読んだら generation を進めるか
 constexpr std::uint32_t kNumSearchedPerGeneration = 128;
 inline constexpr Generation CalcGeneration(std::uint64_t num_searched) {
-  return kFirstSearch + static_cast<Generation>(num_searched / kNumSearchedPerGeneration);
-}
-
-inline constexpr Generation GetGeneration(StateGeneration s_gen) {
-  return s_gen & kGenerationMask;
-}
-
-inline constexpr NodeState GetState(StateGeneration s_gen) {
-  return s_gen >> kStateShift;
-}
-
-inline constexpr StateGeneration MakeStateGeneration(NodeState state, Generation generation) {
-  return generation | (state << kStateShift);
-}
-
-inline constexpr StateGeneration UpdateState(NodeState state, StateGeneration s_gen) {
-  return GetGeneration(s_gen) | (state << kStateShift);
+  return 1 + static_cast<Generation>(num_searched / kNumSearchedPerGeneration);
 }
 
 /// c 側の sq にある pt の利き先の Bitboard を返す

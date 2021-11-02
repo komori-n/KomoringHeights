@@ -15,7 +15,7 @@ struct ChildNodeCache {
   TTEntry* entry;
   Move move;
   PnDn min_n, sum_n;
-  std::uint32_t generation;
+  StateGeneration s_gen;
   int value;
 };
 
