@@ -68,8 +68,9 @@ bool LookUpQuery::DoesStored(TTEntry* entry) const {
 }
 
 bool LookUpQuery::IsValid(TTEntry* entry) const {
-  return cluster_->DoesContain(entry) && hash_high_ == entry->HashHigh() && entry->ExactOrDeducable(hand_, depth_) &&
-         !entry->IsMaybeRepetitionNode();
+  return cluster_->DoesContain(entry) && hash_high_ == entry->HashHigh() &&
+         ((entry->ExactOrDeducable(hand_, depth_) && !entry->IsMaybeRepetitionNode()) ||
+          entry->IsRepetitionNode() && entry->CheckRepetition(path_key_));
 }
 
 TranspositionTable::TranspositionTable(void) = default;
