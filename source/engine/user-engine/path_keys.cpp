@@ -18,8 +18,8 @@ void PathKeyInit() {
     }
   }
 
-  for (std::size_t depth = 0; depth < kMaxNumMateMoves; ++depth) {
-    SET_HASH(g_promote[depth], rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>());
+  for (auto& promote_entry : g_promote) {
+    SET_HASH(promote_entry, rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>());
   }
 
   for (PieceType pr = NO_PIECE_TYPE; pr < PIECE_HAND_NB; ++pr) {

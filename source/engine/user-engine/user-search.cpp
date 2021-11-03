@@ -12,6 +12,31 @@
 namespace {
 komori::DfPnSearcher g_searcher;
 std::once_flag g_path_key_init_flag;
+
+constexpr int kDisprovenLen = -1;
+constexpr int kTimeOutLen = -2;
+
+std::string InfoHeader(bool is_mate_search, int solution_len) {
+  std::ostringstream oss;
+  if (is_mate_search) {
+    if (solution_len == kTimeOutLen) {
+      oss << "checkmate timeout";
+    } else if (solution_len == kDisprovenLen) {
+      oss << "checkmate nomate";
+    } else {
+      oss << "checkmate ";
+    }
+  } else {
+    oss << "info " << g_searcher.Info(0) << "score mate";
+    if (solution_len == kTimeOutLen || solution_len == kDisprovenLen) {
+      oss << "-1 pv resign";
+    } else {
+      oss << solution_len << " pv ";
+    }
+  }
+  return oss.str();
+}
+
 }  // namespace
 
 // USI拡張コマンド"user"が送られてくるとこの関数が呼び出される。実験に使ってください。
@@ -52,8 +77,8 @@ void MainThread::search() {
   //  Thread::search();
   //  for (auto th : Threads.slaves) th->wait_for_search_finished();
 
-  Timer time;
-  time.reset();
+  Timer timer;
+  timer.reset();
 
   std::atomic_bool search_end = false;
   std::atomic_bool search_result = false;
@@ -63,9 +88,7 @@ void MainThread::search() {
     search_end = true;
   });
 
-  auto time_up = [&]() { return Search::Limits.mate && time.elapsed() >= Search::Limits.mate; };
-  Timer timer;
-  timer.reset();
+  auto time_up = [&]() { return Search::Limits.mate != 0 && timer.elapsed() >= Search::Limits.mate; };
   TimePoint pv_interval = Options["PvInterval"];
   TimePoint last_pv_out = 0;
   while (!Threads.stop && !time_up() && !search_end) {
@@ -79,30 +102,18 @@ void MainThread::search() {
 
   bool is_mate_search = Search::Limits.mate != 0;
   if (time_up()) {
-    if (is_mate_search) {
-      sync_cout << "checkmate timeout" << sync_endl;
-    } else {
-      sync_cout << "info " << g_searcher.Info(0) << " score mate -1 pv" << sync_endl;
-    }
+    sync_cout << InfoHeader(is_mate_search, kTimeOutLen) << sync_endl;
   } else if (search_end) {
     if (search_result) {
       auto best_moves = g_searcher.BestMoves(rootPos);
       std::ostringstream oss;
-      if (is_mate_search) {
-        oss << "checkmate ";
-      } else {
-        oss << "info " << g_searcher.Info(0) << " score mate +" << best_moves.size() << " pv ";
-      }
+      oss << InfoHeader(is_mate_search, best_moves.size());
       for (const auto& move : best_moves) {
         oss << " " << move;
       }
       sync_cout << oss.str() << sync_endl;
     } else {
-      if (is_mate_search) {
-        sync_cout << "checkmate nomate" << sync_endl;
-      } else {
-        sync_cout << "info " << g_searcher.Info(0) << " score mate -1 pv" << sync_endl;
-      }
+      sync_cout << InfoHeader(is_mate_search, kDisprovenLen) << sync_endl;
     }
   }
 

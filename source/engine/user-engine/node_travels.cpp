@@ -12,6 +12,7 @@
 namespace {
 constexpr int kNonProven = -1;
 constexpr int kRepetitionNonProven = -2;
+constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
 
 template <bool kOrNode>
 inline Hand OrHand(const Position& n) {
@@ -22,12 +23,32 @@ inline Hand OrHand(const Position& n) {
   }
 }
 
+template <bool kAndOperator>
+inline void UpdateHandSet(komori::HandSet& hand_set, Hand hand) {
+  if constexpr (kAndOperator) {
+    hand_set &= hand;
+  } else {
+    hand_set |= hand;
+  }
+}
+
 template <bool kOrNode>
 inline void DeclareWin(const komori::LookUpQuery& query, Hand hand) {
   if constexpr (kOrNode) {
     query.SetProven(hand);
   } else {
     query.SetDisproven(hand);
+  }
+}
+
+template <bool kOrNode>
+inline void StoreLose(const komori::LookUpQuery& query, const Position& n, Hand hand) {
+  if constexpr (kOrNode) {
+    Hand disproof_hand = komori::RemoveIfHandGivesOtherChecks(n, hand);
+    query.SetDisproven(disproof_hand);
+  } else {
+    Hand proof_hand = komori::AddIfHandGivesOtherEvasions(n, hand);
+    query.SetProven(proof_hand);
   }
 }
 
@@ -42,7 +63,7 @@ inline Hand ProperChildHand(const Position& n, Move move, komori::TTEntry* child
 }
 
 /// OrNode で move が近接王手となるか判定する
-bool IsStepCheck(const Position& n, Move move) {
+inline bool IsStepCheck(const Position& n, Move move) {
   auto us = n.side_to_move();
   auto them = ~us;
   auto king_sq = n.king_square(them);
@@ -50,6 +71,29 @@ bool IsStepCheck(const Position& n, Move move) {
   PieceType pt = type_of(pc);
 
   return komori::StepEffect(pt, us, to_sq(move)).test(king_sq);
+}
+
+template <bool kOrNode>
+inline Hand CheckMate1Ply(Position& n) {
+  if constexpr (!kOrNode) {
+    return kNullHand;
+  }
+
+  if (!n.in_check()) {
+    if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
+      komori::HandSet proof_hand = komori::HandSet::Zero();
+      auto curr_hand = OrHand<true>(n);
+
+      StateInfo st_info;
+      n.do_move(move, st_info);
+      proof_hand |= komori::BeforeHand(n, move, komori::AddIfHandGivesOtherEvasions(n, HAND_ZERO));
+      n.undo_move(move);
+
+      proof_hand &= curr_hand;
+      return proof_hand.Get();
+    }
+  }
+  return kNullHand;
 }
 
 }  // namespace
@@ -62,38 +106,21 @@ NodeTravels::NodeTravels(TranspositionTable& tt) : tt_{tt} {
 
 template <bool kOrNode>
 TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query) {
-  if (kOrNode && !n.in_check()) {
-    if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
-      HandSet proof_hand = HandSet::Zero();
-      auto curr_hand = OrHand<kOrNode>(n);
-
-      StateInfo st_info;
-      n.do_move(move, st_info);
-      proof_hand |= BeforeHand(n, move, AddIfHandGivesOtherEvasions(n, HAND_ZERO));
-      n.undo_move(move);
-
-      proof_hand &= curr_hand;
-      query.SetProven(proof_hand.Get());
-      return query.LookUpWithCreation();
-    }
+  if (Hand hand = CheckMate1Ply<kOrNode>(n); hand != kNullHand) {
+    DeclareWin<kOrNode>(query, hand);
+    return query.LookUpWithCreation();
   }
 
   // stack消費を抑えるために、vectorの中にMovePickerを構築する
   // 関数から抜ける前に、必ず pop_back() しなければならない
   auto& move_picker = PushMovePicker<kOrNode>(n);
   {
-    if (move_picker.empty() || depth > kMaxNumMateMoves) {
-      if constexpr (kOrNode) {
-        Hand disproof_hand = RemoveIfHandGivesOtherChecks(n, CollectHand(n));
-        query.SetDisproven(disproof_hand);
-      } else {
-        Hand proof_hand = AddIfHandGivesOtherEvasions(n, HAND_ZERO);
-        query.SetProven(proof_hand);
-      }
+    if (move_picker.empty()) {
+      StoreLose<kOrNode>(query, n, kOrNode ? CollectHand(n) : kNullHand);
       goto SEARCH_FOUND;
     }
 
-    if (remain_depth <= 1) {
+    if (remain_depth <= 1 || depth > kMaxNumMateMoves) {
       goto SEARCH_NOT_FOUND;
     }
 
@@ -122,14 +149,7 @@ TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, c
         goto SEARCH_FOUND;
       } else if ((!kOrNode && child_entry->IsProvenNode()) || (kOrNode && child_entry->IsDisprovenNode())) {
         // lose
-        if (!unknown_flag) {
-          // unknown のときは lose_hand を真面目に更新する必要がない
-          if constexpr (kOrNode) {
-            lose_hand &= ProperChildHand<kOrNode>(n, move.move, child_entry);
-          } else {
-            lose_hand |= ProperChildHand<kOrNode>(n, move.move, child_entry);
-          }
-        }
+        UpdateHandSet<kOrNode>(lose_hand, ProperChildHand<kOrNode>(n, move.move, child_entry));
       } else {
         // unknown
         unknown_flag = true;
@@ -139,15 +159,8 @@ TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, c
     if (unknown_flag) {
       goto SEARCH_NOT_FOUND;
     } else {
-      if constexpr (kOrNode) {
-        lose_hand |= OrHand<kOrNode>(n);
-        auto disproof_hand = RemoveIfHandGivesOtherChecks(n, lose_hand.Get());
-        query.SetDisproven(disproof_hand);
-      } else {
-        lose_hand &= OrHand<kOrNode>(n);
-        auto proof_hand = AddIfHandGivesOtherEvasions(n, lose_hand.Get());
-        query.SetProven(proof_hand);
-      }
+      UpdateHandSet<!kOrNode>(lose_hand, OrHand<kOrNode>(n));
+      StoreLose<kOrNode>(query, n, lose_hand.Get());
     }
   }
 

@@ -123,13 +123,15 @@ bool TTEntry::UpdateWithProofHand(Hand proof_hand) {
         }
 
         if (hand_is_equal_or_superior(ph, proof_hand)) {
+          // proof_hand で証明可能なのでこの手はもういらない
           ph = kNullHand;
-        } else {
-          if (idx != i) {
-            std::swap(known_.hands[idx], ph);
-          }
-          idx++;
+          continue;
         }
+
+        if (idx != i) {
+          std::swap(known_.hands[idx], ph);
+        }
+        idx++;
       }
       return idx == 0;
     }
@@ -163,12 +165,13 @@ bool TTEntry::UpdateWithDisproofHand(Hand disproof_hand) {
 
         if (hand_is_equal_or_superior(disproof_hand, ph)) {
           ph = kNullHand;
-        } else {
-          if (idx != i) {
-            std::swap(known_.hands[idx], ph);
-          }
-          idx++;
+          continue;
         }
+
+        if (idx != i) {
+          std::swap(known_.hands[idx], ph);
+        }
+        idx++;
       }
       return idx == 0;
     }
@@ -514,8 +517,9 @@ template <bool kCreateIfNotExist>
 TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key) {
   PnDn max_pn = 1;
   PnDn max_dn = 1;
+  auto begin_entry = LowerBound(hash_high);
   auto end_entry = end();
-  for (auto itr = LowerBound(hash_high); itr != end_entry; ++itr) {
+  for (auto itr = begin_entry; itr != end_entry; ++itr) {
     if (itr->HashHigh() != hash_high) {
       break;
     }
@@ -523,14 +527,8 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
     // 完全一致するエントリが見つかった
     if (itr->ExactOrDeducable(hand, depth)) {
       if (itr->IsMaybeRepetitionNode()) {
-        for (auto itr2 = LowerBound(hash_high); itr2 != end_entry; ++itr2) {
-          if (itr2->HashHigh() != hash_high) {
-            break;
-          }
-
-          if (itr2->CheckRepetition(path_key)) {
-            return itr2;
-          }
+        if (auto rep = LookUpRepetitionEntry(begin_entry, end_entry, hash_high, path_key); rep != end_entry) {
+          return rep;
         }
       }
       return itr;
@@ -553,6 +551,23 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
     dummy_entry = {hash_high, hand, max_pn, max_dn, depth};
     return &dummy_entry;
   }
+}
+
+TTCluster::Iterator TTCluster::LookUpRepetitionEntry(Iterator begin_,
+                                                     Iterator end_,
+                                                     std::uint32_t hash_high,
+                                                     Key path_key) {
+  for (auto itr = begin_; itr != end_; ++itr) {
+    if (itr->HashHigh() != hash_high) {
+      break;
+    }
+
+    if (itr->CheckRepetition(path_key)) {
+      return itr;
+    }
+  }
+
+  return end_;
 }
 
 void TTCluster::RemoveLeastUsefulEntry() {
@@ -581,6 +596,7 @@ void TTCluster::RemoveLeastUsefulEntry() {
   size_--;
 }
 
+/// NOLINTNEXTLINE(readability-function-size)
 TTCluster::Iterator TTCluster::LowerBoundAll(std::uint32_t hash_high) {
   // ちょうど 7 回二分探索すれば必ず答えが見つかる
   constexpr std::size_t kLoopCnt = 7;
@@ -609,6 +625,7 @@ TTCluster::Iterator TTCluster::LowerBoundAll(std::uint32_t hash_high) {
   return curr;
 }
 
+/// NOLINTNEXTLINE(readability-function-size)
 TTCluster::Iterator TTCluster::LowerBoundPartial(std::uint32_t hash_high) {
   auto len = Size();
 

@@ -83,35 +83,40 @@ Hand AddIfHandGivesOtherEvasions(const Position& n, Hand proof_hand) {
   auto king_sq = n.king_square(n.side_to_move());
   auto checkers = n.checkers();
 
-  if (checkers.pop_count() == 1) {
-    auto checker_sq = checkers.pop();
-    if (between_bb(king_sq, checker_sq)) {
-      // 駒を持っていれば合駒で詰みを防げたかもしれない（合法手が増えるから）
-      for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
-        if (pr == PAWN) {
-          bool double_pawn = true;
-          auto bb = between_bb(king_sq, checker_sq);
-          while (bb) {
-            auto sq = bb.pop();
-            if (!(n.pieces(us, PAWN) & FILE_BB[file_of(sq)])) {
-              double_pawn = false;
-              break;
-            }
-          }
+  if (checkers.pop_count() != 1) {
+    return proof_hand;
+  }
 
-          if (double_pawn) {
-            continue;
-          }
-        }
+  auto checker_sq = checkers.pop();
+  if (!between_bb(king_sq, checker_sq)) {
+    return proof_hand;
+  }
 
-        if (!hand_exists(us_hand, pr)) {
-          // pr を持っていれば詰みを防げた（かもしれない）
-          RemoveHand(proof_hand, pr);
-          proof_hand = MergeHand(proof_hand, static_cast<Hand>(hand_exists(them_hand, pr)));
+  // 駒を持っていれば合駒で詰みを防げたかもしれない（合法手が増えるから）
+  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+    if (pr == PAWN) {
+      bool double_pawn = true;
+      auto bb = between_bb(king_sq, checker_sq);
+      while (bb) {
+        auto sq = bb.pop();
+        if (!(n.pieces(us, PAWN) & FILE_BB[file_of(sq)])) {
+          double_pawn = false;
+          break;
         }
       }
+
+      if (double_pawn) {
+        continue;
+      }
+    }
+
+    if (!hand_exists(us_hand, pr)) {
+      // pr を持っていれば詰みを防げた（かもしれない）
+      RemoveHand(proof_hand, pr);
+      proof_hand = MergeHand(proof_hand, static_cast<Hand>(hand_exists(them_hand, pr)));
     }
   }
+
   return proof_hand;
 }
 }  // namespace komori

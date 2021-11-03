@@ -17,6 +17,37 @@
 
 namespace komori {
 
+/// Selector を格納する領域。stack に積むと stackoverflow になりがちなため
+class MoveSelectorCache {
+ public:
+  void Resize(std::size_t size) {
+    or_selectors_.reserve(size);
+    and_selectors_.reserve(size);
+  }
+
+  template <bool kOrNode, typename... Args>
+  auto& EmplaceBack(Args&&... args) {
+    if constexpr (kOrNode) {
+      return or_selectors_.emplace_back(std::forward<Args>(args)...);
+    } else {
+      return and_selectors_.emplace_back(std::forward<Args>(args)...);
+    }
+  }
+
+  template <bool kOrNode>
+  void PopBack() {
+    if constexpr (kOrNode) {
+      or_selectors_.pop_back();
+    } else {
+      and_selectors_.pop_back();
+    }
+  }
+
+ private:
+  std::vector<MoveSelector<true>> or_selectors_{};
+  std::vector<MoveSelector<false>> and_selectors_{};
+};
+
 /// df-pn探索の本体
 class DfPnSearcher {
  public:
@@ -73,9 +104,7 @@ class DfPnSearcher {
 
   TranspositionTable tt_{};
   NodeTravels node_travels_{tt_};
-  /// Selector を格納する領域。stack に積むと stackoverflow になりがちなため
-  std::vector<MoveSelector<true>> or_selectors_{};
-  std::vector<MoveSelector<false>> and_selectors_{};
+  MoveSelectorCache selector_cache_{};
   std::array<StateInfo, kMaxNumMateMoves> st_info_{};
 
   std::atomic_bool* stop_{nullptr};

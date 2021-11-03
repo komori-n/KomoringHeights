@@ -24,9 +24,7 @@ constexpr std::size_t kFirstSearchAndDepth = 2;
 namespace komori {
 void DfPnSearcher::Init() {
   Resize(kDefaultHashSizeMb);
-
-  or_selectors_.reserve(max_depth_ + 1);
-  and_selectors_.reserve(max_depth_ + 1);
+  selector_cache_.Resize(max_depth_ + 1);
 }
 
 void DfPnSearcher::Resize(std::uint64_t size_mb) {
@@ -108,6 +106,7 @@ void DfPnSearcher::SearchImpl(Position& n,
     query.SetRepetition();
     return;
   }
+
   searched_depth_ = std::max(searched_depth_, depth);
   if (print_flag_) {
     PrintProgress(n, depth);
@@ -125,12 +124,7 @@ void DfPnSearcher::SearchImpl(Position& n,
 
   parents.insert(n.key());
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
-  MoveSelector<kOrNode>* selector = nullptr;
-  if constexpr (kOrNode) {
-    selector = &or_selectors_.emplace_back(n, tt_, parents, depth, query.PathKey());
-  } else {
-    selector = &and_selectors_.emplace_back(n, tt_, parents, depth, query.PathKey());
-  }
+  MoveSelector<kOrNode>* selector = &selector_cache_.EmplaceBack<kOrNode>(n, tt_, parents, depth, query.PathKey());
 
   if (searched_node_ % 10'000'000 == 0) {
     tt_.Sweep();
@@ -177,11 +171,7 @@ void DfPnSearcher::SearchImpl(Position& n,
 
 SEARCH_IMPL_RETURN:
   // parents の復帰と selector の返却を行う必要がある
-  if constexpr (kOrNode) {
-    or_selectors_.pop_back();
-  } else {
-    and_selectors_.pop_back();
-  }
+  selector_cache_.PopBack<kOrNode>();
   parents.erase(n.key());
 }
 

@@ -257,6 +257,9 @@ class TTCluster {
   template <bool kCreateIfNotExist>
   Iterator LookUp(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
 
+  /// [begin_, end_) で path_key による千日手エントリがあるかどうか調べる
+  Iterator LookUpRepetitionEntry(Iterator begin_, Iterator end_, std::uint32_t hash_high, Key path_key);
+
   void RemoveLeastUsefulEntry();
   /// size_ == kCluster のとき専用のLowerBound実装
   Iterator LowerBoundAll(std::uint32_t hash_high);
