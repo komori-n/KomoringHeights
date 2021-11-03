@@ -15,9 +15,9 @@ class TTEntry {
   TTEntry() = default;
   TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth min_depth);
 
-  static TTEntry WithProofHand(std::uint32_t hash_high, Hand proof_hand);
-  static TTEntry WithDisproofHand(std::uint32_t hash_high, Hand disproof_hand);
-  static TTEntry WithRepetitionPathKey(std::uint32_t hash_high, Key path_key);
+  static TTEntry WithProofHand(std::uint32_t hash_high, Hand proof_hand, std::uint64_t num_searches);
+  static TTEntry WithDisproofHand(std::uint32_t hash_high, Hand disproof_hand, std::uint64_t num_searches);
+  static TTEntry WithRepetitionPathKey(std::uint32_t hash_high, Key path_key, std::uint64_t num_searches);
 
   /// (hand, depth) に一致しているか、`hand` を証明／反証できる内容なら true。千日手ノードでは常に false が返る
   bool ExactOrDeducable(Hand hand) const;
@@ -81,11 +81,11 @@ class TTEntry {
    *
    * @param hand 証明駒
    */
-  void SetProven(Hand hand);
+  void SetProven(Hand hand, std::uint64_t num_searches);
   /// 反証駒 `hand` による不詰を報告する
-  void SetDisproven(Hand hand);
+  void SetDisproven(Hand hand, std::uint64_t num_searches);
   /// 千日手による不詰を報告する
-  void SetRepetition(Key path_key);
+  void SetRepetition(Key path_key, std::uint64_t num_searches);
   /// （Unknown 限定）千日手の可能性があることを報告する
   void MarkMaybeRepetition();
 
@@ -249,11 +249,11 @@ class TTCluster {
    * 高速化のために、「hash_high 以外のエントリを消すケースは発生しない」という仮定を置いている。
    * すなわち、既存エントリが kProven に変化するケースは考慮しているが、エントリを増やす操作は考慮していない。
    */
-  void SetProven(std::uint32_t hash_high, Hand proof_hand);
+  void SetProven(std::uint32_t hash_high, Hand proof_hand, std::uint64_t num_searches);
   /// `disproof_hand` による不詰を報告する
-  void SetDisproven(std::uint32_t hash_high, Hand disproof_hand);
+  void SetDisproven(std::uint32_t hash_high, Hand disproof_hand, std::uint64_t num_searches);
   /// `path_key` による不詰を報告する。hand は千日手フラグを立てるために必要。
-  void SetRepetition(std::uint32_t hash_high, Key path_key, Hand hand);
+  void SetRepetition(std::uint32_t hash_high, Key path_key, Hand hand, std::uint64_t num_searches);
 
  private:
   /// LookUpWithCreation() と LookUpWithoutCreation() の実装本体。

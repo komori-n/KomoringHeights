@@ -55,11 +55,11 @@ class LookUpQuery {
   TTEntry* RefreshWithoutCreation(TTEntry* entry) const;
 
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
-  void SetProven(Hand proof_hand) const;
+  void SetProven(Hand proof_hand, std::uint64_t num_searches) const;
   /// 調べていた局面が反証駒 `disproof_hand` で詰みであることを報告する
-  void SetDisproven(Hand disproof_hand) const;
+  void SetDisproven(Hand disproof_hand, std::uint64_t num_searches) const;
   /// 調べていた局面が千日手による不詰であることを報告する
-  void SetRepetition() const;
+  void SetRepetition(std::uint64_t num_searches) const;
   /// `entry` が cluster に存在するエントリかを問い合わせる。（ダミーエントリのチェックに使用する）
   bool DoesStored(TTEntry* entry) const;
   /// `entry` が有効（前回呼び出しから移動していない）かどうかをチェックする

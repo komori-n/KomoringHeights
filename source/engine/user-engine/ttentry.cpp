@@ -32,24 +32,24 @@ bool TTEntry::ExactOrDeducable(Hand hand) const {
   }
 }
 
-TTEntry TTEntry::WithProofHand(std::uint32_t hash_high, Hand proof_hand) {
+TTEntry TTEntry::WithProofHand(std::uint32_t hash_high, Hand proof_hand, std::uint64_t num_searches) {
   TTEntry entry{};
   entry.common_.hash_high = hash_high;
-  entry.SetProven(proof_hand);
+  entry.SetProven(proof_hand, num_searches);
   return entry;
 }
 
-TTEntry TTEntry::WithDisproofHand(std::uint32_t hash_high, Hand disproof_hand) {
+TTEntry TTEntry::WithDisproofHand(std::uint32_t hash_high, Hand disproof_hand, std::uint64_t num_searches) {
   TTEntry entry{};
   entry.common_.hash_high = hash_high;
-  entry.SetDisproven(disproof_hand);
+  entry.SetDisproven(disproof_hand, num_searches);
   return entry;
 }
 
-TTEntry TTEntry::WithRepetitionPathKey(std::uint32_t hash_high, Key path_key) {
+TTEntry TTEntry::WithRepetitionPathKey(std::uint32_t hash_high, Key path_key, std::uint64_t num_searches) {
   TTEntry entry{};
   entry.common_.hash_high = hash_high;
-  entry.SetRepetition(path_key);
+  entry.SetRepetition(path_key, num_searches);
   return entry;
 }
 
@@ -199,7 +199,8 @@ void TTEntry::UpdateWithRepetitionHand(Hand hand) {
   }
 }
 
-void TTEntry::SetProven(Hand hand) {
+void TTEntry::SetProven(Hand hand, std::uint64_t num_searches) {
+  common_.s_gen.generation = CalcGeneration(num_searches);
   if (IsProvenNode()) {
     for (auto& proven_hand : known_.hands) {
       if (proven_hand == kNullHand) {
@@ -216,7 +217,8 @@ void TTEntry::SetProven(Hand hand) {
   }
 }
 
-void TTEntry::SetDisproven(Hand hand) {
+void TTEntry::SetDisproven(Hand hand, std::uint64_t num_searches) {
+  common_.s_gen.generation = CalcGeneration(num_searches);
   if (IsDisprovenNode()) {
     for (auto& disproof_hand : known_.hands) {
       if (disproof_hand == kNullHand) {
@@ -233,7 +235,8 @@ void TTEntry::SetDisproven(Hand hand) {
   }
 }
 
-void TTEntry::SetRepetition(Key path_key) {
+void TTEntry::SetRepetition(Key path_key, std::uint64_t num_searches) {
+  common_.s_gen.generation = CalcGeneration(num_searches);
   if (IsRepetitionNode()) {
     for (auto& p : repetition_.path_keys) {
       if (p == kNullKey) {
@@ -423,7 +426,7 @@ TTCluster::Iterator TTCluster::LookUpWithoutCreation(std::uint32_t hash_high, Ha
   return LookUp<false>(hash_high, hand, depth, path_key);
 }
 
-void TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand) {
+void TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand, std::uint64_t num_searches) {
   auto top = LowerBound(hash_high);
   auto itr = top;
   auto end_entry = end();
@@ -439,7 +442,7 @@ void TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand) {
     } else {
       // itr はまだ必要
       if (!wrote_proof_hand && itr->IsWritableNewProofHand()) {
-        itr->SetProven(proof_hand);
+        itr->SetProven(proof_hand, num_searches);
         wrote_proof_hand = true;
       }
 
@@ -452,7 +455,7 @@ void TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand) {
   }
 
   if (!wrote_proof_hand && top != itr) {
-    *top++ = TTEntry::WithProofHand(hash_high, proof_hand);
+    *top++ = TTEntry::WithProofHand(hash_high, proof_hand, num_searches);
   }
 
   if (top != itr) {
@@ -461,11 +464,11 @@ void TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand) {
   }
 
   if (!wrote_proof_hand) {
-    Add(TTEntry::WithProofHand(hash_high, proof_hand));
+    Add(TTEntry::WithProofHand(hash_high, proof_hand, num_searches));
   }
 }
 
-void TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand) {
+void TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand, std::uint64_t num_searches) {
   auto top = LowerBound(hash_high);
   auto itr = top;
   auto end_entry = end();
@@ -480,7 +483,7 @@ void TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand) {
     } else {
       // itr はまだ必要
       if (!wrote_disproof_hand && itr->IsWritableNewDisproofHand()) {
-        itr->SetDisproven(disproof_hand);
+        itr->SetDisproven(disproof_hand, num_searches);
         wrote_disproof_hand = true;
       }
 
@@ -492,7 +495,7 @@ void TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand) {
   }
 
   if (!wrote_disproof_hand && top != itr) {
-    *top++ = TTEntry::WithDisproofHand(hash_high, disproof_hand);
+    *top++ = TTEntry::WithDisproofHand(hash_high, disproof_hand, num_searches);
   }
 
   if (top != itr) {
@@ -501,11 +504,11 @@ void TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand) {
   }
 
   if (!wrote_disproof_hand) {
-    Add(TTEntry::WithDisproofHand(hash_high, disproof_hand));
+    Add(TTEntry::WithDisproofHand(hash_high, disproof_hand, num_searches));
   }
 }
 
-void TTCluster::SetRepetition(std::uint32_t hash_high, Key path_key, Hand hand) {
+void TTCluster::SetRepetition(std::uint32_t hash_high, Key path_key, Hand hand, std::uint64_t num_searches) {
   auto itr = LowerBound(hash_high);
   auto end_entry = end();
   bool wrote_repetition_key = false;
@@ -517,13 +520,13 @@ void TTCluster::SetRepetition(std::uint32_t hash_high, Key path_key, Hand hand) 
     itr->UpdateWithRepetitionHand(hand);
 
     if (!wrote_repetition_key && itr->IsWritableNewRepetition()) {
-      itr->SetRepetition(path_key);
+      itr->SetRepetition(path_key, num_searches);
       wrote_repetition_key = true;
     }
   }
 
   if (!wrote_repetition_key) {
-    Add(TTEntry::WithRepetitionPathKey(hash_high, path_key));
+    Add(TTEntry::WithRepetitionPathKey(hash_high, path_key, num_searches));
   }
 }
 

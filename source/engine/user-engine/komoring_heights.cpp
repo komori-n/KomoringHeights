@@ -105,7 +105,7 @@ void DfPnSearcher::SearchImpl(Position& n,
                               bool inc_flag) {
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
   if (depth + 1 > max_depth_ || parents.find(n.key()) != parents.end()) {
-    query.SetRepetition();
+    query.SetRepetition(searched_node_);
     return;
   }
 
@@ -117,8 +117,8 @@ void DfPnSearcher::SearchImpl(Position& n,
 
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
-    auto res_entry =
-        node_travels_.LeafSearch<kOrNode>(n, depth, kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth, query);
+    auto res_entry = node_travels_.LeafSearch<kOrNode>(searched_node_, n, depth,
+                                                       kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth, query);
     if (res_entry->IsProvenNode() || res_entry->IsDisprovenNode()) {
       return;
     }
@@ -150,15 +150,15 @@ void DfPnSearcher::SearchImpl(Position& n,
 
   while (searched_node_ < max_search_node_ && !*stop_) {
     if (selector->Pn() == 0) {
-      query.SetProven(selector->ProofHand());
+      query.SetProven(selector->ProofHand(), searched_node_);
       goto SEARCH_IMPL_RETURN;
     } else if (selector->Dn() == 0) {
       if (selector->IsRepetitionDisproven()) {
         // 千日手のため負け
-        query.SetRepetition();
+        query.SetRepetition(searched_node_);
       } else {
         // 普通に詰まない
-        query.SetDisproven(selector->DisproofHand());
+        query.SetDisproven(selector->DisproofHand(), searched_node_);
       }
       goto SEARCH_IMPL_RETURN;
     }

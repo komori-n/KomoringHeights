@@ -31,6 +31,7 @@ class NodeTravels {
    * キャッシュを加味した高速 n 手詰めルーチンのような動きをする。これにより、局面 n
    * の詰み／不詰が簡単に判断できる場合は 探索を大幅にスキップすることができる。
    *
+   * @param num_searches  現在の探索局面数
    * @param n             現在の局面
    * @param depth         探索深さ。tt を引くために必要。
    * @param remain_depth  のこり探索深さ。0になるまで探索する。
@@ -39,7 +40,11 @@ class NodeTravels {
    *                      内容を確認する必要がある。
    */
   template <bool kOrNode>
-  TTEntry* LeafSearch(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query);
+  TTEntry* LeafSearch(std::uint64_t num_searches,
+                      Position& n,
+                      Depth depth,
+                      Depth remain_depth,
+                      const LookUpQuery& query);
 
   /**
    * @brief n の子孫ノードすべてに削除マーカーをつける

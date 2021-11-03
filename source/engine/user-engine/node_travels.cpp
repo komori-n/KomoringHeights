@@ -33,22 +33,22 @@ inline void UpdateHandSet(komori::HandSet& hand_set, Hand hand) {
 }
 
 template <bool kOrNode>
-inline void DeclareWin(const komori::LookUpQuery& query, Hand hand) {
+inline void DeclareWin(std::uint64_t num_searches, const komori::LookUpQuery& query, Hand hand) {
   if constexpr (kOrNode) {
-    query.SetProven(hand);
+    query.SetProven(hand, num_searches);
   } else {
-    query.SetDisproven(hand);
+    query.SetDisproven(hand, num_searches);
   }
 }
 
 template <bool kOrNode>
-inline void StoreLose(const komori::LookUpQuery& query, const Position& n, Hand hand) {
+inline void StoreLose(std::uint64_t num_searches, const komori::LookUpQuery& query, const Position& n, Hand hand) {
   if constexpr (kOrNode) {
     Hand disproof_hand = komori::RemoveIfHandGivesOtherChecks(n, hand);
-    query.SetDisproven(disproof_hand);
+    query.SetDisproven(disproof_hand, num_searches);
   } else {
     Hand proof_hand = komori::AddIfHandGivesOtherEvasions(n, hand);
-    query.SetProven(proof_hand);
+    query.SetProven(proof_hand, num_searches);
   }
 }
 
@@ -105,9 +105,13 @@ NodeTravels::NodeTravels(TranspositionTable& tt) : tt_{tt} {
 }
 
 template <bool kOrNode>
-TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query) {
+TTEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
+                                 Position& n,
+                                 Depth depth,
+                                 Depth remain_depth,
+                                 const LookUpQuery& query) {
   if (Hand hand = CheckMate1Ply<kOrNode>(n); hand != kNullHand) {
-    DeclareWin<kOrNode>(query, hand);
+    DeclareWin<kOrNode>(num_searches, query, hand);
     return query.LookUpWithCreation();
   }
 
@@ -116,7 +120,7 @@ TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, c
   auto& move_picker = PushMovePicker<kOrNode>(n);
   {
     if (move_picker.empty()) {
-      StoreLose<kOrNode>(query, n, kOrNode ? CollectHand(n) : kNullHand);
+      StoreLose<kOrNode>(num_searches, query, n, kOrNode ? CollectHand(n) : kNullHand);
       goto SEARCH_FOUND;
     }
 
@@ -139,13 +143,13 @@ TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, c
 
         // まだ FirstSearch していなさそうな node なら掘り進めてみる
         DoMove(n, move.move, depth);
-        child_entry = LeafSearch<!kOrNode>(n, depth + 1, remain_depth - 1, child_query);
+        child_entry = LeafSearch<!kOrNode>(num_searches, n, depth + 1, remain_depth - 1, child_query);
         UndoMove(n, move.move);
       }
 
       if ((kOrNode && child_entry->IsProvenNode()) || (!kOrNode && child_entry->IsDisprovenNode())) {
         // win
-        DeclareWin<kOrNode>(query, ProperChildHand<kOrNode>(n, move.move, child_entry));
+        DeclareWin<kOrNode>(num_searches, query, ProperChildHand<kOrNode>(n, move.move, child_entry));
         goto SEARCH_FOUND;
       } else if ((!kOrNode && child_entry->IsProvenNode()) || (kOrNode && child_entry->IsDisprovenNode())) {
         // lose
@@ -160,7 +164,7 @@ TTEntry* NodeTravels::LeafSearch(Position& n, Depth depth, Depth remain_depth, c
       goto SEARCH_NOT_FOUND;
     } else {
       UpdateHandSet<!kOrNode>(lose_hand, OrHand<kOrNode>(n));
-      StoreLose<kOrNode>(query, n, lose_hand.Get());
+      StoreLose<kOrNode>(num_searches, query, n, lose_hand.Get());
     }
   }
 
@@ -294,8 +298,16 @@ void NodeTravels::PopMovePicker<false>() {
   and_pickers_.pop_back();
 }
 
-template TTEntry* NodeTravels::LeafSearch<false>(Position& n, Depth depth, Depth max_depth, const LookUpQuery& query);
-template TTEntry* NodeTravels::LeafSearch<true>(Position& n, Depth depth, Depth max_depth, const LookUpQuery& query);
+template TTEntry* NodeTravels::LeafSearch<false>(std::uint64_t num_searches,
+                                                 Position& n,
+                                                 Depth depth,
+                                                 Depth max_depth,
+                                                 const LookUpQuery& query);
+template TTEntry* NodeTravels::LeafSearch<true>(std::uint64_t num_searches,
+                                                Position& n,
+                                                Depth depth,
+                                                Depth max_depth,
+                                                const LookUpQuery& query);
 template void NodeTravels::MarkDeleteCandidates<false>(Position& n,
                                                        Depth depth,
                                                        std::unordered_set<Key>& parents,

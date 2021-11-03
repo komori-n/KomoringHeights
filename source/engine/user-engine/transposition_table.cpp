@@ -51,16 +51,16 @@ TTEntry* LookUpQuery::RefreshWithoutCreation(TTEntry* entry) const {
   }
 }
 
-void LookUpQuery::SetProven(Hand proof_hand) const {
-  cluster_->SetProven(hash_high_, proof_hand);
+void LookUpQuery::SetProven(Hand proof_hand, std::uint64_t num_searches) const {
+  cluster_->SetProven(hash_high_, proof_hand, num_searches);
 }
 
-void LookUpQuery::SetDisproven(Hand disproof_hand) const {
-  cluster_->SetDisproven(hash_high_, disproof_hand);
+void LookUpQuery::SetDisproven(Hand disproof_hand, std::uint64_t num_searches) const {
+  cluster_->SetDisproven(hash_high_, disproof_hand, num_searches);
 }
 
-void LookUpQuery::SetRepetition() const {
-  cluster_->SetRepetition(hash_high_, path_key_, hand_);
+void LookUpQuery::SetRepetition(std::uint64_t num_searches) const {
+  cluster_->SetRepetition(hash_high_, path_key_, hand_, num_searches);
 }
 
 bool LookUpQuery::DoesStored(TTEntry* entry) const {
