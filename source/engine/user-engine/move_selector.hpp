@@ -83,6 +83,8 @@ class MoveSelector {
    */
   std::pair<PnDn, PnDn> ChildThreshold(PnDn thpn, PnDn thdn) const;
 
+  bool DoesHaveOldChild() const { return does_have_old_child_; }
+
  private:
   /**
    * @brief 子局面同士を探索したい順に並べ替えるための比較演算子
@@ -113,6 +115,7 @@ class MoveSelector {
   std::array<ChildNodeCache, kMaxCheckMovesPerNode> children_;
   std::size_t children_len_;
   PnDn sum_n_;
+  bool does_have_old_child_;
 };
 }  // namespace komori
 

@@ -16,7 +16,7 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
                                     const std::unordered_set<Key>& parents,
                                     Depth depth,
                                     Key path_key)
-    : n_{n}, tt_(tt), depth_{depth}, children_len_{0}, sum_n_{0} {
+    : n_{n}, tt_(tt), depth_{depth}, children_len_{0}, sum_n_{0}, does_have_old_child_{false} {
   // 各子局面の LookUp を行い、min_n の昇順になるように手を並べ替える
   auto move_picker = MovePicker<kOrNode, true>{n};
   for (const auto& move : move_picker) {
@@ -47,6 +47,10 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
       child.entry = nullptr;
     }
 
+    if (entry->MinDepth() < depth) {
+      does_have_old_child_ = true;
+    }
+
     sum_n_ = std::min(sum_n_ + child.sum_n, kInfinitePnDn);
     // 勝ちになる手があるならこれ以上調べる必要はない
     if (child.min_n == 0) {
@@ -61,7 +65,7 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
 template <bool kOrNode>
 void MoveSelector<kOrNode>::Update() {
   // 各子局面のエントリを更新する
-  for (std::size_t i = 0; i < std::min(children_len_, std::size_t{2}); ++i) {
+  for (std::size_t i = 0; i < std::min(children_len_, std::size_t{3}); ++i) {
     auto& child = children_[i];
     if (child.s_gen == kObviousRepetition) {
       continue;

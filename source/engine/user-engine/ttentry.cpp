@@ -16,10 +16,10 @@ constexpr std::size_t Log2(T val) {
 }  // namespace
 
 namespace komori {
-TTEntry::TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth depth)
-    : unknown_{hash_high, kFirstSearch, pn, dn, hand, depth} {}
+TTEntry::TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth min_depth)
+    : unknown_{hash_high, kFirstSearch, pn, dn, hand, min_depth} {}
 
-bool TTEntry::ExactOrDeducable(Hand hand, Depth depth) const {
+bool TTEntry::ExactOrDeducable(Hand hand) const {
   switch (NodeState()) {
     case NodeState::kProvenState:
       return DoesProve(hand);
@@ -28,7 +28,7 @@ bool TTEntry::ExactOrDeducable(Hand hand, Depth depth) const {
     case NodeState::kRepetitionState:
       return false;
     default:
-      return unknown_.hand == hand && unknown_.depth == depth;
+      return unknown_.hand == hand;
   }
 }
 
@@ -53,12 +53,12 @@ TTEntry TTEntry::WithRepetitionPathKey(std::uint32_t hash_high, Key path_key) {
   return entry;
 }
 
-bool TTEntry::IsSuperiorAndShallower(Hand hand, Depth depth) const {
-  return IsUnknownNode() && hand_is_equal_or_superior(hand, unknown_.hand) && depth <= unknown_.depth;
+bool TTEntry::IsSuperior(Hand hand) const {
+  return IsUnknownNode() && hand_is_equal_or_superior(hand, unknown_.hand);
 }
 
-bool TTEntry::IsInferiorAndShallower(Hand hand, Depth depth) const {
-  return IsUnknownNode() && hand_is_equal_or_superior(unknown_.hand, hand) && depth <= unknown_.depth;
+bool TTEntry::IsInferior(Hand hand) const {
+  return IsUnknownNode() && hand_is_equal_or_superior(unknown_.hand, hand);
 }
 
 PnDn TTEntry::Pn() const {
@@ -89,6 +89,12 @@ void TTEntry::Update(PnDn pn, PnDn dn, std::uint64_t num_searched) {
   unknown_.pn = pn;
   unknown_.dn = dn;
   unknown_.s_gen = komori::StateGeneration{NodeState::kOtherState, CalcGeneration(num_searched)};
+}
+
+void TTEntry::UpdateDepth(Depth depth) {
+  if (NodeState() == NodeState::kOtherState || NodeState() == NodeState::kRepetitionState) {
+    unknown_.min_depth = std::min(unknown_.min_depth, depth);
+  }
 }
 
 bool TTEntry::IsProvenNode() const {
@@ -320,6 +326,14 @@ bool TTEntry::CheckRepetition(Key path_key) const {
   return false;
 }
 
+Depth TTEntry::MinDepth() const {
+  if (IsUnknownNode()) {
+    return unknown_.min_depth;
+  } else {
+    return 0;
+  }
+}
+
 bool TTEntry::DoesProve(Hand hand) const {
   if (!IsProvenNode()) {
     return false;
@@ -525,20 +539,23 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
     }
 
     // 完全一致するエントリが見つかった
-    if (itr->ExactOrDeducable(hand, depth)) {
+    if (itr->ExactOrDeducable(hand)) {
       if (itr->IsMaybeRepetitionNode()) {
         if (auto rep = LookUpRepetitionEntry(begin_entry, end_entry, hash_high, path_key); rep != end_entry) {
           return rep;
         }
       }
+      if constexpr (kCreateIfNotExist) {
+        itr->UpdateDepth(depth);
+      }
       return itr;
     }
 
-    if (itr->IsSuperiorAndShallower(hand, depth)) {
+    if (itr->IsSuperior(hand)) {
       // 優等局面よりも不詰に近いはず
       max_dn = std::max(max_dn, itr->Dn());
     }
-    if (itr->IsInferiorAndShallower(hand, depth)) {
+    if (itr->IsInferior(hand)) {
       // 劣等局面よりも詰に近いはず
       max_pn = std::max(max_pn, itr->Pn());
     }

@@ -90,6 +90,7 @@ class DfPnSearcher {
    * @param parents root から現局面までで通過した局面の key の一覧。千日手判定に用いる。
    * @param query 現局面の置換表クエリ。引数として渡すことで高速化をはかる。
    * @param entry 現局面の TTEntry。引数として渡すことで LookUp 回数をへらすことができる。
+   * @param inc_flag infinite loopが懸念されるときはtrue。探索を延長する。
    */
   template <bool kOrNode>
   void SearchImpl(Position& n,
@@ -98,7 +99,8 @@ class DfPnSearcher {
                   Depth depth,
                   std::unordered_set<Key>& parents,
                   const LookUpQuery& query,
-                  TTEntry* entry);
+                  TTEntry* entry,
+                  bool inc_flag);
 
   void PrintProgress(const Position& n, Depth depth) const;
 

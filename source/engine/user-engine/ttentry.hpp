@@ -13,18 +13,18 @@ class TTEntry {
  public:
   /// キャッシュできるようにデフォルトコンストラクタを有効にする
   TTEntry() = default;
-  TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth depth);
+  TTEntry(std::uint32_t hash_high, Hand hand, PnDn pn, PnDn dn, Depth min_depth);
 
   static TTEntry WithProofHand(std::uint32_t hash_high, Hand proof_hand);
   static TTEntry WithDisproofHand(std::uint32_t hash_high, Hand disproof_hand);
   static TTEntry WithRepetitionPathKey(std::uint32_t hash_high, Key path_key);
 
   /// (hand, depth) に一致しているか、`hand` を証明／反証できる内容なら true。千日手ノードでは常に false が返る
-  bool ExactOrDeducable(Hand hand, Depth depth) const;
+  bool ExactOrDeducable(Hand hand) const;
   /// 探索深さが depth 以下で hand の優等局面なら true（渡された hand よりも詰みに近いはず）
-  bool IsSuperiorAndShallower(Hand hand, Depth depth) const;
+  bool IsSuperior(Hand hand) const;
   /// 探索深さが depth 以下で hand の劣等局面なら true（渡された hand よりも不詰に近いはず）
-  bool IsInferiorAndShallower(Hand hand, Depth depth) const;
+  bool IsInferior(Hand hand) const;
 
   /// 現在の証明数
   PnDn Pn() const;
@@ -32,6 +32,8 @@ class TTEntry {
   PnDn Dn() const;
   /// 証明数と反証数を更新する。（詰み／不詰の局面では `SetProven()` / `SetDisproven()` を用いる）
   void Update(PnDn pn, PnDn dn, std::uint64_t num_searched);
+
+  void UpdateDepth(Depth depth);
 
   /// 詰みノードかどうか
   bool IsProvenNode() const;
@@ -120,6 +122,7 @@ class TTEntry {
 
   auto StateGeneration() const { return common_.s_gen; }
   auto HashHigh() const { return common_.hash_high; }
+  Depth MinDepth() const;
 
  private:
   /// エントリに保存する証明駒／反証駒の数。sizeof(known_) == sizeof(unknown) になるように設定する
@@ -185,7 +188,7 @@ class TTEntry {
       komori::StateGeneration s_gen;  ///< 探索世代。古いものから順に上書きされる
       PnDn pn, dn;                    ///< pn, dn。直接参照禁止。
       Hand hand;                      ///< 攻め方のhand。pn==0なら証明駒、dn==0なら反証駒を表す。
-      Depth depth;  ///< 探索深さ。千日手回避のためにdepthが違う局面は別局面として扱う
+      Depth min_depth;                ///< 探索深さの最小値。
     } unknown_;
   };
 

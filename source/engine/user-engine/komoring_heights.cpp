@@ -41,7 +41,7 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
   auto query = tt_.GetQuery<true>(n, 0, 0);
   auto* entry = query.LookUpWithCreation();
   std::unordered_set<Key> parents{};
-  SearchImpl<true>(n, kInfinitePnDn, kInfinitePnDn, 0, parents, query, entry);
+  SearchImpl<true>(n, kInfinitePnDn, kInfinitePnDn, 0, parents, query, entry, false);
 
   entry = query.RefreshWithoutCreation(entry);
 
@@ -100,7 +100,8 @@ void DfPnSearcher::SearchImpl(Position& n,
                               Depth depth,
                               std::unordered_set<Key>& parents,
                               const LookUpQuery& query,
-                              TTEntry* entry) {
+                              TTEntry* entry,
+                              bool inc_flag) {
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
   if (depth + 1 > max_depth_ || parents.find(n.key()) != parents.end()) {
     query.SetRepetition();
@@ -120,6 +121,7 @@ void DfPnSearcher::SearchImpl(Position& n,
     if (res_entry->IsProvenNode() || res_entry->IsDisprovenNode()) {
       return;
     }
+    inc_flag = false;
   }
 
   parents.insert(n.key());
@@ -129,6 +131,17 @@ void DfPnSearcher::SearchImpl(Position& n,
   if (searched_node_ % 10'000'000 == 0) {
     tt_.Sweep();
     entry = query.RefreshWithCreation(entry);
+  }
+
+  if (selector->DoesHaveOldChild()) {
+    inc_flag = true;
+  }
+
+  if (inc_flag) {
+    thpn = std::max(thpn, selector->Pn() + 1);
+    thpn = std::min(thpn, kInfinitePnDn);
+    thdn = std::max(thdn, selector->Dn() + 1);
+    thdn = std::min(thdn, kInfinitePnDn);
   }
 
   // これ以降で return する場合、parents の復帰と selector の返却を行う必要がある。
@@ -154,6 +167,10 @@ void DfPnSearcher::SearchImpl(Position& n,
       goto SEARCH_IMPL_RETURN;
     }
 
+    if (selector->DoesHaveOldChild()) {
+      inc_flag = true;
+    }
+
     ++searched_node_;
 
     auto [child_thpn, child_thdn] = selector->ChildThreshold(thpn, thdn);
@@ -161,7 +178,7 @@ void DfPnSearcher::SearchImpl(Position& n,
 
     n.do_move(best_move, st_info_[depth]);
     SearchImpl<!kOrNode>(n, child_thpn, child_thdn, depth + 1, parents, selector->FrontLookUpQuery(),
-                         selector->FrontTTEntry());
+                         selector->FrontTTEntry(), inc_flag);
     n.undo_move(best_move);
 
     // GC の影響で entry の位置が変わっている場合があるのでループの最後で再取得する
@@ -189,12 +206,14 @@ template void DfPnSearcher::SearchImpl<true>(Position& n,
                                              Depth depth,
                                              std::unordered_set<Key>& parents,
                                              const LookUpQuery& query,
-                                             TTEntry* entry);
+                                             TTEntry* entry,
+                                             bool inc_flag);
 template void DfPnSearcher::SearchImpl<false>(Position& n,
                                               PnDn thpn,
                                               PnDn thdn,
                                               Depth depth,
                                               std::unordered_set<Key>& parents,
                                               const LookUpQuery& query,
-                                              TTEntry* entry);
+                                              TTEntry* entry,
+                                              bool inc_flag);
 }  // namespace komori
