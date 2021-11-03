@@ -138,7 +138,7 @@ DIRSTR=(
   ["YANEURAOU_ENGINE_MATERIAL10"]="MaterialLv10"
   ["YANEURAOU_MATE_ENGINE"]="YaneuraOu_MATE"
   ["TANUKI_MATE_ENGINE"]="tanuki_MATE"
-  ["USER_ENGINE"]="USER"
+  ["USER_ENGINE"]="KomoringHeights"
 );
 
 declare -A FILESTR;

@@ -119,7 +119,7 @@ endif
 
 ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
   CPPFLAGS += -DUSE_MAKEFILE -DUSER_ENGINE
-  ENGINE_NAME := YaneuraOu_USER
+  ENGINE_NAME := KomoringHeights
 endif
 
 ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
