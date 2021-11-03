@@ -64,10 +64,10 @@ class NodeTravels {
    * @param n       現在の局面
    * @param depth   現在の深さ
    * @param path_key      経路依存のハッシュ
-   * @return int
+   * @return std::pair<int, int> 詰み手数（詰まない場合マイナス）とそのときの駒あまりの枚数
    */
   template <bool kOrNode>
-  int MateMovesSearch(std::unordered_map<Key, Move>& memo, Position& n, int depth, Key path_key);
+  std::pair<int, int> MateMovesSearch(std::unordered_map<Key, Move>& memo, Position& n, int depth, Key path_key);
 
  private:
   template <bool kOrNode>

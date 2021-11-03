@@ -58,7 +58,8 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
 std::vector<Move> DfPnSearcher::BestMoves(Position& n) {
   std::unordered_map<Key, Move> memo;
 
-  node_travels_.MateMovesSearch<true>(memo, n, 0, 0);
+  auto res = node_travels_.MateMovesSearch<true>(memo, n, 0, 0);
+  sync_cout << "info string " << res.first << " " << res.second << sync_endl;
 
   std::vector<Move> result;
   Depth depth = 0;

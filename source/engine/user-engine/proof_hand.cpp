@@ -13,6 +13,14 @@ Hand CollectHand(const Position& n) {
   return MergeHand(n.hand_of(BLACK), n.hand_of(WHITE));
 }
 
+int CountHand(Hand hand) {
+  int count = 0;
+  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+    count += hand_count(hand, pr);
+  }
+  return count;
+}
+
 Hand AfterHand(const Position& n, Move move, Hand before_hand) {
   if (is_drop(move)) {
     auto pr = move_dropped_piece(move);

@@ -13,6 +13,8 @@ void RemoveHand(Hand& hand, PieceType pr);
 Hand MergeHand(Hand h1, Hand h2);
 /// 先後の持ち駒（盤上にない駒）を全てかき集める
 Hand CollectHand(const Position& n);
+/// 持ち駒の枚数
+int CountHand(Hand hand);
 
 /// move 後の手駒を返す
 Hand AfterHand(const Position& n, Move move, Hand before_hand);
