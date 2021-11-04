@@ -2,6 +2,7 @@
 #define NODE_TRAVELS_HPP_
 
 #include <array>
+#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -63,7 +64,7 @@ class NodeTravels {
   void UndoMove(Position& n, Move move) { n.undo_move(move); }
 
   TranspositionTable& tt_;
-  std::vector<MovePicker> pickers_{};
+  std::stack<MovePicker> pickers_{};
   std::array<StateInfo, kMaxNumMateMoves> st_info_{};
 };
 }  // namespace komori

@@ -12,9 +12,9 @@ class MovePicker {
  public:
   MovePicker() = delete;
   MovePicker(const MovePicker&) = delete;
-  MovePicker(MovePicker&& rhs) noexcept = default;
+  MovePicker(MovePicker&& rhs) noexcept = delete;
   MovePicker& operator=(const MovePicker&) = delete;
-  MovePicker& operator=(MovePicker&& rhs) noexcept = default;
+  MovePicker& operator=(MovePicker&& rhs) noexcept = delete;
   ~MovePicker() = default;
 
   template <bool kOrNode>

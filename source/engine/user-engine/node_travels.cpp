@@ -99,9 +99,7 @@ inline Hand CheckMate1Ply(Position& n) {
 }  // namespace
 
 namespace komori {
-NodeTravels::NodeTravels(TranspositionTable& tt) : tt_{tt} {
-  pickers_.reserve(kMaxNumMateMoves);
-}
+NodeTravels::NodeTravels(TranspositionTable& tt) : tt_{tt} {}
 
 template <bool kOrNode>
 CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
@@ -116,7 +114,7 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
 
   // stack消費を抑えるために、vectorの中にMovePickerを構築する
   // 関数から抜ける前に、必ず pop_back() しなければならない
-  auto& move_picker = pickers_.emplace_back(n, NodeTag<kOrNode>{});
+  auto& move_picker = pickers_.emplace(n, NodeTag<kOrNode>{});
   {
     if (move_picker.empty()) {
       StoreLose<kOrNode>(num_searches, query, n, kOrNode ? CollectHand(n) : kNullHand);
@@ -171,11 +169,11 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
 
   // passthrough
 SEARCH_FOUND:
-  pickers_.pop_back();
+  pickers_.pop();
   return query.LookUpWithCreation();
 
 SEARCH_NOT_FOUND:
-  pickers_.pop_back();
+  pickers_.pop();
   static CommonEntry entry;
   entry = {query.HashHigh(), UnknownData{1, 1, query.GetHand(), depth}};
   return &entry;
@@ -204,7 +202,7 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
   int curr_hand_count = 0;
   bool curr_capture = false;
 
-  auto& move_picker = pickers_.emplace_back(n, NodeTag<kOrNode>{});
+  auto& move_picker = pickers_.emplace(n, NodeTag<kOrNode>{});
   for (const auto& move : move_picker) {
     auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, path_key);
     auto child_entry = child_query.LookUpWithoutCreation();
@@ -237,7 +235,7 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
       }
     }
   }
-  pickers_.pop_back();
+  pickers_.pop();
 
   if (kOrNode && curr_depth == kMaxNumMateMoves) {
     memo.erase(key);
