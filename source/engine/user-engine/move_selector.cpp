@@ -18,7 +18,7 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
                                     Key path_key)
     : n_{n}, tt_(tt), depth_{depth}, children_len_{0}, sum_n_{0}, does_have_old_child_{false} {
   // 各子局面の LookUp を行い、min_n の昇順になるように手を並べ替える
-  auto move_picker = MovePicker<kOrNode, true>{n};
+  auto move_picker = MovePicker{n, NodeTag<kOrNode>{}, true};
   for (const auto& move : move_picker) {
     auto& child = children_[children_len_++];
     child.move = move.move;

@@ -59,17 +59,11 @@ class NodeTravels {
   std::pair<int, int> MateMovesSearch(std::unordered_map<Key, Move>& memo, Position& n, int depth, Key path_key);
 
  private:
-  template <bool kOrNode>
-  MovePicker<kOrNode>& PushMovePicker(Position& n);
-  template <bool kOrNode>
-  void PopMovePicker();
-
   void DoMove(Position& n, Move move, Depth depth) { n.do_move(move, st_info_[depth]); }
   void UndoMove(Position& n, Move move) { n.undo_move(move); }
 
   TranspositionTable& tt_;
-  std::vector<MovePicker<true>> or_pickers_{};
-  std::vector<MovePicker<false>> and_pickers_{};
+  std::vector<MovePicker> pickers_{};
   std::array<StateInfo, kMaxNumMateMoves> st_info_{};
 };
 }  // namespace komori

@@ -100,8 +100,7 @@ inline Hand CheckMate1Ply(Position& n) {
 
 namespace komori {
 NodeTravels::NodeTravels(TranspositionTable& tt) : tt_{tt} {
-  or_pickers_.reserve(kMaxNumMateMoves);
-  and_pickers_.reserve(kMaxNumMateMoves);
+  pickers_.reserve(kMaxNumMateMoves);
 }
 
 template <bool kOrNode>
@@ -117,7 +116,7 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
 
   // stack消費を抑えるために、vectorの中にMovePickerを構築する
   // 関数から抜ける前に、必ず pop_back() しなければならない
-  auto& move_picker = PushMovePicker<kOrNode>(n);
+  auto& move_picker = pickers_.emplace_back(n, NodeTag<kOrNode>{});
   {
     if (move_picker.empty()) {
       StoreLose<kOrNode>(num_searches, query, n, kOrNode ? CollectHand(n) : kNullHand);
@@ -172,11 +171,11 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
 
   // passthrough
 SEARCH_FOUND:
-  PopMovePicker<kOrNode>();
+  pickers_.pop_back();
   return query.LookUpWithCreation();
 
 SEARCH_NOT_FOUND:
-  PopMovePicker<kOrNode>();
+  pickers_.pop_back();
   static CommonEntry entry;
   entry = {query.HashHigh(), UnknownData{1, 1, query.GetHand(), depth}};
   return &entry;
@@ -205,7 +204,7 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
   int curr_hand_count = 0;
   bool curr_capture = false;
 
-  auto& move_picker = PushMovePicker<kOrNode>(n);
+  auto& move_picker = pickers_.emplace_back(n, NodeTag<kOrNode>{});
   for (const auto& move : move_picker) {
     auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, path_key);
     auto child_entry = child_query.LookUpWithoutCreation();
@@ -238,7 +237,7 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
       }
     }
   }
-  PopMovePicker<kOrNode>();
+  pickers_.pop_back();
 
   if (kOrNode && curr_depth == kMaxNumMateMoves) {
     memo.erase(key);
@@ -247,26 +246,6 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
 
   memo[key] = curr_move;
   return {curr_depth, curr_hand_count};
-}
-
-template <>
-MovePicker<true>& NodeTravels::PushMovePicker<true>(Position& n) {
-  return or_pickers_.emplace_back(n);
-}
-
-template <>
-MovePicker<false>& NodeTravels::PushMovePicker<false>(Position& n) {
-  return and_pickers_.emplace_back(n);
-}
-
-template <>
-void NodeTravels::PopMovePicker<true>() {
-  or_pickers_.pop_back();
-}
-
-template <>
-void NodeTravels::PopMovePicker<false>() {
-  and_pickers_.pop_back();
 }
 
 template CommonEntry* NodeTravels::LeafSearch<false>(std::uint64_t num_searches,

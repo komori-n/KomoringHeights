@@ -8,7 +8,6 @@
 namespace komori {
 
 /// 詰将棋専用 MovePicker
-template <bool kOrNode, bool kOrdering = false>
 class MovePicker {
  public:
   MovePicker() = delete;
@@ -18,7 +17,8 @@ class MovePicker {
   MovePicker& operator=(MovePicker&& rhs) noexcept = default;
   ~MovePicker() = default;
 
-  explicit MovePicker(const Position& n) {
+  template <bool kOrNode>
+  explicit MovePicker(const Position& n, NodeTag<kOrNode>, bool ordering = false) {
     bool judge_check = false;
     ExtMove* last = nullptr;
     if constexpr (kOrNode) {
@@ -39,7 +39,7 @@ class MovePicker {
     size_ = last - &move_list_[0];
 
     // オーダリング情報を付加したほうが定数倍速くなる
-    if constexpr (kOrdering) {
+    if (ordering) {
       auto us = n.side_to_move();
       auto them = ~us;
       auto king_color = kOrNode ? them : us;

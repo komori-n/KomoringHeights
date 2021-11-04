@@ -16,6 +16,9 @@ constexpr Depth kMaxNumMateMoves = 3000;
 inline constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
 inline constexpr Key kNullKey = Key{0};
 
+template <bool kOrNode>
+struct NodeTag {};
+
 /// 証明数／反証数を格納する型。将来、(1,1) 以外の初期値を使うことを考慮して 64 bit 分確保する。
 using PnDn = std::uint64_t;
 /// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
