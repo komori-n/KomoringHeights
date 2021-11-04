@@ -13,6 +13,8 @@ namespace komori {
 inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
 constexpr Depth kMaxNumMateMoves = 3000;
+inline constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
+inline constexpr Key kNullKey = Key{0};
 
 /// 証明数／反証数を格納する型。将来、(1,1) 以外の初期値を使うことを考慮して 64 bit 分確保する。
 using PnDn = std::uint64_t;
@@ -41,7 +43,7 @@ struct StateGeneration {
   std::uint32_t generation : 29;
 };
 
-inline bool operator==(const StateGeneration& lhs, const StateGeneration& rhs) {
+inline constexpr bool operator==(const StateGeneration& lhs, const StateGeneration& rhs) {
   return lhs.node_state == rhs.node_state && lhs.generation == rhs.generation;
 }
 

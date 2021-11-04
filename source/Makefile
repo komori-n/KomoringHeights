@@ -382,7 +382,7 @@ ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 	SOURCES += \
 		engine/user-engine/user-search.cpp \
 		engine/user-engine/komoring_heights.cpp \
-		engine/user-engine/ttentry.cpp \
+		engine/user-engine/ttcluster.cpp \
 		engine/user-engine/proof_hand.cpp \
 		engine/user-engine/node_travels.cpp \
 		engine/user-engine/move_selector.cpp \

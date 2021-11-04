@@ -8,7 +8,7 @@
 namespace komori {
 
 // forward declaration
-class TTEntry;
+class CommonEntry;
 // forward declaration
 class TTCluster;
 
@@ -32,27 +32,27 @@ class LookUpQuery {
   LookUpQuery(TTCluster* cluster, std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
 
   /// Query によるエントリ問い合わせを行う。もし見つからなかった場合は新規作成して cluster に追加する
-  TTEntry* LookUpWithCreation() const;
+  CommonEntry* LookUpWithCreation() const;
   /**
    * @brief  Query によるエントリ問い合わせを行う。もし見つからなかった場合はダミーのエントリを返す。
    *
    * ダミーエントリが返されたかどうかは DoesStored() により判定可能である。このエントリは次回の LookUp までの間まで
    * 有効である。
    */
-  TTEntry* LookUpWithoutCreation() const;
+  CommonEntry* LookUpWithoutCreation() const;
 
   /**
    * @brief entry が有効（前回呼び出しから移動していない）場合、それをそのまま帰す。
    *
    * entry が無効の場合、改めて LookUpWithCreation() する。
    */
-  TTEntry* RefreshWithCreation(TTEntry* entry) const;
+  CommonEntry* RefreshWithCreation(CommonEntry* entry) const;
   /**
    * @brief entry が有効（前回呼び出しから移動していない）場合、それをそのまま帰す。
    *
    * entry が無効の場合、改めて LookUpWithoutCreation() する。
    */
-  TTEntry* RefreshWithoutCreation(TTEntry* entry) const;
+  CommonEntry* RefreshWithoutCreation(CommonEntry* entry) const;
 
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
   void SetProven(Hand proof_hand, std::uint64_t num_searches) const;
@@ -61,9 +61,9 @@ class LookUpQuery {
   /// 調べていた局面が千日手による不詰であることを報告する
   void SetRepetition(std::uint64_t num_searches) const;
   /// `entry` が cluster に存在するエントリかを問い合わせる。（ダミーエントリのチェックに使用する）
-  bool DoesStored(TTEntry* entry) const;
+  bool DoesStored(CommonEntry* entry) const;
   /// `entry` が有効（前回呼び出しから移動していない）かどうかをチェックする
-  bool IsValid(TTEntry* entry) const;
+  bool IsValid(CommonEntry* entry) const;
 
   /// query 時点の手駒を返す
   Hand GetHand() const { return hand_; }
@@ -91,8 +91,6 @@ class TranspositionTable {
   void Resize(std::uint64_t hash_size_mb);
   /// 以前の探索結果をすべて削除し、新たな探索をを始める
   void NewSearch();
-
-  void Sweep();
 
   /// 局面 `n` で探索深さ `depth` のとき、LookUp 用の構造体を取得する
   template <bool kOrNode>

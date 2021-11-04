@@ -222,7 +222,7 @@ ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 LOCAL_SRC_FILES += \
   ../source/engine/user-engine/user-search.cpp \
   ../source/engine/user-engine/komoring_heights.cpp \
-  ../source/engine/user-engine/ttentry.cpp \
+  ../source/engine/user-engine/ttcluster.cpp \
   ../source/engine/user-engine/proof_hand.cpp \
   ../source/engine/user-engine/node_travels.cpp \
   ../source/engine/user-engine/move_selector.cpp \

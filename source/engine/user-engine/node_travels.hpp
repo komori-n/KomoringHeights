@@ -11,7 +11,7 @@
 namespace komori {
 
 // forward declaration
-class TTEntry;
+class CommonEntry;
 class TranspositionTable;
 class LookUpQuery;
 
@@ -36,31 +36,15 @@ class NodeTravels {
    * @param depth         探索深さ。tt を引くために必要。
    * @param remain_depth  のこり探索深さ。0になるまで探索する。
    * @param query         局面 n の LookUp に使用する query。これを渡すことで証明駒／反証駒の登録が高速に行える
-   * @return TTEntry*     探索結果。tt 内に存在しないエントリを返すことがあるので、次の tt の Lookup よりも前に
+   * @return CommonEntry*     探索結果。tt 内に存在しないエントリを返すことがあるので、次の tt の Lookup よりも前に
    *                      内容を確認する必要がある。
    */
   template <bool kOrNode>
-  TTEntry* LeafSearch(std::uint64_t num_searches,
-                      Position& n,
-                      Depth depth,
-                      Depth remain_depth,
-                      const LookUpQuery& query);
-
-  /**
-   * @brief n の子孫ノードすべてに削除マーカーをつける
-   *
-   * @param n        現在の局面
-   * @param depth    現在の深さ。tt を引くために必要。
-   * @param parents  root から訪れた局面の一覧。ループ検出に用いる
-   * @param query    局面 n の LookUp に使用する query
-   * @param entry    局面 n のエントリー
-   */
-  template <bool kOrNode>
-  void MarkDeleteCandidates(Position& n,
-                            Depth depth,
-                            std::unordered_set<Key>& parents,
-                            const LookUpQuery& query,
-                            TTEntry* entry);
+  CommonEntry* LeafSearch(std::uint64_t num_searches,
+                          Position& n,
+                          Depth depth,
+                          Depth remain_depth,
+                          const LookUpQuery& query);
 
   /**
    * @brief n の詰み手順を復元する

@@ -40,14 +40,14 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
     auto entry = child.query.LookUpWithoutCreation();
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
-    child.s_gen = entry->StateGeneration();
+    child.s_gen = entry->GetStateGeneration();
     if (child.query.DoesStored(entry)) {
       child.entry = entry;
     } else {
       child.entry = nullptr;
     }
 
-    if (entry->MinDepth() < depth) {
+    if (auto unknown = entry->TryGetUnknown(); unknown != nullptr && unknown->IsOldChild(depth)) {
       does_have_old_child_ = true;
     }
 
@@ -81,7 +81,7 @@ void MoveSelector<kOrNode>::Update() {
     auto old_sum_n = child.sum_n;
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();
-    child.s_gen = entry->StateGeneration();
+    child.s_gen = entry->GetStateGeneration();
 
     sum_n_ = std::min(sum_n_ - old_sum_n + child.sum_n, kInfinitePnDn);
   }
@@ -153,7 +153,7 @@ Move MoveSelector<kOrNode>::FrontMove() const {
 }
 
 template <bool kOrNode>
-TTEntry* MoveSelector<kOrNode>::FrontTTEntry() {
+CommonEntry* MoveSelector<kOrNode>::FrontEntry() {
   // empty かどうかは呼び出し側がチェックすべきなのでここではしない
   auto& child = children_[0];
   if (child.entry == nullptr) {

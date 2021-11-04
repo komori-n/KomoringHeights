@@ -2,7 +2,7 @@
 
 #include "path_keys.hpp"
 #include "proof_hand.hpp"
-#include "ttentry.hpp"
+#include "ttcluster.hpp"
 
 namespace {
 constexpr std::size_t kCacheLineSize = 64;
@@ -25,15 +25,15 @@ namespace komori {
 LookUpQuery::LookUpQuery(TTCluster* cluster, std::uint32_t hash_high, Hand hand, Depth depth, Key path_key)
     : cluster_{cluster}, hash_high_{hash_high}, hand_{hand}, depth_{depth}, path_key_{path_key} {}
 
-TTEntry* LookUpQuery::LookUpWithCreation() const {
+CommonEntry* LookUpQuery::LookUpWithCreation() const {
   return cluster_->LookUpWithCreation(hash_high_, hand_, depth_, path_key_);
 }
 
-TTEntry* LookUpQuery::LookUpWithoutCreation() const {
+CommonEntry* LookUpQuery::LookUpWithoutCreation() const {
   return cluster_->LookUpWithoutCreation(hash_high_, hand_, depth_, path_key_);
 }
 
-TTEntry* LookUpQuery::RefreshWithCreation(TTEntry* entry) const {
+CommonEntry* LookUpQuery::RefreshWithCreation(CommonEntry* entry) const {
   // 再 LookUp がサボれる場合、entry をそのまま返す
   if (IsValid(entry)) {
     return entry;
@@ -42,7 +42,7 @@ TTEntry* LookUpQuery::RefreshWithCreation(TTEntry* entry) const {
   }
 }
 
-TTEntry* LookUpQuery::RefreshWithoutCreation(TTEntry* entry) const {
+CommonEntry* LookUpQuery::RefreshWithoutCreation(CommonEntry* entry) const {
   // 再 LookUp がサボれる場合、entry をそのまま返す
   if (IsValid(entry)) {
     return entry;
@@ -63,14 +63,20 @@ void LookUpQuery::SetRepetition(std::uint64_t num_searches) const {
   cluster_->SetRepetition(hash_high_, path_key_, hand_, num_searches);
 }
 
-bool LookUpQuery::DoesStored(TTEntry* entry) const {
+bool LookUpQuery::DoesStored(CommonEntry* entry) const {
   return cluster_->DoesContain(entry);
 }
 
-bool LookUpQuery::IsValid(TTEntry* entry) const {
-  return cluster_->DoesContain(entry) && hash_high_ == entry->HashHigh() &&
-         ((entry->ExactOrDeducable(hand_) && !entry->IsMaybeRepetitionNode()) ||
-          entry->IsRepetitionNode() && entry->CheckRepetition(path_key_));
+bool LookUpQuery::IsValid(CommonEntry* entry) const {
+  if (cluster_->DoesContain(entry) && hash_high_ == entry->HashHigh()) {
+    if (entry->ProperHand(hand_) != kNullHand && !entry->IsMaybeRepetition()) {
+      return true;
+    }
+    if (auto rep = entry->TryGetRepetition(); rep != nullptr && rep->DoesContain(path_key_)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 TranspositionTable::TranspositionTable(void) = default;
@@ -92,12 +98,6 @@ void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
 void TranspositionTable::NewSearch() {
   for (std::uint64_t i = 0; i < num_clusters_; ++i) {
     tt_[i].Clear();
-  }
-}
-
-void TranspositionTable::Sweep() {
-  for (std::uint64_t i = 0; i < num_clusters_; ++i) {
-    tt_[i].Sweep();
   }
 }
 

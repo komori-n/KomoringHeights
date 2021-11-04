@@ -47,12 +47,11 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
 
   // <for-debug>
   sync_cout << "info string pn=" << entry->Pn() << " dn=" << entry->Dn() << " num_searched=" << searched_node_
-            << " node_state=" << entry->StateGeneration().node_state
-            << " generation=" << entry->StateGeneration().generation << sync_endl;
+            << " node_state=" << entry->GetNodeState() << " generation=" << entry->GetGeneration() << sync_endl;
   // </for-debug>
 
   stop_ = nullptr;
-  return entry->IsProvenNode();
+  return entry->GetNodeState() == NodeState::kProvenState;
 }
 
 std::vector<Move> DfPnSearcher::BestMoves(Position& n) {
@@ -100,7 +99,7 @@ void DfPnSearcher::SearchImpl(Position& n,
                               Depth depth,
                               std::unordered_set<Key>& parents,
                               const LookUpQuery& query,
-                              TTEntry* entry,
+                              CommonEntry* entry,
                               bool inc_flag) {
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
   if (depth + 1 > max_depth_ || parents.find(n.key()) != parents.end()) {
@@ -118,7 +117,8 @@ void DfPnSearcher::SearchImpl(Position& n,
   if (entry->IsFirstVisit()) {
     auto res_entry = node_travels_.LeafSearch<kOrNode>(searched_node_, n, depth,
                                                        kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth, query);
-    if (res_entry->IsProvenNode() || res_entry->IsDisprovenNode()) {
+    if (res_entry->GetNodeState() == NodeState::kProvenState ||
+        res_entry->GetNodeState() == NodeState::kDisprovenState) {
       return;
     }
     inc_flag = false;
@@ -127,11 +127,6 @@ void DfPnSearcher::SearchImpl(Position& n,
   parents.insert(n.key());
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
   MoveSelector<kOrNode>* selector = &selector_cache_.EmplaceBack<kOrNode>(n, tt_, parents, depth, query.PathKey());
-
-  if (searched_node_ % 10'000'000 == 0) {
-    tt_.Sweep();
-    entry = query.RefreshWithCreation(entry);
-  }
 
   if (selector->DoesHaveOldChild()) {
     inc_flag = true;
@@ -162,7 +157,7 @@ void DfPnSearcher::SearchImpl(Position& n,
       goto SEARCH_IMPL_RETURN;
     }
 
-    entry->Update(selector->Pn(), selector->Dn(), searched_node_);
+    entry->UpdatePnDn(selector->Pn(), selector->Dn(), searched_node_);
     if (entry->Pn() >= thpn || entry->Dn() >= thdn) {
       goto SEARCH_IMPL_RETURN;
     }
@@ -178,7 +173,7 @@ void DfPnSearcher::SearchImpl(Position& n,
 
     n.do_move(best_move, st_info_[depth]);
     SearchImpl<!kOrNode>(n, child_thpn, child_thdn, depth + 1, parents, selector->FrontLookUpQuery(),
-                         selector->FrontTTEntry(), inc_flag);
+                         selector->FrontEntry(), inc_flag);
     n.undo_move(best_move);
 
     // GC の影響で entry の位置が変わっている場合があるのでループの最後で再取得する
@@ -206,7 +201,7 @@ template void DfPnSearcher::SearchImpl<true>(Position& n,
                                              Depth depth,
                                              std::unordered_set<Key>& parents,
                                              const LookUpQuery& query,
-                                             TTEntry* entry,
+                                             CommonEntry* entry,
                                              bool inc_flag);
 template void DfPnSearcher::SearchImpl<false>(Position& n,
                                               PnDn thpn,
@@ -214,6 +209,6 @@ template void DfPnSearcher::SearchImpl<false>(Position& n,
                                               Depth depth,
                                               std::unordered_set<Key>& parents,
                                               const LookUpQuery& query,
-                                              TTEntry* entry,
+                                              CommonEntry* entry,
                                               bool inc_flag);
 }  // namespace komori

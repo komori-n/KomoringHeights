@@ -6,13 +6,13 @@
 
 #include "../../types.h"
 #include "transposition_table.hpp"
-#include "ttentry.hpp"
+#include "ttcluster.hpp"
 
 namespace komori {
 /// 探索中に子局面の情報を一時的に覚えておくための構造体
 struct ChildNodeCache {
   LookUpQuery query;
-  TTEntry* entry;
+  CommonEntry* entry;
   Move move;
   PnDn min_n, sum_n;
   StateGeneration s_gen;
@@ -22,7 +22,7 @@ struct ChildNodeCache {
 /**
  * @brief 次に探索すべき子ノードを選択する
  *
- * 詰将棋探索では、TranspositionTable の LookUp に最も時間がかかる。そのため、TTEntry をキャッシュして
+ * 詰将棋探索では、TranspositionTable の LookUp に最も時間がかかる。そのため、CommonEntry をキャッシュして
  * 必要最低限の回数だけ LookUp を行うようにすることで高速化を図る。
  *
  * OrNode と AndNode でコードの共通化を図るために、pn/dn ではなく min_n/sum_n を用いる。
@@ -32,7 +32,7 @@ struct ChildNodeCache {
  *
  * このようにすることで、いずれの場合の子局面選択も「min_n が最小となる子局面を選択する」という処理に帰着できる。
  *
- * @note コンストラクタ時点で子局面の TTEntry が存在しない場合、エントリの作成は実際の探索まで遅延される。
+ * @note コンストラクタ時点で子局面の CommonEntry が存在しない場合、エントリの作成は実際の探索まで遅延される。
  * その場合 ChildNodeCache::entry が nullptr になる可能性がある。
  */
 template <bool kOrNode>
@@ -68,9 +68,9 @@ class MoveSelector {
 
   /// 現時点で最善の手を返す
   Move FrontMove() const;
-  /// 現時点で最善の手に対する TTEntry を返す
+  /// 現時点で最善の手に対する CommonEntry を返す
   /// @note entry が nullptr のために関数内で LookUp する可能性があるので、const メンバ関数にはできない
-  TTEntry* FrontTTEntry();
+  CommonEntry* FrontEntry();
   /// 現時点で最善の手に対する LookUpQuery を返す
   const LookUpQuery& FrontLookUpQuery() const;
 

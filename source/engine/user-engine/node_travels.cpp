@@ -7,7 +7,7 @@
 #include "path_keys.hpp"
 #include "proof_hand.hpp"
 #include "transposition_table.hpp"
-#include "ttentry.hpp"
+#include "ttcluster.hpp"
 
 namespace {
 constexpr int kNonProven = -1;
@@ -53,7 +53,7 @@ inline void StoreLose(std::uint64_t num_searches, const komori::LookUpQuery& que
 }
 
 template <bool kOrNode>
-inline Hand ProperChildHand(const Position& n, Move move, komori::TTEntry* child_entry) {
+inline Hand ProperChildHand(const Position& n, Move move, komori::CommonEntry* child_entry) {
   if constexpr (kOrNode) {
     Hand after_hand = child_entry->ProperHand(komori::AfterHand(n, move, OrHand<kOrNode>(n)));
     return komori::BeforeHand(n, move, after_hand);
@@ -105,11 +105,11 @@ NodeTravels::NodeTravels(TranspositionTable& tt) : tt_{tt} {
 }
 
 template <bool kOrNode>
-TTEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
-                                 Position& n,
-                                 Depth depth,
-                                 Depth remain_depth,
-                                 const LookUpQuery& query) {
+CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
+                                     Position& n,
+                                     Depth depth,
+                                     Depth remain_depth,
+                                     const LookUpQuery& query) {
   if (Hand hand = CheckMate1Ply<kOrNode>(n); hand != kNullHand) {
     DeclareWin<kOrNode>(num_searches, query, hand);
     return query.LookUpWithCreation();
@@ -147,11 +147,13 @@ TTEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
         UndoMove(n, move.move);
       }
 
-      if ((kOrNode && child_entry->IsProvenNode()) || (!kOrNode && child_entry->IsDisprovenNode())) {
+      if ((kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
+          (!kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
         // win
         DeclareWin<kOrNode>(num_searches, query, ProperChildHand<kOrNode>(n, move.move, child_entry));
         goto SEARCH_FOUND;
-      } else if ((!kOrNode && child_entry->IsProvenNode()) || (kOrNode && child_entry->IsDisprovenNode())) {
+      } else if ((!kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
+                 (kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
         // lose
         UpdateHandSet<kOrNode>(lose_hand, ProperChildHand<kOrNode>(n, move.move, child_entry));
       } else {
@@ -175,40 +177,9 @@ SEARCH_FOUND:
 
 SEARCH_NOT_FOUND:
   PopMovePicker<kOrNode>();
-  static TTEntry entry;
-  entry = {query.HashHigh(), query.GetHand(), 1, 1, depth};
+  static CommonEntry entry;
+  entry = {query.HashHigh(), UnknownData{1, 1, query.GetHand(), depth}};
   return &entry;
-}
-
-template <bool kOrNode>
-void NodeTravels::MarkDeleteCandidates(Position& n,
-                                       Depth depth,
-                                       std::unordered_set<Key>& parents,
-                                       const LookUpQuery& query,
-                                       TTEntry* entry) {
-  entry->MarkDeleteCandidate();
-  if (depth > kMaxNumMateMoves) {
-    return;
-  }
-
-  auto& move_picker = PushMovePicker<kOrNode>(n);
-  for (const auto& move : move_picker) {
-    auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, query.PathKey());
-    auto child_entry = child_query.LookUpWithoutCreation();
-
-    if (!query.DoesStored(child_entry) || child_entry->IsProvenNode() || child_entry->IsDisprovenNode()) {
-      continue;
-    }
-
-    DoMove(n, move.move, depth);
-    if (parents.find(n.key()) == parents.end()) {
-      parents.insert(n.key());
-      MarkDeleteCandidates<!kOrNode>(n, depth + 1, parents, child_query, child_entry);
-      parents.erase(n.key());
-    }
-    UndoMove(n, move.move);
-  }
-  PopMovePicker<kOrNode>();
 }
 
 template <bool kOrNode>
@@ -238,7 +209,7 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
   for (const auto& move : move_picker) {
     auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, path_key);
     auto child_entry = child_query.LookUpWithoutCreation();
-    if (!child_entry->IsProvenNode()) {
+    if (child_entry->GetNodeState() != NodeState::kProvenState) {
       continue;
     }
 
@@ -298,26 +269,16 @@ void NodeTravels::PopMovePicker<false>() {
   and_pickers_.pop_back();
 }
 
-template TTEntry* NodeTravels::LeafSearch<false>(std::uint64_t num_searches,
-                                                 Position& n,
-                                                 Depth depth,
-                                                 Depth max_depth,
-                                                 const LookUpQuery& query);
-template TTEntry* NodeTravels::LeafSearch<true>(std::uint64_t num_searches,
-                                                Position& n,
-                                                Depth depth,
-                                                Depth max_depth,
-                                                const LookUpQuery& query);
-template void NodeTravels::MarkDeleteCandidates<false>(Position& n,
-                                                       Depth depth,
-                                                       std::unordered_set<Key>& parents,
-                                                       const LookUpQuery& query,
-                                                       TTEntry* entry);
-template void NodeTravels::MarkDeleteCandidates<true>(Position& n,
-                                                      Depth depth,
-                                                      std::unordered_set<Key>& parents,
-                                                      const LookUpQuery& query,
-                                                      TTEntry* entry);
+template CommonEntry* NodeTravels::LeafSearch<false>(std::uint64_t num_searches,
+                                                     Position& n,
+                                                     Depth depth,
+                                                     Depth max_depth,
+                                                     const LookUpQuery& query);
+template CommonEntry* NodeTravels::LeafSearch<true>(std::uint64_t num_searches,
+                                                    Position& n,
+                                                    Depth depth,
+                                                    Depth max_depth,
+                                                    const LookUpQuery& query);
 template std::pair<int, int> NodeTravels::MateMovesSearch<false>(std::unordered_map<Key, Move>& memo,
                                                                  Position& n,
                                                                  int depth,
