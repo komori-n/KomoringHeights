@@ -123,7 +123,8 @@ Hand MoveSelector<kOrNode>::ProofHand() const {
     HandSet proof_hand = HandSet::Zero();
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = children_[i];
-      proof_hand |= child.query.GetHand();
+      auto* entry = child.query.RefreshWithoutCreation(child.entry);
+      proof_hand |= entry->ProperHand(child.query.GetHand());
     }
     proof_hand &= n_.hand_of(~n_.side_to_move());
     return AddIfHandGivesOtherEvasions(n_, proof_hand.Get());
@@ -137,7 +138,9 @@ Hand MoveSelector<kOrNode>::DisproofHand() const {
     HandSet disproof_hand = HandSet::Full();
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = children_[i];
-      disproof_hand &= BeforeHand(n_, child.move, child.query.GetHand());
+      auto* entry = child.query.RefreshWithoutCreation(child.entry);
+      auto hand = entry->ProperHand(child.query.GetHand());
+      disproof_hand &= BeforeHand(n_, child.move, hand);
     }
     disproof_hand |= n_.hand_of(n_.side_to_move());
     return RemoveIfHandGivesOtherChecks(n_, disproof_hand.Get());
