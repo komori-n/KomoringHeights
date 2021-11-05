@@ -137,6 +137,40 @@ int TranspositionTable::Hashfull() const {
   return static_cast<int>(used * 1000 / kHashfullCalcClusters / TTCluster::kClusterSize);
 }
 
+TranspositionTable::Stat TranspositionTable::GetStat() const {
+  std::size_t used = 0;
+  std::size_t proven = 0;
+  std::size_t disproven = 0;
+  std::size_t repetition = 0;
+  std::size_t maybe_repetition = 0;
+  std::size_t other = 0;
+  for (std::size_t i = 0; i < kHashfullCalcClusters; ++i) {
+    used += tt_[i].Size();
+    for (const auto& ce : tt_[i]) {
+      if (ce.GetNodeState() == NodeState::kProvenState) {
+        proven++;
+      } else if (ce.GetNodeState() == NodeState::kDisprovenState) {
+        disproven++;
+      } else if (ce.GetNodeState() == NodeState::kRepetitionState) {
+        repetition++;
+      } else if (ce.GetNodeState() == NodeState::kMaybeRepetitionState) {
+        maybe_repetition++;
+      } else {
+        other++;
+      }
+    }
+  }
+
+  return {
+      static_cast<double>(used) / kHashfullCalcClusters / TTCluster::kClusterSize,
+      static_cast<double>(proven) / used,
+      static_cast<double>(disproven) / used,
+      static_cast<double>(repetition) / used,
+      static_cast<double>(maybe_repetition) / used,
+      static_cast<double>(other) / used,
+  };
+}
+
 TTCluster& TranspositionTable::ClusterOf(Key board_key) {
   return tt_[board_key % num_clusters_];
 }

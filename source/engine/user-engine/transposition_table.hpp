@@ -85,6 +85,15 @@ class LookUpQuery {
  */
 class TranspositionTable {
  public:
+  struct Stat {
+    double hashfull;
+    double proven_ratio;
+    double disproven_ratio;
+    double repetition_ratio;
+    double maybe_repetition_ratio;
+    double other_ratio;
+  };
+
   TranspositionTable(void);
 
   /// ハッシュサイズを `hash_size_mb` （以下）に変更する。以前に保存されていた結果は削除される
@@ -102,6 +111,8 @@ class TranspositionTable {
 
   /// ハッシュ使用率を返す（戻り値は千分率）
   int Hashfull() const;
+  /// 現在のハッシュの使用状況を取得する
+  Stat GetStat() const;
 
  private:
   /// `board_key` に対応する cluster を返す

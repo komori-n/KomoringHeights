@@ -77,6 +77,7 @@ class DfPnSearcher {
   std::vector<Move> BestMoves(Position& n);
 
   std::string Info(int depth) const;
+  void PrintDebugInfo() const;
 
  private:
   /**

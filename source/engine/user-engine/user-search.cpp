@@ -51,6 +51,8 @@ void USI::extra_option(USI::OptionsMap& o) {
   o["NodesLimit"] << Option(0, 0, INT64_MAX);
   o["PvInterval"] << Option(1000, 0, 1000000);
 
+  o["DebugInfo"] << Option(false, [](bool /*b*/) {});
+
 #if defined(USE_DEEP_DFPN)
   o["DeepDfpnPerMile"] << Option(5, 0, 10000);
   o["DeepDfpnMaxVal"] << Option(1000000, 1, INT64_MAX);
@@ -117,6 +119,10 @@ void MainThread::search() {
     }
   }
   thread.join();
+
+  if (Options["DebugInfo"]) {
+    g_searcher.PrintDebugInfo();
+  }
 
   bool is_mate_search = Search::Limits.mate != 0;
   if (time_up()) {

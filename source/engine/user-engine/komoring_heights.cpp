@@ -92,6 +92,13 @@ std::string DfPnSearcher::Info(int depth) const {
   return oss.str();
 }
 
+void DfPnSearcher::PrintDebugInfo() const {
+  auto stat = tt_.GetStat();
+  sync_cout << "info string hashfull=" << stat.hashfull << " proven=" << stat.proven_ratio
+            << " disproven=" << stat.disproven_ratio << " repetition=" << stat.repetition_ratio
+            << " maybe_repetition=" << stat.maybe_repetition_ratio << " other=" << stat.other_ratio << sync_endl;
+}
+
 template <bool kOrNode>
 void DfPnSearcher::SearchImpl(Position& n,
                               PnDn thpn,
