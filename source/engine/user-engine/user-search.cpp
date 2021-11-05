@@ -1,9 +1,11 @@
 ﻿#include "../../types.h"
 
+#include <cmath>
 #include <mutex>
 
 #include "../../extra/all.h"
 
+#include "deep_dfpn.hpp"
 #include "komoring_heights.hpp"
 #include "path_keys.hpp"
 
@@ -48,6 +50,11 @@ void USI::extra_option(USI::OptionsMap& o) {
   o["DepthLimit"] << Option(0, 0, INT_MAX);
   o["NodesLimit"] << Option(0, 0, INT64_MAX);
   o["PvInterval"] << Option(1000, 0, 1000000);
+
+#if defined(USE_DEEP_DFPN)
+  o["DeepDfpnPerMile"] << Option(5, 0, 10000);
+  o["DeepDfpnMaxVal"] << Option(1000000, 1, INT64_MAX);
+#endif  // defined(USE_DEEP_DFPN)
 }
 
 // 起動時に呼び出される。時間のかからない探索関係の初期化処理はここに書くこと。
@@ -56,6 +63,17 @@ void Search::init() {}
 // isreadyコマンドの応答中に呼び出される。時間のかかる処理はここに書くこと。
 void Search::clear() {
   std::call_once(g_path_key_init_flag, komori::PathKeyInit);
+
+#if defined(USE_DEEP_DFPN)
+  if (auto val = Options["DeepDfpnPerMile"]; static_cast<int>(val) == 0) {
+    komori::DeepDfpnInit(0, 1.0);
+  } else {
+    double e = 0.001 * Options["DeepDfpnPerMile"] + 1.0;
+    Depth d = static_cast<Depth>(std::log(static_cast<double>(Options["DeepDfpnMaxVal"])) / std::log(e));
+    komori::DeepDfpnInit(d, e);
+  }
+#endif  // defined(USE_DEEP_DFPN)
+
   g_searcher.Init();
   g_searcher.Resize(Options["USI_Hash"]);
 

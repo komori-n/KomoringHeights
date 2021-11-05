@@ -1,5 +1,7 @@
 #include "ttcluster.hpp"
 
+#include "deep_dfpn.hpp"
+
 namespace komori {
 template <bool kProven>
 HandsData<kProven>::HandsData(Hand hand) {
@@ -295,8 +297,8 @@ TTCluster::Iterator TTCluster::SetRepetition(std::uint32_t hash_high,
 
 template <bool kCreateIfNotExist>
 TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key) {
-  PnDn max_pn = 1;
-  PnDn max_dn = 1;
+  PnDn max_pn = InitialPnDn(depth);
+  PnDn max_dn = max_pn;
   auto begin_entry = LowerBound(hash_high);
   auto end_entry = end();
   for (auto itr = begin_entry; itr != end_entry; ++itr) {

@@ -227,6 +227,7 @@ LOCAL_SRC_FILES += \
   ../source/engine/user-engine/node_travels.cpp \
   ../source/engine/user-engine/move_selector.cpp \
   ../source/engine/user-engine/path_keys.cpp \
+  ../source/engine/user-engine/deep_dfpn.cpp \
   ../source/engine/user-engine/transposition_table.cpp
 endif
 
