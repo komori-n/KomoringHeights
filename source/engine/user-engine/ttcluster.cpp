@@ -372,24 +372,12 @@ TTCluster::Iterator TTCluster::Add(CommonEntry&& entry) {
 void TTCluster::RemoveOne() {
   // 最も必要なさそうなエントリを消す
   auto removed_entry = std::min_element(begin(), end(), [](const CommonEntry& lhs, const CommonEntry& rhs) {
-    auto lstate = lhs.GetNodeState();
+    auto lstate = StripMaybeRepetition(lhs.GetNodeState());
     auto lgen = lhs.GetGeneration();
-    auto rstate = rhs.GetNodeState();
+    auto rstate = StripMaybeRepetition(rhs.GetNodeState());
     auto rgen = rhs.GetGeneration();
     if (lstate != rstate) {
-      // 千日手局面は積極的に消す
-      if (lstate == NodeState::kRepetitionState) {
-        return true;
-      }
-      if (rstate == NodeState::kRepetitionState) {
-        return false;
-      }
-
-      // 証明済局面や反証済局面はできるだけ消さない。
-      if ((lstate == NodeState::kProvenState || lstate == NodeState::kDisprovenState) ||
-          (rstate == NodeState::kProvenState || rstate == NodeState::kDisprovenState)) {
-        return lstate < rstate;
-      }
+      return lstate < rstate;
     }
     // nodestate で決まらない場合は generation 勝負。
     return lgen < rgen;

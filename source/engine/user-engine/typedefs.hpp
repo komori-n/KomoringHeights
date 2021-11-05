@@ -40,6 +40,10 @@ inline std::ostream& operator<<(std::ostream& os, NodeState node_state) {
   return os;
 }
 
+inline NodeState StripMaybeRepetition(NodeState node_state) {
+  return node_state == NodeState::kMaybeRepetitionState ? NodeState::kOtherState : node_state;
+}
+
 /**
  * @brief 置換表世代（Generation）と局面状態（NodeState）を1つの整数にまとめたもの。
  */
