@@ -140,6 +140,7 @@ class CommonEntry {
   constexpr NodeState GetNodeState() const { return s_gen_.node_state; }
   constexpr Generation GetGeneration() const { return s_gen_.generation; }
   constexpr StateGeneration GetStateGeneration() const { return s_gen_; }
+  constexpr void UpdateGeneration(std::uint64_t num_searched) { s_gen_.generation = CalcGeneration(num_searched); }
 
   /// 通常局面かつ千日手の可能性がある場合のみ true。
   constexpr bool IsMaybeRepetition() const { return s_gen_.node_state == NodeState::kMaybeRepetitionState; }

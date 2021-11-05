@@ -198,6 +198,7 @@ TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_han
       if (auto proven = itr->TryGetProven(); ret_entry == nullptr && proven != nullptr && !proven->IsFull()) {
         // 証明済局面に空きがあるならそこに証明駒を書く
         proven->Add(proof_hand);
+        itr->UpdateGeneration(num_searched);
         ret_entry = itr;
       }
       // *top++ = *itr;
@@ -241,6 +242,7 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
       if (auto disproven = itr->TryGetDisproven();
           ret_entry == nullptr && disproven != nullptr && !disproven->IsFull()) {
         disproven->Add(disproof_hand);
+        itr->UpdateGeneration(num_searched);
         ret_entry = itr;
       }
       // *top++ = *itr;
@@ -285,6 +287,7 @@ TTCluster::Iterator TTCluster::SetRepetition(std::uint32_t hash_high,
       itr->SetMaybeRepetition();
     } else if (auto rep = itr->TryGetRepetition(); ret_entry == nullptr && rep != nullptr && !rep->IsFull()) {
       rep->Add(path_key);
+      itr->UpdateGeneration(num_searched);
       ret_entry = itr;
     }
   }
