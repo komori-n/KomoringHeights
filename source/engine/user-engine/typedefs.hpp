@@ -12,8 +12,10 @@ namespace komori {
 /// 1局面の最大王手/王手回避の着手数
 inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
-constexpr Depth kMaxNumMateMoves = 3000;
+inline constexpr Depth kMaxNumMateMoves = 3000;
+/// 無効な持ち駒
 inline constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
+/// 無効な Key
 inline constexpr Key kNullKey = Key{0};
 
 template <bool kOrNode>
@@ -22,7 +24,7 @@ struct NodeTag {};
 /// 証明数／反証数を格納する型。将来、(1,1) 以外の初期値を使うことを考慮して 64 bit 分確保する。
 using PnDn = std::uint64_t;
 /// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
-constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
+inline constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
 
 /// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
 enum class NodeState : std::uint32_t {
@@ -57,7 +59,7 @@ inline constexpr StateGeneration kMarkDeleted = {NodeState::kOtherState, 0};
 inline constexpr StateGeneration kFirstSearch = {NodeState::kOtherState, 1};
 
 /// 何局面読んだら generation を進めるか
-constexpr std::uint32_t kNumSearchedPerGeneration = 128;
+inline constexpr std::uint32_t kNumSearchedPerGeneration = 128;
 inline constexpr Generation CalcGeneration(std::uint64_t num_searched) {
   return 1 + static_cast<Generation>(num_searched / kNumSearchedPerGeneration);
 }
