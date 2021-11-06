@@ -162,7 +162,6 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
     if (unknown_flag) {
       goto SEARCH_NOT_FOUND;
     } else {
-      UpdateHandSet<!kOrNode>(lose_hand, OrHand<kOrNode>(n));
       ret_entry = StoreLose<kOrNode>(num_searches, query, n, lose_hand.Get());
     }
   }

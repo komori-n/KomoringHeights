@@ -91,11 +91,6 @@ void MoveSelector<kOrNode>::Update() {
 }
 
 template <bool kOrNode>
-bool MoveSelector<kOrNode>::empty() const {
-  return children_len_ == 0;
-}
-
-template <bool kOrNode>
 PnDn MoveSelector<kOrNode>::Pn() const {
   return kOrNode ? MinN() : SumN();
 }
@@ -126,7 +121,6 @@ Hand MoveSelector<kOrNode>::ProofHand() const {
       auto* entry = child.query.RefreshWithoutCreation(child.entry);
       proof_hand |= entry->ProperHand(child.query.GetHand());
     }
-    proof_hand &= n_.hand_of(~n_.side_to_move());
     return AddIfHandGivesOtherEvasions(n_, proof_hand.Get());
   }
 }
@@ -142,7 +136,6 @@ Hand MoveSelector<kOrNode>::DisproofHand() const {
       auto hand = entry->ProperHand(child.query.GetHand());
       disproof_hand &= BeforeHand(n_, child.move, hand);
     }
-    disproof_hand |= n_.hand_of(n_.side_to_move());
     return RemoveIfHandGivesOtherChecks(n_, disproof_hand.Get());
   } else {
     return FrontHand();

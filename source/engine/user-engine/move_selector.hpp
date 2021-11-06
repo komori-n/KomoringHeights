@@ -54,8 +54,6 @@ class MoveSelector {
   /// 子局面の entry の再 LookUp を行い、現曲面の pn/dn を計算し直す
   void Update();
 
-  bool empty() const;
-
   PnDn Pn() const;
   PnDn Dn() const;
   /// 現局面は千日手による不詰か
