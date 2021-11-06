@@ -16,8 +16,8 @@ constexpr std::size_t kDefaultHashSizeMb = 1024;
 
 /// FirstSearch の初期深さ。数値実験してみた感じたと、1 ではあまり効果がなく、3 だと逆に遅くなるので
 /// 2 ぐらいがちょうどよい
-constexpr std::size_t kFirstSearchOrDepth = 1;
-constexpr std::size_t kFirstSearchAndDepth = 2;
+constexpr Depth kFirstSearchOrDepth = 1;
+constexpr Depth kFirstSearchAndDepth = 2;
 
 }  // namespace
 
@@ -109,7 +109,7 @@ void DfPnSearcher::SearchImpl(Position& n,
                               CommonEntry* entry,
                               bool inc_flag) {
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
-  if (depth + 1 > max_depth_ || parents.find(n.key()) != parents.end()) {
+  if (depth >= max_depth_ || parents.find(n.key()) != parents.end()) {
     query.SetRepetition(searched_node_);
     return;
   }
@@ -122,8 +122,9 @@ void DfPnSearcher::SearchImpl(Position& n,
 
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
-    auto res_entry = node_travels_.LeafSearch<kOrNode>(searched_node_, n, depth,
-                                                       kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth, query);
+    auto remain_depth = kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth;
+    remain_depth = std::min(remain_depth, max_depth_ - depth);
+    auto res_entry = node_travels_.LeafSearch<kOrNode>(searched_node_, n, depth, remain_depth, query);
     if (res_entry->GetNodeState() == NodeState::kProvenState ||
         res_entry->GetNodeState() == NodeState::kDisprovenState) {
       return;

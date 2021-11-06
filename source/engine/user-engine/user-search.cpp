@@ -84,7 +84,7 @@ void Search::clear() {
   }
 
   if (Depth depth_limit = Options["DepthLimit"]) {
-    g_searcher.SetMaxSearchNode(depth_limit);
+    g_searcher.SetMaxDepth(depth_limit);
   }
 }
 
