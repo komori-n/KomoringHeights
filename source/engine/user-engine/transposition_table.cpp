@@ -51,16 +51,16 @@ CommonEntry* LookUpQuery::RefreshWithoutCreation(CommonEntry* entry) const {
   }
 }
 
-void LookUpQuery::SetProven(Hand proof_hand, std::uint64_t num_searches) const {
-  cluster_->SetProven(hash_high_, proof_hand, num_searches);
+CommonEntry* LookUpQuery::SetProven(Hand proof_hand, std::uint64_t num_searches) const {
+  return cluster_->SetProven(hash_high_, proof_hand, num_searches);
 }
 
-void LookUpQuery::SetDisproven(Hand disproof_hand, std::uint64_t num_searches) const {
-  cluster_->SetDisproven(hash_high_, disproof_hand, num_searches);
+CommonEntry* LookUpQuery::SetDisproven(Hand disproof_hand, std::uint64_t num_searches) const {
+  return cluster_->SetDisproven(hash_high_, disproof_hand, num_searches);
 }
 
-void LookUpQuery::SetRepetition(std::uint64_t num_searches) const {
-  cluster_->SetRepetition(hash_high_, path_key_, hand_, num_searches);
+CommonEntry* LookUpQuery::SetRepetition(std::uint64_t num_searches) const {
+  return cluster_->SetRepetition(hash_high_, path_key_, hand_, num_searches);
 }
 
 bool LookUpQuery::DoesStored(CommonEntry* entry) const {

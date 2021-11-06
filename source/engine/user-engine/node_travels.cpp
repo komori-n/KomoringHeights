@@ -33,22 +33,22 @@ inline void UpdateHandSet(komori::HandSet& hand_set, Hand hand) {
 }
 
 template <bool kOrNode>
-inline void DeclareWin(std::uint64_t num_searches, const komori::LookUpQuery& query, Hand hand) {
+inline auto* DeclareWin(std::uint64_t num_searches, const komori::LookUpQuery& query, Hand hand) {
   if constexpr (kOrNode) {
-    query.SetProven(hand, num_searches);
+    return query.SetProven(hand, num_searches);
   } else {
-    query.SetDisproven(hand, num_searches);
+    return query.SetDisproven(hand, num_searches);
   }
 }
 
 template <bool kOrNode>
-inline void StoreLose(std::uint64_t num_searches, const komori::LookUpQuery& query, const Position& n, Hand hand) {
+inline auto* StoreLose(std::uint64_t num_searches, const komori::LookUpQuery& query, const Position& n, Hand hand) {
   if constexpr (kOrNode) {
     Hand disproof_hand = komori::RemoveIfHandGivesOtherChecks(n, hand);
-    query.SetDisproven(disproof_hand, num_searches);
+    return query.SetDisproven(disproof_hand, num_searches);
   } else {
     Hand proof_hand = komori::AddIfHandGivesOtherEvasions(n, hand);
-    query.SetProven(proof_hand, num_searches);
+    return query.SetProven(proof_hand, num_searches);
   }
 }
 
@@ -108,16 +108,16 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
                                      Depth remain_depth,
                                      const LookUpQuery& query) {
   if (Hand hand = CheckMate1Ply<kOrNode>(n); hand != kNullHand) {
-    DeclareWin<kOrNode>(num_searches, query, hand);
-    return query.LookUpWithCreation();
+    return DeclareWin<kOrNode>(num_searches, query, hand);
   }
 
   // stack消費を抑えるために、vectorの中にMovePickerを構築する
   // 関数から抜ける前に、必ず pop_back() しなければならない
   auto& move_picker = pickers_.emplace(n, NodeTag<kOrNode>{});
+  CommonEntry* ret_entry = nullptr;
   {
     if (move_picker.empty()) {
-      StoreLose<kOrNode>(num_searches, query, n, kOrNode ? CollectHand(n) : kNullHand);
+      ret_entry = StoreLose<kOrNode>(num_searches, query, n, kOrNode ? CollectHand(n) : HAND_ZERO);
       goto SEARCH_FOUND;
     }
 
@@ -147,7 +147,7 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
       if ((kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
           (!kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
         // win
-        DeclareWin<kOrNode>(num_searches, query, ProperChildHand<kOrNode>(n, move.move, child_entry));
+        ret_entry = DeclareWin<kOrNode>(num_searches, query, ProperChildHand<kOrNode>(n, move.move, child_entry));
         goto SEARCH_FOUND;
       } else if ((!kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
                  (kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
@@ -163,14 +163,14 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
       goto SEARCH_NOT_FOUND;
     } else {
       UpdateHandSet<!kOrNode>(lose_hand, OrHand<kOrNode>(n));
-      StoreLose<kOrNode>(num_searches, query, n, lose_hand.Get());
+      ret_entry = StoreLose<kOrNode>(num_searches, query, n, lose_hand.Get());
     }
   }
 
   // passthrough
 SEARCH_FOUND:
   pickers_.pop();
-  return query.LookUpWithCreation();
+  return ret_entry == nullptr ? query.LookUpWithCreation() : ret_entry;
 
 SEARCH_NOT_FOUND:
   pickers_.pop();

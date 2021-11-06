@@ -199,7 +199,7 @@ TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_han
         // 証明済局面に空きがあるならそこに証明駒を書く
         proven->Add(proof_hand);
         itr->UpdateGeneration(num_searched);
-        ret_entry = itr;
+        ret_entry = top;
       }
       // *top++ = *itr;
       if (top != itr) {
@@ -243,7 +243,7 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
           ret_entry == nullptr && disproven != nullptr && !disproven->IsFull()) {
         disproven->Add(disproof_hand);
         itr->UpdateGeneration(num_searched);
-        ret_entry = itr;
+        ret_entry = top;
       }
       // *top++ = *itr;
       if (top != itr) {

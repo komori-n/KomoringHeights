@@ -55,7 +55,7 @@ class HandsData {
   constexpr PnDn Dn() const { return kProven ? kInfinitePnDn : 0; }
   /// 証明駒（反証駒）を追加できる余地があるなら
   /// true。手前から順に格納されるので、末尾要素が空かどうか調べるだけでよい。
-  constexpr bool IsFull() const { return hands_[kHandsLen - 1] != kInfinitePnDn; };
+  constexpr bool IsFull() const { return hands_[kHandsLen - 1] != kNullHand; };
 
   /// hand を証明（反証）できるならその手を返す。証明（反証）できなければ kNullHand を返す。
   Hand ProperHand(Hand hand) const;
