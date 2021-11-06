@@ -324,7 +324,7 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
     }
 
     // 優等局面／劣等局面の情報から (pn, dn) の初期値を引き上げる
-    if (auto unknown = itr->TryGetUnknown()) {
+    if (auto unknown = itr->TryGetUnknown(); unknown != nullptr && unknown->MinDepth() >= depth) {
       if (unknown->IsSuperiorThan(hand)) {
         // 現局面より itr の方が優等している -> 現局面は itr 以上に詰ますのが難しいはず
         max_pn = std::max(max_pn, unknown->Pn());

@@ -29,6 +29,7 @@ class UnknownData {
   constexpr bool IsInferiorThan(Hand hand) const { return hand_is_equal_or_superior(hand, hand_); }
   /// infinite loop の可能性があるかどうかの判定に用いる。現在の探索深さ depth が min_depth よりも深いなら true。
   constexpr bool IsOldChild(Depth depth) const { return min_depth_ < depth; }
+  constexpr Depth MinDepth() const { return min_depth_; }
 
  private:
   PnDn pn_, dn_;     ///< 証明数、反証数
