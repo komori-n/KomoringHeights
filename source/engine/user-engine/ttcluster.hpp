@@ -67,7 +67,7 @@ class HandsData {
   bool Update(Hand hand);
 
  private:
-  static inline constexpr std::size_t kHandsLen = 6;
+  static inline constexpr std::size_t kHandsLen = sizeof(UnknownData) / sizeof(Hand);
   std::array<Hand, kHandsLen> hands_;  ///< 証明駒（反証駒）
 };
 
@@ -96,7 +96,7 @@ class RepetitionData {
   void Add(Key path_key);
 
  private:
-  static inline constexpr std::size_t kRepetitionKeyLen = 3;
+  static inline constexpr std::size_t kRepetitionKeyLen = sizeof(UnknownData) / sizeof(Key);
   std::array<Key, kRepetitionKeyLen> keys_;  ///< 千日手となる手順
 };
 
@@ -192,7 +192,7 @@ class CommonEntry {
   std::uint32_t hash_high_;  ///< 盤面のハッシュの上位32bit
   StateGeneration s_gen_;    ///< ノード状態と置換表世代
   union {
-    std::array<std::uint32_t, 6> dummy_;  ///< サイズチェック用
+    std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< サイズチェック用
     UnknownData unknown_;                 ///< 通常局面
     ProvenData proven_;                   ///< 証明済局面
     DisprovenData disproven_;             ///< 反証済局面
