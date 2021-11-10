@@ -161,6 +161,9 @@ TranspositionTable::Stat TranspositionTable::GetStat() const {
     }
   }
 
+  // ゼロ割対策
+  used = used == 0 ? 1 : used;
+
   return {
       static_cast<double>(used) / kHashfullCalcClusters / TTCluster::kClusterSize,
       static_cast<double>(proven) / used,
