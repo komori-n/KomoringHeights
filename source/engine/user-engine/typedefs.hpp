@@ -16,7 +16,7 @@ inline constexpr Depth kMaxNumMateMoves = 3000;
 /// 無効な持ち駒
 inline constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
 /// 無効な Key
-inline constexpr Key kNullKey = Key{0};
+inline constexpr Key kNullKey = Key{0x3343343343343340ULL};
 
 template <bool kOrNode>
 struct NodeTag {};
