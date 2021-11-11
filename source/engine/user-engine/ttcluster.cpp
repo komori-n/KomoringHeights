@@ -73,7 +73,9 @@ bool RepetitionData::DoesContain(Key path_key) const {
 
 void RepetitionData::Add(Key path_key) {
   for (auto& k : keys_) {
-    if (k == kNullKey) {
+    if (k == path_key) {
+      return;
+    } else if (k == kNullKey) {
       k = path_key;
       return;
     }
@@ -285,10 +287,13 @@ TTCluster::Iterator TTCluster::SetRepetition(std::uint32_t hash_high,
     if (auto unknown = itr->TryGetUnknown(); unknown != nullptr && unknown->ProperHand(hand) != kNullHand) {
       // この局面は千日手かもしれないのでマークをつけておく
       itr->SetMaybeRepetition();
-    } else if (auto rep = itr->TryGetRepetition(); ret_entry == nullptr && rep != nullptr && !rep->IsFull()) {
-      rep->Add(path_key);
-      itr->UpdateGeneration(num_searched);
-      ret_entry = itr;
+      unknown->UpdatePnDn(1, 1);
+    } else if (auto rep = itr->TryGetRepetition(); ret_entry == nullptr && rep != nullptr) {
+      if (!rep->IsFull() || rep->DoesContain(path_key)) {
+        rep->Add(path_key);
+        itr->UpdateGeneration(num_searched);
+        ret_entry = itr;
+      }
     }
   }
 
@@ -312,7 +317,7 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
     if (itr->ProperHand(hand) != kNullHand) {
       if (itr->IsMaybeRepetition()) {
         // 千日手かもしれない時は、千日手局面集をチェックする
-        if (auto rep_entry = CheckRepetition(itr, hash_high, path_key); rep_entry != end()) {
+        if (auto rep_entry = CheckRepetition(begin_entry, hash_high, path_key); rep_entry != end()) {
           return rep_entry;
         }
       }
@@ -380,6 +385,14 @@ void TTCluster::RemoveOne() {
     auto rstate = StripMaybeRepetition(rhs.GetNodeState());
     auto rgen = rhs.GetGeneration();
     if (lstate != rstate) {
+      if (lstate == NodeState::kRepetitionState) {
+        return true;
+      }
+
+      if (rstate == NodeState::kRepetitionState) {
+        return false;
+      }
+
       return lstate < rstate;
     }
     // nodestate で決まらない場合は generation 勝負。
