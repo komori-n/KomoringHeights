@@ -5,6 +5,7 @@
 #include "komoring_heights.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 #include "../../mate/mate.h"
 #include "move_picker.hpp"
@@ -20,6 +21,21 @@ constexpr std::size_t kDefaultHashSizeMb = 1024;
 constexpr Depth kFirstSearchOrDepth = 1;
 constexpr Depth kFirstSearchAndDepth = 2;
 
+inline int Score(komori::PnDn pn, komori::PnDn dn) {
+  // - a log(1/x - 1)
+  //   a: Ponanza 定数
+  //   x: 勝率(<- dn / (pn + dn))
+  constexpr double kA = 600.0;
+  constexpr int kMinScore = -32767;
+  constexpr int kMaxScore = 32767;
+
+  if (dn == 0) {
+    return kMinScore;
+  } else {
+    double score = -kA * std::log(static_cast<double>(pn) / static_cast<double>(dn));
+    return std::clamp(static_cast<int>(score), kMinScore, kMaxScore);
+  }
+}
 }  // namespace
 
 namespace komori {
@@ -36,15 +52,23 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   tt_.NewSearch();
   searched_node_ = 0;
   searched_depth_ = 0;
+  score_ = 0;
   stop_ = &stop_flag;
   start_time_ = std::chrono::system_clock::now();
 
   auto query = tt_.GetQuery<true>(n, 0, 0);
   auto* entry = query.LookUpWithCreation();
   NodeHistory node_history{};
-  SearchImpl<true>(n, kInfinitePnDn, kInfinitePnDn, 0, node_history, query, entry, false);
+  PnDn thpndn = 1;
+  do {
+    thpndn = std::max(2 * entry->Pn(), 2 * entry->Dn());
+    thpndn = std::min(thpndn, kInfinitePnDn);
+    score_ = Score(entry->Pn(), entry->Dn());
 
-  entry = query.RefreshWithoutCreation(entry);
+    SearchImpl<true>(n, thpndn, thpndn, 0, node_history, query, entry, false);
+    entry = query.RefreshWithoutCreation(entry);
+  } while (entry->GetNodeState() == NodeState::kOtherState ||
+           entry->GetNodeState() == NodeState::kMaybeRepetitionState);
 
   // <for-debug>
   sync_cout << "info string pn=" << entry->Pn() << " dn=" << entry->Dn() << " num_searched=" << searched_node_
@@ -199,7 +223,7 @@ SEARCH_IMPL_RETURN:
 }
 
 void KomoringHeights::PrintProgress(const Position& n, Depth depth) const {
-  sync_cout << "info " << Info(depth) << "score cp 0 "
+  sync_cout << "info " << Info(depth) << " score cp " << score_
 #if defined(KEEP_LAST_MOVE)
             << " pv " << n.moves_from_start()
 #endif

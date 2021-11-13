@@ -116,6 +116,7 @@ class KomoringHeights {
   std::atomic_bool print_flag_{false};
   std::uint64_t searched_node_{};
   Depth searched_depth_{};
+  int score_{};
   std::chrono::system_clock::time_point start_time_;
   Depth max_depth_{kMaxNumMateMoves};
   std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};
