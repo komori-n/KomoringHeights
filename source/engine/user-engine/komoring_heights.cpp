@@ -88,8 +88,8 @@ std::string KomoringHeights::Info(int depth) const {
   auto nps = searched_node_ * 1000ULL / time_ms;
 
   std::ostringstream oss;
-  oss << "depth " << depth << " seldepth " << searched_depth_ << " score cp 0 "
-      << " time " << time_ms << " nodes " << searched_node_ << " nps " << nps << " hashfull " << tt_.Hashfull();
+  oss << "depth " << depth << " seldepth " << searched_depth_ << " time " << time_ms << " nodes " << searched_node_
+      << " nps " << nps << " hashfull " << tt_.Hashfull();
   return oss.str();
 }
 
@@ -199,7 +199,7 @@ SEARCH_IMPL_RETURN:
 }
 
 void KomoringHeights::PrintProgress(const Position& n, Depth depth) const {
-  sync_cout << "info " << Info(depth)
+  sync_cout << "info " << Info(depth) << "score cp 0 "
 #if defined(KEEP_LAST_MOVE)
             << " pv " << n.moves_from_start()
 #endif

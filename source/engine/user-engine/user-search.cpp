@@ -29,7 +29,7 @@ std::string InfoHeader(bool is_mate_search, int solution_len) {
       oss << "checkmate ";
     }
   } else {
-    oss << "info " << g_searcher.Info(0) << "score mate";
+    oss << "info " << g_searcher.Info(0) << " score mate ";
     if (solution_len == kTimeOutLen || solution_len == kDisprovenLen) {
       oss << "-1 pv resign";
     } else {
