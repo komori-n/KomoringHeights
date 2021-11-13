@@ -12,7 +12,7 @@
 #if defined(USER_ENGINE)
 
 namespace {
-komori::DfPnSearcher g_searcher;
+komori::KomoringHeights g_searcher;
 std::once_flag g_path_key_init_flag;
 
 constexpr int kDisprovenLen = -1;

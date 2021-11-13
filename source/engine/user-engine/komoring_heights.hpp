@@ -51,14 +51,14 @@ class MoveSelectorCache {
 };
 
 /// df-pn探索の本体
-class DfPnSearcher {
+class KomoringHeights {
  public:
-  DfPnSearcher() = default;
-  DfPnSearcher(const DfPnSearcher&) = delete;
-  DfPnSearcher(DfPnSearcher&&) = delete;
-  DfPnSearcher& operator=(const DfPnSearcher&) = delete;
-  DfPnSearcher& operator=(DfPnSearcher&&) = delete;
-  ~DfPnSearcher() = default;
+  KomoringHeights() = default;
+  KomoringHeights(const KomoringHeights&) = delete;
+  KomoringHeights(KomoringHeights&&) = delete;
+  KomoringHeights& operator=(const KomoringHeights&) = delete;
+  KomoringHeights& operator=(KomoringHeights&&) = delete;
+  ~KomoringHeights() = default;
 
   /// 内部変数（tt 含む）を初期化する
   void Init();

@@ -23,16 +23,16 @@ constexpr Depth kFirstSearchAndDepth = 2;
 }  // namespace
 
 namespace komori {
-void DfPnSearcher::Init() {
+void KomoringHeights::Init() {
   Resize(kDefaultHashSizeMb);
   selector_cache_.Resize(max_depth_ + 1);
 }
 
-void DfPnSearcher::Resize(std::uint64_t size_mb) {
+void KomoringHeights::Resize(std::uint64_t size_mb) {
   tt_.Resize(size_mb);
 }
 
-bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
+bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   tt_.NewSearch();
   searched_node_ = 0;
   searched_depth_ = 0;
@@ -55,7 +55,7 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
   return entry->GetNodeState() == NodeState::kProvenState;
 }
 
-std::vector<Move> DfPnSearcher::BestMoves(Position& n) {
+std::vector<Move> KomoringHeights::BestMoves(Position& n) {
   std::unordered_map<Key, Move> memo;
 
   auto res = node_travels_.MateMovesSearch<true>(memo, n, 0, 0);
@@ -81,7 +81,7 @@ std::vector<Move> DfPnSearcher::BestMoves(Position& n) {
   return result;
 }
 
-std::string DfPnSearcher::Info(int depth) const {
+std::string KomoringHeights::Info(int depth) const {
   auto curr_time = std::chrono::system_clock::now();
   auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
   time_ms = std::max(time_ms, decltype(time_ms){1});
@@ -93,7 +93,7 @@ std::string DfPnSearcher::Info(int depth) const {
   return oss.str();
 }
 
-void DfPnSearcher::PrintDebugInfo() const {
+void KomoringHeights::PrintDebugInfo() const {
   auto stat = tt_.GetStat();
   sync_cout << "info string hashfull=" << stat.hashfull << " proven=" << stat.proven_ratio
             << " disproven=" << stat.disproven_ratio << " repetition=" << stat.repetition_ratio
@@ -101,14 +101,14 @@ void DfPnSearcher::PrintDebugInfo() const {
 }
 
 template <bool kOrNode>
-void DfPnSearcher::SearchImpl(Position& n,
-                              PnDn thpn,
-                              PnDn thdn,
-                              Depth depth,
-                              NodeHistory& node_history,
-                              const LookUpQuery& query,
-                              CommonEntry* entry,
-                              bool inc_flag) {
+void KomoringHeights::SearchImpl(Position& n,
+                                 PnDn thpn,
+                                 PnDn thdn,
+                                 Depth depth,
+                                 NodeHistory& node_history,
+                                 const LookUpQuery& query,
+                                 CommonEntry* entry,
+                                 bool inc_flag) {
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
   auto node_state = node_history.State(n.state()->board_key(), query.GetHand());
   if (depth >= max_depth_ || node_state == NodeHistory::NodeState::kRepetition ||
@@ -198,7 +198,7 @@ SEARCH_IMPL_RETURN:
   node_history.Leave(n.state()->board_key(), query.GetHand());
 }
 
-void DfPnSearcher::PrintProgress(const Position& n, Depth depth) const {
+void KomoringHeights::PrintProgress(const Position& n, Depth depth) const {
   sync_cout << "info " << Info(depth)
 #if defined(KEEP_LAST_MOVE)
             << " pv " << n.moves_from_start()
@@ -206,20 +206,20 @@ void DfPnSearcher::PrintProgress(const Position& n, Depth depth) const {
             << sync_endl;
 }
 
-template void DfPnSearcher::SearchImpl<true>(Position& n,
-                                             PnDn thpn,
-                                             PnDn thdn,
-                                             Depth depth,
-                                             NodeHistory& node_history,
-                                             const LookUpQuery& query,
-                                             CommonEntry* entry,
-                                             bool inc_flag);
-template void DfPnSearcher::SearchImpl<false>(Position& n,
-                                              PnDn thpn,
-                                              PnDn thdn,
-                                              Depth depth,
-                                              NodeHistory& node_history,
-                                              const LookUpQuery& query,
-                                              CommonEntry* entry,
-                                              bool inc_flag);
+template void KomoringHeights::SearchImpl<true>(Position& n,
+                                                PnDn thpn,
+                                                PnDn thdn,
+                                                Depth depth,
+                                                NodeHistory& node_history,
+                                                const LookUpQuery& query,
+                                                CommonEntry* entry,
+                                                bool inc_flag);
+template void KomoringHeights::SearchImpl<false>(Position& n,
+                                                 PnDn thpn,
+                                                 PnDn thdn,
+                                                 Depth depth,
+                                                 NodeHistory& node_history,
+                                                 const LookUpQuery& query,
+                                                 CommonEntry* entry,
+                                                 bool inc_flag);
 }  // namespace komori
