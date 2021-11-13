@@ -84,7 +84,8 @@ void Search::clear() {
   }
 
   if (Depth depth_limit = Options["DepthLimit"]) {
-    g_searcher.SetMaxDepth(depth_limit);
+    // n 手詰めを読むためには depth=n+1 まで読む必要がある
+    g_searcher.SetMaxDepth(depth_limit + 1);
   }
 }
 
