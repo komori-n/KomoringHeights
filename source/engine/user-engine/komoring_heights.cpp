@@ -8,6 +8,7 @@
 
 #include "../../mate/mate.h"
 #include "move_picker.hpp"
+#include "node_history.hpp"
 #include "node_travels.hpp"
 #include "proof_hand.hpp"
 
@@ -40,8 +41,8 @@ bool DfPnSearcher::Search(Position& n, std::atomic_bool& stop_flag) {
 
   auto query = tt_.GetQuery<true>(n, 0, 0);
   auto* entry = query.LookUpWithCreation();
-  std::unordered_set<Key> parents{};
-  SearchImpl<true>(n, kInfinitePnDn, kInfinitePnDn, 0, parents, query, entry, false);
+  NodeHistory node_history{};
+  SearchImpl<true>(n, kInfinitePnDn, kInfinitePnDn, 0, node_history, query, entry, false);
 
   entry = query.RefreshWithoutCreation(entry);
 
@@ -104,12 +105,14 @@ void DfPnSearcher::SearchImpl(Position& n,
                               PnDn thpn,
                               PnDn thdn,
                               Depth depth,
-                              std::unordered_set<Key>& parents,
+                              NodeHistory& node_history,
                               const LookUpQuery& query,
                               CommonEntry* entry,
                               bool inc_flag) {
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
-  if (depth >= max_depth_ || parents.find(n.key()) != parents.end()) {
+  auto node_state = node_history.State(n.state()->board_key(), query.GetHand());
+  if (depth >= max_depth_ || node_state == NodeHistory::NodeState::kRepetition ||
+      node_state == NodeHistory::NodeState::kInferior) {
     query.SetRepetition(searched_node_);
     return;
   }
@@ -132,9 +135,9 @@ void DfPnSearcher::SearchImpl(Position& n,
     inc_flag = false;
   }
 
-  parents.insert(n.key());
+  node_history.Visit(n.state()->board_key(), query.GetHand());
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
-  MoveSelector<kOrNode>* selector = &selector_cache_.EmplaceBack<kOrNode>(n, tt_, parents, depth, query.PathKey());
+  MoveSelector<kOrNode>* selector = &selector_cache_.EmplaceBack<kOrNode>(n, tt_, node_history, depth, query.PathKey());
 
   if (selector->DoesHaveOldChild()) {
     inc_flag = true;
@@ -147,7 +150,7 @@ void DfPnSearcher::SearchImpl(Position& n,
     thdn = std::min(thdn, kInfinitePnDn);
   }
 
-  // これ以降で return する場合、parents の復帰と selector の返却を行う必要がある。
+  // これ以降で return する場合、node_history の復帰と selector の返却を行う必要がある。
   // これらの処理は、SEARCH_IMPL_RETURN ラベル以降で行っている。
 
   while (searched_node_ < max_search_node_ && !*stop_) {
@@ -180,7 +183,7 @@ void DfPnSearcher::SearchImpl(Position& n,
     auto best_move = selector->FrontMove();
 
     n.do_move(best_move, st_info_[depth]);
-    SearchImpl<!kOrNode>(n, child_thpn, child_thdn, depth + 1, parents, selector->FrontLookUpQuery(),
+    SearchImpl<!kOrNode>(n, child_thpn, child_thdn, depth + 1, node_history, selector->FrontLookUpQuery(),
                          selector->FrontEntry(), inc_flag);
     n.undo_move(best_move);
 
@@ -190,9 +193,9 @@ void DfPnSearcher::SearchImpl(Position& n,
   }
 
 SEARCH_IMPL_RETURN:
-  // parents の復帰と selector の返却を行う必要がある
+  // node_history の復帰と selector の返却を行う必要がある
   selector_cache_.PopBack<kOrNode>();
-  parents.erase(n.key());
+  node_history.Leave(n.state()->board_key(), query.GetHand());
 }
 
 void DfPnSearcher::PrintProgress(const Position& n, Depth depth) const {
@@ -207,7 +210,7 @@ template void DfPnSearcher::SearchImpl<true>(Position& n,
                                              PnDn thpn,
                                              PnDn thdn,
                                              Depth depth,
-                                             std::unordered_set<Key>& parents,
+                                             NodeHistory& node_history,
                                              const LookUpQuery& query,
                                              CommonEntry* entry,
                                              bool inc_flag);
@@ -215,7 +218,7 @@ template void DfPnSearcher::SearchImpl<false>(Position& n,
                                               PnDn thpn,
                                               PnDn thdn,
                                               Depth depth,
-                                              std::unordered_set<Key>& parents,
+                                              NodeHistory& node_history,
                                               const LookUpQuery& query,
                                               CommonEntry* entry,
                                               bool inc_flag);

@@ -1,6 +1,7 @@
 #include "move_selector.hpp"
 
 #include "move_picker.hpp"
+#include "node_history.hpp"
 #include "node_travels.hpp"
 #include "proof_hand.hpp"
 
@@ -13,7 +14,7 @@ namespace komori {
 template <bool kOrNode>
 MoveSelector<kOrNode>::MoveSelector(const Position& n,
                                     TranspositionTable& tt,
-                                    const std::unordered_set<Key>& parents,
+                                    const NodeHistory& node_history,
                                     Depth depth,
                                     Key path_key)
     : n_{n}, tt_(tt), depth_{depth}, children_len_{0}, sum_n_{0}, does_have_old_child_{false} {
@@ -23,8 +24,11 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
     auto& child = children_[children_len_++];
     child.move = move.move;
     child.value = move.value;
-    auto child_key = n.key_after(move.move);
-    if (parents.find(child_key) != parents.end()) {
+    child.query = tt.GetChildQuery<kOrNode>(n, child.move, depth_ + 1, path_key);
+
+    auto child_key = n.board_key_after(move.move);
+    auto node_state = node_history.State(child_key, child.query.GetHand());
+    if (node_state == NodeHistory::NodeState::kRepetition || node_state == NodeHistory::NodeState::kInferior) {
       child.min_n = kOrNode ? kInfinitePnDn : 0;
       child.sum_n = kOrNode ? 0 : kInfinitePnDn;
       child.s_gen = kObviousRepetition;
@@ -36,7 +40,6 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
       continue;
     }
 
-    child.query = tt.GetChildQuery<kOrNode>(n, child.move, depth_ + 1, path_key);
     auto entry = child.query.LookUpWithoutCreation();
     child.min_n = kOrNode ? entry->Pn() : entry->Dn();
     child.sum_n = kOrNode ? entry->Dn() : entry->Pn();

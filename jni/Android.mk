@@ -225,6 +225,7 @@ LOCAL_SRC_FILES += \
   ../source/engine/user-engine/ttcluster.cpp \
   ../source/engine/user-engine/proof_hand.cpp \
   ../source/engine/user-engine/node_travels.cpp \
+  ../source/engine/user-engine/node_history.cpp \
   ../source/engine/user-engine/move_selector.cpp \
   ../source/engine/user-engine/path_keys.cpp \
   ../source/engine/user-engine/deep_dfpn.cpp \

@@ -16,6 +16,8 @@
 #include "ttcluster.hpp"
 
 namespace komori {
+// forward decleration
+class NodeHistory;
 
 /// Selector を格納する領域。stack に積むと stackoverflow になりがちなため
 class MoveSelectorCache {
@@ -88,7 +90,7 @@ class DfPnSearcher {
    * @param thpn pn のしきい値。n の探索中に pn がこの値以上になったら探索を打ち切る。
    * @param thpn dn のしきい値。n の探索中に dn がこの値以上になったら探索を打ち切る。
    * @param depth 探索深さ
-   * @param parents root から現局面までで通過した局面の key の一覧。千日手判定に用いる。
+   * @param node_history root から現局面までで通過した局面の一覧。千日手・劣等局面の判定に用いる。
    * @param query 現局面の置換表クエリ。引数として渡すことで高速化をはかる。
    * @param entry 現局面の CommonEntry。引数として渡すことで LookUp 回数をへらすことができる。
    * @param inc_flag infinite loopが懸念されるときはtrue。探索を延長する。
@@ -98,7 +100,7 @@ class DfPnSearcher {
                   PnDn thpn,
                   PnDn thdn,
                   Depth depth,
-                  std::unordered_set<Key>& parents,
+                  NodeHistory& node_history,
                   const LookUpQuery& query,
                   CommonEntry* entry,
                   bool inc_flag);

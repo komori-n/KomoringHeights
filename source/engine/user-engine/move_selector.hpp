@@ -9,6 +9,8 @@
 #include "ttcluster.hpp"
 
 namespace komori {
+class NodeHistory;
+
 /// 探索中に子局面の情報を一時的に覚えておくための構造体
 struct ChildNodeCache {
   LookUpQuery query;
@@ -45,11 +47,7 @@ class MoveSelector {
   MoveSelector& operator=(MoveSelector&&) = delete;
   ~MoveSelector() = default;
 
-  MoveSelector(const Position& n,
-               TranspositionTable& tt,
-               const std::unordered_set<Key>& parents,
-               Depth depth,
-               Key path_key);
+  MoveSelector(const Position& n, TranspositionTable& tt, const NodeHistory& node_history, Depth depth, Key path_key);
 
   /// 子局面の entry の再 LookUp を行い、現曲面の pn/dn を計算し直す
   void Update();
