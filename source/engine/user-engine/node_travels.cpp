@@ -10,9 +10,7 @@
 #include "ttcluster.hpp"
 
 namespace {
-constexpr int kNonProven = -1;
-constexpr int kRepetitionNonProven = -2;
-constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
+using komori::kNullHand;
 
 template <bool kOrNode>
 inline Hand OrHand(const Position& n) {
