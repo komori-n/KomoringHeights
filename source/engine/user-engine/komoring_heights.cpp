@@ -81,29 +81,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 }
 
 std::vector<Move> KomoringHeights::BestMoves(Position& n) {
-  std::unordered_map<Key, Move> memo;
-
-  auto res = node_travels_.MateMovesSearch<true>(memo, n, 0, 0);
-
-  std::vector<Move> result;
-  Depth depth = 0;
-  // 探索メモをたどって詰手順を復元する
-  while (memo.find(n.key()) != memo.end()) {
-    auto move = memo[n.key()];
-    result.push_back(move);
-    n.do_move(move, st_info_[depth++]);
-
-    if (result.size() >= kMaxNumMateMoves) {
-      break;
-    }
-  }
-
-  // 動かした n をもとの n の状態に戻す
-  for (auto itr = result.crbegin(); itr != result.crend(); ++itr) {
-    n.undo_move(*itr);
-  }
-
-  return result;
+  return node_travels_.MateMovesSearch(n, 0, 0);
 }
 
 void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {

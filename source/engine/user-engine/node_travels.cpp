@@ -178,61 +178,99 @@ SEARCH_NOT_FOUND:
   return &entry;
 }
 
+std::vector<Move> NodeTravels::MateMovesSearch(Position& n, Depth depth, Key path_key) {
+  std::unordered_map<Key, NodeCache> memo;
+  MateMovesSearchImpl<true>(memo, n, depth, path_key);
+
+  std::vector<Move> moves;
+  while (memo.find(n.key()) != memo.end()) {
+    auto cache = memo[n.key()];
+    if (cache.move == MOVE_NONE) {
+      break;
+    }
+
+    moves.emplace_back(cache.move);
+    n.do_move(cache.move, st_info_[depth++]);
+  }
+
+  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
+    n.undo_move(*itr);
+  }
+
+  return moves;
+}
+
 template <bool kOrNode>
-std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& memo,
-                                                 Position& n,
-                                                 int depth,
-                                                 Key path_key) {
+std::pair<NodeTravels::NodeCache, Depth> NodeTravels::MateMovesSearchImpl(std::unordered_map<Key, NodeCache>& memo,
+                                                                          Position& n,
+                                                                          int depth,
+                                                                          Key path_key) {
+  if (depth >= kMaxNumMateMoves) {
+    return {{}, kNotSearching};
+  }
+
   auto key = n.key();
-  if (auto itr = memo.find(key); itr != memo.end() || depth >= kMaxNumMateMoves) {
-    return {kRepetitionNonProven, 0};
+  if (auto itr = memo.find(key); itr != memo.end() && itr->second.depth != kRepResult) {
+    // 以前訪れたことがあるノードの場合、その結果をそのまま返す
+    // このノードが現在探索中の Pv に含まれるなら、現局面が詰まない旨と千日手が関係なくなる depth を返す
+    return {itr->second, itr->second.depth};
   }
 
   if (kOrNode && !n.in_check()) {
     if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
-      memo[key] = move;
-      return {1, CountHand(OrHand<kOrNode>(n))};
+      auto after_hand = AfterHand(n, move, OrHand<kOrNode>(n));
+      memo[key] = {move, kNotSearching, 1, CountHand(after_hand)};
+      return {memo[key], kNotSearching};
     }
   }
 
-  memo[key] = Move::MOVE_NONE;
+  memo[key] = {Move::MOVE_NONE, depth, kNotSearching, 0};
   Move curr_move = Move::MOVE_NONE;
-  Depth curr_depth = kOrNode ? kMaxNumMateMoves : 0;
-  int curr_hand_count = 0;
+  Depth mate_len = kOrNode ? kMaxNumMateMoves : 0;
+  int surplus_count = 0;
   bool curr_capture = false;
 
   auto& move_picker = pickers_.emplace(n, NodeTag<kOrNode>{});
   bool is_picker_empty = move_picker.empty();
+  Depth rep_start = kNotSearching;
   for (const auto& move : move_picker) {
     auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, path_key);
     auto child_entry = child_query.LookUpWithoutCreation();
     if (child_entry->GetNodeState() != NodeState::kProvenState) {
+      if (!kOrNode) {
+        curr_move = MOVE_NONE;
+        break;
+      }
       continue;
     }
 
     auto path_key_after = PathKeyAfter(path_key, move.move, depth);
     auto child_capture = n.capture(move.move);
     DoMove(n, move.move, depth);
-    auto [child_depth, child_hand_count] = MateMovesSearch<!kOrNode>(memo, n, depth + 1, path_key_after);
+    auto [child_cache, child_rep_start] = MateMovesSearchImpl<!kOrNode>(memo, n, depth + 1, path_key_after);
     UndoMove(n, move.move);
 
-    if (child_depth >= 0) {
+    rep_start = std::min(rep_start, child_rep_start);
+    if (child_cache.mate_len >= 0) {
       bool update = false;
-      if ((kOrNode && curr_depth > child_depth + 1) || (!kOrNode && curr_depth < child_depth + 1)) {
+      if ((kOrNode && mate_len > child_cache.mate_len + 1) || (!kOrNode && mate_len < child_cache.mate_len + 1)) {
         update = true;
-      } else if (curr_depth == child_depth + 1) {
-        if (curr_hand_count > child_hand_count ||
-            (curr_hand_count == child_hand_count && !curr_capture && child_capture)) {
+      } else if (mate_len == child_cache.mate_len + 1) {
+        if (surplus_count > child_cache.surplus_count ||
+            (surplus_count == child_cache.surplus_count && !curr_capture && child_capture)) {
           update = true;
         }
       }
 
       if (update) {
         curr_move = move.move;
-        curr_depth = child_depth + 1;
-        curr_hand_count = child_hand_count;
+        mate_len = child_cache.mate_len + 1;
+        surplus_count = child_cache.surplus_count;
         curr_capture = child_capture;
       }
+    } else if (!kOrNode) {
+      curr_move = MOVE_NONE;
+      break;
     }
   }
   pickers_.pop();
@@ -240,13 +278,17 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
   if (curr_move == MOVE_NONE) {
     memo.erase(key);
     if (!is_picker_empty) {
-      return {kRepetitionNonProven, 0};
+      return {{}, rep_start};
+    } else {
+      return {{MOVE_NONE, kNotSearching, 0, CountHand(OrHand<kOrNode>(n))}, rep_start};
     }
+  } else if (rep_start < depth) {
+    memo[key] = {curr_move, kRepResult, mate_len, surplus_count};
+    return {memo[key], rep_start};
   } else {
-    memo[key] = curr_move;
+    memo[key] = {curr_move, kNotSearching, mate_len, surplus_count};
+    return {memo[key], kNotSearching};
   }
-
-  return {curr_depth, curr_hand_count};
 }
 
 template CommonEntry* NodeTravels::LeafSearch<false>(std::uint64_t num_searches,
@@ -259,12 +301,8 @@ template CommonEntry* NodeTravels::LeafSearch<true>(std::uint64_t num_searches,
                                                     Depth depth,
                                                     Depth max_depth,
                                                     const LookUpQuery& query);
-template std::pair<int, int> NodeTravels::MateMovesSearch<false>(std::unordered_map<Key, Move>& memo,
-                                                                 Position& n,
-                                                                 int depth,
-                                                                 Key path_key);
-template std::pair<int, int> NodeTravels::MateMovesSearch<true>(std::unordered_map<Key, Move>& memo,
-                                                                Position& n,
-                                                                int depth,
-                                                                Key path_key);
+template std::pair<NodeTravels::NodeCache, Depth>
+NodeTravels::MateMovesSearchImpl<false>(std::unordered_map<Key, NodeCache>& memo, Position& n, int depth, Key path_key);
+template std::pair<NodeTravels::NodeCache, Depth>
+NodeTravels::MateMovesSearchImpl<true>(std::unordered_map<Key, NodeCache>& memo, Position& n, int depth, Key path_key);
 }  // namespace komori
