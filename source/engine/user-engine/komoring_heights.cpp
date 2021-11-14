@@ -19,8 +19,8 @@ constexpr std::size_t kDefaultHashSizeMb = 1024;
 
 /// FirstSearch の初期深さ。数値実験してみた感じたと、1 ではあまり効果がなく、3 だと逆に遅くなるので
 /// 2 ぐらいがちょうどよい
-constexpr Depth kFirstSearchOrDepth = 1;
-constexpr Depth kFirstSearchAndDepth = 2;
+template <bool kOrNode>
+constexpr Depth kFirstSearchDepth = kOrNode ? 1 : 2;
 constexpr double kA = 600.0;
 constexpr int kMinScore = -32767;
 constexpr int kMaxScore = 32767;
@@ -181,11 +181,9 @@ void KomoringHeights::SearchImpl(Position& n,
 
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
-    auto remain_depth = kOrNode ? kFirstSearchOrDepth : kFirstSearchAndDepth;
-    remain_depth = std::min(remain_depth, max_depth_ - depth);
+    auto remain_depth = std::min(kFirstSearchDepth<kOrNode>, max_depth_ - depth);
     auto res_entry = node_travels_.LeafSearch<kOrNode>(searched_node_, n, depth, remain_depth, query);
-    if (res_entry->GetNodeState() == NodeState::kProvenState ||
-        res_entry->GetNodeState() == NodeState::kDisprovenState) {
+    if (res_entry->Pn() == 0 || res_entry->Dn() == 0) {
       return;
     }
     inc_flag = false;
@@ -195,15 +193,8 @@ void KomoringHeights::SearchImpl(Position& n,
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
   MoveSelector<kOrNode>* selector = &selector_cache_.EmplaceBack<kOrNode>(n, tt_, node_history, depth, query.PathKey());
 
-  if (selector->DoesHaveOldChild()) {
-    inc_flag = true;
-  }
-
-  if (inc_flag) {
-    thpn = std::max(thpn, selector->Pn() + 1);
-    thpn = std::min(thpn, kInfinitePnDn);
-    thdn = std::max(thdn, selector->Dn() + 1);
-    thdn = std::min(thdn, kInfinitePnDn);
+  if (inc_flag || selector->DoesHaveOldChild()) {
+    std::tie(thpn, thdn) = selector->ControlThreshold(thpn, thdn);
   }
 
   // これ以降で return する場合、node_history の復帰と selector の返却を行う必要がある。
@@ -229,10 +220,6 @@ void KomoringHeights::SearchImpl(Position& n,
       goto SEARCH_IMPL_RETURN;
     }
 
-    if (selector->DoesHaveOldChild()) {
-      inc_flag = true;
-    }
-
     ++searched_node_;
 
     auto [child_thpn, child_thdn] = selector->ChildThreshold(thpn, thdn);
@@ -240,7 +227,7 @@ void KomoringHeights::SearchImpl(Position& n,
 
     n.do_move(best_move, st_info_[depth]);
     SearchImpl<!kOrNode>(n, child_thpn, child_thdn, depth + 1, node_history, selector->FrontLookUpQuery(),
-                         selector->FrontEntry(), inc_flag);
+                         selector->FrontEntry(), inc_flag || selector->DoesHaveOldChild());
     n.undo_move(best_move);
 
     // GC の影響で entry の位置が変わっている場合があるのでループの最後で再取得する
@@ -256,7 +243,7 @@ SEARCH_IMPL_RETURN:
 
 bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
   // 詰みがちゃんと見つかっていない場合は、探索を打ち切る
-  Depth mate_depth = static_cast<Depth>(best_moves.size());
+  auto mate_depth = static_cast<Depth>(best_moves.size());
   if (mate_depth % 2 != 1) {
     return false;
   }
@@ -288,19 +275,21 @@ bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
       for (auto&& move : MovePicker{n, NodeTag<true>{}}) {
         auto query = tt_.GetChildQuery<true>(n, move.move, depth + 1, path_key);
         auto entry = query.LookUpWithoutCreation();
-        if (entry->Pn() != 0 && entry->Dn() != 0) {
-          entry = query.RefreshWithCreation(entry);
+        if (entry->Pn() == 0 || entry->Dn() == 0) {
+          continue;
+        }
 
-          n.do_move(move.move, st_info_[depth]);
-          SearchImpl<false>(n, kInfinitePnDn, kInfinitePnDn, depth + 1, node_history, query, entry, false);
-          n.undo_move(move.move);
+        entry = query.RefreshWithCreation(entry);
 
-          entry = query.RefreshWithoutCreation(entry);
-          if (entry->Pn() == 0) {
-            // 別の詰みが見つかった
-            found = true;
-            break;
-          }
+        n.do_move(move.move, st_info_[depth]);
+        SearchImpl<false>(n, kInfinitePnDn, kInfinitePnDn, depth + 1, node_history, query, entry, false);
+        n.undo_move(move.move);
+
+        entry = query.RefreshWithoutCreation(entry);
+        if (entry->Pn() == 0) {
+          // 別の詰みが見つかった
+          found = true;
+          break;
         }
       }
     }

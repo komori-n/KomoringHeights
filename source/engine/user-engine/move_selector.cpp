@@ -179,6 +179,15 @@ std::pair<PnDn, PnDn> MoveSelector<kOrNode>::ChildThreshold(PnDn thpn, PnDn thdn
 }
 
 template <bool kOrNode>
+std::pair<PnDn, PnDn> MoveSelector<kOrNode>::ControlThreshold(PnDn thpn, PnDn thdn) const {
+  thpn = std::max(thpn, Pn() + 1);
+  thpn = std::min(thpn, kInfinitePnDn);
+  thdn = std::max(thdn, Dn() + 1);
+  thdn = std::min(thdn, kInfinitePnDn);
+  return {thpn, thdn};
+}
+
+template <bool kOrNode>
 bool MoveSelector<kOrNode>::Compare(const ChildNodeCache& lhs, const ChildNodeCache& rhs) const {
   if (lhs.min_n != rhs.min_n) {
     return lhs.min_n < rhs.min_n;

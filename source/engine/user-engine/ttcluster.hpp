@@ -52,8 +52,8 @@ std::ostream& operator<<(std::ostream& os, const UnknownData& data);
 template <bool kProven>
 class HandsData {
  public:
-  template <bool kProven_>
-  friend std::ostream& operator<<(std::ostream& os, const HandsData<kProven_>& data);
+  template <bool kProven2>
+  friend std::ostream& operator<<(std::ostream& os, const HandsData<kProven2>& data);
   explicit HandsData(Hand hand);
 
   constexpr PnDn Pn() const { return kProven ? 0 : kInfinitePnDn; }

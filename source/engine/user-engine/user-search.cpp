@@ -157,7 +157,7 @@ void MainThread::search() {
   }
   thread.join();
 
-  if (Options["DebugInfo"]) {
+  if (Options["DebugInfo"] != 0) {
     g_searcher.PrintDebugInfo();
   }
 

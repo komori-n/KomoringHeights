@@ -18,7 +18,7 @@ class LookUpQuery;
 
 class NodeTravels {
  public:
-  NodeTravels(TranspositionTable& tt);
+  explicit NodeTravels(TranspositionTable& tt);
   NodeTravels() = delete;
   NodeTravels(const NodeTravels&) = delete;
   NodeTravels(NodeTravels&&) = delete;

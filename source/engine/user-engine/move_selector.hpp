@@ -79,6 +79,11 @@ class MoveSelector {
    */
   std::pair<PnDn, PnDn> ChildThreshold(PnDn thpn, PnDn thdn) const;
 
+  /**
+   * @brief Threshold Controlling Algorithm(TCA) に従い更新したしきい値を返す
+   */
+  std::pair<PnDn, PnDn> ControlThreshold(PnDn thpn, PnDn thdn) const;
+
   bool DoesHaveOldChild() const { return does_have_old_child_; }
 
  private:

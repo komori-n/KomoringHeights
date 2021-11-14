@@ -44,7 +44,7 @@ class MovePicker {
       auto them = ~us;
       auto king_color = kOrNode ? them : us;
       auto king_sq = n.king_square(king_color);
-      constexpr int pt_tbl[] = {
+      constexpr int kPtValues[] = {
           0, 1, 2, 2, 3, 5, 5, 5, 8, 5, 5, 5, 5, 8, 8, 8,
       };
       for (ExtMove* itr = move_list_.data(); itr != last; ++itr) {
@@ -63,7 +63,7 @@ class MovePicker {
           }
         }
 
-        itr->value -= pt_tbl[pt];
+        itr->value -= kPtValues[pt];
         itr->value -= 2 * (attackers_to_us.pop_count() + is_drop(move)) - attackers_to_them.pop_count();
         itr->value += dist(king_sq, to);
       }
