@@ -53,7 +53,7 @@ class NodeTravels {
    * @param n       現在の局面
    * @param depth   現在の深さ
    * @param path_key      経路依存のハッシュ
-   * @return std::pair<int, int> 詰み手数（詰まない場合マイナス）とそのときの駒あまりの枚数
+   * @return std::vector<Move> 詰み手順
    */
   std::vector<Move> MateMovesSearch(Position& n, Depth depth, Key path_key);
 
