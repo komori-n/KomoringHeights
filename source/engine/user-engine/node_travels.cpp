@@ -202,6 +202,7 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
   bool curr_capture = false;
 
   auto& move_picker = pickers_.emplace(n, NodeTag<kOrNode>{});
+  bool is_picker_empty = move_picker.empty();
   for (const auto& move : move_picker) {
     auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, path_key);
     auto child_entry = child_query.LookUpWithoutCreation();
@@ -236,12 +237,15 @@ std::pair<int, int> NodeTravels::MateMovesSearch(std::unordered_map<Key, Move>& 
   }
   pickers_.pop();
 
-  if (kOrNode && curr_depth == kMaxNumMateMoves) {
+  if (curr_move == MOVE_NONE) {
     memo.erase(key);
-    return {kRepetitionNonProven, 0};
+    if (!is_picker_empty) {
+      return {kRepetitionNonProven, 0};
+    }
+  } else {
+    memo[key] = curr_move;
   }
 
-  memo[key] = curr_move;
   return {curr_depth, curr_hand_count};
 }
 
