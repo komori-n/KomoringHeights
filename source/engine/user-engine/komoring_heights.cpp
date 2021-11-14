@@ -21,20 +21,32 @@ constexpr std::size_t kDefaultHashSizeMb = 1024;
 /// 2 ぐらいがちょうどよい
 constexpr Depth kFirstSearchOrDepth = 1;
 constexpr Depth kFirstSearchAndDepth = 2;
+constexpr double kA = 600.0;
+constexpr int kMinScore = -32767;
+constexpr int kMaxScore = 32767;
 
 inline int Score(komori::PnDn pn, komori::PnDn dn) {
   // - a log(1/x - 1)
   //   a: Ponanza 定数
   //   x: 勝率(<- dn / (pn + dn))
-  constexpr double kA = 600.0;
-  constexpr int kMinScore = -32767;
-  constexpr int kMaxScore = 32767;
 
   if (dn == 0) {
     return kMinScore;
   } else {
     double score = -kA * std::log(static_cast<double>(pn) / static_cast<double>(dn));
     return std::clamp(static_cast<int>(score), kMinScore, kMaxScore);
+  }
+}
+
+inline int MateScore(Depth mate_len) {
+  return kMaxScore + mate_len;
+}
+
+inline std::string ValueString(int score) {
+  if (score <= kMaxScore) {
+    return std::string{"cp "} + std::to_string(score);
+  } else {
+    return std::string{"mate "} + std::to_string(score - kMaxScore);
   }
 }
 }  // namespace
@@ -75,6 +87,19 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   sync_cout << "info string pn=" << entry->Pn() << " dn=" << entry->Dn() << " num_searched=" << searched_node_
             << " node_state=" << entry->GetNodeState() << " generation=" << entry->GetGeneration() << sync_endl;
   // </for-debug>
+
+  if (entry->Pn() == 0 && extra_search_count_ > 0) {
+    for (int i = 0; i < extra_search_count_; ++i) {
+      auto best_moves = BestMoves(n);
+      score_ = MateScore(static_cast<Depth>(best_moves.size()));
+      sync_cout << "info string yozume_search_cnt=" << i << ", mate_len=" << best_moves.size() << sync_endl;
+      if (!ExtraSearch(n, best_moves)) {
+        break;
+      }
+    }
+
+    entry = query.RefreshWithoutCreation(entry);
+  }
 
   stop_ = nullptr;
   return entry->GetNodeState() == NodeState::kProvenState;
@@ -229,8 +254,64 @@ SEARCH_IMPL_RETURN:
   node_history.Leave(n.state()->board_key(), query.GetHand());
 }
 
+bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
+  // 詰みがちゃんと見つかっていない場合は、探索を打ち切る
+  Depth mate_depth = static_cast<Depth>(best_moves.size());
+  if (mate_depth % 2 != 1) {
+    return false;
+  }
+
+  // n - 2 手詰めを見つけたい --> depth=n-1 で探索を打ち切れば良い
+  max_depth_ = mate_depth - 1;
+  searched_depth_ = max_depth_;
+  // 逆順探索をしたいので、末端局面まで進める
+  NodeHistory node_history;
+  Key path_key = 0;
+  for (Depth depth = 0; depth < mate_depth; ++depth) {
+    auto hand = depth % 2 == 0 ? n.hand_of(n.side_to_move()) : n.hand_of(~n.side_to_move());
+    node_history.Visit(n.state()->board_key(), hand);
+
+    path_key = PathKeyAfter(path_key, best_moves[depth], depth);
+    n.do_move(best_moves[depth], st_info_[depth]);
+  }
+
+  PrintProgress(n, mate_depth);
+
+  static_assert(std::is_signed_v<Depth>);
+  bool found = false;
+  for (Depth depth = mate_depth - 1; depth >= 0; --depth) {
+    n.undo_move(best_moves[depth]);
+    path_key = PathKeyBefore(path_key, best_moves[depth], depth);
+
+    if (!found && depth % 2 == 0) {
+      // OrNode のとき、別の手を選んで max_depth 以内に詰むかどうか調べてみる
+      for (auto&& move : MovePicker{n, NodeTag<true>{}}) {
+        auto query = tt_.GetChildQuery<true>(n, move.move, depth + 1, path_key);
+        auto entry = query.LookUpWithoutCreation();
+        if (entry->Pn() != 0 && entry->Dn() != 0) {
+          entry = query.RefreshWithCreation(entry);
+
+          n.do_move(move.move, st_info_[depth]);
+          SearchImpl<false>(n, kInfinitePnDn, kInfinitePnDn, depth + 1, node_history, query, entry, false);
+          n.undo_move(move.move);
+
+          entry = query.RefreshWithoutCreation(entry);
+          if (entry->Pn() == 0) {
+            // 別の詰みが見つかった
+            found = true;
+            break;
+          }
+        }
+      }
+    }
+    auto hand = depth % 2 == 0 ? n.hand_of(n.side_to_move()) : n.hand_of(~n.side_to_move());
+    node_history.Leave(n.state()->board_key(), hand);
+  }
+  return found;
+}
+
 void KomoringHeights::PrintProgress(const Position& n, Depth depth) const {
-  sync_cout << "info " << Info(depth) << " score cp " << score_
+  sync_cout << "info " << Info(depth) << " score " << ValueString(score_)
 #if defined(KEEP_LAST_MOVE)
             << " pv " << n.moves_from_start()
 #endif

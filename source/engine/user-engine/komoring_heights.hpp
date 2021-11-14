@@ -68,6 +68,8 @@ class KomoringHeights {
   void SetMaxSearchNode(std::uint64_t max_search_node) { max_search_node_ = max_search_node; }
   /// 探索深さ上限を設定する
   void SetMaxDepth(Depth max_depth) { max_depth_ = max_depth; }
+  /// 余詰探索
+  void SetExtraSearchCount(int extra_search_count) { extra_search_count_ = extra_search_count; }
 
   /// 探索情報のPrintを指示する。Printが完了したらフラグはfalseになる
   void SetPrintFlag() { print_flag_ = true; }
@@ -107,6 +109,14 @@ class KomoringHeights {
                   CommonEntry* entry,
                   bool inc_flag);
 
+  /**
+   * @brief 局面 n が best_moves により詰みのとき、別のより短い詰み手順がないかどうかを調べる
+   *
+   * @param n 現局面
+   * @param best_moves 現在のPV（最善応手列）
+   */
+  bool ExtraSearch(Position& n, std::vector<Move> best_moves);
+
   void PrintProgress(const Position& n, Depth depth) const;
 
   TranspositionTable tt_{};
@@ -121,6 +131,7 @@ class KomoringHeights {
   int score_{};
   std::chrono::system_clock::time_point start_time_;
   Depth max_depth_{kMaxNumMateMoves};
+  int extra_search_count_{0};
   std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};
 };
 }  // namespace komori

@@ -83,6 +83,10 @@ void USI::extra_option(USI::OptionsMap& o) {
   o["DeepDfpnPerMile"] << Option(5, 0, 10000);
   o["DeepDfpnMaxVal"] << Option(1000000, 1, INT64_MAX);
 #endif  // defined(USE_DEEP_DFPN)
+
+#if defined(YOZUME_SEARCH)
+  o["YozumeSearch"] << Option(0, 0, INT_MAX);
+#endif  // defined(YOZUME_SEARCH)
 }
 
 // 起動時に呼び出される。時間のかからない探索関係の初期化処理はここに書くこと。
@@ -113,6 +117,12 @@ void Search::clear() {
     // n 手詰めを読むためには depth=n+1 まで読む必要がある
     g_searcher.SetMaxDepth(depth_limit + 1);
   }
+
+#if defined(YOZUME_SEARCH)
+  if (int yozume_count = Options["YozumeSearch"]) {
+    g_searcher.SetExtraSearchCount(yozume_count);
+  }
+#endif  // defined(YOZUME_SEARCH)
 }
 
 // 探索開始時に呼び出される。
