@@ -11,6 +11,7 @@
 #include "move_picker.hpp"
 #include "node_history.hpp"
 #include "node_travels.hpp"
+#include "path_keys.hpp"
 #include "proof_hand.hpp"
 
 namespace {
@@ -103,6 +104,34 @@ std::vector<Move> KomoringHeights::BestMoves(Position& n) {
   }
 
   return result;
+}
+
+void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
+  auto depth_max = static_cast<Depth>(moves.size());
+  Key path_key = 0;
+  for (Depth depth = 0; depth < depth_max; ++depth) {
+    path_key = PathKeyAfter(path_key, moves[depth], depth);
+    n.do_move(moves[depth], st_info_[depth]);
+  }
+
+  if (depth_max % 2 == 0) {
+    for (auto&& move : MovePicker{n, NodeTag<true>{}}) {
+      auto query = tt_.GetChildQuery<true>(n, move.move, depth_max, path_key);
+      auto entry = query.LookUpWithoutCreation();
+      sync_cout << move.move << " " << *entry << sync_endl;
+    }
+  } else {
+    for (auto&& move : MovePicker{n, NodeTag<false>{}}) {
+      auto query = tt_.GetChildQuery<false>(n, move.move, depth_max, path_key);
+      auto entry = query.LookUpWithoutCreation();
+      sync_cout << move.move << " " << *entry << sync_endl;
+    }
+  }
+
+  static_assert(std::is_signed_v<Depth>);
+  for (Depth depth = depth_max - 1; depth >= 0; --depth) {
+    n.undo_move(moves[depth]);
+  }
 }
 
 std::string KomoringHeights::Info(int depth) const {

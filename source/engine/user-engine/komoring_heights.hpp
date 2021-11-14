@@ -78,6 +78,8 @@ class KomoringHeights {
   /// 局面 n が詰む場合、最善応手列を返す。詰まない場合は {} を返す。
   std::vector<Move> BestMoves(Position& n);
 
+  void ShowValues(Position& n, const std::vector<Move>& moves);
+
   std::string Info(int depth) const;
   void PrintDebugInfo() const;
 

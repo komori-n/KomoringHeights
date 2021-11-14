@@ -39,10 +39,36 @@ std::string InfoHeader(bool is_mate_search, int solution_len) {
   return oss.str();
 }
 
+void ShowCommand(Position& pos, std::istringstream& is) {
+  std::vector<Move> moves;
+  std::vector<StateInfo> st_info;
+  std::string token;
+  Move m;
+  while (is >> token && (m = USI::to_move(pos, token)) != MOVE_NONE) {
+    moves.emplace_back(m);
+    pos.do_move(m, st_info.emplace_back());
+    sync_cout << m << sync_endl;
+  }
+
+  sync_cout << pos << sync_endl;
+
+  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
+    pos.undo_move(*itr);
+    st_info.pop_back();
+  }
+
+  g_searcher.ShowValues(pos, moves);
+}
 }  // namespace
 
 // USI拡張コマンド"user"が送られてくるとこの関数が呼び出される。実験に使ってください。
-void user_test(Position& pos_, std::istringstream& is) {}
+void user_test(Position& pos, std::istringstream& is) {
+  std::string cmd;
+  is >> cmd;
+  if (cmd == "show") {
+    ShowCommand(pos, is);
+  }
+}
 
 // USIに追加オプションを設定したいときは、この関数を定義すること。
 // USI::init()のなかからコールバックされる。

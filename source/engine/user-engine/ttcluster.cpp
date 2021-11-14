@@ -3,6 +3,11 @@
 #include "deep_dfpn.hpp"
 
 namespace komori {
+std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
+  return os << "UnknownData{pn=" << data.pn_ << ", dn=" << data.dn_ << ", hand=" << data.hand_
+            << ", min_depth=" << data.min_depth_ << "}";
+}
+
 template <bool kProven>
 HandsData<kProven>::HandsData(Hand hand) {
   hands_[0] = hand;
@@ -55,6 +60,22 @@ bool HandsData<kProven>::Update(Hand hand) {
   return i == 0;
 }
 
+template <bool kProven>
+std::ostream& operator<<(std::ostream& os, const HandsData<kProven>& data) {
+  if constexpr (kProven) {
+    os << "ProvenData{";
+  } else {
+    os << "DisprovenData{";
+  }
+  for (std::size_t i = 0; i < HandsData<kProven>::kHandsLen; ++i) {
+    if (i != 0) {
+      os << ", ";
+    }
+    os << data.hands_[i];
+  }
+  return os << "}";
+}
+
 RepetitionData::RepetitionData(Key path_key) {
   keys_[0] = path_key;
   std::fill(keys_.begin() + 1, keys_.end(), kNullKey);
@@ -80,6 +101,17 @@ void RepetitionData::Add(Key path_key) {
       return;
     }
   }
+}
+
+std::ostream& operator<<(std::ostream& os, const RepetitionData& data) {
+  os << "RepetitionData{";
+  for (std::size_t i = 0; i < RepetitionData::kRepetitionKeyLen; ++i) {
+    if (i != 0) {
+      os << ", ";
+    }
+    os << HexString(data.keys_[i]);
+  }
+  return os << "}";
 }
 
 CommonEntry::CommonEntry() : dummy_{} {}
@@ -182,6 +214,20 @@ RepetitionData* CommonEntry::TryGetRepetition() {
     return &rep_;
   }
   return nullptr;
+}
+
+std::ostream& operator<<(std::ostream& os, const CommonEntry& entry) {
+  os << HexString(entry.hash_high_) << " " << entry.s_gen_.node_state << " " << entry.s_gen_.generation << " ";
+  switch (entry.GetNodeState()) {
+    case NodeState::kProvenState:
+      return os << entry.proven_;
+    case NodeState::kDisprovenState:
+      return os << entry.disproven_;
+    case NodeState::kRepetitionState:
+      return os << entry.rep_;
+    default:
+      return os << entry.unknown_;
+  }
 }
 
 TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand, std::uint64_t num_searched) {
@@ -493,6 +539,8 @@ TTCluster::Iterator TTCluster::LowerBoundPartial(std::uint32_t hash_high) {
   return curr;
 }
 
+template std::ostream& operator<<<false>(std::ostream& os, const HandsData<false>& data);
+template std::ostream& operator<<<true>(std::ostream& os, const HandsData<true>& data);
 template class HandsData<false>;
 template class HandsData<true>;
 template TTCluster::Iterator TTCluster::LookUp<false>(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);

@@ -11,6 +11,7 @@ namespace komori {
  */
 class UnknownData {
  public:
+  friend std::ostream& operator<<(std::ostream& os, const UnknownData& data);
   constexpr UnknownData(PnDn pn, PnDn dn, Hand hand, Depth depth) : pn_(pn), dn_(dn), hand_(hand), min_depth_(depth) {}
 
   constexpr PnDn Pn() const { return pn_; }
@@ -36,6 +37,7 @@ class UnknownData {
   Hand hand_;        ///< （OR nodeから見た）持ち駒
   Depth min_depth_;  ///< 最小距離。infinite loop の検証に用いる
 };
+std::ostream& operator<<(std::ostream& os, const UnknownData& data);
 
 /**
  * @brief 証明駒または反証駒を格納するデータ構造。
@@ -50,6 +52,8 @@ class UnknownData {
 template <bool kProven>
 class HandsData {
  public:
+  template <bool kProven_>
+  friend std::ostream& operator<<(std::ostream& os, const HandsData<kProven_>& data);
   explicit HandsData(Hand hand);
 
   constexpr PnDn Pn() const { return kProven ? 0 : kInfinitePnDn; }
@@ -70,6 +74,8 @@ class HandsData {
   static inline constexpr std::size_t kHandsLen = sizeof(UnknownData) / sizeof(Hand);
   std::array<Hand, kHandsLen> hands_;  ///< 証明駒（反証駒）
 };
+template <bool kProven>
+std::ostream& operator<<(std::ostream& os, const HandsData<kProven>& data);
 
 /// 証明済局面
 using ProvenData = HandsData<true>;
@@ -84,6 +90,7 @@ using DisprovenData = HandsData<false>;
  */
 class RepetitionData {
  public:
+  friend std::ostream& operator<<(std::ostream& os, const RepetitionData& data);
   explicit RepetitionData(Key path_key);
 
   constexpr PnDn Pn() const { return kInfinitePnDn; }
@@ -99,6 +106,7 @@ class RepetitionData {
   static inline constexpr std::size_t kRepetitionKeyLen = sizeof(UnknownData) / sizeof(Key);
   std::array<Key, kRepetitionKeyLen> keys_;  ///< 千日手となる手順
 };
+std::ostream& operator<<(std::ostream& os, const RepetitionData& data);
 
 /**
  * @brief 局面の探索結果を保存する構造体。
@@ -117,6 +125,8 @@ class RepetitionData {
  */
 class CommonEntry {
  public:
+  friend std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
+
   CommonEntry();
   /// 通常局面のエントリを作成する。
   constexpr CommonEntry(std::uint32_t hash_high, UnknownData&& unknown)
@@ -193,10 +203,10 @@ class CommonEntry {
   StateGeneration s_gen_;    ///< ノード状態と置換表世代
   union {
     std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< サイズチェック用
-    UnknownData unknown_;                 ///< 通常局面
-    ProvenData proven_;                   ///< 証明済局面
-    DisprovenData disproven_;             ///< 反証済局面
-    RepetitionData rep_;                  ///< 千日手局面
+    UnknownData unknown_;                                                           ///< 通常局面
+    ProvenData proven_;                                                             ///< 証明済局面
+    DisprovenData disproven_;                                                       ///< 反証済局面
+    RepetitionData rep_;                                                            ///< 千日手局面
   };
 
   // サイズチェック
@@ -205,6 +215,8 @@ class CommonEntry {
   static_assert(sizeof(dummy_) == sizeof(disproven_));
   static_assert(sizeof(dummy_) == sizeof(rep_));
 };
+
+std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
 
 // サイズ&アラインチェック
 static_assert(sizeof(CommonEntry) == sizeof(std::uint32_t) + sizeof(StateGeneration) + sizeof(UnknownData));

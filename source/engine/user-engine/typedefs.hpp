@@ -2,7 +2,9 @@
 #define TYPEDEFS_HPP_
 
 #include <cinttypes>
+#include <iomanip>
 #include <limits>
+#include <string>
 
 #include "../../bitboard.h"
 #include "../../position.h"
@@ -96,6 +98,12 @@ inline Bitboard StepEffect(PieceType pt, Color c, Square sq) {
     default:
       return {};
   }
+}
+
+inline std::string HexString(std::uint64_t x) {
+  std::stringstream ss;
+  ss << std::hex << std::setfill('0') << std::setw(16) << x;
+  return ss.str();
 }
 
 }  // namespace komori
