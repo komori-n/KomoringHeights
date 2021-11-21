@@ -89,10 +89,10 @@ func (ep *EngineProcess) GoMate(sfen string) (int, error) {
 			}
 		case strings.Contains(text, "nomate"):
 			return num_searched, fmt.Errorf("got nomate")
+		case text == "checkmate  ":
+			return num_searched, fmt.Errorf("got checkout without mate moves")
 		case strings.Contains(text, "checkmate "):
 			return num_searched, nil
-		case strings.Contains(text, "checkmate"):
-			return num_searched, fmt.Errorf("got checkout without mate moves")
 		}
 	}
 
