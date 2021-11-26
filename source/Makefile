@@ -389,6 +389,7 @@ ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 		engine/user-engine/move_selector.cpp \
 		engine/user-engine/path_keys.cpp \
     engine/user-engine/deep_dfpn.cpp \
+    engine/user-engine/usi.cpp \
 		engine/user-engine/transposition_table.cpp
 endif
 

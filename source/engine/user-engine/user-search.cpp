@@ -19,8 +19,8 @@ constexpr int kDisprovenLen = -1;
 constexpr int kTimeOutLen = -2;
 
 std::string InfoHeader(bool is_mate_search, int solution_len) {
-  std::ostringstream oss;
   if (is_mate_search) {
+    std::ostringstream oss;
     if (solution_len == kTimeOutLen) {
       oss << "checkmate timeout";
     } else if (solution_len == kDisprovenLen) {
@@ -28,15 +28,12 @@ std::string InfoHeader(bool is_mate_search, int solution_len) {
     } else {
       oss << "checkmate ";
     }
+    return oss.str();
   } else {
-    oss << "info " << g_searcher.Info(0) << " score mate ";
-    if (solution_len == kTimeOutLen || solution_len == kDisprovenLen) {
-      oss << "-1 pv resign";
-    } else {
-      oss << solution_len << " pv ";
-    }
+    auto usi_output = g_searcher.Info();
+    usi_output.Set(komori::UsiInfo::KeyKind::kDepth, 0);
+    return usi_output.ToString() + " pv " + (solution_len < 0 ? "resign" : "");
   }
-  return oss.str();
 }
 
 void ShowCommand(Position& pos, std::istringstream& is) {

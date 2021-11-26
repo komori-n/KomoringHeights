@@ -14,6 +14,7 @@
 #include "node_travels.hpp"
 #include "transposition_table.hpp"
 #include "ttcluster.hpp"
+#include "usi.hpp"
 
 namespace komori {
 // forward decleration
@@ -50,6 +51,26 @@ class MoveSelectorCache {
   std::vector<MoveSelector<false>> and_selectors_{};
 };
 
+class SearchProgress {
+ public:
+  void NewSearch();
+  void UpdateScore(int score) { score_ = score; }
+  void Visit(Depth depth) {
+    depth_ = std::max(depth_, depth);
+    node_++;
+  }
+  auto NodeCount() const { return node_; }
+  bool IsEnd(std::uint64_t max_search_node) const { return node_ >= max_search_node; }
+
+  void WriteTo(UsiInfo& output) const;
+
+ private:
+  std::chrono::system_clock::time_point start_time_;
+  int score_;
+  Depth depth_;
+  std::uint64_t node_;
+};
+
 /// df-pn探索の本体
 class KomoringHeights {
  public:
@@ -82,7 +103,7 @@ class KomoringHeights {
 
   void ShowValues(Position& n, const std::vector<Move>& moves);
 
-  std::string Info(int depth) const;
+  UsiInfo Info() const;
   void PrintDebugInfo() const;
 
  private:
@@ -126,10 +147,7 @@ class KomoringHeights {
 
   std::atomic_bool* stop_{nullptr};
   std::atomic_bool print_flag_{false};
-  std::uint64_t searched_node_{};
-  Depth searched_depth_{};
-  int score_{};
-  std::chrono::system_clock::time_point start_time_;
+  SearchProgress progress_{};
   Depth max_depth_{kMaxNumMateMoves};
   int extra_search_count_{0};
   std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};

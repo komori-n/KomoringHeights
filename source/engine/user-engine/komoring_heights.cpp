@@ -42,16 +42,42 @@ inline int MateScore(Depth mate_len) {
   return kMaxScore + mate_len;
 }
 
+inline int NoMateScore() {
+  return kMinScore - 1;
+}
+
 inline std::string ValueString(int score) {
-  if (score <= kMaxScore) {
-    return std::string{"cp "} + std::to_string(score);
-  } else {
+  if (score > kMaxScore) {
     return std::string{"mate "} + std::to_string(score - kMaxScore);
+  } else if (score < kMinScore) {
+    return std::string{"mate -0"};
+  } else {
+    return std::string{"cp "} + std::to_string(score);
   }
 }
 }  // namespace
 
 namespace komori {
+void SearchProgress::NewSearch() {
+  start_time_ = std::chrono::system_clock::now();
+  score_ = 0;
+  depth_ = 0;
+  node_ = 0;
+}
+
+void SearchProgress::WriteTo(UsiInfo& output) const {
+  auto curr_time = std::chrono::system_clock::now();
+  auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
+  time_ms = std::max(time_ms, decltype(time_ms){1});
+  auto nps = node_ * 1000ULL / time_ms;
+
+  output.Set(UsiInfo::KeyKind::kSelDepth, depth_)
+      .Set(UsiInfo::KeyKind::kTime, time_ms)
+      .Set(UsiInfo::KeyKind::kNodes, node_)
+      .Set(UsiInfo::KeyKind::kNps, nps)
+      .Set(UsiInfo::KeyKind::kScore, ValueString(score_));
+}
+
 void KomoringHeights::Init() {
   Resize(kDefaultHashSizeMb);
   selector_cache_.Resize(max_depth_ + 1);
@@ -63,11 +89,8 @@ void KomoringHeights::Resize(std::uint64_t size_mb) {
 
 bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   tt_.NewSearch();
-  searched_node_ = 0;
-  searched_depth_ = 0;
-  score_ = 0;
+  progress_.NewSearch();
   stop_ = &stop_flag;
-  start_time_ = std::chrono::system_clock::now();
 
   auto query = tt_.GetQuery<true>(n, 0, 0);
   auto* entry = query.LookUpWithCreation();
@@ -76,7 +99,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   do {
     thpndn = std::max(2 * entry->Pn(), 2 * entry->Dn());
     thpndn = std::min(thpndn, kInfinitePnDn);
-    score_ = Score(entry->Pn(), entry->Dn());
+    progress_.UpdateScore(Score(entry->Pn(), entry->Dn()));
 
     SearchImpl<true>(n, thpndn, thpndn, 0, node_history, query, entry, false);
     entry = query.RefreshWithoutCreation(entry);
@@ -84,14 +107,18 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
            entry->GetNodeState() == NodeState::kMaybeRepetitionState);
 
   // <for-debug>
-  sync_cout << "info string pn=" << entry->Pn() << " dn=" << entry->Dn() << " num_searched=" << searched_node_
-            << " node_state=" << entry->GetNodeState() << " generation=" << entry->GetGeneration() << sync_endl;
+  std::ostringstream oss;
+  oss << "pn=" << entry->Pn() << " dn=" << entry->Dn() << " node_state=" << entry->GetNodeState()
+      << " generation=" << entry->GetGeneration();
+  auto usi_output = UsiInfo::String(oss.str());
+  progress_.WriteTo(usi_output);
+  sync_cout << usi_output << sync_endl;
   // </for-debug>
 
   if (entry->Pn() == 0 && extra_search_count_ > 0) {
     for (int i = 0; i < extra_search_count_; ++i) {
       auto best_moves = BestMoves(n);
-      score_ = MateScore(static_cast<Depth>(best_moves.size()));
+      progress_.UpdateScore(MateScore(static_cast<Depth>(best_moves.size())));
       sync_cout << "info string yozume_search_cnt=" << i << ", mate_len=" << best_moves.size() << sync_endl;
       if (!ExtraSearch(n, best_moves)) {
         break;
@@ -102,7 +129,13 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   }
 
   stop_ = nullptr;
-  return entry->GetNodeState() == NodeState::kProvenState;
+  if (entry->GetNodeState() == NodeState::kProvenState) {
+    progress_.UpdateScore(MateScore(BestMoves(n).size()));
+    return true;
+  } else {
+    progress_.UpdateScore(NoMateScore());
+    return false;
+  }
 }
 
 std::vector<Move> KomoringHeights::BestMoves(Position& n) {
@@ -137,23 +170,23 @@ void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
   }
 }
 
-std::string KomoringHeights::Info(int depth) const {
-  auto curr_time = std::chrono::system_clock::now();
-  auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
-  time_ms = std::max(time_ms, decltype(time_ms){1});
-  auto nps = searched_node_ * 1000ULL / time_ms;
+UsiInfo KomoringHeights::Info() const {
+  UsiInfo usi_output{};
+  progress_.WriteTo(usi_output);
+  usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull());
 
-  std::ostringstream oss;
-  oss << "depth " << depth << " seldepth " << searched_depth_ << " time " << time_ms << " nodes " << searched_node_
-      << " nps " << nps << " hashfull " << tt_.Hashfull();
-  return oss.str();
+  return usi_output;
 }
 
 void KomoringHeights::PrintDebugInfo() const {
   auto stat = tt_.GetStat();
-  sync_cout << "info string hashfull=" << stat.hashfull << " proven=" << stat.proven_ratio
-            << " disproven=" << stat.disproven_ratio << " repetition=" << stat.repetition_ratio
-            << " maybe_repetition=" << stat.maybe_repetition_ratio << " other=" << stat.other_ratio << sync_endl;
+  std::ostringstream oss;
+
+  oss << "hashfull=" << stat.hashfull << " proven=" << stat.proven_ratio << " disproven=" << stat.disproven_ratio
+      << " repetition=" << stat.repetition_ratio << " maybe_repetition=" << stat.maybe_repetition_ratio
+      << " other=" << stat.other_ratio;
+
+  sync_cout << UsiInfo::String(oss.str()) << sync_endl;
 }
 
 template <bool kOrNode>
@@ -165,15 +198,16 @@ void KomoringHeights::SearchImpl(Position& n,
                                  const LookUpQuery& query,
                                  CommonEntry* entry,
                                  bool inc_flag) {
+  progress_.Visit(depth);
+
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
   auto node_state = node_history.State(n.state()->board_key(), query.GetHand());
   if (depth >= max_depth_ || node_state == NodeHistory::NodeState::kRepetition ||
       node_state == NodeHistory::NodeState::kInferior) {
-    query.SetRepetition(searched_node_);
+    query.SetRepetition(progress_.NodeCount());
     return;
   }
 
-  searched_depth_ = std::max(searched_depth_, depth);
   if (print_flag_) {
     PrintProgress(n, depth);
     print_flag_ = false;
@@ -182,7 +216,7 @@ void KomoringHeights::SearchImpl(Position& n,
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
     auto remain_depth = std::min(kFirstSearchDepth<kOrNode>, max_depth_ - depth);
-    auto res_entry = node_travels_.LeafSearch<kOrNode>(searched_node_, n, depth, remain_depth, query);
+    auto res_entry = node_travels_.LeafSearch<kOrNode>(progress_.NodeCount(), n, depth, remain_depth, query);
     if (res_entry->Pn() == 0 || res_entry->Dn() == 0) {
       return;
     }
@@ -200,27 +234,25 @@ void KomoringHeights::SearchImpl(Position& n,
   // これ以降で return する場合、node_history の復帰と selector の返却を行う必要がある。
   // これらの処理は、SEARCH_IMPL_RETURN ラベル以降で行っている。
 
-  while (searched_node_ < max_search_node_ && !*stop_) {
+  while (!progress_.IsEnd(max_search_node_) && !*stop_) {
     if (selector->Pn() == 0) {
-      query.SetProven(selector->ProofHand(), searched_node_);
+      query.SetProven(selector->ProofHand(), progress_.NodeCount());
       goto SEARCH_IMPL_RETURN;
     } else if (selector->Dn() == 0) {
       if (selector->IsRepetitionDisproven()) {
         // 千日手のため負け
-        query.SetRepetition(searched_node_);
+        query.SetRepetition(progress_.NodeCount());
       } else {
         // 普通に詰まない
-        query.SetDisproven(selector->DisproofHand(), searched_node_);
+        query.SetDisproven(selector->DisproofHand(), progress_.NodeCount());
       }
       goto SEARCH_IMPL_RETURN;
     }
 
-    entry->UpdatePnDn(selector->Pn(), selector->Dn(), searched_node_);
+    entry->UpdatePnDn(selector->Pn(), selector->Dn(), progress_.NodeCount());
     if (entry->Pn() >= thpn || entry->Dn() >= thdn) {
       goto SEARCH_IMPL_RETURN;
     }
-
-    ++searched_node_;
 
     auto [child_thpn, child_thdn] = selector->ChildThreshold(thpn, thdn);
     auto best_move = selector->FrontMove();
@@ -250,7 +282,6 @@ bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
 
   // n - 2 手詰めを見つけたい --> depth=n-1 で探索を打ち切れば良い
   max_depth_ = mate_depth - 1;
-  searched_depth_ = max_depth_;
   // 逆順探索をしたいので、末端局面まで進める
   NodeHistory node_history;
   Key path_key = 0;
@@ -300,11 +331,14 @@ bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
 }
 
 void KomoringHeights::PrintProgress(const Position& n, Depth depth) const {
-  sync_cout << "info " << Info(depth) << " score " << ValueString(score_)
+  auto usi_output = Info();
+
+  usi_output.Set(UsiInfo::KeyKind::kDepth, depth);
 #if defined(KEEP_LAST_MOVE)
-            << " pv " << n.moves_from_start()
+  usi_output.Set(UsiInfo::KeyKind::kPv, n.moves_from_start());
 #endif
-            << sync_endl;
+
+  sync_cout << usi_output << sync_endl;
 }
 
 template void KomoringHeights::SearchImpl<true>(Position& n,
