@@ -15,24 +15,28 @@ namespace {
 komori::KomoringHeights g_searcher;
 std::once_flag g_path_key_init_flag;
 
-constexpr int kDisprovenLen = -1;
-constexpr int kTimeOutLen = -2;
+enum class LoseKind {
+  kTimeout,
+  kNoMate,
+  kMate,
+};
 
-std::string InfoHeader(bool is_mate_search, int solution_len) {
+void PrintResult(bool is_mate_search, LoseKind kind, const std::string& pv_moves = "resign") {
   if (is_mate_search) {
-    std::ostringstream oss;
-    if (solution_len == kTimeOutLen) {
-      oss << "checkmate timeout";
-    } else if (solution_len == kDisprovenLen) {
-      oss << "checkmate nomate";
-    } else {
-      oss << "checkmate ";
+    switch (kind) {
+      case LoseKind::kTimeout:
+        sync_cout << "checkmate timeout" << sync_endl;
+        break;
+      case LoseKind::kNoMate:
+        sync_cout << "checkmate nomate" << sync_endl;
+        break;
+      default:
+        sync_cout << "checkmate " << pv_moves << sync_endl;
     }
-    return oss.str();
   } else {
     auto usi_output = g_searcher.Info();
-    usi_output.Set(komori::UsiInfo::KeyKind::kDepth, 0);
-    return usi_output.ToString() + " pv " + (solution_len < 0 ? "resign" : "");
+    usi_output.Set(komori::UsiInfo::KeyKind::kDepth, 0).Set(komori::UsiInfo::KeyKind::kPv, pv_moves);
+    sync_cout << usi_output << sync_endl;
   }
 }
 
@@ -160,18 +164,17 @@ void MainThread::search() {
 
   bool is_mate_search = Search::Limits.mate != 0;
   if (time_up()) {
-    sync_cout << InfoHeader(is_mate_search, kTimeOutLen) << sync_endl;
+    PrintResult(is_mate_search, LoseKind::kTimeout);
   } else if (search_end) {
     if (search_result) {
       auto best_moves = g_searcher.BestMoves(rootPos);
       std::ostringstream oss;
-      oss << InfoHeader(is_mate_search, best_moves.size());
       for (const auto& move : best_moves) {
-        oss << " " << move;
+        oss << move << " ";
       }
-      sync_cout << oss.str() << sync_endl;
+      PrintResult(is_mate_search, LoseKind::kMate, oss.str());
     } else {
-      sync_cout << InfoHeader(is_mate_search, kDisprovenLen) << sync_endl;
+      PrintResult(is_mate_search, LoseKind::kNoMate);
     }
   }
 
