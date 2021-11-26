@@ -21,46 +21,11 @@ constexpr std::size_t kDefaultHashSizeMb = 1024;
 /// 2 ぐらいがちょうどよい
 template <bool kOrNode>
 constexpr Depth kFirstSearchDepth = kOrNode ? 1 : 2;
-constexpr double kA = 600.0;
-constexpr int kMinScore = -32767;
-constexpr int kMaxScore = 32767;
-
-inline int Score(komori::PnDn pn, komori::PnDn dn) {
-  // - a log(1/x - 1)
-  //   a: Ponanza 定数
-  //   x: 勝率(<- dn / (pn + dn))
-
-  if (dn == 0) {
-    return kMinScore;
-  } else {
-    double score = -kA * std::log(static_cast<double>(pn) / static_cast<double>(dn));
-    return std::clamp(static_cast<int>(score), kMinScore, kMaxScore);
-  }
-}
-
-inline int MateScore(Depth mate_len) {
-  return kMaxScore + mate_len;
-}
-
-inline int NoMateScore() {
-  return kMinScore - 1;
-}
-
-inline std::string ValueString(int score) {
-  if (score > kMaxScore) {
-    return std::string{"mate "} + std::to_string(score - kMaxScore);
-  } else if (score < kMinScore) {
-    return std::string{"mate -0"};
-  } else {
-    return std::string{"cp "} + std::to_string(score);
-  }
-}
 }  // namespace
 
 namespace komori {
 void SearchProgress::NewSearch() {
   start_time_ = std::chrono::system_clock::now();
-  score_ = 0;
   depth_ = 0;
   node_ = 0;
 }
@@ -74,8 +39,7 @@ void SearchProgress::WriteTo(UsiInfo& output) const {
   output.Set(UsiInfo::KeyKind::kSelDepth, depth_)
       .Set(UsiInfo::KeyKind::kTime, time_ms)
       .Set(UsiInfo::KeyKind::kNodes, node_)
-      .Set(UsiInfo::KeyKind::kNps, nps)
-      .Set(UsiInfo::KeyKind::kScore, ValueString(score_));
+      .Set(UsiInfo::KeyKind::kNps, nps);
 }
 
 void KomoringHeights::Init() {
@@ -99,7 +63,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   do {
     thpndn = std::max(2 * entry->Pn(), 2 * entry->Dn());
     thpndn = std::min(thpndn, kInfinitePnDn);
-    progress_.UpdateScore(Score(entry->Pn(), entry->Dn()));
+    score_ = Score::Unknown(entry->Pn(), entry->Dn());
 
     SearchImpl<true>(n, thpndn, thpndn, 0, node_history, query, entry, false);
     entry = query.RefreshWithoutCreation(entry);
@@ -118,7 +82,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   if (entry->Pn() == 0 && extra_search_count_ > 0) {
     for (int i = 0; i < extra_search_count_; ++i) {
       auto best_moves = BestMoves(n);
-      progress_.UpdateScore(MateScore(static_cast<Depth>(best_moves.size())));
+      score_ = Score::Proven(best_moves.size());
       sync_cout << "info string yozume_search_cnt=" << i << ", mate_len=" << best_moves.size() << sync_endl;
       if (!ExtraSearch(n, best_moves)) {
         break;
@@ -130,10 +94,10 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 
   stop_ = nullptr;
   if (entry->GetNodeState() == NodeState::kProvenState) {
-    progress_.UpdateScore(MateScore(BestMoves(n).size()));
+    score_ = Score::Proven(BestMoves(n).size());
     return true;
   } else {
-    progress_.UpdateScore(NoMateScore());
+    score_ = Score::Disproven();
     return false;
   }
 }
@@ -173,7 +137,7 @@ void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
 UsiInfo KomoringHeights::Info() const {
   UsiInfo usi_output{};
   progress_.WriteTo(usi_output);
-  usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull());
+  usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
 
   return usi_output;
 }

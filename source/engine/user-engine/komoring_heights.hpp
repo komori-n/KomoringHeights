@@ -54,7 +54,6 @@ class MoveSelectorCache {
 class SearchProgress {
  public:
   void NewSearch();
-  void UpdateScore(int score) { score_ = score; }
   void Visit(Depth depth) {
     depth_ = std::max(depth_, depth);
     node_++;
@@ -66,7 +65,6 @@ class SearchProgress {
 
  private:
   std::chrono::system_clock::time_point start_time_;
-  int score_;
   Depth depth_;
   std::uint64_t node_;
 };
@@ -148,6 +146,7 @@ class KomoringHeights {
   std::atomic_bool* stop_{nullptr};
   std::atomic_bool print_flag_{false};
   SearchProgress progress_{};
+  Score score_{};
   Depth max_depth_{kMaxNumMateMoves};
   int extra_search_count_{0};
   std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};
