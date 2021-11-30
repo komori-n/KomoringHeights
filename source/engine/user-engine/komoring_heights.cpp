@@ -72,8 +72,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 
   // <for-debug>
   std::ostringstream oss;
-  oss << "pn=" << entry->Pn() << " dn=" << entry->Dn() << " node_state=" << entry->GetNodeState()
-      << " generation=" << entry->GetGeneration();
+  oss << *entry;
   auto usi_output = UsiInfo::String(oss.str());
   progress_.WriteTo(usi_output);
   sync_cout << usi_output << sync_endl;
