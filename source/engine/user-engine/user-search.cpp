@@ -1,6 +1,4 @@
-﻿#include "../../types.h"
-
-#include <cmath>
+﻿#include <cmath>
 #include <mutex>
 
 #include "../../extra/all.h"
@@ -8,6 +6,7 @@
 #include "deep_dfpn.hpp"
 #include "komoring_heights.hpp"
 #include "path_keys.hpp"
+#include "typedefs.hpp"
 
 #if defined(USER_ENGINE)
 

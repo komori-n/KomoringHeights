@@ -1,9 +1,9 @@
 #include "move_selector.hpp"
 
+#include "hands.hpp"
 #include "move_picker.hpp"
 #include "node_history.hpp"
 #include "node_travels.hpp"
-#include "proof_hand.hpp"
 
 namespace {
 constexpr komori::StateGeneration kObviousRepetition = komori::StateGeneration{komori::NodeState::kRepetitionState, 0};

@@ -60,6 +60,24 @@ class LookUpQuery {
   CommonEntry* SetDisproven(Hand disproof_hand, std::uint64_t num_searches) const;
   /// 調べていた局面が千日手による不詰であることを報告する
   CommonEntry* SetRepetition(std::uint64_t num_searches) const;
+  /// 調べていた局面が勝ちであることを報告する
+  template <bool kOrNode>
+  CommonEntry* SetWin(Hand hand, std::uint64_t num_searches) const {
+    if constexpr (kOrNode) {
+      return SetProven(hand, num_searches);
+    } else {
+      return SetDisproven(hand, num_searches);
+    }
+  }
+  /// 調べていた局面が負けであることを報告する
+  template <bool kOrNode>
+  CommonEntry* SetLose(Hand hand, std::uint64_t num_searches) const {
+    if constexpr (kOrNode) {
+      return SetDisproven(hand, num_searches);
+    } else {
+      return SetProven(hand, num_searches);
+    }
+  }
   /// `entry` が cluster に存在するエントリかを問い合わせる。（ダミーエントリのチェックに使用する）
   bool DoesStored(CommonEntry* entry) const;
   /// `entry` が有効（前回呼び出しから移動していない）かどうかをチェックする

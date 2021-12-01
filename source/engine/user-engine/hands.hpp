@@ -21,6 +21,15 @@ Hand AfterHand(const Position& n, Move move, Hand before_hand);
 /// move 後の手駒が after_hand のとき、移動前の持ち駒を返す
 Hand BeforeHand(const Position& n, Move move, Hand after_hand);
 
+template <bool kOrNode>
+inline Hand OrHand(const Position& n) {
+  if constexpr (kOrNode) {
+    return n.hand_of(n.side_to_move());
+  } else {
+    return n.hand_of(~n.side_to_move());
+  }
+}
+
 /// 持ち駒集合を扱うクラス。駒の種別ごとに別の変数で保存しているので、Hand を直接扱うよりもやや高速に処理できる。
 class HandSet {
  public:
@@ -56,6 +65,15 @@ class HandSet {
       val_[pr] = std::max(val_[pr], hand_exists(hand, pr));
     }
     return *this;
+  }
+
+  template <bool kAndOperator>
+  void Update(Hand hand) {
+    if constexpr (kAndOperator) {
+      *this &= hand;
+    } else {
+      *this |= hand;
+    }
   }
 
  private:
@@ -133,6 +151,15 @@ Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand);
  * @return Hand proof_hand から n で受け方が持っていない　かつ　合駒で王手を防げる持ち駒を攻め方側に集めた持ち駒
  */
 Hand AddIfHandGivesOtherEvasions(const Position& n, Hand proof_hand);
+
+template <bool kOrNode>
+inline Hand PostProcessLoseHand(const Position& n, Hand hand) {
+  if constexpr (kOrNode) {
+    return RemoveIfHandGivesOtherChecks(n, hand);
+  } else {
+    return AddIfHandGivesOtherEvasions(n, hand);
+  }
+}
 }  // namespace komori
 
 #endif  // PROOF_HAND_HPP_

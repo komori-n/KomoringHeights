@@ -1,4 +1,4 @@
-#include "proof_hand.hpp"
+#include "hands.hpp"
 
 namespace komori {
 void RemoveHand(Hand& hand, PieceType pr) {

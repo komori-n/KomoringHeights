@@ -223,7 +223,7 @@ LOCAL_SRC_FILES += \
   ../source/engine/user-engine/user-search.cpp \
   ../source/engine/user-engine/komoring_heights.cpp \
   ../source/engine/user-engine/ttcluster.cpp \
-  ../source/engine/user-engine/proof_hand.cpp \
+  ../source/engine/user-engine/hands.cpp \
   ../source/engine/user-engine/node_travels.cpp \
   ../source/engine/user-engine/node_history.cpp \
   ../source/engine/user-engine/move_selector.cpp \

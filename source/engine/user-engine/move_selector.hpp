@@ -4,9 +4,9 @@
 #include <array>
 #include <unordered_set>
 
-#include "../../types.h"
 #include "transposition_table.hpp"
 #include "ttcluster.hpp"
+#include "typedefs.hpp"
 
 namespace komori {
 class NodeHistory;

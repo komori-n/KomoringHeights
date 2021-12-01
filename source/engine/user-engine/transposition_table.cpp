@@ -1,7 +1,7 @@
 #include "transposition_table.hpp"
 
+#include "hands.hpp"
 #include "path_keys.hpp"
-#include "proof_hand.hpp"
 #include "ttcluster.hpp"
 
 namespace {

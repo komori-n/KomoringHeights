@@ -8,11 +8,11 @@
 #include <cmath>
 
 #include "../../mate/mate.h"
+#include "hands.hpp"
 #include "move_picker.hpp"
 #include "node_history.hpp"
 #include "node_travels.hpp"
 #include "path_keys.hpp"
-#include "proof_hand.hpp"
 
 namespace {
 constexpr std::size_t kDefaultHashSizeMb = 1024;

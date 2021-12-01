@@ -100,6 +100,16 @@ inline Bitboard StepEffect(PieceType pt, Color c, Square sq) {
   }
 }
 
+inline bool IsStepCheck(const Position& n, Move move) {
+  auto us = n.side_to_move();
+  auto them = ~us;
+  auto king_sq = n.king_square(them);
+  Piece pc = n.moved_piece_after(move);
+  PieceType pt = type_of(pc);
+
+  return StepEffect(pt, us, to_sq(move)).test(king_sq);
+}
+
 inline std::string HexString(std::uint64_t x) {
   std::stringstream ss;
   ss << std::hex << std::setfill('0') << std::setw(16) << x;

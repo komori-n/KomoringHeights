@@ -3,52 +3,15 @@
 #include <variant>
 
 #include "../../mate/mate.h"
+#include "hands.hpp"
 #include "move_picker.hpp"
 #include "path_keys.hpp"
-#include "proof_hand.hpp"
 #include "transposition_table.hpp"
 #include "ttcluster.hpp"
 
 namespace {
 using komori::kNullHand;
-
-template <bool kOrNode>
-inline Hand OrHand(const Position& n) {
-  if constexpr (kOrNode) {
-    return n.hand_of(n.side_to_move());
-  } else {
-    return n.hand_of(~n.side_to_move());
-  }
-}
-
-template <bool kAndOperator>
-inline void UpdateHandSet(komori::HandSet& hand_set, Hand hand) {
-  if constexpr (kAndOperator) {
-    hand_set &= hand;
-  } else {
-    hand_set |= hand;
-  }
-}
-
-template <bool kOrNode>
-inline auto* DeclareWin(std::uint64_t num_searches, const komori::LookUpQuery& query, Hand hand) {
-  if constexpr (kOrNode) {
-    return query.SetProven(hand, num_searches);
-  } else {
-    return query.SetDisproven(hand, num_searches);
-  }
-}
-
-template <bool kOrNode>
-inline auto* StoreLose(std::uint64_t num_searches, const komori::LookUpQuery& query, const Position& n, Hand hand) {
-  if constexpr (kOrNode) {
-    Hand disproof_hand = komori::RemoveIfHandGivesOtherChecks(n, hand);
-    return query.SetDisproven(disproof_hand, num_searches);
-  } else {
-    Hand proof_hand = komori::AddIfHandGivesOtherEvasions(n, hand);
-    return query.SetProven(proof_hand, num_searches);
-  }
-}
+using komori::OrHand;
 
 template <bool kOrNode>
 inline Hand ProperChildHand(const Position& n, Move move, komori::CommonEntry* child_entry) {
@@ -58,17 +21,6 @@ inline Hand ProperChildHand(const Position& n, Move move, komori::CommonEntry* c
   } else {
     return child_entry->ProperHand(OrHand<kOrNode>(n));
   }
-}
-
-/// OrNode で move が近接王手となるか判定する
-inline bool IsStepCheck(const Position& n, Move move) {
-  auto us = n.side_to_move();
-  auto them = ~us;
-  auto king_sq = n.king_square(them);
-  Piece pc = n.moved_piece_after(move);
-  PieceType pt = type_of(pc);
-
-  return komori::StepEffect(pt, us, to_sq(move)).test(king_sq);
 }
 
 template <bool kOrNode>
@@ -106,7 +58,7 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
                                      Depth remain_depth,
                                      const LookUpQuery& query) {
   if (Hand hand = CheckMate1Ply<kOrNode>(n); hand != kNullHand) {
-    return DeclareWin<kOrNode>(num_searches, query, hand);
+    return query.SetWin<kOrNode>(hand, num_searches);
   }
 
   // stack消費を抑えるために、vectorの中にMovePickerを構築する
@@ -115,7 +67,8 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
   CommonEntry* ret_entry = nullptr;
   {
     if (move_picker.empty()) {
-      ret_entry = StoreLose<kOrNode>(num_searches, query, n, kOrNode ? CollectHand(n) : HAND_ZERO);
+      Hand hand = PostProcessLoseHand<kOrNode>(n, kOrNode ? CollectHand(n) : HAND_ZERO);
+      ret_entry = query.SetLose<kOrNode>(hand, num_searches);
       goto SEARCH_FOUND;
     }
 
@@ -145,12 +98,12 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
       if ((kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
           (!kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
         // win
-        ret_entry = DeclareWin<kOrNode>(num_searches, query, ProperChildHand<kOrNode>(n, move.move, child_entry));
+        ret_entry = query.SetWin<kOrNode>(ProperChildHand<kOrNode>(n, move.move, child_entry), num_searches);
         goto SEARCH_FOUND;
       } else if ((!kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
                  (kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
         // lose
-        UpdateHandSet<kOrNode>(lose_hand, ProperChildHand<kOrNode>(n, move.move, child_entry));
+        lose_hand.Update<kOrNode>(ProperChildHand<kOrNode>(n, move.move, child_entry));
       } else {
         // unknown
         unknown_flag = true;
@@ -160,7 +113,8 @@ CommonEntry* NodeTravels::LeafSearch(std::uint64_t num_searches,
     if (unknown_flag) {
       goto SEARCH_NOT_FOUND;
     } else {
-      ret_entry = StoreLose<kOrNode>(num_searches, query, n, lose_hand.Get());
+      Hand hand = PostProcessLoseHand<kOrNode>(n, lose_hand.Get());
+      ret_entry = query.SetLose<kOrNode>(hand, num_searches);
     }
   }
 
