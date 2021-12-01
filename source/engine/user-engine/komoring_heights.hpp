@@ -129,6 +129,18 @@ class KomoringHeights {
                   bool inc_flag);
 
   /**
+   * @brief 探索深さ remain_depth で静止探索を行う
+   *
+   * @tparam kOrNode OrNode（詰ます側）なら true、AndNode（詰まされる側）なら false
+   * @param n 現局面
+   * @param depth 探索深さ
+   * @param remain_depth 残り探索深さ
+   * @param query 現局面の置換表クエリ。引数として渡すことで高速化をはかる。
+   */
+  template <bool kOrNode>
+  void SearchLeaf(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query);
+
+  /**
    * @brief 局面 n が best_moves により詰みのとき、別のより短い詰み手順がないかどうかを調べる
    *
    * @param n 現局面
@@ -141,6 +153,7 @@ class KomoringHeights {
   TranspositionTable tt_{};
   NodeTravels node_travels_{tt_};
   MoveSelectorCache selector_cache_{};
+  std::stack<MovePicker> pickers_{};
   std::array<StateInfo, kMaxNumMateMoves> st_info_{};
 
   std::atomic_bool* stop_{nullptr};

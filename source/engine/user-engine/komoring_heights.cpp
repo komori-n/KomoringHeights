@@ -14,6 +14,7 @@
 #include "node_travels.hpp"
 #include "path_keys.hpp"
 
+namespace komori {
 namespace {
 constexpr std::size_t kDefaultHashSizeMb = 1024;
 
@@ -21,9 +22,42 @@ constexpr std::size_t kDefaultHashSizeMb = 1024;
 /// 2 ぐらいがちょうどよい
 template <bool kOrNode>
 constexpr Depth kFirstSearchDepth = kOrNode ? 1 : 2;
+
+template <bool kOrNode>
+inline Hand ProperChildHand(const Position& n, Move move, komori::CommonEntry* child_entry) {
+  if constexpr (kOrNode) {
+    Hand after_hand = child_entry->ProperHand(komori::AfterHand(n, move, OrHand<kOrNode>(n)));
+    return komori::BeforeHand(n, move, after_hand);
+  } else {
+    return child_entry->ProperHand(OrHand<kOrNode>(n));
+  }
+}
+
+template <bool kOrNode>
+inline Hand CheckMate1Ply(Position& n) {
+  if constexpr (!kOrNode) {
+    return kNullHand;
+  }
+
+  if (!n.in_check()) {
+    if (auto move = Mate::mate_1ply(n); move != MOVE_NONE) {
+      komori::HandSet proof_hand = komori::HandSet::Zero();
+      auto curr_hand = OrHand<true>(n);
+
+      StateInfo st_info;
+      n.do_move(move, st_info);
+      proof_hand |= komori::BeforeHand(n, move, komori::AddIfHandGivesOtherEvasions(n, HAND_ZERO));
+      n.undo_move(move);
+
+      proof_hand &= curr_hand;
+      return proof_hand.Get();
+    }
+  }
+  return kNullHand;
+}
+
 }  // namespace
 
-namespace komori {
 void SearchProgress::NewSearch() {
   start_time_ = std::chrono::system_clock::now();
   depth_ = 0;
@@ -179,8 +213,9 @@ void KomoringHeights::SearchImpl(Position& n,
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
     auto remain_depth = std::min(kFirstSearchDepth<kOrNode>, max_depth_ - depth);
-    auto res_entry = node_travels_.LeafSearch<kOrNode>(progress_.NodeCount(), n, depth, remain_depth, query);
-    if (res_entry->Pn() == 0 || res_entry->Dn() == 0) {
+    SearchLeaf<kOrNode>(n, depth, remain_depth, query);
+    entry = query.RefreshWithCreation(entry);
+    if (entry->Pn() == 0 || entry->Dn() == 0) {
       return;
     }
     inc_flag = false;
@@ -234,6 +269,71 @@ SEARCH_IMPL_RETURN:
   // node_history の復帰と selector の返却を行う必要がある
   selector_cache_.PopBack<kOrNode>();
   node_history.Leave(n.state()->board_key(), query.GetHand());
+}
+
+template <bool kOrNode>
+void KomoringHeights::SearchLeaf(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query) {
+  if (Hand hand = CheckMate1Ply<kOrNode>(n); hand != kNullHand) {
+    query.SetProven(hand, progress_.NodeCount());
+    return;
+  }
+
+  auto& move_picker = pickers_.emplace(n, NodeTag<kOrNode>{});
+  {
+    if (move_picker.empty()) {
+      Hand hand = PostProcessLoseHand<kOrNode>(n, kOrNode ? CollectHand(n) : HAND_ZERO);
+      query.SetLose<kOrNode>(hand, progress_.NodeCount());
+      goto SEARCH_LEAF_RETURN;
+    }
+
+    if (remain_depth <= 1 || depth > max_depth_) {
+      goto SEARCH_LEAF_RETURN;
+    }
+
+    bool unknown_flag = false;
+    HandSet lose_hand = kOrNode ? HandSet::Full() : HandSet::Zero();
+    for (const auto& move : move_picker) {
+      auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, query.PathKey());
+      auto child_entry = child_query.LookUpWithoutCreation();
+
+      if (!query.DoesStored(child_entry) || child_entry->IsFirstVisit()) {
+        // 近接王手以外は時間の無駄なので無視する
+        if (kOrNode && !IsStepCheck(n, move)) {
+          unknown_flag = true;
+          continue;
+        }
+
+        // まだ FirstSearch していなさそうな node なら掘り進めてみる
+        n.do_move(move.move, st_info_[depth]);
+        SearchLeaf<!kOrNode>(n, depth + 1, remain_depth - 1, child_query);
+        child_entry = child_query.LookUpWithoutCreation();
+        n.undo_move(move.move);
+      }
+
+      if ((kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
+          (!kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
+        // win
+        query.SetWin<kOrNode>(ProperChildHand<kOrNode>(n, move.move, child_entry), progress_.NodeCount());
+        goto SEARCH_LEAF_RETURN;
+      } else if ((!kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
+                 (kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
+        // lose
+        lose_hand.Update<kOrNode>(ProperChildHand<kOrNode>(n, move.move, child_entry));
+      } else {
+        // unknown
+        unknown_flag = true;
+      }
+    }
+    if (unknown_flag) {
+      goto SEARCH_LEAF_RETURN;
+    } else {
+      Hand hand = PostProcessLoseHand<kOrNode>(n, lose_hand.Get());
+      query.SetLose<kOrNode>(hand, progress_.NodeCount());
+    }
+  }
+
+SEARCH_LEAF_RETURN:
+  pickers_.pop();
 }
 
 bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
@@ -320,4 +420,9 @@ template void KomoringHeights::SearchImpl<false>(Position& n,
                                                  const LookUpQuery& query,
                                                  CommonEntry* entry,
                                                  bool inc_flag);
+template void KomoringHeights::SearchLeaf<true>(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query);
+template void KomoringHeights::SearchLeaf<false>(Position& n,
+                                                 Depth depth,
+                                                 Depth remain_depth,
+                                                 const LookUpQuery& query);
 }  // namespace komori
