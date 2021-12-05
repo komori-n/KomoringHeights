@@ -15,6 +15,7 @@ namespace komori {
 class CommonEntry;
 class TranspositionTable;
 class LookUpQuery;
+class Node;
 
 class NodeTravels {
  public:
@@ -30,11 +31,9 @@ class NodeTravels {
    * @brief n の詰み手順を復元する
    *
    * @param n       現在の局面
-   * @param depth   現在の深さ
-   * @param path_key      経路依存のハッシュ
    * @return std::vector<Move> 詰み手順
    */
-  std::vector<Move> MateMovesSearch(Position& n, Depth depth, Key path_key);
+  std::vector<Move> MateMovesSearch(Node& n);
 
  private:
   static inline constexpr Depth kNonRepetitionDepth = Depth{kMaxNumMateMoves + 1};
@@ -59,8 +58,6 @@ class NodeTravels {
    * @param mate_table      探索結果のメモ
    * @param search_history  現在探索中の局面
    * @param n               現局面
-   * @param depth           探索深さ
-   * @param path_key        局面ハッシュ
    * @return std::pair<NodeCache, Depth>
    *     first   局面の探索結果
    *     second  firstが千日手絡みの評価値の場合、千日手がスタートした局面の深さ。
@@ -69,9 +66,7 @@ class NodeTravels {
   template <bool kOrNode>
   std::pair<NumMoves, Depth> MateMovesSearchImpl(std::unordered_map<Key, MateMoveCache>& mate_table,
                                                  std::unordered_map<Key, Depth>& search_history,
-                                                 Position& n,
-                                                 Depth depth,
-                                                 Key path_key);
+                                                 Node& n);
 
   TranspositionTable& tt_;
   std::stack<MovePicker> pickers_{};

@@ -1,6 +1,7 @@
 #include "transposition_table.hpp"
 
 #include "hands.hpp"
+#include "node.hpp"
 #include "path_keys.hpp"
 #include "ttcluster.hpp"
 
@@ -102,31 +103,29 @@ void TranspositionTable::NewSearch() {
 }
 
 template <bool kOrNode>
-LookUpQuery TranspositionTable::GetQuery(const Position& n, Depth depth, Key path_key) {
-  Key key = n.state()->board_key();
+LookUpQuery TranspositionTable::GetQuery(const Node& n) {
+  Key key = n.Pos().state()->board_key();
   std::uint32_t hash_high = key >> 32;
 
   auto& cluster = ClusterOf(key);
-  auto hand = n.hand_of(kOrNode ? n.side_to_move() : ~n.side_to_move());
-  return {&cluster, hash_high, hand, depth, path_key};
+  auto hand = n.OrHand();
+  return {&cluster, hash_high, hand, n.GetDepth(), n.GetPathKey()};
 }
 
 template <bool kOrNode>
-LookUpQuery TranspositionTable::GetChildQuery(const Position& n, Move move, Depth depth, Key path_key) {
+LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
   Hand hand;
   if constexpr (kOrNode) {
-    hand = AfterHand(n, move, n.hand_of(n.side_to_move()));
+    hand = AfterHand(n.Pos(), move, n.OrHand());
   } else {
-    hand = n.hand_of(~n.side_to_move());
+    hand = n.OrHand();
   }
 
-  Key key = n.board_key_after(move);
+  Key key = n.Pos().board_key_after(move);
   std::uint32_t hash_high = key >> 32;
   auto& cluster = ClusterOf(key);
 
-  Key path_key_after = PathKeyAfter(path_key, move, depth - 1);
-
-  return {&cluster, hash_high, hand, depth, path_key_after};
+  return {&cluster, hash_high, hand, n.GetDepth() + 1, n.PathKeyAfter(move)};
 }
 
 int TranspositionTable::Hashfull() const {
@@ -178,8 +177,8 @@ TTCluster& TranspositionTable::ClusterOf(Key board_key) {
   return tt_[board_key % num_clusters_];
 }
 
-template LookUpQuery TranspositionTable::GetQuery<false>(const Position& n, Depth depth, Key path_key);
-template LookUpQuery TranspositionTable::GetQuery<true>(const Position& n, Depth depth, Key path_key);
-template LookUpQuery TranspositionTable::GetChildQuery<false>(const Position& n, Move move, Depth depth, Key path_key);
-template LookUpQuery TranspositionTable::GetChildQuery<true>(const Position& n, Move move, Depth depth, Key path_key);
+template LookUpQuery TranspositionTable::GetQuery<false>(const Node& n);
+template LookUpQuery TranspositionTable::GetQuery<true>(const Node& n);
+template LookUpQuery TranspositionTable::GetChildQuery<false>(const Node& n, Move move);
+template LookUpQuery TranspositionTable::GetChildQuery<true>(const Node& n, Move move);
 }  // namespace komori

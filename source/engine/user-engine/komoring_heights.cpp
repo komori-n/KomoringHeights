@@ -90,16 +90,16 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   progress_.NewSearch();
   stop_ = &stop_flag;
 
-  auto query = tt_.GetQuery<true>(n, 0, 0);
+  Node node{n};
+  auto query = tt_.GetQuery<true>(node);
   auto* entry = query.LookUpWithCreation();
-  NodeHistory node_history{};
   PnDn thpndn = 1;
   do {
     thpndn = std::max(2 * entry->Pn(), 2 * entry->Dn());
     thpndn = std::min(thpndn, kInfinitePnDn);
     score_ = Score::Unknown(entry->Pn(), entry->Dn());
 
-    SearchImpl<true>(n, thpndn, thpndn, 0, node_history, query, entry, false);
+    SearchImpl<true>(node, thpndn, thpndn, query, entry, false);
     entry = query.RefreshWithoutCreation(entry);
   } while (entry->GetNodeState() == NodeState::kOtherState ||
            entry->GetNodeState() == NodeState::kMaybeRepetitionState);
@@ -117,7 +117,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
       auto best_moves = BestMoves(n);
       score_ = Score::Proven(best_moves.size());
       sync_cout << "info string yozume_search_cnt=" << i << ", mate_len=" << best_moves.size() << sync_endl;
-      if (!ExtraSearch(n, best_moves)) {
+      if (!ExtraSearch(node, best_moves)) {
         break;
       }
     }
@@ -136,26 +136,28 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 }
 
 std::vector<Move> KomoringHeights::BestMoves(Position& n) {
-  return node_travels_.MateMovesSearch(n, 0, 0);
+  Node node{n};
+  return node_travels_.MateMovesSearch(node);
 }
 
 void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
   auto depth_max = static_cast<Depth>(moves.size());
   Key path_key = 0;
+  Node node{n};
   for (Depth depth = 0; depth < depth_max; ++depth) {
     path_key = PathKeyAfter(path_key, moves[depth], depth);
-    n.do_move(moves[depth], st_info_[depth]);
+    node.DoMove(moves[depth]);
   }
 
   if (depth_max % 2 == 0) {
     for (auto&& move : MovePicker{n, NodeTag<true>{}}) {
-      auto query = tt_.GetChildQuery<true>(n, move.move, depth_max, path_key);
+      auto query = tt_.GetChildQuery<true>(node, move.move);
       auto entry = query.LookUpWithoutCreation();
       sync_cout << move.move << " " << *entry << sync_endl;
     }
   } else {
     for (auto&& move : MovePicker{n, NodeTag<false>{}}) {
-      auto query = tt_.GetChildQuery<false>(n, move.move, depth_max, path_key);
+      auto query = tt_.GetChildQuery<false>(node, move.move);
       auto entry = query.LookUpWithoutCreation();
       sync_cout << move.move << " " << *entry << sync_endl;
     }
@@ -163,7 +165,7 @@ void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
 
   static_assert(std::is_signed_v<Depth>);
   for (Depth depth = depth_max - 1; depth >= 0; --depth) {
-    n.undo_move(moves[depth]);
+    node.UndoMove(moves[depth]);
   }
 }
 
@@ -187,33 +189,28 @@ void KomoringHeights::PrintDebugInfo() const {
 }
 
 template <bool kOrNode>
-void KomoringHeights::SearchImpl(Position& n,
+void KomoringHeights::SearchImpl(Node& n,
                                  PnDn thpn,
                                  PnDn thdn,
-                                 Depth depth,
-                                 NodeHistory& node_history,
                                  const LookUpQuery& query,
                                  CommonEntry* entry,
                                  bool inc_flag) {
-  progress_.Visit(depth);
+  progress_.Visit(n.GetDepth());
 
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
-  auto node_state = node_history.State(n.state()->board_key(), query.GetHand());
-  if (depth >= max_depth_ || node_state == NodeHistory::NodeState::kRepetition ||
-      node_state == NodeHistory::NodeState::kInferior) {
+  if (n.IsExceedLimit(max_depth_) || n.IsRepetition()) {
     query.SetRepetition(progress_.NodeCount());
     return;
   }
 
   if (print_flag_) {
-    PrintProgress(n, depth);
+    PrintProgress(n);
     print_flag_ = false;
   }
 
   // 初探索の時は n 手詰めルーチンを走らせる
   if (entry->IsFirstVisit()) {
-    auto remain_depth = std::min(kFirstSearchDepth<kOrNode>, max_depth_ - depth);
-    SearchLeaf<kOrNode>(n, depth, remain_depth, query);
+    SearchLeaf<kOrNode>(n, kFirstSearchDepth<kOrNode>, query);
     entry = query.RefreshWithCreation(entry);
     if (entry->Pn() == 0 || entry->Dn() == 0) {
       return;
@@ -221,9 +218,8 @@ void KomoringHeights::SearchImpl(Position& n,
     inc_flag = false;
   }
 
-  node_history.Visit(n.state()->board_key(), query.GetHand());
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
-  MoveSelector<kOrNode>* selector = &selector_cache_.EmplaceBack<kOrNode>(n, tt_, node_history, depth, query.PathKey());
+  MoveSelector<kOrNode>* selector = &selector_cache_.EmplaceBack<kOrNode>(n, tt_);
 
   if (inc_flag || selector->DoesHaveOldChild()) {
     std::tie(thpn, thdn) = selector->ControlThreshold(thpn, thdn);
@@ -255,10 +251,10 @@ void KomoringHeights::SearchImpl(Position& n,
     auto [child_thpn, child_thdn] = selector->ChildThreshold(thpn, thdn);
     auto best_move = selector->FrontMove();
 
-    n.do_move(best_move, st_info_[depth]);
-    SearchImpl<!kOrNode>(n, child_thpn, child_thdn, depth + 1, node_history, selector->FrontLookUpQuery(),
-                         selector->FrontEntry(), inc_flag || selector->DoesHaveOldChild());
-    n.undo_move(best_move);
+    n.DoMove(best_move);
+    SearchImpl<!kOrNode>(n, child_thpn, child_thdn, selector->FrontLookUpQuery(), selector->FrontEntry(),
+                         inc_flag || selector->DoesHaveOldChild());
+    n.UndoMove(best_move);
 
     // GC の影響で entry の位置が変わっている場合があるのでループの最後で再取得する
     entry = query.RefreshWithCreation(entry);
@@ -268,57 +264,61 @@ void KomoringHeights::SearchImpl(Position& n,
 SEARCH_IMPL_RETURN:
   // node_history の復帰と selector の返却を行う必要がある
   selector_cache_.PopBack<kOrNode>();
-  node_history.Leave(n.state()->board_key(), query.GetHand());
 }
 
 template <bool kOrNode>
-void KomoringHeights::SearchLeaf(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query) {
-  if (Hand hand = CheckMate1Ply<kOrNode>(n); hand != kNullHand) {
+void KomoringHeights::SearchLeaf(Node& n, Depth remain_depth, const LookUpQuery& query) {
+  if (n.IsRepetition()) {
+    query.SetRepetition(progress_.NodeCount());
+    return;
+  }
+
+  if (Hand hand = CheckMate1Ply<kOrNode>(n.Pos()); hand != kNullHand) {
     query.SetProven(hand, progress_.NodeCount());
     return;
   }
 
-  auto& move_picker = pickers_.emplace(n, NodeTag<kOrNode>{});
+  auto& move_picker = pickers_.emplace(n.Pos(), NodeTag<kOrNode>{});
   {
     if (move_picker.empty()) {
-      Hand hand = PostProcessLoseHand<kOrNode>(n, kOrNode ? CollectHand(n) : HAND_ZERO);
+      Hand hand = PostProcessLoseHand<kOrNode>(n.Pos(), kOrNode ? CollectHand(n.Pos()) : HAND_ZERO);
       query.SetLose<kOrNode>(hand, progress_.NodeCount());
       goto SEARCH_LEAF_RETURN;
     }
 
-    if (remain_depth <= 1 || depth > max_depth_) {
+    if (remain_depth <= 1 || n.IsExceedLimit(max_depth_)) {
       goto SEARCH_LEAF_RETURN;
     }
 
     bool unknown_flag = false;
     HandSet lose_hand = kOrNode ? HandSet::Full() : HandSet::Zero();
     for (const auto& move : move_picker) {
-      auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move, depth + 1, query.PathKey());
+      auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move);
       auto child_entry = child_query.LookUpWithoutCreation();
 
       if (!query.DoesStored(child_entry) || child_entry->IsFirstVisit()) {
         // 近接王手以外は時間の無駄なので無視する
-        if (kOrNode && !IsStepCheck(n, move)) {
+        if (kOrNode && !IsStepCheck(n.Pos(), move)) {
           unknown_flag = true;
           continue;
         }
 
         // まだ FirstSearch していなさそうな node なら掘り進めてみる
-        n.do_move(move.move, st_info_[depth]);
-        SearchLeaf<!kOrNode>(n, depth + 1, remain_depth - 1, child_query);
+        n.DoMove(move.move);
+        SearchLeaf<!kOrNode>(n, remain_depth - 1, child_query);
         child_entry = child_query.LookUpWithoutCreation();
-        n.undo_move(move.move);
+        n.UndoMove(move.move);
       }
 
       if ((kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
           (!kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
         // win
-        query.SetWin<kOrNode>(ProperChildHand<kOrNode>(n, move.move, child_entry), progress_.NodeCount());
+        query.SetWin<kOrNode>(ProperChildHand<kOrNode>(n.Pos(), move.move, child_entry), progress_.NodeCount());
         goto SEARCH_LEAF_RETURN;
       } else if ((!kOrNode && child_entry->GetNodeState() == NodeState::kProvenState) ||
                  (kOrNode && child_entry->GetNodeState() == NodeState::kDisprovenState)) {
         // lose
-        lose_hand.Update<kOrNode>(ProperChildHand<kOrNode>(n, move.move, child_entry));
+        lose_hand.Update<kOrNode>(ProperChildHand<kOrNode>(n.Pos(), move.move, child_entry));
       } else {
         // unknown
         unknown_flag = true;
@@ -327,7 +327,7 @@ void KomoringHeights::SearchLeaf(Position& n, Depth depth, Depth remain_depth, c
     if (unknown_flag) {
       goto SEARCH_LEAF_RETURN;
     } else {
-      Hand hand = PostProcessLoseHand<kOrNode>(n, lose_hand.Get());
+      Hand hand = PostProcessLoseHand<kOrNode>(n.Pos(), lose_hand.Get());
       query.SetLose<kOrNode>(hand, progress_.NodeCount());
     }
   }
@@ -336,7 +336,7 @@ SEARCH_LEAF_RETURN:
   pickers_.pop();
 }
 
-bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
+bool KomoringHeights::ExtraSearch(Node& n, std::vector<Move> best_moves) {
   // 詰みがちゃんと見つかっていない場合は、探索を打ち切る
   auto mate_depth = static_cast<Depth>(best_moves.size());
   if (mate_depth % 2 != 1) {
@@ -345,29 +345,24 @@ bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
 
   // n - 2 手詰めを見つけたい --> depth=n-1 で探索を打ち切れば良い
   max_depth_ = mate_depth - 1;
-  // 逆順探索をしたいので、末端局面まで進める
-  NodeHistory node_history;
   Key path_key = 0;
   for (Depth depth = 0; depth < mate_depth; ++depth) {
-    auto hand = depth % 2 == 0 ? n.hand_of(n.side_to_move()) : n.hand_of(~n.side_to_move());
-    node_history.Visit(n.state()->board_key(), hand);
-
     path_key = PathKeyAfter(path_key, best_moves[depth], depth);
-    n.do_move(best_moves[depth], st_info_[depth]);
+    n.DoMove(best_moves[depth]);
   }
 
-  PrintProgress(n, mate_depth);
+  PrintProgress(n);
 
   static_assert(std::is_signed_v<Depth>);
   bool found = false;
   for (Depth depth = mate_depth - 1; depth >= 0; --depth) {
-    n.undo_move(best_moves[depth]);
+    n.UndoMove(best_moves[depth]);
     path_key = PathKeyBefore(path_key, best_moves[depth], depth);
 
     if (!found && depth % 2 == 0) {
       // OrNode のとき、別の手を選んで max_depth 以内に詰むかどうか調べてみる
-      for (auto&& move : MovePicker{n, NodeTag<true>{}}) {
-        auto query = tt_.GetChildQuery<true>(n, move.move, depth + 1, path_key);
+      for (auto&& move : MovePicker{n.Pos(), NodeTag<true>{}}) {
+        auto query = tt_.GetChildQuery<true>(n, move.move);
         auto entry = query.LookUpWithoutCreation();
         if (entry->Pn() == 0 || entry->Dn() == 0) {
           continue;
@@ -375,9 +370,10 @@ bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
 
         entry = query.RefreshWithCreation(entry);
 
-        n.do_move(move.move, st_info_[depth]);
-        SearchImpl<false>(n, kInfinitePnDn, kInfinitePnDn, depth + 1, node_history, query, entry, false);
-        n.undo_move(move.move);
+        auto new_n = n.NewInstance();
+        new_n.DoMove(move.move);
+        SearchImpl<false>(new_n, kInfinitePnDn, kInfinitePnDn, query, entry, false);
+        new_n.UndoMove(move.move);
 
         entry = query.RefreshWithoutCreation(entry);
         if (entry->Pn() == 0) {
@@ -387,42 +383,33 @@ bool KomoringHeights::ExtraSearch(Position& n, std::vector<Move> best_moves) {
         }
       }
     }
-    auto hand = depth % 2 == 0 ? n.hand_of(n.side_to_move()) : n.hand_of(~n.side_to_move());
-    node_history.Leave(n.state()->board_key(), hand);
   }
   return found;
 }
 
-void KomoringHeights::PrintProgress(const Position& n, Depth depth) const {
+void KomoringHeights::PrintProgress(const Node& n) const {
   auto usi_output = Info();
 
-  usi_output.Set(UsiInfo::KeyKind::kDepth, depth);
+  usi_output.Set(UsiInfo::KeyKind::kDepth, n.GetDepth());
 #if defined(KEEP_LAST_MOVE)
-  usi_output.Set(UsiInfo::KeyKind::kPv, n.moves_from_start());
+  usi_output.Set(UsiInfo::KeyKind::kPv, n.Pos().moves_from_start());
 #endif
 
   sync_cout << usi_output << sync_endl;
 }
 
-template void KomoringHeights::SearchImpl<true>(Position& n,
+template void KomoringHeights::SearchImpl<true>(Node& n,
                                                 PnDn thpn,
                                                 PnDn thdn,
-                                                Depth depth,
-                                                NodeHistory& node_history,
                                                 const LookUpQuery& query,
                                                 CommonEntry* entry,
                                                 bool inc_flag);
-template void KomoringHeights::SearchImpl<false>(Position& n,
+template void KomoringHeights::SearchImpl<false>(Node& n,
                                                  PnDn thpn,
                                                  PnDn thdn,
-                                                 Depth depth,
-                                                 NodeHistory& node_history,
                                                  const LookUpQuery& query,
                                                  CommonEntry* entry,
                                                  bool inc_flag);
-template void KomoringHeights::SearchLeaf<true>(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query);
-template void KomoringHeights::SearchLeaf<false>(Position& n,
-                                                 Depth depth,
-                                                 Depth remain_depth,
-                                                 const LookUpQuery& query);
+template void KomoringHeights::SearchLeaf<true>(Node& n, Depth remain_depth, const LookUpQuery& query);
+template void KomoringHeights::SearchLeaf<false>(Node& n, Depth remain_depth, const LookUpQuery& query);
 }  // namespace komori

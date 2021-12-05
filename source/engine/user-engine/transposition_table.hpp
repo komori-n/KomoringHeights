@@ -11,6 +11,8 @@ namespace komori {
 class CommonEntry;
 // forward declaration
 class TTCluster;
+// forward declaration
+class Node;
 
 /**
  * @brief Cluster を LookUp するためのキャッシュするクラス
@@ -119,13 +121,12 @@ class TranspositionTable {
   /// 以前の探索結果をすべて削除し、新たな探索をを始める
   void NewSearch();
 
-  /// 局面 `n` で探索深さ `depth` のとき、LookUp 用の構造体を取得する
+  /// 局面 `n` の LookUp 用の構造体を取得する
   template <bool kOrNode>
-  LookUpQuery GetQuery(const Position& n, Depth depth, Key path_key);
-  /// 局面 `n` から `move` で進めた局面で探索深さ `depth` の、LookUp 用の構造体を取得する
-  /// なお、depth は 局面を進めた時点の探索深さを渡す必要がある。
+  LookUpQuery GetQuery(const Node& n);
+  /// 局面 `n` から `move` で進めた局面の、LookUp 用の構造体を取得する
   template <bool kOrNode>
-  LookUpQuery GetChildQuery(const Position& n, Move move, Depth depth, Key path_key);
+  LookUpQuery GetChildQuery(const Node& n, Move move);
 
   /// ハッシュ使用率を返す（戻り値は千分率）
   int Hashfull() const;

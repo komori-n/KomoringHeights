@@ -10,6 +10,7 @@
 
 namespace komori {
 class NodeHistory;
+class Node;
 
 /// 探索中に子局面の情報を一時的に覚えておくための構造体
 struct ChildNodeCache {
@@ -47,7 +48,7 @@ class MoveSelector {
   MoveSelector& operator=(MoveSelector&&) = delete;
   ~MoveSelector() = default;
 
-  MoveSelector(const Position& n, TranspositionTable& tt, const NodeHistory& node_history, Depth depth, Key path_key);
+  MoveSelector(const Node& n, TranspositionTable& tt);
 
   /// 子局面の entry の再 LookUp を行い、現曲面の pn/dn を計算し直す
   void Update();
@@ -109,9 +110,8 @@ class MoveSelector {
   /// @note 詰み／不詰の局面では証明駒／反証駒を返す（現局面の持ち駒とは一致しない可能性がある）
   Hand FrontHand() const;
 
-  const Position& n_;
+  const Node& n_;
   TranspositionTable& tt_;
-  const Depth depth_;
 
   std::array<ChildNodeCache, kMaxCheckMovesPerNode> children_;
   std::size_t children_len_;

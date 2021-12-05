@@ -11,6 +11,7 @@
 
 #include "../../types.h"
 #include "move_selector.hpp"
+#include "node.hpp"
 #include "node_travels.hpp"
 #include "transposition_table.hpp"
 #include "ttcluster.hpp"
@@ -112,33 +113,23 @@ class KomoringHeights {
    * @param n 現局面
    * @param thpn pn のしきい値。n の探索中に pn がこの値以上になったら探索を打ち切る。
    * @param thpn dn のしきい値。n の探索中に dn がこの値以上になったら探索を打ち切る。
-   * @param depth 探索深さ
-   * @param node_history root から現局面までで通過した局面の一覧。千日手・劣等局面の判定に用いる。
    * @param query 現局面の置換表クエリ。引数として渡すことで高速化をはかる。
    * @param entry 現局面の CommonEntry。引数として渡すことで LookUp 回数をへらすことができる。
    * @param inc_flag infinite loopが懸念されるときはtrue。探索を延長する。
    */
   template <bool kOrNode>
-  void SearchImpl(Position& n,
-                  PnDn thpn,
-                  PnDn thdn,
-                  Depth depth,
-                  NodeHistory& node_history,
-                  const LookUpQuery& query,
-                  CommonEntry* entry,
-                  bool inc_flag);
+  void SearchImpl(Node& n, PnDn thpn, PnDn thdn, const LookUpQuery& query, CommonEntry* entry, bool inc_flag);
 
   /**
    * @brief 探索深さ remain_depth で静止探索を行う
    *
    * @tparam kOrNode OrNode（詰ます側）なら true、AndNode（詰まされる側）なら false
    * @param n 現局面
-   * @param depth 探索深さ
    * @param remain_depth 残り探索深さ
    * @param query 現局面の置換表クエリ。引数として渡すことで高速化をはかる。
    */
   template <bool kOrNode>
-  void SearchLeaf(Position& n, Depth depth, Depth remain_depth, const LookUpQuery& query);
+  void SearchLeaf(Node& n, Depth remain_depth, const LookUpQuery& query);
 
   /**
    * @brief 局面 n が best_moves により詰みのとき、別のより短い詰み手順がないかどうかを調べる
@@ -146,15 +137,14 @@ class KomoringHeights {
    * @param n 現局面
    * @param best_moves 現在のPV（最善応手列）
    */
-  bool ExtraSearch(Position& n, std::vector<Move> best_moves);
+  bool ExtraSearch(Node& n, std::vector<Move> best_moves);
 
-  void PrintProgress(const Position& n, Depth depth) const;
+  void PrintProgress(const Node& n) const;
 
   TranspositionTable tt_{};
   NodeTravels node_travels_{tt_};
   MoveSelectorCache selector_cache_{};
   std::stack<MovePicker> pickers_{};
-  std::array<StateInfo, kMaxNumMateMoves> st_info_{};
 
   std::atomic_bool* stop_{nullptr};
   std::atomic_bool print_flag_{false};

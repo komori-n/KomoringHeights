@@ -2,6 +2,7 @@
 
 #include "hands.hpp"
 #include "move_picker.hpp"
+#include "node.hpp"
 #include "node_history.hpp"
 #include "node_travels.hpp"
 
@@ -12,23 +13,17 @@ constexpr komori::StateGeneration kObviousRepetition = komori::StateGeneration{k
 namespace komori {
 
 template <bool kOrNode>
-MoveSelector<kOrNode>::MoveSelector(const Position& n,
-                                    TranspositionTable& tt,
-                                    const NodeHistory& node_history,
-                                    Depth depth,
-                                    Key path_key)
-    : n_{n}, tt_(tt), depth_{depth}, children_len_{0}, sum_n_{0}, does_have_old_child_{false} {
+MoveSelector<kOrNode>::MoveSelector(const Node& n, TranspositionTable& tt)
+    : n_{n}, tt_(tt), children_len_{0}, sum_n_{0}, does_have_old_child_{false} {
   // 各子局面の LookUp を行い、min_n の昇順になるように手を並べ替える
-  auto move_picker = MovePicker{n, NodeTag<kOrNode>{}, true};
+  auto move_picker = MovePicker{n.Pos(), NodeTag<kOrNode>{}, true};
   for (const auto& move : move_picker) {
     auto& child = children_[children_len_++];
     child.move = move.move;
     child.value = move.value;
-    child.query = tt.GetChildQuery<kOrNode>(n, child.move, depth_ + 1, path_key);
+    child.query = tt.GetChildQuery<kOrNode>(n, child.move);
 
-    auto child_key = n.board_key_after(move.move);
-    auto node_state = node_history.State(child_key, child.query.GetHand());
-    if (node_state == NodeHistory::NodeState::kRepetition || node_state == NodeHistory::NodeState::kInferior) {
+    if (n.IsRepetitionAfter(move.move)) {
       child.min_n = kOrNode ? kInfinitePnDn : 0;
       child.sum_n = kOrNode ? 0 : kInfinitePnDn;
       child.s_gen = kObviousRepetition;
@@ -50,7 +45,7 @@ MoveSelector<kOrNode>::MoveSelector(const Position& n,
       child.entry = nullptr;
     }
 
-    if (auto unknown = entry->TryGetUnknown(); unknown != nullptr && unknown->IsOldChild(depth)) {
+    if (auto unknown = entry->TryGetUnknown(); unknown != nullptr && unknown->IsOldChild(n.GetDepth())) {
       does_have_old_child_ = true;
     }
 
@@ -115,7 +110,7 @@ bool MoveSelector<kOrNode>::IsRepetitionDisproven() const {
 template <bool kOrNode>
 Hand MoveSelector<kOrNode>::ProofHand() const {
   if constexpr (kOrNode) {
-    return BeforeHand(n_, FrontMove(), FrontHand());
+    return BeforeHand(n_.Pos(), FrontMove(), FrontHand());
   } else {
     // 子局面の証明駒の極小集合を計算する
     HandSet proof_hand = HandSet::Zero();
@@ -124,7 +119,7 @@ Hand MoveSelector<kOrNode>::ProofHand() const {
       auto* entry = child.query.RefreshWithoutCreation(child.entry);
       proof_hand |= entry->ProperHand(child.query.GetHand());
     }
-    return AddIfHandGivesOtherEvasions(n_, proof_hand.Get());
+    return AddIfHandGivesOtherEvasions(n_.Pos(), proof_hand.Get());
   }
 }
 
@@ -137,9 +132,9 @@ Hand MoveSelector<kOrNode>::DisproofHand() const {
       const auto& child = children_[i];
       auto* entry = child.query.RefreshWithoutCreation(child.entry);
       auto hand = entry->ProperHand(child.query.GetHand());
-      disproof_hand &= BeforeHand(n_, child.move, hand);
+      disproof_hand &= BeforeHand(n_.Pos(), child.move, hand);
     }
-    return RemoveIfHandGivesOtherChecks(n_, disproof_hand.Get());
+    return RemoveIfHandGivesOtherChecks(n_.Pos(), disproof_hand.Get());
   } else {
     return FrontHand();
   }
