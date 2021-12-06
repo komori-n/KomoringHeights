@@ -10,9 +10,9 @@
 #include <vector>
 
 #include "../../types.h"
+#include "move_picker.hpp"
 #include "move_selector.hpp"
 #include "node.hpp"
-#include "node_travels.hpp"
 #include "transposition_table.hpp"
 #include "ttcluster.hpp"
 #include "usi.hpp"
@@ -106,6 +106,19 @@ class KomoringHeights {
   void PrintDebugInfo() const;
 
  private:
+  static inline constexpr Depth kNonRepetitionDepth = Depth{kMaxNumMateMoves + 1};
+  static inline constexpr Depth kNoMateLen = Depth{-1};
+
+  struct NumMoves {
+    int num{kNoMateLen};  ///< 詰み手数
+    int surplus{0};       ///< 駒余りの枚数
+  };
+
+  struct MateMoveCache {
+    Move move{MOVE_NONE};
+    NumMoves num_moves{};
+  };
+
   /**
    * @brief df-pn 探索の本体。pn と dn がいい感じに小さいノードから順に最良優先探索を行う。
    *
@@ -132,6 +145,22 @@ class KomoringHeights {
   void SearchLeaf(Node& n, Depth remain_depth, const LookUpQuery& query);
 
   /**
+   * @brief Pv（最善応手列）を再帰的に探索する
+   *
+   * @param mate_table      探索結果のメモ
+   * @param search_history  現在探索中の局面
+   * @param n               現局面
+   * @return std::pair<NodeCache, Depth>
+   *     first   局面の探索結果
+   *     second  firstが千日手絡みの評価値の場合、千日手がスタートした局面の深さ。
+   *             firstが千日手絡みの評価値ではない場合、kNonRepetitionDepth。
+   */
+  template <bool kOrNode>
+  std::pair<NumMoves, Depth> MateMovesSearchImpl(std::unordered_map<Key, MateMoveCache>& mate_table,
+                                                 std::unordered_map<Key, Depth>& search_history,
+                                                 Node& n);
+
+  /**
    * @brief 局面 n が best_moves により詰みのとき、別のより短い詰み手順がないかどうかを調べる
    *
    * @param n 現局面
@@ -142,7 +171,6 @@ class KomoringHeights {
   void PrintProgress(const Node& n) const;
 
   TranspositionTable tt_{};
-  NodeTravels node_travels_{tt_};
   MoveSelectorCache selector_cache_{};
   std::stack<MovePicker> pickers_{};
 

@@ -4,7 +4,6 @@
 #include "move_picker.hpp"
 #include "node.hpp"
 #include "node_history.hpp"
-#include "node_travels.hpp"
 
 namespace {
 constexpr komori::StateGeneration kObviousRepetition = komori::StateGeneration{komori::NodeState::kRepetitionState, 0};

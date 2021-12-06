@@ -384,7 +384,6 @@ ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 		engine/user-engine/komoring_heights.cpp \
 		engine/user-engine/ttcluster.cpp \
 		engine/user-engine/hands.cpp \
-		engine/user-engine/node_travels.cpp \
 		engine/user-engine/node_history.cpp \
 		engine/user-engine/move_selector.cpp \
 		engine/user-engine/path_keys.cpp \
