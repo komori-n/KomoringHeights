@@ -220,16 +220,16 @@ endif
 
 ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 LOCAL_SRC_FILES += \
-  ../source/engine/user-engine/user-search.cpp \
-  ../source/engine/user-engine/komoring_heights.cpp \
-  ../source/engine/user-engine/ttcluster.cpp \
-  ../source/engine/user-engine/hands.cpp \
-  ../source/engine/user-engine/node_history.cpp \
-  ../source/engine/user-engine/move_selector.cpp \
-  ../source/engine/user-engine/path_keys.cpp \
-  ../source/engine/user-engine/deep_dfpn.cpp \
-  ../source/engine/user-engine/usi.cpp \
-  ../source/engine/user-engine/transposition_table.cpp
+    ../source/engine/user-engine/deep_dfpn.cpp \
+		../source/engine/user-engine/hands.cpp \
+		../source/engine/user-engine/komoring_heights.cpp \
+		../source/engine/user-engine/move_selector.cpp \
+		../source/engine/user-engine/node_history.cpp \
+		../source/engine/user-engine/path_keys.cpp \
+		../source/engine/user-engine/transposition_table.cpp\
+		../source/engine/user-engine/ttcluster.cpp \
+		../source/engine/user-engine/user-search.cpp \
+    ../source/engine/user-engine/usi.cpp
 endif
 
 ifneq ($(ENGINE_NAME),)
