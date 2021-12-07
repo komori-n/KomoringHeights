@@ -64,7 +64,7 @@ CommonEntry* LookUpQuery::SetRepetition(std::uint64_t num_searches) const {
   return cluster_->SetRepetition(hash_high_, path_key_, hand_, num_searches);
 }
 
-bool LookUpQuery::DoesStored(CommonEntry* entry) const {
+bool LookUpQuery::IsStored(CommonEntry* entry) const {
   return cluster_->DoesContain(entry);
 }
 

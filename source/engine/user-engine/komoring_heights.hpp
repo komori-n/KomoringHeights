@@ -10,8 +10,8 @@
 #include <vector>
 
 #include "../../types.h"
+#include "children_cache.hpp"
 #include "move_picker.hpp"
-#include "move_selector.hpp"
 #include "node.hpp"
 #include "transposition_table.hpp"
 #include "ttcluster.hpp"
@@ -20,37 +20,6 @@
 namespace komori {
 // forward decleration
 class NodeHistory;
-
-/// Selector を格納する領域。stack に積むと stackoverflow になりがちなため
-class MoveSelectorCache {
- public:
-  void Resize(std::size_t size) {
-    or_selectors_.reserve(size);
-    and_selectors_.reserve(size);
-  }
-
-  template <bool kOrNode, typename... Args>
-  auto& EmplaceBack(Args&&... args) {
-    if constexpr (kOrNode) {
-      return or_selectors_.emplace_back(std::forward<Args>(args)...);
-    } else {
-      return and_selectors_.emplace_back(std::forward<Args>(args)...);
-    }
-  }
-
-  template <bool kOrNode>
-  void PopBack() {
-    if constexpr (kOrNode) {
-      or_selectors_.pop_back();
-    } else {
-      and_selectors_.pop_back();
-    }
-  }
-
- private:
-  std::vector<MoveSelector<true>> or_selectors_{};
-  std::vector<MoveSelector<false>> and_selectors_{};
-};
 
 class SearchProgress {
  public:
@@ -171,8 +140,8 @@ class KomoringHeights {
   void PrintProgress(const Node& n) const;
 
   TranspositionTable tt_{};
-  MoveSelectorCache selector_cache_{};
   std::stack<MovePicker> pickers_{};
+  std::stack<ChildrenCache> children_cache_{};
 
   std::atomic_bool* stop_{nullptr};
   std::atomic_bool print_flag_{false};

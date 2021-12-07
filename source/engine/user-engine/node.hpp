@@ -46,7 +46,8 @@ class Node {
   }
 
   bool IsRepetitionAfter(Move move) const {
-    auto node_state = node_history_.State(n_.board_key_after(move), AfterHand(n_, move, this->OrHand()));
+    Hand hand = or_node_ ? AfterHand(n_, move, this->OrHand()) : this->OrHand();
+    auto node_state = node_history_.State(n_.board_key_after(move), hand);
     return node_state == NodeHistory::NodeState::kRepetition || node_state == NodeHistory::NodeState::kInferior;
   }
 

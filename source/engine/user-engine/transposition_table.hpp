@@ -38,7 +38,7 @@ class LookUpQuery {
   /**
    * @brief  Query によるエントリ問い合わせを行う。もし見つからなかった場合はダミーのエントリを返す。
    *
-   * ダミーエントリが返されたかどうかは DoesStored() により判定可能である。このエントリは次回の LookUp までの間まで
+   * ダミーエントリが返されたかどうかは IsStored() により判定可能である。このエントリは次回の LookUp までの間まで
    * 有効である。
    */
   CommonEntry* LookUpWithoutCreation() const;
@@ -81,7 +81,7 @@ class LookUpQuery {
     }
   }
   /// `entry` が cluster に存在するエントリかを問い合わせる。（ダミーエントリのチェックに使用する）
-  bool DoesStored(CommonEntry* entry) const;
+  bool IsStored(CommonEntry* entry) const;
   /// `entry` が有効（前回呼び出しから移動していない）かどうかをチェックする
   bool IsValid(CommonEntry* entry) const;
 

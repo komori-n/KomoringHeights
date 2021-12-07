@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "../../mate/mate.h"
+#include "children_cache.hpp"
 #include "hands.hpp"
 #include "move_picker.hpp"
 #include "node_history.hpp"
@@ -77,7 +78,6 @@ void SearchProgress::WriteTo(UsiInfo& output) const {
 
 void KomoringHeights::Init() {
   Resize(kDefaultHashSizeMb);
-  selector_cache_.Resize(max_depth_ + 1);
 }
 
 void KomoringHeights::Resize(std::uint64_t size_mb) {
@@ -237,51 +237,39 @@ void KomoringHeights::SearchImpl(Node& n,
   }
 
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
-  MoveSelector<kOrNode>* selector = &selector_cache_.EmplaceBack<kOrNode>(n, tt_);
+  ChildrenCache& cache = children_cache_.emplace(tt_, n, query, NodeTag<kOrNode>{});
+  entry = cache.Update(entry, progress_.NodeCount());
 
-  if (inc_flag || selector->DoesHaveOldChild()) {
-    std::tie(thpn, thdn) = selector->ControlThreshold(thpn, thdn);
+  if ((inc_flag || cache.DoesHaveOldChild()) && entry->Pn() > 0 && entry->Dn() > 0) {
+    thpn = std::max(thpn, entry->Pn() + 1);
+    thpn = std::min(thpn, kInfinitePnDn);
+    thdn = std::max(thdn, entry->Dn() + 1);
+    thdn = std::min(thdn, kInfinitePnDn);
   }
 
-  // これ以降で return する場合、node_history の復帰と selector の返却を行う必要がある。
+  // これ以降で return する場合、node_history の復帰と cache の返却を行う必要がある。
   // これらの処理は、SEARCH_IMPL_RETURN ラベル以降で行っている。
 
   while (!progress_.IsEnd(max_search_node_) && !*stop_) {
-    if (selector->Pn() == 0) {
-      query.SetProven(selector->ProofHand(), progress_.NodeCount());
-      goto SEARCH_IMPL_RETURN;
-    } else if (selector->Dn() == 0) {
-      if (selector->IsRepetitionDisproven()) {
-        // 千日手のため負け
-        query.SetRepetition(progress_.NodeCount());
-      } else {
-        // 普通に詰まない
-        query.SetDisproven(selector->DisproofHand(), progress_.NodeCount());
-      }
-      goto SEARCH_IMPL_RETURN;
-    }
-
-    entry->UpdatePnDn(selector->Pn(), selector->Dn(), progress_.NodeCount());
     if (entry->Pn() >= thpn || entry->Dn() >= thdn) {
       goto SEARCH_IMPL_RETURN;
     }
 
-    auto [child_thpn, child_thdn] = selector->ChildThreshold(thpn, thdn);
-    auto best_move = selector->FrontMove();
+    auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
+    auto best_move = cache.BestMove();
 
     n.DoMove(best_move);
-    SearchImpl<!kOrNode>(n, child_thpn, child_thdn, selector->FrontLookUpQuery(), selector->FrontEntry(),
-                         inc_flag || selector->DoesHaveOldChild());
+    SearchImpl<!kOrNode>(n, child_thpn, child_thdn, cache.BestMoveQuery(), cache.BestMoveEntry(),
+                         inc_flag || cache.DoesHaveOldChild());
     n.UndoMove(best_move);
 
     // GC の影響で entry の位置が変わっている場合があるのでループの最後で再取得する
-    entry = query.RefreshWithCreation(entry);
-    selector->Update();
+    entry = cache.Update(entry, progress_.NodeCount(), 3);
   }
 
 SEARCH_IMPL_RETURN:
-  // node_history の復帰と selector の返却を行う必要がある
-  selector_cache_.PopBack<kOrNode>();
+  // node_history の復帰と cache の返却を行う必要がある
+  children_cache_.pop();
 }
 
 template <bool kOrNode>
@@ -314,7 +302,7 @@ void KomoringHeights::SearchLeaf(Node& n, Depth remain_depth, const LookUpQuery&
       auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move);
       auto child_entry = child_query.LookUpWithoutCreation();
 
-      if (!query.DoesStored(child_entry) || child_entry->IsFirstVisit()) {
+      if (!query.IsStored(child_entry) || child_entry->IsFirstVisit()) {
         // 近接王手以外は時間の無駄なので無視する
         if (kOrNode && !IsStepCheck(n.Pos(), move)) {
           unknown_flag = true;

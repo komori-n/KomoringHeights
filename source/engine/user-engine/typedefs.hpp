@@ -58,6 +58,10 @@ inline constexpr bool operator==(const StateGeneration& lhs, const StateGenerati
   return lhs.node_state == rhs.node_state && lhs.generation == rhs.generation;
 }
 
+inline constexpr bool operator!=(const StateGeneration& lhs, const StateGeneration& rhs) {
+  return !(lhs == rhs);
+}
+
 /// 置換表の世代を表す型。
 using Generation = std::uint32_t;
 
