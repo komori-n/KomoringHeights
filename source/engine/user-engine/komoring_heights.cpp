@@ -252,7 +252,7 @@ void KomoringHeights::SearchImpl(Node& n,
 
   while (!progress_.IsEnd(max_search_node_) && !*stop_) {
     if (entry->Pn() >= thpn || entry->Dn() >= thdn) {
-      goto SEARCH_IMPL_RETURN;
+      break;
     }
 
     auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
@@ -267,7 +267,6 @@ void KomoringHeights::SearchImpl(Node& n,
     entry = cache.Update(entry, progress_.NodeCount(), 3);
   }
 
-SEARCH_IMPL_RETURN:
   // node_history の復帰と cache の返却を行う必要がある
   children_cache_.pop();
 }
