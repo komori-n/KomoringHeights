@@ -67,9 +67,9 @@ class ChildrenCache {
   };
 
   /// 現局面が詰みであると報告する
-  CommonEntry* SetProven(std::uint64_t num_searched);
+  CommonEntry* SetProven(CommonEntry* entry, std::uint64_t num_searched);
   /// 現局面が不詰であると報告する
-  CommonEntry* SetDisproven(std::uint64_t num_searched);
+  CommonEntry* SetDisproven(CommonEntry* entry, std::uint64_t num_searched);
   /// 現局面の pn/dn を更新する。詰みでも不詰でもない場合に限り呼び出すことができる。
   CommonEntry* UpdateUnknown(CommonEntry* entry, std::uint64_t num_searched);
   /// 現在の最善手に対する攻め方の持ち駒を返す。子局面の ProperHand() から逆算して求めるため、

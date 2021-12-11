@@ -217,7 +217,7 @@ void KomoringHeights::SearchImpl(Node& n,
 
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
   if (n.IsExceedLimit(max_depth_) || n.IsRepetition()) {
-    query.SetRepetition(progress_.NodeCount());
+    query.SetRepetition(entry, progress_.NodeCount());
     return;
   }
 
@@ -274,7 +274,8 @@ void KomoringHeights::SearchImpl(Node& n,
 template <bool kOrNode>
 void KomoringHeights::SearchLeaf(Node& n, Depth remain_depth, const LookUpQuery& query) {
   if (n.IsRepetition()) {
-    query.SetRepetition(progress_.NodeCount());
+    auto* entry = query.LookUpWithCreation();
+    query.SetRepetition(entry, progress_.NodeCount());
     return;
   }
 

@@ -83,29 +83,13 @@ using ProvenData = HandsData<true>;
 using DisprovenData = HandsData<false>;
 
 /**
- * @brief 千日手局面のデータを格納するデータ構造。
- *
- * 千日手となる手順 path_key を格納する。
- *
+ * @brief 千日手局面のデータを格納するデータ構造。中身は見ての通り空で、タグとして用いる。
  */
-class RepetitionData {
- public:
-  friend std::ostream& operator<<(std::ostream& os, const RepetitionData& data);
-  explicit RepetitionData(Key path_key);
-
+struct RepetitionData {
   constexpr PnDn Pn() const { return kInfinitePnDn; }
   constexpr PnDn Dn() const { return 0; }
-  /// path_key を追加できるなら true。
-  constexpr bool IsFull() const { return keys_[kRepetitionKeyLen - 1] != kNullKey; }
-  /// path_key を含むなら true。
-  bool DoesContain(Key path_key) const;
-  /// path_key を追加する。IsFull() の場合、何もしない。
-  void Add(Key path_key);
-
- private:
-  static inline constexpr std::size_t kRepetitionKeyLen = sizeof(UnknownData) / sizeof(Key);
-  std::array<Key, kRepetitionKeyLen> keys_;  ///< 千日手となる手順
 };
+
 std::ostream& operator<<(std::ostream& os, const RepetitionData& data);
 
 /**
@@ -120,8 +104,6 @@ std::ostream& operator<<(std::ostream& os, const RepetitionData& data);
  *   - 証明駒を1エントリに複数個保存する。
  * - 反証済局面（kDisprovenState）
  *   - 反証駒を1エントリに複数保存する
- * - 千日手局面（kRepetitionState）
- *   - 千日手となる手順を1エントリに複数保存する。
  */
 class CommonEntry {
  public:
@@ -141,11 +123,10 @@ class CommonEntry {
       : hash_high_{hash_high},
         s_gen_{NodeState::kDisprovenState, CalcGeneration(num_searched)},
         disproven_{std::move(disproven)} {}
-  /// 千日手局面のエントリを作成する。
-  constexpr CommonEntry(std::uint32_t hash_high, std::uint64_t num_searched, RepetitionData&& rep)
-      : hash_high_{hash_high},
-        s_gen_{NodeState::kRepetitionState, CalcGeneration(num_searched)},
-        rep_{std::move(rep)} {}
+
+  /// 千日手用のダミーエントリを作成する。
+  constexpr explicit CommonEntry(RepetitionData&& rep)
+      : hash_high_{0}, s_gen_{NodeState::kRepetitionState, 0}, rep_{std::move(rep)} {}
 
   constexpr std::uint32_t HashHigh() const { return hash_high_; }
   constexpr NodeState GetNodeState() const { return s_gen_.node_state; }
@@ -202,7 +183,7 @@ class CommonEntry {
   std::uint32_t hash_high_;  ///< 盤面のハッシュの上位32bit
   StateGeneration s_gen_;    ///< ノード状態と置換表世代
   union {
-    std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< サイズチェック用
+    std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< ダミーエントリ
     UnknownData unknown_;                                                           ///< 通常局面
     ProvenData proven_;                                                             ///< 証明済局面
     DisprovenData disproven_;                                                       ///< 反証済局面
@@ -213,7 +194,7 @@ class CommonEntry {
   static_assert(sizeof(dummy_) == sizeof(unknown_));
   static_assert(sizeof(dummy_) == sizeof(proven_));
   static_assert(sizeof(dummy_) == sizeof(disproven_));
-  static_assert(sizeof(dummy_) == sizeof(rep_));
+  static_assert(sizeof(dummy_) >= sizeof(rep_));
 };
 
 std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
@@ -221,6 +202,28 @@ std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
 // サイズ&アラインチェック
 static_assert(sizeof(CommonEntry) == sizeof(std::uint32_t) + sizeof(StateGeneration) + sizeof(UnknownData));
 static_assert(alignof(std::uint64_t) % alignof(CommonEntry) == 0);
+
+class RepetitionCluster {
+ public:
+  // 格納する千日手局面の数。
+  static inline constexpr std::size_t kMaxRepetitionClusterSize = 15;
+
+  constexpr void Clear() {
+    top_ = 0;
+    for (auto& key : keys_) {
+      key = kNullKey;
+    }
+  }
+  void Add(Key key);
+  bool DoesContain(Key key) const;
+
+ private:
+  std::array<Key, kMaxRepetitionClusterSize> keys_;
+  std::uint32_t top_;
+};
+
+// サイズ&アラインチェック
+static_assert(alignof(std::uint64_t) % alignof(RepetitionCluster) == 0);
 
 /**
  * @brief CommonEntry をいくつか集めた構造体。
@@ -242,9 +245,14 @@ class TTCluster {
   constexpr std::size_t Size() const { return size_; }
   /// エントリがこのクラスタ内を指しているなら true。LookUpWithoutCreation で実在エントリを返したかどうかを
   /// 判定するのに用いる。
-  constexpr bool DoesContain(Iterator entry) const { return begin() <= entry && entry < end(); }
+  constexpr bool DoesContain(Iterator entry) const {
+    return entry == &kRepetitionEntry || (begin() <= entry && entry < end());
+  }
   /// クラスタ内のエントリをすべて削除する。
-  constexpr void Clear() { size_ = 0; }
+  constexpr void Clear() {
+    size_ = 0;
+    rep_.Clear();
+  }
 
   /**
    * @brief 条件に合致するエントリを探す。
@@ -269,15 +277,16 @@ class TTCluster {
   /// disproof_hand により詰みであることを報告する。
   Iterator SetDisproven(std::uint32_t hash_high, Hand disproof_hand, std::uint64_t num_searched);
   /// path_key により千日手であることを報告する。
-  Iterator SetRepetition(std::uint32_t hash_high, Key path_key, Hand hand, std::uint64_t num_searched);
+  Iterator SetRepetition(Iterator entry, Key path_key, std::uint64_t num_searched);
 
  private:
+  static const CommonEntry kRepetitionEntry;
+
   /// LookUpWithCreation() と LookUpWithoutCreation() の実装本体。
   template <bool kCreateIfNotExist>
   Iterator LookUp(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key);
-  /// path_key による千日手かどうかを判定する。千日手の場合、そのエントリを返す。そうでない場合、end() を返す。
-  /// 実行速度を上げるために、hash_high のエントリの先頭要素 begin_entry を渡す。（LowerBound が非常に重いため）
-  Iterator CheckRepetition(Iterator begin_entry, std::uint32_t hash_high, Key path_key);
+  /// path_key による千日手かどうかを判定する。千日手の場合、そのエントリを返す。そうでない場合、nullptr を返す。
+  Iterator CheckRepetition(Key path_key);
 
   /// 新たな entry をクラスタに追加する。クラスタに空きがない場合は、最も必要なさそうなエントリを削除する
   Iterator Add(CommonEntry&& entry);
@@ -298,8 +307,9 @@ class TTCluster {
   Iterator LowerBoundPartial(std::uint32_t hash_high);
   // </LowerBound関連>
 
-  std::size_t size_;                            ///< クラスタ内のエントリ数
   std::array<CommonEntry, kClusterSize> data_;  ///< エントリ本体
+  RepetitionCluster rep_;  ///< 千日手情報。CommonEntry に押し込むとメモリを大量に消費するので別の場所に入れる
+  std::uint32_t size_;  ///< クラスタ内のエントリ数
 };
 
 }  // namespace komori

@@ -61,7 +61,7 @@ class LookUpQuery {
   /// 調べていた局面が反証駒 `disproof_hand` で詰みであることを報告する
   CommonEntry* SetDisproven(Hand disproof_hand, std::uint64_t num_searches) const;
   /// 調べていた局面が千日手による不詰であることを報告する
-  CommonEntry* SetRepetition(std::uint64_t num_searches) const;
+  CommonEntry* SetRepetition(CommonEntry* entry, std::uint64_t num_searches) const;
   /// 調べていた局面が勝ちであることを報告する
   template <bool kOrNode>
   CommonEntry* SetWin(Hand hand, std::uint64_t num_searches) const {

@@ -60,8 +60,8 @@ CommonEntry* LookUpQuery::SetDisproven(Hand disproof_hand, std::uint64_t num_sea
   return cluster_->SetDisproven(hash_high_, disproof_hand, num_searches);
 }
 
-CommonEntry* LookUpQuery::SetRepetition(std::uint64_t num_searches) const {
-  return cluster_->SetRepetition(hash_high_, path_key_, hand_, num_searches);
+CommonEntry* LookUpQuery::SetRepetition(CommonEntry* entry, std::uint64_t num_searches) const {
+  return cluster_->SetRepetition(entry, path_key_, num_searches);
 }
 
 bool LookUpQuery::IsStored(CommonEntry* entry) const {
@@ -73,7 +73,7 @@ bool LookUpQuery::IsValid(CommonEntry* entry) const {
     if (entry->ProperHand(hand_) != kNullHand && !entry->IsMaybeRepetition()) {
       return true;
     }
-    if (auto rep = entry->TryGetRepetition(); rep != nullptr && rep->DoesContain(path_key_)) {
+    if (entry->TryGetRepetition()) {
       return true;
     }
   }

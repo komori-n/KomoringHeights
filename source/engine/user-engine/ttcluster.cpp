@@ -3,6 +3,8 @@
 #include "deep_dfpn.hpp"
 
 namespace komori {
+const CommonEntry TTCluster::kRepetitionEntry{RepetitionData{}};
+
 std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
   return os << "UnknownData{pn=" << data.pn_ << ", dn=" << data.dn_ << ", hand=" << data.hand_
             << ", min_depth=" << data.min_depth_ << "}";
@@ -76,42 +78,8 @@ std::ostream& operator<<(std::ostream& os, const HandsData<kProven>& data) {
   return os << "}";
 }
 
-RepetitionData::RepetitionData(Key path_key) {
-  keys_[0] = path_key;
-  std::fill(keys_.begin() + 1, keys_.end(), kNullKey);
-}
-
-bool RepetitionData::DoesContain(Key path_key) const {
-  for (const auto& k : keys_) {
-    if (k == path_key) {
-      return true;
-    } else if (k == kNullKey) {
-      break;
-    }
-  }
-  return false;
-}
-
-void RepetitionData::Add(Key path_key) {
-  for (auto& k : keys_) {
-    if (k == path_key) {
-      return;
-    } else if (k == kNullKey) {
-      k = path_key;
-      return;
-    }
-  }
-}
-
-std::ostream& operator<<(std::ostream& os, const RepetitionData& data) {
-  os << "RepetitionData{";
-  for (std::size_t i = 0; i < RepetitionData::kRepetitionKeyLen; ++i) {
-    if (i != 0) {
-      os << ", ";
-    }
-    os << HexString(data.keys_[i]);
-  }
-  return os << "}";
+std::ostream& operator<<(std::ostream& os, const RepetitionData& /* data */) {
+  return os << "RepetitionData{}";
 }
 
 CommonEntry::CommonEntry() : dummy_{} {}
@@ -230,6 +198,23 @@ std::ostream& operator<<(std::ostream& os, const CommonEntry& entry) {
   }
 }
 
+void RepetitionCluster::Add(Key key) {
+  keys_[top_] = key;
+  top_++;
+  if (top_ >= kMaxRepetitionClusterSize) {
+    top_ = 0;
+  }
+}
+
+bool RepetitionCluster::DoesContain(Key key) const {
+  for (std::size_t i = 0; i < kMaxRepetitionClusterSize; ++i) {
+    if (keys_[i] == key) {
+      return true;
+    }
+  }
+  return false;
+}
+
 TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand, std::uint64_t num_searched) {
   Iterator ret_entry = nullptr;
   auto top = LowerBound(hash_high);
@@ -317,36 +302,12 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
   return ret_entry;
 }
 
-TTCluster::Iterator TTCluster::SetRepetition(std::uint32_t hash_high,
-                                             Key path_key,
-                                             Hand hand,
-                                             std::uint64_t num_searched) {
-  Iterator ret_entry = nullptr;
-  auto itr = LowerBound(hash_high);
-  auto end_entry = end();
-  bool wrote_repetition_key = false;
-  for (; itr != end_entry; ++itr) {
-    if (itr->HashHigh() != hash_high) {
-      break;
-    }
-
-    if (auto unknown = itr->TryGetUnknown(); unknown != nullptr && unknown->ProperHand(hand) != kNullHand) {
-      // この局面は千日手かもしれないのでマークをつけておく
-      itr->SetMaybeRepetition();
-      unknown->UpdatePnDn(1, 1);
-    } else if (auto rep = itr->TryGetRepetition(); ret_entry == nullptr && rep != nullptr) {
-      if (!rep->IsFull() || rep->DoesContain(path_key)) {
-        rep->Add(path_key);
-        itr->UpdateGeneration(num_searched);
-        ret_entry = itr;
-      }
-    }
+TTCluster::Iterator TTCluster::SetRepetition(Iterator entry, Key path_key, std::uint64_t /* num_searched */) {
+  rep_.Add(path_key);
+  if (entry->TryGetUnknown()) {
+    entry->SetMaybeRepetition();
   }
-
-  if (ret_entry == nullptr) {
-    return Add({hash_high, num_searched, RepetitionData{path_key}});
-  }
-  return ret_entry;
+  return const_cast<TTCluster::Iterator>(&kRepetitionEntry);
 }
 
 template <bool kCreateIfNotExist>
@@ -363,7 +324,7 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
     if (itr->ProperHand(hand) != kNullHand) {
       if (itr->IsMaybeRepetition()) {
         // 千日手かもしれない時は、千日手局面集をチェックする
-        if (auto rep_entry = CheckRepetition(begin_entry, hash_high, path_key); rep_entry != end()) {
+        if (auto rep_entry = CheckRepetition(path_key)) {
           return rep_entry;
         }
       }
@@ -396,18 +357,12 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
   }
 }
 
-TTCluster::Iterator TTCluster::CheckRepetition(Iterator begin_entry, std::uint32_t hash_high, Key path_key) {
-  auto end_entry = end();
-  for (auto itr = begin_entry; itr != end_entry; ++itr) {
-    if (itr->HashHigh() != hash_high) {
-      break;
-    }
-
-    if (auto rep = itr->TryGetRepetition(); rep != nullptr && rep->DoesContain(path_key)) {
-      return itr;
-    }
+TTCluster::Iterator TTCluster::CheckRepetition(Key path_key) {
+  if (rep_.DoesContain(path_key)) {
+    return const_cast<TTCluster::Iterator>(&kRepetitionEntry);
+  } else {
+    return nullptr;
   }
-  return end_entry;
 }
 
 TTCluster::Iterator TTCluster::Add(CommonEntry&& entry) {

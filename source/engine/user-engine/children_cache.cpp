@@ -79,16 +79,16 @@ CommonEntry* ChildrenCache::Update(CommonEntry* entry, std::uint64_t num_searche
   if (delta_ == 0) {
     // 負け
     if (or_node_) {
-      return SetDisproven(num_searched);
+      return SetDisproven(entry, num_searched);
     } else {
-      return SetProven(num_searched);
+      return SetProven(entry, num_searched);
     }
   } else if (Phi(children_[0].pn, children_[0].dn, or_node_) == 0) {
     // 勝ち
     if (or_node_) {
-      return SetProven(num_searched);
+      return SetProven(entry, num_searched);
     } else {
-      return SetDisproven(num_searched);
+      return SetDisproven(entry, num_searched);
     }
   } else {
     // 勝ちでも負けでもない
@@ -113,7 +113,7 @@ CommonEntry* ChildrenCache::BestMoveEntry() {
   return child.entry;
 }
 
-CommonEntry* ChildrenCache::SetProven(std::uint64_t num_searched) {
+CommonEntry* ChildrenCache::SetProven(CommonEntry* /* entry */, std::uint64_t num_searched) {
   Hand proof_hand = kNullHand;
   if (or_node_) {
     proof_hand = BeforeHand(n_.Pos(), BestMove(), BestMoveHand());
@@ -131,10 +131,10 @@ CommonEntry* ChildrenCache::SetProven(std::uint64_t num_searched) {
   return query_.SetProven(proof_hand, num_searched);
 }
 
-CommonEntry* ChildrenCache::SetDisproven(std::uint64_t num_searched) {
+CommonEntry* ChildrenCache::SetDisproven(CommonEntry* entry, std::uint64_t num_searched) {
   // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
   if (children_len_ > 0 && children_[0].s_gen.node_state == NodeState::kRepetitionState) {
-    return query_.SetRepetition(num_searched);
+    return query_.SetRepetition(entry, num_searched);
   }
 
   // フツーの不詰
