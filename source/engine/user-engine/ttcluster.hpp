@@ -54,7 +54,10 @@ class HandsData {
  public:
   template <bool kProven2>
   friend std::ostream& operator<<(std::ostream& os, const HandsData<kProven2>& data);
-  explicit HandsData(Hand hand);
+  constexpr explicit HandsData(Hand hand) {
+    hands_[0] = hand;
+    std::fill(hands_.begin() + 1, hands_.end(), kNullHand);
+  }
 
   constexpr PnDn Pn() const { return kProven ? 0 : kInfinitePnDn; }
   constexpr PnDn Dn() const { return kProven ? kInfinitePnDn : 0; }

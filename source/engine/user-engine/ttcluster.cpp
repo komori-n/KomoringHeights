@@ -11,12 +11,6 @@ std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
 }
 
 template <bool kProven>
-HandsData<kProven>::HandsData(Hand hand) {
-  hands_[0] = hand;
-  std::fill(hands_.begin() + 1, hands_.end(), kNullHand);
-}
-
-template <bool kProven>
 Hand HandsData<kProven>::ProperHand(Hand hand) const {
   for (const auto& h : hands_) {
     if (h == kNullHand) {
