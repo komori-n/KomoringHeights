@@ -1,5 +1,7 @@
 #include "children_cache.hpp"
 
+#include <numeric>
+
 #include "move_picker.hpp"
 #include "node.hpp"
 #include "ttcluster.hpp"
@@ -43,11 +45,13 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, const LookUp
       break;
     }
   }
+
+  std::iota(idx_.begin(), idx_.begin() + children_len_, 0);
 }
 
 CommonEntry* ChildrenCache::Update(CommonEntry* entry, std::uint64_t num_searched, std::size_t update_max_rank) {
   for (std::size_t i = 0; i < std::min(children_len_, update_max_rank); ++i) {
-    auto& child = children_[i];
+    auto& child = children_[idx_[i]];
     if (child.s_gen != kObviousRepetition) {
       auto* child_entry = child.query.RefreshWithoutCreation(child.entry);
       if (child.query.IsStored(child_entry)) {
@@ -73,8 +77,8 @@ CommonEntry* ChildrenCache::Update(CommonEntry* entry, std::uint64_t num_searche
     }
   }
 
-  std::sort(children_.begin(), children_.begin() + children_len_,
-            [this](const auto& lhs, const auto& rhs) { return Compare(lhs, rhs); });
+  std::sort(idx_.begin(), idx_.begin() + children_len_,
+            [this](const auto& lhs, const auto& rhs) { return Compare(children_[lhs], children_[rhs]); });
 
   if (delta_ == 0) {
     // 負け
@@ -83,7 +87,7 @@ CommonEntry* ChildrenCache::Update(CommonEntry* entry, std::uint64_t num_searche
     } else {
       return SetProven(entry, num_searched);
     }
-  } else if (Phi(children_[0].pn, children_[0].dn, or_node_) == 0) {
+  } else if (Phi(children_[idx_[0]].pn, children_[idx_[0]].dn, or_node_) == 0) {
     // 勝ち
     if (or_node_) {
       return SetProven(entry, num_searched);
@@ -106,7 +110,7 @@ std::pair<PnDn, PnDn> ChildrenCache::ChildThreshold(PnDn thpn, PnDn thdn) const 
 }
 
 CommonEntry* ChildrenCache::BestMoveEntry() {
-  auto& child = children_[0];
+  auto& child = children_[idx_[0]];
   if (child.entry == nullptr) {
     child.entry = child.query.LookUpWithCreation();
   }
@@ -121,7 +125,7 @@ CommonEntry* ChildrenCache::SetProven(CommonEntry* /* entry */, std::uint64_t nu
     // 子局面の証明駒の極小集合を計算する
     HandSet set = HandSet::Zero();
     for (std::size_t i = 0; i < children_len_; ++i) {
-      const auto& child = children_[i];
+      const auto& child = children_[idx_[i]];
       auto* entry = child.query.RefreshWithoutCreation(child.entry);
       set |= entry->ProperHand(child.query.GetHand());
     }
@@ -129,11 +133,11 @@ CommonEntry* ChildrenCache::SetProven(CommonEntry* /* entry */, std::uint64_t nu
   }
 
   return query_.SetProven(proof_hand, num_searched);
-}
+}  // namespace komori
 
 CommonEntry* ChildrenCache::SetDisproven(CommonEntry* entry, std::uint64_t num_searched) {
   // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
-  if (children_len_ > 0 && children_[0].s_gen.node_state == NodeState::kRepetitionState) {
+  if (children_len_ > 0 && children_[idx_[0]].s_gen.node_state == NodeState::kRepetitionState) {
     return query_.SetRepetition(entry, num_searched);
   }
 
@@ -143,7 +147,7 @@ CommonEntry* ChildrenCache::SetDisproven(CommonEntry* entry, std::uint64_t num_s
     // 子局面の反証駒の極大集合を計算する
     HandSet set = HandSet::Full();
     for (std::size_t i = 0; i < children_len_; ++i) {
-      const auto& child = children_[i];
+      const auto& child = children_[idx_[i]];
       auto* entry = child.query.RefreshWithoutCreation(child.entry);
       auto hand = entry->ProperHand(child.query.GetHand());
       set &= BeforeHand(n_.Pos(), child.move, hand);
@@ -158,16 +162,16 @@ CommonEntry* ChildrenCache::SetDisproven(CommonEntry* entry, std::uint64_t num_s
 
 CommonEntry* ChildrenCache::UpdateUnknown(CommonEntry* entry, std::uint64_t num_searched) {
   if (or_node_) {
-    entry->UpdatePnDn(children_[0].pn, delta_, num_searched);
+    entry->UpdatePnDn(children_[idx_[0]].pn, delta_, num_searched);
   } else {
-    entry->UpdatePnDn(delta_, children_[0].dn, num_searched);
+    entry->UpdatePnDn(delta_, children_[idx_[0]].dn, num_searched);
   }
 
   return entry;
 }
 
 Hand ChildrenCache::BestMoveHand() const {
-  auto& child = children_[0];
+  auto& child = children_[idx_[0]];
   if (child.entry != nullptr) {
     return child.entry->ProperHand(child.query.GetHand());
   } else {
@@ -177,11 +181,11 @@ Hand ChildrenCache::BestMoveHand() const {
 }
 
 PnDn ChildrenCache::SecondPhi() const {
-  return children_len_ > 1 ? Phi(children_[1].pn, children_[1].dn, or_node_) : kInfinitePnDn;
+  return children_len_ > 1 ? Phi(children_[idx_[1]].pn, children_[idx_[1]].dn, or_node_) : kInfinitePnDn;
 }
 
 PnDn ChildrenCache::DeltaExceptBestMove() const {
-  return delta_ - Delta(children_[0].pn, children_[0].dn, or_node_);
+  return delta_ - Delta(children_[idx_[0]].pn, children_[idx_[0]].dn, or_node_);
 }
 
 bool ChildrenCache::Compare(const NodeCache& lhs, const NodeCache& rhs) const {

@@ -44,12 +44,12 @@ class ChildrenCache {
                       std::size_t update_max_rank = std::numeric_limits<std::size_t>::max());
 
   /// 現在の最善手を返す。合法手が 1 つ以上する場合に限り呼び出すことができる
-  Move BestMove() const { return children_[0].move; }
+  Move BestMove() const { return children_[idx_[0]].move; }
   /// BestMove() により探索をすすめるとき、子局面で用いる pn/dn の探索しきい値を求める
   std::pair<PnDn, PnDn> ChildThreshold(PnDn thpn, PnDn thdn) const;
 
   /// 現在の最善手に対する LookUpQuery を返す
-  const LookUpQuery& BestMoveQuery() const { return children_[0].query; }
+  const LookUpQuery& BestMoveQuery() const { return children_[idx_[0]].query; }
   /// 現在の最善手に対する CommonEntry を返す。const メンバ関数でないのは、エントリが存在しなかった場合に
   /// 新規作成を行う必要があるため。
   CommonEntry* BestMoveEntry();
@@ -93,6 +93,7 @@ class ChildrenCache {
   bool does_have_old_child_{false};
 
   std::array<NodeCache, kMaxCheckMovesPerNode> children_;
+  std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
   std::size_t children_len_{0};
   PnDn delta_{0};
 };
