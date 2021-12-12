@@ -33,21 +33,15 @@ namespace komori {
 class NodeHistory {
  public:
   enum class NodeState {
-    kFirst,       ///< 置換表に類似局面の登録なし
-    kRepetition,  ///< 置換表に同一局面の登録あり
-    kSuperior,    ///< 置換表に劣等局面の登録あり
-    kInferior,    ///< 置換表に優等局面の登録あり
+    kFirst,                 ///< 置換表に類似局面の登録なし
+    kRepetitionOrInferior,  ///< 置換表に同一局面または優等局面の登録あり
   };
 
   /**
-   * @brief (board_key, hand) の同一／優等／劣等局面が履歴に記録されているか調べる
+   * @brief (board_key, hand) の同一／優等局面が履歴に記録されているか調べる
    *
-   * 以下の項目を上から順に判定する
-   *
-   * 1. 同一局面が記録されていれば kFirst を返す
-   * 2. 優等局面（劣等局面）が記録されていれば kInferior (kSuperior) を返す。
-   *    優等局面と劣等局面の両方が記録されている場合、 kInferior/kSuperior のどちらが返るかは不定。
-   * 3. kFirst を返す。
+   * 同一局面または優等局面が登録されていれば kRepetitionOrInferior を返す。
+   * そうでないなら、kFirst を返す。
    *
    * @param board_key   盤面ハッシュ
    * @param hand        攻め方の持ち駒

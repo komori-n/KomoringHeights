@@ -42,13 +42,13 @@ class Node {
 
   bool IsRepetition() const {
     auto node_state = node_history_.State(n_.state()->board_key(), this->OrHand());
-    return node_state == NodeHistory::NodeState::kRepetition || node_state == NodeHistory::NodeState::kInferior;
+    return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
   }
 
   bool IsRepetitionAfter(Move move) const {
     Hand hand = or_node_ ? AfterHand(n_, move, this->OrHand()) : this->OrHand();
     auto node_state = node_history_.State(n_.board_key_after(move), hand);
-    return node_state == NodeHistory::NodeState::kRepetition || node_state == NodeHistory::NodeState::kInferior;
+    return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
   }
 
   bool IsExceedLimit(Depth max_depth) const { return depth_ >= max_depth; }

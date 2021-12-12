@@ -216,10 +216,10 @@ void KomoringHeights::SearchImpl(Node& n,
   progress_.Visit(n.GetDepth());
 
   // 探索深さ上限 or 千日手 のときは探索を打ち切る
-  if (n.IsExceedLimit(max_depth_) || n.IsRepetition()) {
-    query.SetRepetition(entry, progress_.NodeCount());
-    return;
-  }
+  // 探索深さ上限は while 文の直前、千日手は ChildrenCache で判定しているのでここでは何もする必要がない
+  // if (n.IsExceedLimit(max_depth_) || n.IsRepetition()) {
+  // ...
+  // }
 
   if (print_flag_) {
     PrintProgress(n);
@@ -239,6 +239,12 @@ void KomoringHeights::SearchImpl(Node& n,
   // スタックの消費を抑えめために、ローカル変数で確保する代わりにメンバで動的確保した領域を探索に用いる
   ChildrenCache& cache = children_cache_.emplace(tt_, n, query, NodeTag<kOrNode>{});
   entry = cache.Update(entry, progress_.NodeCount());
+
+  // 残り探索深さが 1 でこの時点で詰み／不詰が証明できていない場合、これ以上探索する必要がない
+  if (entry->Pn() > 0 && entry->Dn() > 0 && n.IsExceedLimit(max_depth_ > 0 ? max_depth_ - 1 : 0)) {
+    query.SetRepetition(entry, progress_.NodeCount());
+    goto SEARCH_IMPL_END;
+  }
 
   if ((inc_flag || cache.DoesHaveOldChild()) && entry->Pn() > 0 && entry->Dn() > 0) {
     thpn = std::max(thpn, entry->Pn() + 1);
@@ -267,18 +273,13 @@ void KomoringHeights::SearchImpl(Node& n,
     entry = cache.Update(entry, progress_.NodeCount(), 3);
   }
 
+SEARCH_IMPL_END:
   // node_history の復帰と cache の返却を行う必要がある
   children_cache_.pop();
 }
 
 template <bool kOrNode>
 void KomoringHeights::SearchLeaf(Node& n, Depth remain_depth, const LookUpQuery& query) {
-  if (n.IsRepetition()) {
-    auto* entry = query.LookUpWithCreation();
-    query.SetRepetition(entry, progress_.NodeCount());
-    return;
-  }
-
   if (Hand hand = CheckMate1Ply<kOrNode>(n.Pos()); hand != kNullHand) {
     query.SetProven(hand, progress_.NodeCount());
     return;
@@ -299,6 +300,16 @@ void KomoringHeights::SearchLeaf(Node& n, Depth remain_depth, const LookUpQuery&
     bool unknown_flag = false;
     HandSet lose_hand = kOrNode ? HandSet::Full() : HandSet::Zero();
     for (const auto& move : move_picker) {
+      if (n.IsRepetitionAfter(move)) {
+        if (kOrNode) {
+          continue;
+        } else {
+          auto* entry = query.LookUpWithCreation();
+          query.SetRepetition(entry, progress_.NodeCount());
+          return;
+        }
+      }
+
       auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move);
       auto child_entry = child_query.LookUpWithoutCreation();
 
