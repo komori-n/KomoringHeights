@@ -1,6 +1,8 @@
 #ifndef CHILDREN_CACHE_HPP_
 #define CHILDREN_CACHE_HPP_
 
+#include <array>
+
 #include "transposition_table.hpp"
 #include "typedefs.hpp"
 
