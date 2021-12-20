@@ -24,19 +24,17 @@ class NodeHistory;
 class SearchProgress {
  public:
   void NewSearch();
-  void Visit(Depth depth) {
+  void Visit(Depth depth, std::uint64_t move_count) {
     depth_ = std::max(depth_, depth);
-    node_++;
+    move_count_ = move_count;
   }
-  auto NodeCount() const { return node_; }
-  bool IsEnd(std::uint64_t max_search_node) const { return node_ >= max_search_node; }
 
   void WriteTo(UsiInfo& output) const;
 
  private:
   std::chrono::system_clock::time_point start_time_;
   Depth depth_;
-  std::uint64_t node_;
+  std::uint64_t move_count_;
 };
 
 /// df-pn探索の本体
@@ -65,9 +63,8 @@ class KomoringHeights {
 
   /// df-pn 探索本体。局面 n が詰むかを調べる
   bool Search(Position& n, std::atomic_bool& stop_flag);
-
-  /// 局面 n が詰む場合、最善応手列を返す。詰まない場合は {} を返す。
-  std::vector<Move> BestMoves(Position& n);
+  /// 見つけた詰み手順を返す
+  const auto& BestMoves() const { return best_moves_; }
 
   void ShowValues(Position& n, const std::vector<Move>& moves);
 
@@ -89,29 +86,22 @@ class KomoringHeights {
   };
 
   /**
-   * @brief df-pn 探索の本体。pn と dn がいい感じに小さいノードから順に最良優先探索を行う。
+   * @brief
    *
-   * @tparam kOrNode OrNode（詰ます側）なら true、AndNode（詰まされる側）なら false
-   * @param n 現局面
-   * @param thpn pn のしきい値。n の探索中に pn がこの値以上になったら探索を打ち切る。
-   * @param thpn dn のしきい値。n の探索中に dn がこの値以上になったら探索を打ち切る。
-   * @param query 現局面の置換表クエリ。引数として渡すことで高速化をはかる。
-   * @param entry 現局面の CommonEntry。引数として渡すことで LookUp 回数をへらすことができる。
-   * @param inc_flag infinite loopが懸念されるときはtrue。探索を延長する。
+   * @tparam kOrNode
+   * @param n         現局面
+   * @param thpn      pn のしきい値
+   * @param thdn      dn のしきい値
+   * @param cache     n の子局面の LookUp 結果のキャッシュ
+   * @param inc_flag  探索延長フラグ。true なら thpn/thdn を 1 回だけ無視して子局面を展開する
+   * @return SearchResult  n の探索結果。この時点では tt_ にはに登録されていないので、
+   *                            必要なら呼び出し側が登録する必要がある
    */
   template <bool kOrNode>
-  void SearchImpl(Node& n, PnDn thpn, PnDn thdn, const LookUpQuery& query, CommonEntry* entry, bool inc_flag);
+  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag);
 
-  /**
-   * @brief 探索深さ remain_depth で静止探索を行う
-   *
-   * @tparam kOrNode OrNode（詰ます側）なら true、AndNode（詰まされる側）なら false
-   * @param n 現局面
-   * @param remain_depth 残り探索深さ
-   * @param query 現局面の置換表クエリ。引数として渡すことで高速化をはかる。
-   */
-  template <bool kOrNode>
-  void SearchLeaf(Node& n, Depth remain_depth, const LookUpQuery& query);
+  /// 局面 n が詰む場合、最善応手列を返す。詰まない場合は {} を返す。
+  std::vector<Move> CalcBestMoves(Node& n);
 
   /**
    * @brief Pv（最善応手列）を再帰的に探索する
@@ -129,14 +119,6 @@ class KomoringHeights {
                                                  std::unordered_map<Key, Depth>& search_history,
                                                  Node& n);
 
-  /**
-   * @brief 局面 n が best_moves により詰みのとき、別のより短い詰み手順がないかどうかを調べる
-   *
-   * @param n 現局面
-   * @param best_moves 現在のPV（最善応手列）
-   */
-  bool ExtraSearch(Node& n, std::vector<Move> best_moves);
-
   void PrintProgress(const Node& n) const;
 
   TranspositionTable tt_{};
@@ -146,10 +128,14 @@ class KomoringHeights {
   std::atomic_bool* stop_{nullptr};
   std::atomic_bool print_flag_{false};
   SearchProgress progress_{};
+  std::uint64_t move_count_{};
   Score score_{};
   Depth max_depth_{kMaxNumMateMoves};
   int extra_search_count_{0};
   std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};
+
+  /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
+  std::vector<Move> best_moves_{};
 };
 }  // namespace komori
 

@@ -2,14 +2,13 @@
 
 #include <numeric>
 
+#include "../../mate/mate.h"
 #include "move_picker.hpp"
 #include "node.hpp"
 #include "ttcluster.hpp"
 
 namespace komori {
 namespace {
-constexpr komori::StateGeneration kObviousRepetition = StateGeneration{NodeState::kRepetitionState, 0};
-
 inline PnDn Phi(PnDn pn, PnDn dn, bool or_node) {
   return or_node ? pn : dn;
 }
@@ -17,128 +16,202 @@ inline PnDn Phi(PnDn pn, PnDn dn, bool or_node) {
 inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) {
   return or_node ? dn : pn;
 }
-}  // namespace
 
-template <bool kOrNode>
-ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, const LookUpQuery& query, NodeTag<kOrNode>)
-    : n_{n}, query_{query}, or_node_{kOrNode} {
-  for (auto&& move : MovePicker{n.Pos(), NodeTag<kOrNode>{}, true}) {
-    auto& child = children_[children_len_++];
-    child.move = move.move;
-    child.value = move.value;
-    child.query = tt.GetChildQuery<kOrNode>(n, move.move);
+/**
+ * @brief 1手詰めルーチン。詰む場合は証明駒を返す。
+ *
+ * @param n  現局面（OrNode）
+ * @return Hand （詰む場合）証明駒／（詰まない場合）kNullHand
+ */
+inline Hand CheckMate1Ply(Node& n) {
+  if (!n.Pos().in_check()) {
+    if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
+      n.DoMove(move);
+      auto hand = AddIfHandGivesOtherEvasions(n.Pos(), HAND_ZERO);
+      n.UndoMove(move);
 
-    if (n.IsRepetitionAfter(move.move)) {
-      child.pn = kInfinitePnDn;
-      child.dn = 0;
-      child.s_gen = kObviousRepetition;
-      child.entry = nullptr;
-    } else {
-      child.entry = nullptr;
-      child.pn = 1;
-      child.dn = 1;
-      child.s_gen = StateGeneration{NodeState::kOtherState, 0};
-    }
-
-    delta_ = std::min(delta_ + Delta(child.pn, child.dn, kOrNode), kInfinitePnDn);
-    if (Phi(child.pn, child.dn, kOrNode) == 0 || delta_ >= kInfinitePnDn) {
-      break;
+      return BeforeHand(n.Pos(), move, hand);
     }
   }
+  return kNullHand;
+}
+}  // namespace
 
-  std::iota(idx_.begin(), idx_.begin() + children_len_, 0);
+ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove move, Hand hand) {
+  NodeCache cache;
+  cache.move = move;
+
+  cache.entry = nullptr;
+  cache.search_result = {NodeState::kRepetitionState, kInfinitePnDn, 0, hand};
+  cache.is_first = false;
+  cache.depth = Depth{kMaxNumMateMoves};
+
+  return cache;
 }
 
-CommonEntry* ChildrenCache::Update(CommonEntry* entry, std::uint64_t num_searched, std::size_t update_max_rank) {
-  for (std::size_t i = 0; i < std::min(children_len_, update_max_rank); ++i) {
-    auto& child = children_[idx_[i]];
-    if (child.s_gen != kObviousRepetition) {
-      auto* child_entry = child.query.RefreshWithoutCreation(child.entry);
-      if (child.query.IsStored(child_entry)) {
-        child.entry = child_entry;
+ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(LookUpQuery&& query, ExtMove move, Hand hand) {
+  NodeCache cache;
+  cache.move = move;
+  cache.query = std::move(query);
+  auto* entry = cache.query.LookUpWithoutCreation();
+  cache.entry = entry;
+  cache.search_result = {*entry, hand};
+  cache.is_first = entry->IsFirstVisit();
+  if (auto unknown = entry->TryGetUnknown()) {
+    cache.depth = unknown->MinDepth();
+  } else {
+    cache.depth = Depth{kMaxNumMateMoves};
+  }
 
-        if (auto unknown = child_entry->TryGetUnknown(); unknown != nullptr && unknown->IsOldChild(n_.GetDepth())) {
-          does_have_old_child_ = true;
-        }
-      } else {
-        child.entry = nullptr;
+  return cache;
+}
+
+template <bool kOrNode>
+ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search, NodeTag<kOrNode>)
+    : or_node_{kOrNode} {
+  // DoMove() や UndoMove() をしたいので const を外す
+  Node& nn = const_cast<Node&>(n);
+
+  // 1 手詰めの場合、指し手生成をサボることができる
+  // が、AndNode の 2 手詰めルーチンで mate_1ply を呼ぶのでここでやっても意味がない
+
+  for (auto&& move : MovePicker{nn.Pos(), NodeTag<kOrNode>{}, true}) {
+    auto& curr_idx = idx_[children_len_] = children_len_;
+    auto& child = children_[children_len_++];
+    if (nn.IsRepetitionAfter(move.move)) {
+      child = NodeCache::FromRepetitionMove(move, nn.OrHand());
+    } else {
+      auto&& query = tt.GetChildQuery<kOrNode>(nn, move.move);
+      auto hand = kOrNode ? AfterHand(nn.Pos(), move.move, nn.OrHand()) : nn.OrHand();
+      child = NodeCache::FromUnknownMove(std::move(query), move, hand);
+      if (child.depth < nn.GetDepth()) {
+        does_have_old_child_ = true;
       }
 
-      auto old_delta = Delta(child.pn, child.dn, or_node_);
-      child.pn = child_entry->Pn();
-      child.dn = child_entry->Dn();
-      child.s_gen = child_entry->GetStateGeneration();
+      // 受け方の first search の場合、1手掘り進めてみる
+      if (!kOrNode && first_search && child.is_first) {
+        nn.DoMove(move.move);
+        // 1手詰めチェック
+        if (auto proof_hand = CheckMate1Ply(nn); proof_hand != kNullHand) {
+          // move を選ぶと1手詰み。
+          SearchResult dummy_entry = {NodeState::kProvenState, 0, kInfinitePnDn, proof_hand};
 
-      delta_ = std::min(delta_ - old_delta + Delta(child.pn, child.dn, or_node_), kInfinitePnDn);
+          // Update 時に delta の差分更新を行うので、初回だけ delta を補正しておく必要がある
+          delta_ += child.Delta(kOrNode);
+          UpdateNthChildWithoutSort(curr_idx, dummy_entry, nn.GetMoveCount());
+          nn.UndoMove(move.move);
+          continue;
+        }
+
+        // 1手不詰チェック
+        // 一見重そうな処理だが、実験したところここの if 文（これ以上王手ができるどうかの判定} を入れたほうが
+        // 結果として探索が高速化される。
+        if (auto mp2 = MovePicker{nn.Pos(), NodeTag<!kOrNode>{}}; mp2.empty()) {
+          auto hand2 = RemoveIfHandGivesOtherChecks(nn.Pos(), Hand{HAND_BIT_MASK});
+          child.search_result = {NodeState::kDisprovenState, kInfinitePnDn, 0, hand2};
+        }
+        nn.UndoMove(move.move);
+      }
     }
 
-    if (Phi(child.pn, child.dn, or_node_) == 0 || delta_ >= kInfinitePnDn) {
+    delta_ = Clamp(delta_ + child.Delta(kOrNode));
+    if (child.Phi(kOrNode) == 0) {
       break;
     }
   }
 
   std::sort(idx_.begin(), idx_.begin() + children_len_,
             [this](const auto& lhs, const auto& rhs) { return Compare(children_[lhs], children_[rhs]); });
+}
 
+void ChildrenCache::UpdateFront(const SearchResult& search_result, std::uint64_t move_count) {
+  UpdateNthChildWithoutSort(0, search_result, move_count);
+
+  // idx=0 の更新を受けて子ノードをソートし直す
+  // [1, n) はソート済なので、insertion sort で高速にソートできる
+  std::size_t j = 0 + 1;
+  while (j < children_len_ && Compare(NthChild(j), NthChild(0))) {
+    ++j;
+  }
+  std::rotate(idx_.begin(), idx_.begin() + 1, idx_.begin() + j);
+}
+
+SearchResult ChildrenCache::CurrentResult(const Node& n) const {
   if (delta_ == 0) {
-    // 負け
     if (or_node_) {
-      return SetDisproven(entry, num_searched);
+      return GetDisprovenResult(n);
     } else {
-      return SetProven(entry, num_searched);
+      return GetProvenResult(n);
     }
-  } else if (Phi(children_[idx_[0]].pn, children_[idx_[0]].dn, or_node_) == 0) {
-    // 勝ち
+  } else if (NthChild(0).Phi(or_node_) == 0) {
     if (or_node_) {
-      return SetProven(entry, num_searched);
+      return GetProvenResult(n);
     } else {
-      return SetDisproven(entry, num_searched);
+      return GetDisprovenResult(n);
     }
   } else {
-    // 勝ちでも負けでもない
-    return UpdateUnknown(entry, num_searched);
+    return GetUnknownResult(n);
   }
 }
 
 std::pair<PnDn, PnDn> ChildrenCache::ChildThreshold(PnDn thpn, PnDn thdn) const {
   auto thphi = Phi(thpn, thdn, or_node_);
   auto thdelta = Delta(thpn, thdn, or_node_);
-  auto child_thphi = std::min(thphi, SecondPhi() + 1);
-  auto child_thdelta = std::min(thdelta - DeltaExceptBestMove(), kInfinitePnDn);
+  auto child_thphi = Clamp(thphi, 0, SecondPhi() + 1);
+  auto child_thdelta = Clamp(thdelta - DeltaExceptBestMove());
 
   return or_node_ ? std::make_pair(child_thphi, child_thdelta) : std::make_pair(child_thdelta, child_thphi);
 }
 
-CommonEntry* ChildrenCache::BestMoveEntry() {
-  auto& child = children_[idx_[0]];
-  if (child.entry == nullptr) {
-    child.entry = child.query.LookUpWithCreation();
+void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
+                                              const SearchResult& search_result,
+                                              std::uint64_t num_searches) {
+  auto& child = NthChild(i);
+  // delta_ を差分更新する。
+  auto old_delta = child.Delta(or_node_);
+  child.is_first = false;
+  child.search_result = search_result;
+  delta_ = Clamp(delta_ - old_delta + child.Delta(or_node_));
+
+  switch (search_result.GetNodeState()) {
+    case NodeState::kProvenState:
+      child.query.SetProven(search_result.ProperHand(), num_searches);
+      break;
+    case NodeState::kDisprovenState:
+      child.query.SetDisproven(search_result.ProperHand(), num_searches);
+      break;
+    case NodeState::kRepetitionState:
+      child.entry = child.query.RefreshWithCreation(child.entry);
+      child.query.SetRepetition(child.entry, num_searches);
+      break;
+    default:
+      child.entry = child.query.RefreshWithCreation(child.entry);
+      child.entry->UpdatePnDn(search_result.Pn(), search_result.Dn(), num_searches);
   }
-  return child.entry;
 }
 
-CommonEntry* ChildrenCache::SetProven(CommonEntry* /* entry */, std::uint64_t num_searched) {
+SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
   Hand proof_hand = kNullHand;
   if (or_node_) {
-    proof_hand = BeforeHand(n_.Pos(), BestMove(), BestMoveHand());
+    auto& best_child = NthChild(0);
+    proof_hand = BeforeHand(n.Pos(), best_child.move, best_child.search_result.ProperHand());
   } else {
     // 子局面の証明駒の極小集合を計算する
     HandSet set = HandSet::Zero();
     for (std::size_t i = 0; i < children_len_; ++i) {
-      const auto& child = children_[idx_[i]];
-      auto* entry = child.query.RefreshWithoutCreation(child.entry);
-      set |= entry->ProperHand(child.query.GetHand());
+      const auto& child = NthChild(i);
+      set |= child.search_result.ProperHand();
     }
-    proof_hand = AddIfHandGivesOtherEvasions(n_.Pos(), set.Get());
+    proof_hand = AddIfHandGivesOtherEvasions(n.Pos(), set.Get());
   }
 
-  return query_.SetProven(proof_hand, num_searched);
-}  // namespace komori
+  return {NodeState::kProvenState, 0, kInfinitePnDn, proof_hand};
+}
 
-CommonEntry* ChildrenCache::SetDisproven(CommonEntry* entry, std::uint64_t num_searched) {
+SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
   // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
-  if (children_len_ > 0 && children_[idx_[0]].s_gen.node_state == NodeState::kRepetitionState) {
-    return query_.SetRepetition(entry, num_searched);
+  if (children_len_ > 0 && NthChild(0).search_result.GetNodeState() == NodeState::kRepetitionState) {
+    return {NodeState::kRepetitionState, kInfinitePnDn, 0, n.OrHand()};
   }
 
   // フツーの不詰
@@ -147,60 +220,51 @@ CommonEntry* ChildrenCache::SetDisproven(CommonEntry* entry, std::uint64_t num_s
     // 子局面の反証駒の極大集合を計算する
     HandSet set = HandSet::Full();
     for (std::size_t i = 0; i < children_len_; ++i) {
-      const auto& child = children_[idx_[i]];
-      auto* entry = child.query.RefreshWithoutCreation(child.entry);
-      auto hand = entry->ProperHand(child.query.GetHand());
-      set &= BeforeHand(n_.Pos(), child.move, hand);
+      const auto& child = NthChild(i);
+      set &= BeforeHand(n.Pos(), child.move, child.search_result.ProperHand());
     }
-    disproof_hand = RemoveIfHandGivesOtherChecks(n_.Pos(), set.Get());
+    disproof_hand = RemoveIfHandGivesOtherChecks(n.Pos(), set.Get());
   } else {
-    disproof_hand = BestMoveHand();
+    disproof_hand = NthChild(0).search_result.ProperHand();
   }
 
-  return query_.SetDisproven(disproof_hand, num_searched);
+  return {NodeState::kDisprovenState, kInfinitePnDn, 0, disproof_hand};
 }
 
-CommonEntry* ChildrenCache::UpdateUnknown(CommonEntry* entry, std::uint64_t num_searched) {
+SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   if (or_node_) {
-    entry->UpdatePnDn(children_[idx_[0]].pn, delta_, num_searched);
+    return {NodeState::kOtherState, NthChild(0).Pn(), delta_, n.OrHand()};
   } else {
-    entry->UpdatePnDn(delta_, children_[idx_[0]].dn, num_searched);
-  }
-
-  return entry;
-}
-
-Hand ChildrenCache::BestMoveHand() const {
-  auto& child = children_[idx_[0]];
-  if (child.entry != nullptr) {
-    return child.entry->ProperHand(child.query.GetHand());
-  } else {
-    auto* entry = child.query.LookUpWithoutCreation();
-    return entry->ProperHand(child.query.GetHand());
+    return {NodeState::kOtherState, delta_, NthChild(0).Dn(), n.OrHand()};
   }
 }
 
 PnDn ChildrenCache::SecondPhi() const {
-  return children_len_ > 1 ? Phi(children_[idx_[1]].pn, children_[idx_[1]].dn, or_node_) : kInfinitePnDn;
+  if (children_len_ <= 1) {
+    return kInfinitePnDn;
+  }
+  auto& second_best_child = NthChild(1);
+  return second_best_child.Phi(or_node_);
 }
 
 PnDn ChildrenCache::DeltaExceptBestMove() const {
-  return delta_ - Delta(children_[idx_[0]].pn, children_[idx_[0]].dn, or_node_);
+  auto& best_child = NthChild(0);
+  return delta_ - best_child.Delta(or_node_);
 }
 
 bool ChildrenCache::Compare(const NodeCache& lhs, const NodeCache& rhs) const {
   if (or_node_) {
-    if (lhs.pn != rhs.pn) {
-      return lhs.pn < rhs.pn;
+    if (lhs.Pn() != rhs.Pn()) {
+      return lhs.Pn() < rhs.Pn();
     }
   } else {
-    if (lhs.dn != rhs.dn) {
-      return lhs.dn < rhs.dn;
+    if (lhs.Dn() != rhs.Dn()) {
+      return lhs.Dn() < rhs.Dn();
     }
   }
 
-  auto lstate = lhs.s_gen.node_state;
-  auto rstate = rhs.s_gen.node_state;
+  auto lstate = lhs.search_result.GetNodeState();
+  auto rstate = rhs.search_result.GetNodeState();
   if (lstate != rstate) {
     if (or_node_) {
       return static_cast<std::uint32_t>(lstate) < static_cast<std::uint32_t>(rstate);
@@ -208,9 +272,10 @@ bool ChildrenCache::Compare(const NodeCache& lhs, const NodeCache& rhs) const {
       return static_cast<std::uint32_t>(lstate) > static_cast<std::uint32_t>(rstate);
     }
   }
-  return lhs.value < rhs.value;
+
+  return lhs.move.value < rhs.move.value;
 }
 
-template ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, const LookUpQuery& query, NodeTag<false>);
-template ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, const LookUpQuery& query, NodeTag<true>);
+template ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search, NodeTag<false>);
+template ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search, NodeTag<true>);
 }  // namespace komori

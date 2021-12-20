@@ -21,6 +21,7 @@ class Node {
     n_.do_move(m, st_info_.emplace());
     or_node_ = !or_node_;
     depth_++;
+    move_count_++;
   }
 
   void UndoMove(Move m) {
@@ -37,6 +38,14 @@ class Node {
       return ::komori::OrHand<true>(n_);
     } else {
       return ::komori::OrHand<false>(n_);
+    }
+  }
+
+  Hand AndHand() const {
+    if (or_node_) {
+      return ::komori::OrHand<false>(n_);
+    } else {
+      return ::komori::OrHand<true>(n_);
     }
   }
 
@@ -58,6 +67,7 @@ class Node {
   Depth GetDepth() const { return depth_; }
   Key GetPathKey() const { return path_key_; }
   Key PathKeyAfter(Move m) const { return ::komori::PathKeyAfter(path_key_, m, depth_); }
+  std::uint64_t GetMoveCount() const { return move_count_; }
 
  private:
   Position& n_;
@@ -66,6 +76,7 @@ class Node {
   NodeHistory node_history_{};
   std::stack<StateInfo> st_info_{};
   Key path_key_{};
+  std::uint64_t move_count_{};
 };
 }  // namespace komori
 #endif  // NODE_HPP_

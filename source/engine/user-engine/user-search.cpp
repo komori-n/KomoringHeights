@@ -115,7 +115,7 @@ void Search::clear() {
 
   if (Depth depth_limit = Options["DepthLimit"]) {
     // n 手詰めを読むためには depth=n+1 まで読む必要がある
-    g_searcher.SetMaxDepth(depth_limit + 1);
+    g_searcher.SetMaxDepth(depth_limit);
   }
 
 #if defined(YOZUME_SEARCH)
@@ -166,7 +166,7 @@ void MainThread::search() {
     PrintResult(is_mate_search, LoseKind::kTimeout);
   } else if (search_end) {
     if (search_result) {
-      auto best_moves = g_searcher.BestMoves(rootPos);
+      auto best_moves = g_searcher.BestMoves();
       std::ostringstream oss;
       for (const auto& move : best_moves) {
         oss << move << " ";

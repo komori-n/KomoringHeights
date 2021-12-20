@@ -11,13 +11,13 @@ namespace komori {
 
 class Score {
  public:
-  static Score Unknown(int pn, int dn) {
+  static Score Unknown(PnDn pn, PnDn dn) {
     // - a log(1/x - 1)
     //   a: Ponanza 定数
     //   x: 勝率(<- dn / (pn + dn))
 
     constexpr double kA = 600.0;
-    dn = std::max(dn, 1);
+    dn = std::max(dn, PnDn{1});
     double value = -kA * std::log(static_cast<double>(pn) / static_cast<double>(dn));
     return Score{Kind::kUnknown, static_cast<int>(value)};
   }

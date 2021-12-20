@@ -50,8 +50,8 @@ class MovePicker {
       for (ExtMove* itr = move_list_.data(); itr != last; ++itr) {
         const auto& move = itr->move;
         auto to = to_sq(move);
-        auto attackers_to_us = n.attackers_to(us, to);
-        auto attackers_to_them = n.attackers_to(them, to);
+        // auto attackers_to_us = n.attackers_to(us, to);
+        // auto attackers_to_them = n.attackers_to(them, to);
         auto pt = type_of(n.moved_piece_before(move));
         itr->value = 0;
 
@@ -64,7 +64,7 @@ class MovePicker {
         }
 
         itr->value -= kPtValues[pt];
-        itr->value -= 2 * (attackers_to_us.pop_count() + is_drop(move)) - attackers_to_them.pop_count();
+        // itr->value -= 2 * (attackers_to_us.pop_count() + is_drop(move)) - attackers_to_them.pop_count();
         itr->value += dist(king_sq, to);
       }
     }

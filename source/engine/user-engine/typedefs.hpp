@@ -24,9 +24,13 @@ template <bool kOrNode>
 struct NodeTag {};
 
 /// 証明数／反証数を格納する型
-using PnDn = std::uint32_t;
+using PnDn = std::uint64_t;
 /// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
 inline constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
+/// pn/dn 値を [0, kInfinitePnDn] の範囲に収まるように丸める。
+inline constexpr PnDn Clamp(PnDn val, PnDn min = 0, PnDn max = kInfinitePnDn) {
+  return std::clamp(val, min, max);
+}
 
 /// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
 enum class NodeState : std::uint32_t {

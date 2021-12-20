@@ -1,7 +1,7 @@
 #ifndef NODE_HISTORY_HPP_
 #define NODE_HISTORY_HPP_
 
-#include <unordered_map>
+#include <map>
 
 #include "typedefs.hpp"
 
@@ -47,7 +47,18 @@ class NodeHistory {
    * @param hand        攻め方の持ち駒
    * @return NodeState  渡された局面の判定結果
    */
-  NodeState State(Key board_key, Hand hand) const;
+  NodeState State(Key board_key, Hand hand) const {
+    auto [begin, end] = visited_.equal_range(board_key);
+
+    for (auto itr = begin; itr != end; ++itr) {
+      auto history_hand = itr->second;
+      if (hand_is_equal_or_superior(history_hand, hand)) {
+        return NodeState::kRepetitionOrInferior;
+      }
+    }
+
+    return NodeState::kFirst;
+  }
 
   /**
    * @brief (board_key, hand) を履歴に登録する
@@ -57,7 +68,7 @@ class NodeHistory {
    * @param board_key   局面のハッシュ
    * @param hand        攻め方の持ち駒
    */
-  void Visit(Key board_key, Hand hand);
+  void Visit(Key board_key, Hand hand) { visited_.emplace(board_key, hand); }
 
   /**
    * @brief (board_key, hand) を履歴から消す
@@ -67,11 +78,18 @@ class NodeHistory {
    * @param board_key   局面のハッシュ
    * @param hand        攻め方の持ち駒
    */
-  void Leave(Key board_key, Hand hand);
+  void Leave(Key board_key, Hand hand) {
+    auto [begin, end] = visited_.equal_range(board_key);
+    for (auto itr = begin; itr != end; ++itr) {
+      if (itr->second == hand) {
+        visited_.erase(itr);
+        return;
+      }
+    }
+  }
 
  private:
-  /// 局面の履歴
-  std::unordered_multimap<Key, Hand> visited_;
+  std::unordered_map<Key, Hand> visited_;
 };
 }  // namespace komori
 

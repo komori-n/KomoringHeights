@@ -11,21 +11,6 @@ std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
 }
 
 template <bool kProven>
-Hand HandsData<kProven>::ProperHand(Hand hand) const {
-  for (const auto& h : hands_) {
-    if (h == kNullHand) {
-      break;
-    }
-
-    if ((kProven && hand_is_equal_or_superior(hand, h)) ||   // hand を証明できる
-        (!kProven && hand_is_equal_or_superior(h, hand))) {  // hand を反証できる
-      return h;
-    }
-  }
-  return kNullHand;
-}
-
-template <bool kProven>
 void HandsData<kProven>::Add(Hand hand) {
   for (auto& h : hands_) {
     if (h == kNullHand) {
@@ -204,6 +189,8 @@ bool RepetitionCluster::DoesContain(Key key) const {
   for (std::size_t i = 0; i < kMaxRepetitionClusterSize; ++i) {
     if (keys_[i] == key) {
       return true;
+    } else if (keys_[i] == kNullKey) {
+      return false;
     }
   }
   return false;
@@ -323,6 +310,10 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
         }
       }
       if (auto unknown = itr->TryGetUnknown()) {
+        max_pn = std::max(max_pn, unknown->Pn());
+        max_dn = std::max(max_dn, unknown->Dn());
+        unknown->UpdatePnDn(max_pn, max_dn);
+
         // エントリの更新が可能なら最小距離をこのタイミングで更新しておく
         unknown->UpdateDepth(depth);
       }
@@ -345,7 +336,7 @@ TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth 
     return Add({hash_high, UnknownData{max_pn, max_dn, hand, depth}});
   } else {
     // エントリを新たに作るのはダメなので、適当な一時領域にデータを詰めて返す
-    static CommonEntry dummy_entry;
+    thread_local CommonEntry dummy_entry;
     dummy_entry = {hash_high, UnknownData{max_pn, max_dn, hand, depth}};
     return &dummy_entry;
   }
@@ -396,96 +387,6 @@ void TTCluster::RemoveOne() {
 
   std::move(removed_entry + 1, end(), removed_entry);
   size_--;
-}
-
-TTCluster::Iterator TTCluster::LowerBound(std::uint32_t hash_high) {
-  if (size_ == kClusterSize) {
-    return LowerBoundAll(hash_high);
-  } else {
-    return LowerBoundPartial(hash_high);
-  }
-}
-
-TTCluster::Iterator TTCluster::UpperBound(std::uint32_t hash_high) {
-  auto len = Size();
-
-  auto curr = begin();
-  while (len > 0) {
-    auto half = len / 2;
-    auto mid = curr + half;
-    if (mid->HashHigh() <= hash_high) {
-      len -= half + 1;
-      curr = mid + 1;
-    } else {
-      len = half;
-    }
-  }
-  return curr;
-}
-
-/// NOLINTNEXTLINE(readability-function-size)
-TTCluster::Iterator TTCluster::LowerBoundAll(std::uint32_t hash_high) {
-  // ちょうど 7 回二分探索すれば必ず答えが見つかる
-  constexpr std::size_t kLoopCnt = 7;
-  static_assert(kClusterSize == 1 << kLoopCnt);
-
-  auto curr = begin();
-#define UNROLL_IMPL(i)                     \
-  do {                                     \
-    auto half = 1 << (kLoopCnt - 1 - (i)); \
-    auto mid = curr + half - 1;            \
-    if (mid->HashHigh() < hash_high) {     \
-      curr = mid + 1;                      \
-    }                                      \
-  } while (false)
-
-  UNROLL_IMPL(0);
-  UNROLL_IMPL(1);
-  UNROLL_IMPL(2);
-  UNROLL_IMPL(3);
-  UNROLL_IMPL(4);
-  UNROLL_IMPL(5);
-  UNROLL_IMPL(6);
-
-#undef UNROLL_IMPL
-
-  return curr;
-}
-
-/// NOLINTNEXTLINE(readability-function-size)
-TTCluster::Iterator TTCluster::LowerBoundPartial(std::uint32_t hash_high) {
-  auto len = Size();
-
-  auto curr = begin();
-#define UNROLL_IMPL()                  \
-  do {                                 \
-    if (len == 0) {                    \
-      return curr;                     \
-    }                                  \
-                                       \
-    auto half = len / 2;               \
-    auto mid = curr + half;            \
-    if (mid->HashHigh() < hash_high) { \
-      len -= half + 1;                 \
-      curr = mid + 1;                  \
-    } else {                           \
-      len = half;                      \
-    }                                  \
-  } while (false)
-
-  // 高々 8 回二分探索すれば必ず答えが見つかる
-  static_assert(kClusterSize < (1 << 8));
-  UNROLL_IMPL();
-  UNROLL_IMPL();
-  UNROLL_IMPL();
-  UNROLL_IMPL();
-  UNROLL_IMPL();
-  UNROLL_IMPL();
-  UNROLL_IMPL();
-
-#undef UNROLL_IMPL
-
-  return curr;
 }
 
 template std::ostream& operator<<<false>(std::ostream& os, const HandsData<false>& data);

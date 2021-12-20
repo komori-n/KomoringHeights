@@ -202,6 +202,41 @@ class CommonEntry {
 
 std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
 
+/**
+ * @brief  局面の探索結果を格納するデータ構造。
+ *
+ * CommonEntry が置換表に格納するためのデータ構造であるのに対し、SearchResult は純粋に探索結果を表現することが
+ * 役割のクラスである。CommonEntry とは異なり、以下の4つの関数しか持たない。
+ *
+ * - Pn()
+ * - Dn()
+ * - ProperHand()
+ * - GetNodeState()
+ *
+ * また、SearchResult は探索結果を格納するためのクラスであるため、コンストラクト後に値の書き換えをすることはできない。
+ */
+class SearchResult {
+ public:
+  /// 初期化なしのコンストラクタも有効にしておく
+  SearchResult() = default;
+  /// CommonEntry からコンストラクトする。これだけだと証明駒／反証駒がわからないので、現在の OrHand も引数で渡す。
+  SearchResult(const CommonEntry& entry, Hand hand)
+      : state_{entry.GetNodeState()}, pn_{entry.Pn()}, dn_{entry.Dn()}, hand_{entry.ProperHand(hand)} {}
+  /// 生データからコンストラクトする。
+  SearchResult(NodeState state, PnDn pn, PnDn dn, Hand hand) : state_{state}, pn_{pn}, dn_{dn}, hand_{hand} {}
+
+  PnDn Pn() const { return pn_; }
+  PnDn Dn() const { return dn_; }
+  Hand ProperHand() const { return hand_; }
+  NodeState GetNodeState() const { return state_; }
+
+ private:
+  NodeState state_;  ///< 局面の状態（詰み／不詰／不明　など）
+  Hand hand_;        ///< 局面における ProperHand
+  PnDn pn_;
+  PnDn dn_;
+};
+
 // サイズ&アラインチェック
 static_assert(sizeof(CommonEntry) == sizeof(std::uint32_t) + sizeof(StateGeneration) + sizeof(UnknownData));
 static_assert(alignof(std::uint64_t) % alignof(CommonEntry) == 0);
@@ -314,6 +349,103 @@ class TTCluster {
   RepetitionCluster rep_;  ///< 千日手情報。CommonEntry に押し込むとメモリを大量に消費するので別の場所に入れる
   std::uint32_t size_;  ///< クラスタ内のエントリ数
 };
+
+template <bool kProven>
+inline Hand HandsData<kProven>::ProperHand(Hand hand) const {
+  for (const auto& h : hands_) {
+    if (h == kNullHand) {
+      break;
+    }
+
+    if ((kProven && hand_is_equal_or_superior(hand, h)) ||   // hand を証明できる
+        (!kProven && hand_is_equal_or_superior(h, hand))) {  // hand を反証できる
+      return h;
+    }
+  }
+  return kNullHand;
+}
+
+inline TTCluster::Iterator TTCluster::LowerBound(std::uint32_t hash_high) {
+  if (size_ == kClusterSize) {
+    return LowerBoundAll(hash_high);
+  } else {
+    return LowerBoundPartial(hash_high);
+  }
+}
+
+inline TTCluster::Iterator TTCluster::UpperBound(std::uint32_t hash_high) {
+  if (hash_high != 0xffff'ffff) {
+    return LowerBound(hash_high + 1);
+  } else {
+    return end();
+  }
+}
+
+/// NOLINTNEXTLINE(readability-function-size)
+inline TTCluster::Iterator TTCluster::LowerBoundAll(std::uint32_t hash_high) {
+  // ちょうど 7 回二分探索すれば必ず答えが見つかる
+  constexpr std::size_t kLoopCnt = 7;
+  static_assert(kClusterSize == 1 << kLoopCnt);
+
+  auto curr = begin();
+#define UNROLL_IMPL(i)                     \
+  do {                                     \
+    auto half = 1 << (kLoopCnt - 1 - (i)); \
+    auto mid = curr + half - 1;            \
+    if (mid->HashHigh() < hash_high) {     \
+      curr = mid + 1;                      \
+    }                                      \
+  } while (false)
+
+  UNROLL_IMPL(0);
+  UNROLL_IMPL(1);
+  UNROLL_IMPL(2);
+  UNROLL_IMPL(3);
+  UNROLL_IMPL(4);
+  UNROLL_IMPL(5);
+  UNROLL_IMPL(6);
+
+#undef UNROLL_IMPL
+
+  return curr;
+}
+
+/// NOLINTNEXTLINE(readability-function-size)
+inline TTCluster::Iterator TTCluster::LowerBoundPartial(std::uint32_t hash_high) {
+  auto len = Size();
+
+  auto curr = begin();
+#define UNROLL_IMPL()                  \
+  do {                                 \
+    if (len == 0) {                    \
+      return curr;                     \
+    }                                  \
+                                       \
+    auto half = len / 2;               \
+    auto mid = curr + half;            \
+    if (mid->HashHigh() < hash_high) { \
+      len -= half + 1;                 \
+      curr = mid + 1;                  \
+    } else {                           \
+      len = half;                      \
+    }                                  \
+  } while (false)
+
+  // 高々 8 回二分探索すれば必ず答えが見つかる
+  static_assert(kClusterSize < (1 << 8));
+  UNROLL_IMPL();
+  UNROLL_IMPL();
+  UNROLL_IMPL();
+  UNROLL_IMPL();
+  UNROLL_IMPL();
+  UNROLL_IMPL();
+  UNROLL_IMPL();
+  UNROLL_IMPL();
+
+#undef UNROLL_IMPL
+
+  return curr;
+}
 
 }  // namespace komori
 

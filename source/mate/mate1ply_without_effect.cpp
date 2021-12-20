@@ -701,7 +701,7 @@ namespace Mate {
 
 		// 相手玉側のpinされている駒の列挙(相手玉側は、この駒を動かすと素抜きに遭う)
 		Bitboard pinned = pos.blockers_for_king(them) & pos.pieces(them);
-	
+
 		Square from, to;
 
 		// -- 駒打ちによる即詰み
@@ -1104,7 +1104,7 @@ namespace Mate {
 
 		// 離し角・飛車等で詰むかどうか。
 		// これ、レアケースなのでportingしてくるの面倒だし、判定できなくていいや。
-	#if 1
+	#if 0
 
 		// 離し角・離し飛車、移動飛車・龍での合い効かずで詰むかも知れん。
 		// Bonanzaにはないが、これを入れておかないと普通の1手詰め判定と判定される集合が違って気持ち悪い。
