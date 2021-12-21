@@ -35,6 +35,51 @@ inline Hand CheckMate1Ply(Node& n) {
   }
   return kNullHand;
 }
+
+/**
+ * @brief 王手がある可能性があるなら true。どう考えても王手できないなら false。
+ *
+ * この関数の戻り値が true であっても、合法王手が存在しない可能性がある。
+ *
+ * @param n   現局面（OrNode）
+ * @return true（詰む場合）／false（詰まない場合）
+ */
+inline bool DoesHaveMatePossibility(const Position& n) {
+  auto us = n.side_to_move();
+  auto them = ~us;
+  auto hand = n.hand_of(us);
+  auto king_sq = n.king_square(them);
+
+  auto droppable_bb = ~n.pieces();
+  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+    if (hand_exists(hand, pr)) {
+      // 二歩チェック
+      if (pr == PAWN && (n.pieces(us, PAWN) & FILE_BB[file_of(king_sq)])) {
+        continue;
+      }
+
+      if (droppable_bb.test(StepEffect(pr, them, king_sq))) {
+        // pr を持っていたら王手ができる
+        return true;
+      }
+    }
+  }
+
+  auto x =
+      ((n.pieces(PAWN) & check_candidate_bb(us, PAWN, king_sq)) |
+       (n.pieces(LANCE) & check_candidate_bb(us, LANCE, king_sq)) |
+       (n.pieces(KNIGHT) & check_candidate_bb(us, KNIGHT, king_sq)) |
+       (n.pieces(SILVER) & check_candidate_bb(us, SILVER, king_sq)) |
+       (n.pieces(GOLDS) & check_candidate_bb(us, GOLD, king_sq)) |
+       (n.pieces(BISHOP) & check_candidate_bb(us, BISHOP, king_sq)) |
+       (n.pieces(ROOK_DRAGON)) |                                  // ROOK,DRAGONは無条件全域
+       (n.pieces(HORSE) & check_candidate_bb(us, ROOK, king_sq))  // check_candidate_bbにはROOKと書いてるけど、HORSE
+       ) &
+      n.pieces(us);
+  auto y = n.blockers_for_king(them) & n.pieces(us);
+
+  return x | y;
+}
 }  // namespace
 
 ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove move, Hand hand) {
@@ -106,7 +151,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
         // 1手不詰チェック
         // 一見重そうな処理だが、実験したところここの if 文（これ以上王手ができるどうかの判定} を入れたほうが
         // 結果として探索が高速化される。
-        if (auto mp2 = MovePicker{nn.Pos(), NodeTag<!kOrNode>{}}; mp2.empty()) {
+        if (!DoesHaveMatePossibility(n.Pos())) {
           auto hand2 = RemoveIfHandGivesOtherChecks(nn.Pos(), Hand{HAND_BIT_MASK});
           child.search_result = {NodeState::kDisprovenState, kInfinitePnDn, 0, hand2};
         }
