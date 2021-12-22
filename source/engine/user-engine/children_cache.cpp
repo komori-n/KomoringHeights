@@ -271,6 +271,19 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     disproof_hand = RemoveIfHandGivesOtherChecks(n.Pos(), set.Get());
   } else {
     disproof_hand = NthChild(0).search_result.ProperHand();
+
+    // 駒打ちならその駒を持っていないといけない
+    if (is_drop(BestMove())) {
+      auto pr = move_dropped_piece(BestMove());
+      auto pr_cnt = hand_count(MergeHand(n.OrHand(), n.AndHand()), pr);
+      auto disproof_pr_cnt = hand_count(disproof_hand, pr);
+      if (pr_cnt - disproof_pr_cnt <= 0) {
+        // もし現局面の攻め方の持ち駒が disproof_hand だった場合、打とうとしている駒 pr が攻め方に独占されているため
+        // 受け方は BestMove() を着手することができない。そのため、攻め方の持ち駒を何枚か受け方に渡す必要がある。
+        sub_hand(disproof_hand, pr, disproof_pr_cnt);
+        add_hand(disproof_hand, pr, pr_cnt - 1);
+      }
+    }
   }
 
   return {NodeState::kDisprovenState, kInfinitePnDn, 0, disproof_hand};
