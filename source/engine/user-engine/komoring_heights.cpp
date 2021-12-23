@@ -203,7 +203,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
 
   auto curr_result = cache.CurrentResult(n);
   // 探索延長。浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
-  inc_flag = cache.DoesHaveOldChild();
+  inc_flag = inc_flag || cache.DoesHaveOldChild();
   if (inc_flag && curr_result.Pn() > 0 && curr_result.Dn() > 0) {
     thpn = std::max(thpn, curr_result.Pn() + 1);
     thpn = std::min(thpn, kInfinitePnDn);
