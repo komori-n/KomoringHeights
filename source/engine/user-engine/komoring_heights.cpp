@@ -64,6 +64,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   progress_.NewSearch();
   stop_ = &stop_flag;
   best_moves_.clear();
+  tree_size_ = 0;
 
   Node node{n};
   PnDn thpndn = 1;
@@ -109,6 +110,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   if (result.GetNodeState() == NodeState::kProvenState) {
     best_moves_ = CalcBestMoves(node);
     score_ = Score::Proven(best_moves_.size());
+    sync_cout << "info string tree_size=" << tree_size_ << sync_endl;
     return true;
   } else {
     score_ = Score::Disproven();
@@ -248,6 +250,7 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
     std::unordered_map<Key, Depth>& search_history,
     Node& n) {
   auto key = n.Pos().key();
+  tree_size_++;
   if (auto itr = search_history.find(key); itr != search_history.end()) {
     // 探索中の局面にあたったら、不詰を返す
     return {{kNoMateLen, 0}, itr->second};

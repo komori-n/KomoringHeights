@@ -136,6 +136,7 @@ class KomoringHeights {
 
   /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
   std::vector<Move> best_moves_{};
+  std::uint64_t tree_size_{};
 };
 }  // namespace komori
 
