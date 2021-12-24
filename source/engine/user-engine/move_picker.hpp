@@ -58,7 +58,7 @@ class MovePicker {
         // 成れるのに成らない
         if (!is_drop(move) && !is_promote(move)) {
           auto from = from_sq(move);
-          if ((pt == PAWN || pt == BISHOP || pt == ROOK)) {
+          if ((pt == PAWN || pt == BISHOP || pt == ROOK) && (enemy_field(us).test(from) || enemy_field(us).test(to))) {
             itr->value += 100;  // 歩、角、飛車を成らないのは大きく減点する（打ち歩詰めの時以外は考える必要ない）
           }
         }
