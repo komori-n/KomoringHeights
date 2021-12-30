@@ -111,6 +111,8 @@ void Search::clear() {
 
   if (auto max_search_node = Options["NodesLimit"]) {
     g_searcher.SetMaxSearchNode(max_search_node);
+  } else {
+    g_searcher.SetMaxSearchNode(0xffff'ffff'ffff'ffffULL);
   }
 
   if (Depth depth_limit = Options["DepthLimit"]) {
@@ -139,7 +141,6 @@ void MainThread::search() {
 
   std::atomic_bool search_end = false;
   std::atomic_bool search_result = false;
-  g_searcher.SetMaxSearchNode(0xffff'ffff'ffff'ffffU);
   auto thread = std::thread([&]() {
     search_result = g_searcher.Search(rootPos, Threads.stop);
     search_end = true;

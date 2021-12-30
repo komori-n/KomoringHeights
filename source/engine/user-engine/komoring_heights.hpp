@@ -30,6 +30,7 @@ class SearchProgress {
   }
 
   void WriteTo(UsiInfo& output) const;
+  auto MoveCount() const { return move_count_; }
 
  private:
   std::chrono::system_clock::time_point start_time_;
@@ -120,6 +121,8 @@ class KomoringHeights {
                                                  Node& n);
 
   void PrintProgress(const Node& n) const;
+
+  bool IsSearchStop() const;
 
   TranspositionTable tt_{};
   std::stack<MovePicker> pickers_{};

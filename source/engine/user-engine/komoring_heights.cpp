@@ -70,7 +70,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   PnDn thpndn = 1;
   ChildrenCache cache{tt_, node, true, NodeTag<true>{}};
   SearchResult result = cache.CurrentResult(node);
-  while (StripMaybeRepetition(result.GetNodeState()) == NodeState::kOtherState) {
+  while (StripMaybeRepetition(result.GetNodeState()) == NodeState::kOtherState && !IsSearchStop()) {
     thpndn = std::max(2 * result.Pn(), 2 * result.Dn());
     thpndn = std::max(thpndn, result.Pn() + 1);
     thpndn = std::max(thpndn, result.Dn() + 1);
@@ -212,7 +212,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   }
 
   std::unordered_map<Move, ChildrenCache*> cache_cache;
-  while (n.GetMoveCount() <= max_search_node_ && !*stop_) {
+  while (!IsSearchStop()) {
     if (curr_result.Pn() >= thpn || curr_result.Dn() >= thdn) {
       break;
     }
@@ -352,6 +352,10 @@ void KomoringHeights::PrintProgress(const Node& n) const {
 #endif
 
   sync_cout << usi_output << sync_endl;
+}
+
+bool KomoringHeights::IsSearchStop() const {
+  return progress_.MoveCount() > max_search_node_ || *stop_;
 }
 
 template SearchResult KomoringHeights::SearchImpl<true>(Node& n,
