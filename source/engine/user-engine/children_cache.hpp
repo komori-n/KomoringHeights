@@ -102,10 +102,11 @@ class ChildrenCache {
     CommonEntry* entry;
     SearchResult search_result;
     bool is_first;
+    bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false
     Depth depth;
 
     static NodeCache FromRepetitionMove(ExtMove move, Hand hand);
-    static NodeCache FromUnknownMove(LookUpQuery&& query, ExtMove move, Hand hand);
+    static NodeCache FromUnknownMove(LookUpQuery&& query, ExtMove move, Hand hand, bool is_sum_delta);
 
     PnDn Pn() const { return search_result.Pn(); }
     PnDn Dn() const { return search_result.Dn(); }
@@ -129,7 +130,9 @@ class ChildrenCache {
   /// 現在の次良手局面おけるφ値（OrNodeならpn、AndNodeならdn）を返す。合法手が 1 手しかない場合、∞を返す。
   PnDn SecondPhi() const;
   /// 現局面におけるδ値（OrNodeならdn、AndNodeならpn）から最善手におけるφ値を引いた値を返す。
-  PnDn DeltaExceptBestMove() const;
+  PnDn NewThdeltaForBestMove(PnDn thdelta) const;
+  /// 現在のδ値
+  PnDn CalcDelta() const;
 
   /// NodeCache同士の比較演算子。sortしたときにφ値の昇順かつ千日手の判定がしやすい順番に並び替える。
   bool Compare(const NodeCache& lhs, const NodeCache& rhs) const;
@@ -144,9 +147,6 @@ class ChildrenCache {
   /// children_ をソートしたときの添字。children_ 辞退を並べ替えると時間がかかるので、添字を会してアクセスするようにする
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
   std::size_t children_len_{0};
-
-  /// 現在のδ値。差分計算により求める。
-  PnDn delta_{0};
 };
 }  // namespace komori
 

@@ -18,6 +18,42 @@ inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) {
 }
 
 /**
+ * @brief move はδ値をsumで計算すべきか／maxで計上すべきかを判定する
+ *
+ * 似たような子局面になる move が複数ある場合、δ値を定義通りに sum で計算すると局面を過小評価
+ * （実際の値よりも大きく出る）ことがある。そのため、move の内容によっては sum ではなく max でδ値を計上したほうが良い。
+ *
+ * @return true   move に対するδ値は sum で計上すべき
+ * @return false  move に対するδ値は max で計上すべき
+ */
+inline bool IsSumDeltaNode(const Node& n, Move move, bool or_node) {
+  if (or_node) {
+    if (is_drop(move)) {
+      if (move_dropped_piece(move) == BISHOP || move_dropped_piece(move) == ROOK) {
+        // 飛車と角はだいたいどこから打っても同じ
+        return false;
+      }
+    } else {
+      Color us = n.Pos().side_to_move();
+      Square from = from_sq(move);
+      Square to = to_sq(move);
+      Piece moved_piece = n.Pos().piece_on(from);
+      PieceType moved_pr = type_of(moved_piece);
+      if (EnemyField[us].test(from) || EnemyField[us].test(to)) {
+        if (moved_pr == PAWN || moved_pr == BISHOP || moved_pr == ROOK) {
+          // 歩、角、飛車は基本成ればいいので、成らなかった時のδ値を足す必要がない
+          return false;
+        }
+      }
+    }
+    return true;
+  } else {
+    // 合駒はだいたいどこに打っても同じ
+    return !is_drop(move);
+  }
+}
+
+/**
  * @brief 1手詰めルーチン。詰む場合は証明駒を返す。
  *
  * @param n  現局面（OrNode）
@@ -89,12 +125,16 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove mo
   cache.entry = nullptr;
   cache.search_result = {NodeState::kRepetitionState, kInfinitePnDn, 0, hand};
   cache.is_first = false;
+  cache.is_sum_delta = true;
   cache.depth = Depth{kMaxNumMateMoves};
 
   return cache;
 }
 
-ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(LookUpQuery&& query, ExtMove move, Hand hand) {
+ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(LookUpQuery&& query,
+                                                                   ExtMove move,
+                                                                   Hand hand,
+                                                                   bool is_sum_delta) {
   NodeCache cache;
   cache.move = move;
   cache.query = std::move(query);
@@ -102,6 +142,7 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(LookUpQuery&&
   cache.entry = entry;
   cache.search_result = {*entry, hand};
   cache.is_first = entry->IsFirstVisit();
+  cache.is_sum_delta = is_sum_delta;
   if (auto unknown = entry->TryGetUnknown()) {
     cache.depth = unknown->MinDepth();
   } else {
@@ -128,7 +169,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
     } else {
       auto&& query = tt.GetChildQuery<kOrNode>(nn, move.move);
       auto hand = kOrNode ? AfterHand(nn.Pos(), move.move, nn.OrHand()) : nn.OrHand();
-      child = NodeCache::FromUnknownMove(std::move(query), move, hand);
+      child = NodeCache::FromUnknownMove(std::move(query), move, hand, IsSumDeltaNode(nn, move, kOrNode));
       if (child.depth < nn.GetDepth()) {
         does_have_old_child_ = true;
       }
@@ -141,8 +182,6 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
           // move を選ぶと1手詰み。
           SearchResult dummy_entry = {NodeState::kProvenState, 0, kInfinitePnDn, proof_hand};
 
-          // Update 時に delta の差分更新を行うので、初回だけ delta を補正しておく必要がある
-          delta_ += child.Delta(kOrNode);
           UpdateNthChildWithoutSort(curr_idx, dummy_entry, nn.GetMoveCount());
           nn.UndoMove(move.move);
           continue;
@@ -159,7 +198,6 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
       }
     }
 
-    delta_ = Clamp(delta_ + child.Delta(kOrNode));
     if (child.Phi(kOrNode) == 0) {
       break;
     }
@@ -182,7 +220,7 @@ void ChildrenCache::UpdateFront(const SearchResult& search_result, std::uint64_t
 }
 
 SearchResult ChildrenCache::CurrentResult(const Node& n) const {
-  if (delta_ == 0) {
+  if (CalcDelta() == 0) {
     if (or_node_) {
       return GetDisprovenResult(n);
     } else {
@@ -203,7 +241,7 @@ std::pair<PnDn, PnDn> ChildrenCache::ChildThreshold(PnDn thpn, PnDn thdn) const 
   auto thphi = Phi(thpn, thdn, or_node_);
   auto thdelta = Delta(thpn, thdn, or_node_);
   auto child_thphi = Clamp(thphi, 0, SecondPhi() + 1);
-  auto child_thdelta = Clamp(thdelta - DeltaExceptBestMove());
+  auto child_thdelta = NewThdeltaForBestMove(thdelta);
 
   return or_node_ ? std::make_pair(child_thphi, child_thdelta) : std::make_pair(child_thdelta, child_thphi);
 }
@@ -212,11 +250,8 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
                                               const SearchResult& search_result,
                                               std::uint64_t num_searches) {
   auto& child = NthChild(i);
-  // delta_ を差分更新する。
-  auto old_delta = child.Delta(or_node_);
   child.is_first = false;
   child.search_result = search_result;
-  delta_ = Clamp(delta_ - old_delta + child.Delta(or_node_));
 
   switch (search_result.GetNodeState()) {
     case NodeState::kProvenState:
@@ -291,9 +326,9 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
 
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   if (or_node_) {
-    return {NodeState::kOtherState, NthChild(0).Pn(), delta_, n.OrHand()};
+    return {NodeState::kOtherState, NthChild(0).Pn(), CalcDelta(), n.OrHand()};
   } else {
-    return {NodeState::kOtherState, delta_, NthChild(0).Dn(), n.OrHand()};
+    return {NodeState::kOtherState, CalcDelta(), NthChild(0).Dn(), n.OrHand()};
   }
 }
 
@@ -305,9 +340,48 @@ PnDn ChildrenCache::SecondPhi() const {
   return second_best_child.Phi(or_node_);
 }
 
-PnDn ChildrenCache::DeltaExceptBestMove() const {
+PnDn ChildrenCache::NewThdeltaForBestMove(PnDn thdelta) const {
+  // まず best_child 抜きのδ値を計算しておく
+  PnDn sum_delta{0};
+  PnDn max_delta{0};
+  for (std::size_t i = 1; i < children_len_; ++i) {
+    const auto& child = NthChild(i);
+    if (child.is_sum_delta) {
+      sum_delta += child.Delta(or_node_);
+    } else {
+      max_delta = std::max(max_delta, child.Delta(or_node_));
+    }
+  }
+
+  // 上記をもとに、best_child.Delta() がいくつ以上になったら thdelta を超えるか計算する
   auto& best_child = NthChild(0);
-  return delta_ - best_child.Delta(or_node_);
+  if (best_child.is_sum_delta) {
+    if (thdelta >= sum_delta + max_delta) {
+      return Clamp(thdelta - (sum_delta + max_delta));
+    }
+  } else {
+    if (thdelta >= sum_delta) {
+      return Clamp(thdelta - sum_delta);
+    }
+  }
+  // 現時点で thdelta >= Delta() (>= sum_delta + max_delta) なので、このパスは通らないはず
+  return 0;
+}
+
+PnDn ChildrenCache::CalcDelta() const {
+  PnDn sum_delta{0};
+  PnDn max_delta{0};
+
+  for (std::size_t i = 0; i < children_len_; ++i) {
+    const auto& child = NthChild(i);
+    if (child.is_sum_delta) {
+      sum_delta += child.Delta(or_node_);
+    } else {
+      max_delta = std::max(max_delta, child.Delta(or_node_));
+    }
+  }
+
+  return sum_delta + max_delta;
 }
 
 bool ChildrenCache::Compare(const NodeCache& lhs, const NodeCache& rhs) const {
