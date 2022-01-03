@@ -118,7 +118,7 @@ endif
 # clang用にCPPFLAGSなどを変更
 ifneq (,$(findstring clang++,$(COMPILER)))
 	# stdlib
-	CPPFLAGS += -stdlib=libstdc++
+	# CPPFLAGS += -stdlib=libstdc++
 
 	# C++17のfilesystem
 	# LDFLAGS += -lstdc++fs
