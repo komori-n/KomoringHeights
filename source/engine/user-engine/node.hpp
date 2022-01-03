@@ -11,7 +11,8 @@
 namespace komori {
 class Node {
  public:
-  explicit Node(Position& n, Key path_key = 0, Depth depth = 0) : n_{n}, depth_{depth}, path_key_{path_key} {}
+  explicit Node(Position& n, Key path_key = 0, Depth depth = 0)
+      : n_{n}, or_color_{n.side_to_move()}, depth_{depth}, path_key_{path_key} {}
 
   Node NewInstance() { return Node{n_, path_key_, depth_}; }
 
@@ -19,35 +20,20 @@ class Node {
     path_key_ = PathKeyAfter(m);
     node_history_.Visit(n_.state()->board_key(), this->OrHand());
     n_.do_move(m, st_info_.emplace());
-    or_node_ = !or_node_;
     depth_++;
     move_count_++;
   }
 
   void UndoMove(Move m) {
     depth_--;
-    or_node_ = !or_node_;
     n_.undo_move(m);
     st_info_.pop();
     node_history_.Leave(n_.state()->board_key(), this->OrHand());
     path_key_ = PathKeyBefore(path_key_, m, depth_);
   }
 
-  Hand OrHand() const {
-    if (or_node_) {
-      return ::komori::OrHand<true>(n_);
-    } else {
-      return ::komori::OrHand<false>(n_);
-    }
-  }
-
-  Hand AndHand() const {
-    if (or_node_) {
-      return ::komori::OrHand<false>(n_);
-    } else {
-      return ::komori::OrHand<true>(n_);
-    }
-  }
+  Hand OrHand() const { return n_.hand_of(or_color_); }
+  Hand AndHand() const { return n_.hand_of(~or_color_); }
 
   bool IsRepetition() const {
     auto node_state = node_history_.State(n_.state()->board_key(), this->OrHand());
@@ -55,7 +41,7 @@ class Node {
   }
 
   bool IsRepetitionAfter(Move move) const {
-    Hand hand = or_node_ ? AfterHand(n_, move, this->OrHand()) : this->OrHand();
+    Hand hand = or_color_ == n_.side_to_move() ? AfterHand(n_, move, this->OrHand()) : this->OrHand();
     auto node_state = node_history_.State(n_.board_key_after(move), hand);
     return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
   }
@@ -71,7 +57,7 @@ class Node {
 
  private:
   Position& n_;
-  bool or_node_{true};
+  Color or_color_;
   Depth depth_{};
   NodeHistory node_history_{};
   std::stack<StateInfo> st_info_{};

@@ -1,7 +1,7 @@
 #ifndef NODE_HISTORY_HPP_
 #define NODE_HISTORY_HPP_
 
-#include <map>
+#include <set>
 
 #include "typedefs.hpp"
 
@@ -89,7 +89,7 @@ class NodeHistory {
   }
 
  private:
-  std::unordered_map<Key, Hand> visited_;
+  std::unordered_multimap<Key, Hand> visited_;
 };
 }  // namespace komori
 
