@@ -1,7 +1,7 @@
 #ifndef NODE_HISTORY_HPP_
 #define NODE_HISTORY_HPP_
 
-#include <set>
+#include <unordered_map>
 
 #include "typedefs.hpp"
 
