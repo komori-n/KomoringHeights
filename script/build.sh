@@ -15,6 +15,9 @@
 MAKE=make
 MAKEFILE=Makefile
 JOBS=`grep -c ^processor /proc/cpuinfo 2>/dev/null`
+if [ "$JOBS" -gt 8 ]; then
+  JOBS=8
+fi
 
 ARCHCPUS='*'
 COMPILERS="clang++,g++"
@@ -64,6 +67,7 @@ ARCHCPUS=(
   SSE2
   NO_SSE
   GRAVITON2
+  M1
   OTHER
 )
 
