@@ -1,0 +1,57 @@
+# for Mac environment
+name: Make CI (for Mac)
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+jobs:
+  build-ubuntu:
+    # ubuntu-latest = ubuntu-18.04 => ubuntu-20.04
+    # https://github.com/actions/virtual-environments/issues/1816
+    # https://docs.github.com/ja/free-pro-team@latest/actions/reference/specifications-for-github-hosted-runners
+    runs-on: macos-11
+
+    strategy:
+      matrix:
+        edition:
+          - USER_ENGINE
+        compiler: [clang++-12, clang++-11]
+        target: ["tournament"]
+        archcpu:
+          [
+            "AVX512,AVX2,SSE42,SSE2",
+            "SSE41,SSSE3,OTHER",
+          ]
+
+    steps:
+      - name: Checkout own repository
+        uses: actions/checkout@v2
+        with:
+          path: main
+      - name: install clang-11
+        run: |
+          brew install llvm@11
+          ln -s /usr/local/opt/llvm@11/bin/clang++ /usr/local/bin/clang++-11
+          export LDFLAGS="-L/usr/local/opt/llvm@11/lib"
+          export CPPFLAGS="-I/usr/local/opt/llvm@11/include"
+        if: ${{ matrix.compiler == 'clang++-11' }}
+      - name: install clang-12
+        run: |
+          brew install llvm@12
+          ln -s /usr/local/opt/llvm@12/bin/clang++ /usr/local/bin/clang++-12
+          export LDFLAGS="-L/usr/local/opt/llvm@12/lib"
+          export CPPFLAGS="-I/usr/local/opt/llvm@12/include"
+        if: ${{ matrix.compiler == 'clang++-12' }}
+
+      - name: make
+        run: ./main/script/build.sh -e ${{ matrix.edition }} -c ${{ matrix.compiler }} -t ${{ matrix.target }} -a ${{ matrix.archcpu }} -o mac
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: build-mac_${{ github.run_number }}_${{ github.sha }}
+          path: ./main/build/**/**/*
