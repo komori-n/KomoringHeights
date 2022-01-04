@@ -184,9 +184,15 @@ void KomoringHeights::ShowPv(Position& n) {
     auto children = ExpandChildren(tt_, node);
     std::sort(children.begin(), children.end(), [&](const auto& lhs, const auto& rhs) {
       if (node.IsOrNode()) {
-        return lhs.second.Pn() < rhs.second.Pn();
+        if (lhs.second.Pn() != rhs.second.Pn()) {
+          return lhs.second.Pn() < rhs.second.Pn();
+        }
+        return lhs.second.Dn() > rhs.second.Dn();
       } else {
-        return lhs.second.Dn() < rhs.second.Dn();
+        if (lhs.second.Dn() != rhs.second.Dn()) {
+          return lhs.second.Dn() < rhs.second.Dn();
+        }
+        return lhs.second.Pn() > rhs.second.Pn();
       }
     });
 
