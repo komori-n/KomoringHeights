@@ -43,6 +43,7 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
 void SearchProgress::NewSearch() {
   start_time_ = std::chrono::system_clock::now();
   depth_ = 0;
+  move_count_ = 0;
 }
 
 void SearchProgress::WriteTo(UsiInfo& output) const {
