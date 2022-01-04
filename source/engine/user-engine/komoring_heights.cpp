@@ -18,21 +18,6 @@ namespace komori {
 namespace {
 constexpr std::size_t kDefaultHashSizeMb = 1024;
 
-/// FirstSearch の初期深さ。数値実験してみた感じたと、1 ではあまり効果がなく、3 だと逆に遅くなるので
-/// 2 ぐらいがちょうどよい
-template <bool kOrNode>
-constexpr Depth kFirstSearchDepth = kOrNode ? 1 : 2;
-
-template <bool kOrNode>
-inline Hand ProperChildHand(const Position& n, Move move, komori::CommonEntry* child_entry) {
-  if constexpr (kOrNode) {
-    Hand after_hand = child_entry->ProperHand(komori::AfterHand(n, move, OrHand<kOrNode>(n)));
-    return komori::BeforeHand(n, move, after_hand);
-  } else {
-    return child_entry->ProperHand(OrHand<kOrNode>(n));
-  }
-}
-
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
   std::vector<std::pair<Move, SearchResult>> ret;
   if (n.IsOrNode()) {
