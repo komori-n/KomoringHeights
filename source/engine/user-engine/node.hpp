@@ -41,7 +41,7 @@ class Node {
   }
 
   bool IsRepetitionAfter(Move move) const {
-    Hand hand = or_color_ == n_.side_to_move() ? AfterHand(n_, move, this->OrHand()) : this->OrHand();
+    Hand hand = IsOrNode() ? AfterHand(n_, move, this->OrHand()) : this->OrHand();
     auto node_state = node_history_.State(n_.board_key_after(move), hand);
     return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
   }
@@ -54,6 +54,7 @@ class Node {
   Key GetPathKey() const { return path_key_; }
   Key PathKeyAfter(Move m) const { return ::komori::PathKeyAfter(path_key_, m, depth_); }
   std::uint64_t GetMoveCount() const { return move_count_; }
+  bool IsOrNode() const { return n_.side_to_move() == or_color_; }
 
  private:
   Position& n_;

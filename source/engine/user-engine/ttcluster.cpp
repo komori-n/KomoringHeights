@@ -6,7 +6,7 @@ namespace komori {
 const CommonEntry TTCluster::kRepetitionEntry{RepetitionData{}};
 
 std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
-  return os << "UnknownData{pn=" << data.pn_ << ", dn=" << data.dn_ << ", hand=" << data.hand_
+  return os << "UnknownData{pn=" << ToString(data.pn_) << ", dn=" << ToString(data.dn_) << ", hand=" << data.hand_
             << ", min_depth=" << data.min_depth_ << "}";
 }
 

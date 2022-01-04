@@ -59,6 +59,10 @@ void ShowCommand(Position& pos, std::istringstream& is) {
 
   g_searcher.ShowValues(pos, moves);
 }
+
+void PvCommand(Position& pos, std::istringstream& /* is */) {
+  g_searcher.ShowPv(pos);
+}
 }  // namespace
 
 // USI拡張コマンド"user"が送られてくるとこの関数が呼び出される。実験に使ってください。
@@ -67,6 +71,8 @@ void user_test(Position& pos, std::istringstream& is) {
   is >> cmd;
   if (cmd == "show") {
     ShowCommand(pos, is);
+  } else if (cmd == "pv") {
+    PvCommand(pos, is);
   }
 }
 

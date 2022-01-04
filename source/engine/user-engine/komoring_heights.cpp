@@ -32,6 +32,27 @@ inline Hand ProperChildHand(const Position& n, Move move, komori::CommonEntry* c
     return child_entry->ProperHand(OrHand<kOrNode>(n));
   }
 }
+
+std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
+  std::vector<std::pair<Move, SearchResult>> ret;
+  if (n.IsOrNode()) {
+    for (auto&& move : MovePicker{n.Pos(), NodeTag<true>{}}) {
+      auto query = tt.GetChildQuery<true>(n, move.move);
+      auto entry = query.LookUpWithoutCreation();
+      SearchResult result{*entry, query.GetHand()};
+      ret.emplace_back(move.move, result);
+    }
+  } else {
+    for (auto&& move : MovePicker{n.Pos(), NodeTag<false>{}}) {
+      auto query = tt.GetChildQuery<false>(n, move.move);
+      auto entry = query.LookUpWithoutCreation();
+      SearchResult result{*entry, query.GetHand()};
+      ret.emplace_back(move.move, result);
+    }
+  }
+
+  return ret;
+}
 }  // namespace
 
 void SearchProgress::NewSearch() {
@@ -167,6 +188,56 @@ void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
   static_assert(std::is_signed_v<Depth>);
   for (Depth depth = depth_max - 1; depth >= 0; --depth) {
     node.UndoMove(moves[depth]);
+  }
+}
+
+void KomoringHeights::ShowPv(Position& n) {
+  Node node{n};
+  std::vector<Move> moves;
+
+  for (;;) {
+    auto children = ExpandChildren(tt_, node);
+    std::sort(children.begin(), children.end(), [&](const auto& lhs, const auto& rhs) {
+      if (node.IsOrNode()) {
+        return lhs.second.Pn() < rhs.second.Pn();
+      } else {
+        return lhs.second.Dn() > rhs.second.Dn();
+      }
+    });
+
+    std::ostringstream oss;
+    oss << "[" << node.GetDepth() << "] ";
+    for (const auto& child : children) {
+      oss << child.first << "(" << ToString(child.second.Pn()) << "/" << ToString(child.second.Dn()) << ") ";
+    }
+    sync_cout << oss.str() << sync_endl;
+
+    if (children.size() == 0 || (children[0].second.Pn() == 1 && children[0].second.Dn() == 1)) {
+      break;
+    }
+    auto best_move = children[0].first;
+    node.DoMove(best_move);
+    moves.emplace_back(best_move);
+  }
+
+  // 高速 1 手詰めルーチンで解ける局面は置換表に登録されていない可能性がある
+  if (node.IsOrNode()) {
+    if (Move move = Mate::mate_1ply(node.Pos()); move != MOVE_NONE) {
+      node.DoMove(move);
+      moves.emplace_back(move);
+    }
+  }
+
+  sync_cout << sync_endl;
+  std::ostringstream oss;
+  for (const auto& move : moves) {
+    oss << move << " ";
+  }
+  sync_cout << "pv: " << oss.str() << sync_endl;
+
+  sync_cout << node.Pos() << sync_endl;
+  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
+    node.UndoMove(*itr);
   }
 }
 

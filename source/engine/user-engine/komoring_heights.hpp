@@ -68,6 +68,7 @@ class KomoringHeights {
   const auto& BestMoves() const { return best_moves_; }
 
   void ShowValues(Position& n, const std::vector<Move>& moves);
+  void ShowPv(Position& n);
 
   UsiInfo Info() const;
   void PrintDebugInfo() const;

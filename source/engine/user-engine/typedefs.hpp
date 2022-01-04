@@ -31,6 +31,16 @@ inline constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
 inline constexpr PnDn Clamp(PnDn val, PnDn min = 0, PnDn max = kInfinitePnDn) {
   return std::clamp(val, min, max);
 }
+/// pn/dn 値を文字列に変換する。
+inline std::string ToString(PnDn val) {
+  if (val == kInfinitePnDn) {
+    return "inf";
+  } else if (val > kInfinitePnDn) {
+    return "invalid";
+  } else {
+    return std::to_string(val);
+  }
+}
 
 /// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
 enum class NodeState : std::uint32_t {
