@@ -239,3 +239,13 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+
+# binary
+YaneuraOu-by-*
+
+# personal debugging files
+source/test
+source/resource
+
+# MacOS
+.DS_Store
