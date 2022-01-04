@@ -27,30 +27,33 @@ inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) {
  * @return false  move に対するδ値は max で計上すべき
  */
 inline bool IsSumDeltaNode(const Node& n, Move move, bool or_node) {
-  if (or_node) {
-    if (is_drop(move)) {
+  if (is_drop(move)) {
+    // 駒打ち
+    if (or_node) {
       if (move_dropped_piece(move) == BISHOP || move_dropped_piece(move) == ROOK) {
         // 飛車と角はだいたいどこから打っても同じ
         return false;
       }
     } else {
-      Color us = n.Pos().side_to_move();
-      Square from = from_sq(move);
-      Square to = to_sq(move);
-      Piece moved_piece = n.Pos().piece_on(from);
-      PieceType moved_pr = type_of(moved_piece);
-      if (EnemyField[us].test(from) || EnemyField[us].test(to)) {
-        if (moved_pr == PAWN || moved_pr == BISHOP || moved_pr == ROOK) {
-          // 歩、角、飛車は基本成ればいいので、成らなかった時のδ値を足す必要がない
-          return false;
-        }
+      // 合駒はだいたい何を打っても同じ
+      return false;
+    }
+  } else {
+    // 駒移動（駒打ちではない）
+    Color us = n.Pos().side_to_move();
+    Square from = from_sq(move);
+    Square to = to_sq(move);
+    Piece moved_piece = n.Pos().piece_on(from);
+    PieceType moved_pr = type_of(moved_piece);
+    if (EnemyField[us].test(from) || EnemyField[us].test(to)) {
+      if (moved_pr == PAWN || moved_pr == BISHOP || moved_pr == ROOK) {
+        // 歩、角、飛車は基本成ればいいので、成らなかった時のδ値を足す必要がない
+        return false;
       }
     }
-    return true;
-  } else {
-    // 合駒はだいたいどこに打っても同じ
-    return !is_drop(move);
   }
+
+  return true;
 }
 
 /**
