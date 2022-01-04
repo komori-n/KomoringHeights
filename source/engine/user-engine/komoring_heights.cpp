@@ -186,7 +186,7 @@ void KomoringHeights::ShowPv(Position& n) {
       if (node.IsOrNode()) {
         return lhs.second.Pn() < rhs.second.Pn();
       } else {
-        return lhs.second.Dn() > rhs.second.Dn();
+        return lhs.second.Dn() < rhs.second.Dn();
       }
     });
 
