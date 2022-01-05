@@ -6,6 +6,7 @@
 #include "move_picker.hpp"
 #include "node.hpp"
 #include "ttcluster.hpp"
+#include "initial_estimation.hpp"
 
 namespace komori {
 namespace {
@@ -134,7 +135,9 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove mo
   return cache;
 }
 
-ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(LookUpQuery&& query,
+template <bool kOrNode>
+ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(Node& n,
+  LookUpQuery&& query,
                                                                    ExtMove move,
                                                                    Hand hand,
                                                                    bool is_sum_delta) {
@@ -143,7 +146,6 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(LookUpQuery&&
   cache.query = std::move(query);
   auto* entry = cache.query.LookUpWithoutCreation();
   cache.entry = entry;
-  cache.search_result = {*entry, hand};
   cache.is_first = entry->IsFirstVisit();
   cache.is_sum_delta = is_sum_delta;
   if (auto unknown = entry->TryGetUnknown()) {
@@ -151,6 +153,15 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(LookUpQuery&&
   } else {
     cache.depth = Depth{kMaxNumMateMoves};
   }
+
+  if (cache.is_first) {
+    auto [pn, dn] = InitialPnDn<kOrNode>(n, move.move);
+    pn = std::max(pn, entry->Pn());
+    dn = std::max(dn, entry->Dn());
+    entry->UpdatePnDn(pn, dn, 0);
+  }
+
+  cache.search_result = {*entry, hand};
 
   return cache;
 }
@@ -172,7 +183,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
     } else {
       auto&& query = tt.GetChildQuery<kOrNode>(nn, move.move);
       auto hand = kOrNode ? AfterHand(nn.Pos(), move.move, nn.OrHand()) : nn.OrHand();
-      child = NodeCache::FromUnknownMove(std::move(query), move, hand, IsSumDeltaNode(nn, move, kOrNode));
+      child = NodeCache::FromUnknownMove<kOrNode>(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move, kOrNode));
       if (child.depth < nn.GetDepth()) {
         does_have_old_child_ = true;
       }

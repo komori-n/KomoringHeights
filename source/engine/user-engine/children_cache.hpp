@@ -106,7 +106,8 @@ class ChildrenCache {
     Depth depth;
 
     static NodeCache FromRepetitionMove(ExtMove move, Hand hand);
-    static NodeCache FromUnknownMove(LookUpQuery&& query, ExtMove move, Hand hand, bool is_sum_delta);
+    template <bool kOrNode>
+    static NodeCache FromUnknownMove(Node& n, LookUpQuery&& query, ExtMove move, Hand hand, bool is_sum_delta);
 
     PnDn Pn() const { return search_result.Pn(); }
     PnDn Dn() const { return search_result.Dn(); }

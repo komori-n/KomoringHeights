@@ -221,8 +221,8 @@ endif
 ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 LOCAL_SRC_FILES += \
 		../source/engine/user-engine/children_cache.cpp \
-    ../source/engine/user-engine/deep_dfpn.cpp \
 		../source/engine/user-engine/hands.cpp \
+    ../source/engine/user-engine/initial_estimation.cpp \
 		../source/engine/user-engine/komoring_heights.cpp \
 		../source/engine/user-engine/path_keys.cpp \
 		../source/engine/user-engine/transposition_table.cpp\

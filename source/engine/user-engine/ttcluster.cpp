@@ -1,7 +1,5 @@
 #include "ttcluster.hpp"
 
-#include "deep_dfpn.hpp"
-
 namespace komori {
 const CommonEntry TTCluster::kRepetitionEntry{RepetitionData{}};
 
@@ -104,7 +102,9 @@ Hand CommonEntry::ProperHand(Hand hand) const {
 
 void CommonEntry::UpdatePnDn(PnDn pn, PnDn dn, std::uint64_t num_searched) {
   if (auto unknown = TryGetUnknown()) {
-    s_gen_.generation = CalcGeneration(num_searched);
+    if (num_searched > 0) {
+      s_gen_.generation = CalcGeneration(num_searched);
+    }
     unknown->UpdatePnDn(pn, dn);
   }
 }
@@ -293,8 +293,8 @@ TTCluster::Iterator TTCluster::SetRepetition(Iterator entry, Key path_key, std::
 
 template <bool kCreateIfNotExist>
 TTCluster::Iterator TTCluster::LookUp(std::uint32_t hash_high, Hand hand, Depth depth, Key path_key) {
-  PnDn max_pn = InitialPnDn(depth);
-  PnDn max_dn = max_pn;
+  PnDn max_pn = 1;
+  PnDn max_dn = 1;
   auto begin_entry = LowerBound(hash_high);
   auto end_entry = end();
   for (auto itr = begin_entry; itr != end_entry; ++itr) {

@@ -1,4 +1,4 @@
-#include "deep_dfpn.hpp"
+#include "initial_estimation.hpp"
 
 #include <cmath>
 
@@ -20,7 +20,7 @@ void DeepDfpnInit(Depth d, double e) {
   }
 }
 
-PnDn InitialPnDn(Depth depth) {
+PnDn InitialDeepPnDn(Depth depth) {
   if (depth < g_d) {
     return g_pndn_tbl[depth];
   } else {
