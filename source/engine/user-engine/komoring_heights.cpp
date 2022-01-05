@@ -210,6 +210,9 @@ void KomoringHeights::ShowPv(Position& n) {
     auto best_move = children[0].first;
     node.DoMove(best_move);
     moves.emplace_back(best_move);
+    if (node.IsRepetition()) {
+      break;
+    }
   }
 
   // 高速 1 手詰めルーチンで解ける局面は置換表に登録されていない可能性がある
