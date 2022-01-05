@@ -67,7 +67,7 @@ inline Hand CheckMate1Ply(Node& n) {
   if (!n.Pos().in_check()) {
     if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
       n.DoMove(move);
-      auto hand = AddIfHandGivesOtherEvasions(n.Pos(), HAND_ZERO);
+      auto hand = HandSet{ProofHandTag{}}.Get(n.Pos());
       n.UndoMove(move);
 
       return BeforeHand(n.Pos(), move, hand);
@@ -205,7 +205,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
         // 一見重そうな処理だが、実験したところここの if 文（これ以上王手ができるどうかの判定} を入れたほうが
         // 結果として探索が高速化される。
         if (!DoesHaveMatePossibility(n.Pos())) {
-          auto hand2 = RemoveIfHandGivesOtherChecks(nn.Pos(), Hand{HAND_BIT_MASK});
+          auto hand2 = HandSet{DisproofHandTag{}}.Get(nn.Pos());
           child.search_result = {NodeState::kDisprovenState, kInfinitePnDn, 0, hand2};
         }
         nn.UndoMove(move.move);
@@ -291,12 +291,12 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
     proof_hand = BeforeHand(n.Pos(), best_child.move, best_child.search_result.ProperHand());
   } else {
     // 子局面の証明駒の極小集合を計算する
-    HandSet set = HandSet::Zero();
+    HandSet set{ProofHandTag{}};
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = NthChild(i);
-      set |= child.search_result.ProperHand();
+      set.Update(child.search_result.ProperHand());
     }
-    proof_hand = AddIfHandGivesOtherEvasions(n.Pos(), set.Get());
+    proof_hand = set.Get(n.Pos());
   }
 
   return {NodeState::kProvenState, 0, kInfinitePnDn, proof_hand};
@@ -312,12 +312,12 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
   Hand disproof_hand = kNullHand;
   if (or_node_) {
     // 子局面の反証駒の極大集合を計算する
-    HandSet set = HandSet::Full();
+    HandSet set{DisproofHandTag{}};
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = NthChild(i);
-      set &= BeforeHand(n.Pos(), child.move, child.search_result.ProperHand());
+      set.Update(BeforeHand(n.Pos(), child.move, child.search_result.ProperHand()));
     }
-    disproof_hand = RemoveIfHandGivesOtherChecks(n.Pos(), set.Get());
+    disproof_hand = set.Get(n.Pos());
   } else {
     disproof_hand = NthChild(0).search_result.ProperHand();
 

@@ -30,62 +30,6 @@ inline Hand OrHand(const Position& n) {
   }
 }
 
-/// 持ち駒集合を扱うクラス。駒の種別ごとに別の変数で保存しているので、Hand を直接扱うよりもやや高速に処理できる。
-class HandSet {
- public:
-  static constexpr HandSet Zero() { return HandSet{HAND_ZERO}; }
-  static constexpr HandSet Full() { return HandSet{static_cast<Hand>(HAND_BIT_MASK)}; }
-
-  HandSet() = delete;
-  HandSet(const HandSet&) = default;
-  HandSet(HandSet&&) noexcept = default;
-  HandSet& operator=(const HandSet&) = default;
-  HandSet& operator=(HandSet&&) noexcept = default;
-  ~HandSet() = default;
-
-  Hand Get() const {
-    std::uint32_t x = 0;
-    for (std::size_t pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
-      x |= val_[pr];
-    }
-    return static_cast<Hand>(x);
-  }
-
-  /// 持ち駒集合が hand 以下になるように減らす
-  HandSet& operator&=(Hand hand) {
-    for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
-      val_[pr] = std::min(val_[pr], hand_exists(hand, pr));
-    }
-    return *this;
-  }
-
-  /// 持ち駒集合が hand 以上になるように増やす
-  HandSet& operator|=(Hand hand) {
-    for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
-      val_[pr] = std::max(val_[pr], hand_exists(hand, pr));
-    }
-    return *this;
-  }
-
-  template <bool kAndOperator>
-  void Update(Hand hand) {
-    if constexpr (kAndOperator) {
-      *this &= hand;
-    } else {
-      *this |= hand;
-    }
-  }
-
- private:
-  constexpr explicit HandSet(Hand hand) noexcept : val_{} {
-    for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
-      val_[pr] = hand & PIECE_BIT_MASK2[pr];
-    }
-  }
-
-  std::array<std::uint32_t, PIECE_HAND_NB> val_;
-};
-
 /**
  * @brief 局面 n の子局面がすべて 反証駒 disproof_hand で不詰であることが既知の場合、もとの局面 n の反証駒を計算する。
  *
@@ -152,14 +96,63 @@ Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand);
  */
 Hand AddIfHandGivesOtherEvasions(const Position& n, Hand proof_hand);
 
-template <bool kOrNode>
-inline Hand PostProcessLoseHand(const Position& n, Hand hand) {
-  if constexpr (kOrNode) {
-    return RemoveIfHandGivesOtherChecks(n, hand);
-  } else {
-    return AddIfHandGivesOtherEvasions(n, hand);
+/// HandSet の初期化時に使うタグ
+struct ProofHandTag{};
+struct DisproofHandTag{};
+
+/// 持ち駒集合を扱うクラス。駒の種別ごとに別の変数で保存しているので、Hand を直接扱うよりもやや高速に処理できる。
+///
+///      |証明駒 |反証駒
+/// -----+-------------
+/// 初期化| ZERO | FULL
+/// 更新  | |=   | &=
+class HandSet {
+ public:
+  explicit HandSet(ProofHandTag) : proof_hand_{true}, val_{} {}
+  explicit HandSet(DisproofHandTag) : proof_hand_{false} {
+    for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+      val_[pr] = PIECE_BIT_MASK2[pr];
+    }
   }
-}
+
+
+  HandSet() = delete;
+  HandSet(const HandSet&) = default;
+  HandSet(HandSet&&) noexcept = default;
+  HandSet& operator=(const HandSet&) = default;
+  HandSet& operator=(HandSet&&) noexcept = default;
+  ~HandSet() = default;
+
+  Hand Get(const Position& n) const {
+    std::uint32_t x = 0;
+    for (std::size_t pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+      x |= val_[pr];
+    }
+
+    auto hand = static_cast<Hand>(x);
+    if (proof_hand_) {
+      return AddIfHandGivesOtherEvasions(n, hand);
+    } else {
+      return RemoveIfHandGivesOtherChecks(n, hand);
+    }
+  }
+
+  void Update(Hand hand) {
+    if (proof_hand_) {
+      for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+        val_[pr] = std::max(val_[pr], hand_exists(hand, pr));
+      }
+    } else {
+      for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+        val_[pr] = std::min(val_[pr], hand_exists(hand, pr));
+      }
+    }
+  }
+
+ private:
+  bool proof_hand_;
+  std::array<std::uint32_t, PIECE_HAND_NB> val_;
+};
 }  // namespace komori
 
 #endif  // PROOF_HAND_HPP_
