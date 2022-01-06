@@ -140,7 +140,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 std::vector<Move> KomoringHeights::CalcBestMoves(Node& n) {
   std::unordered_map<Key, MateMoveCache> mate_table;
   std::unordered_map<Key, Depth> search_history;
-  MateMovesSearchImpl<true>(mate_table, search_history, n);
+  MateMovesSearchImpl<true>(mate_table, search_history, n, 0, kMaxNumMateMoves);
 
   std::vector<Move> moves;
   while (mate_table.find(n.Pos().key()) != mate_table.end()) {
@@ -337,12 +337,19 @@ template <bool kOrNode>
 std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl(
     std::unordered_map<Key, MateMoveCache>& mate_table,
     std::unordered_map<Key, Depth>& search_history,
-    Node& n) {
+    Node& n,
+    Depth max_start_depth,
+    Depth max_depth) {
   auto key = n.Pos().key();
   tree_size_++;
   if (auto itr = search_history.find(key); itr != search_history.end()) {
     // 探索中の局面にあたったら、不詰を返す
-    return {{kNoMateLen, 0}, itr->second};
+    return {{}, itr->second};
+  }
+
+  if (n.GetDepth() > max_depth) {
+    // これより短い詰みを知っているので、これ以上探索する意味がない
+    return {{}, max_start_depth};
   }
 
   if (auto itr = mate_table.find(key); itr != mate_table.end()) {
@@ -377,27 +384,19 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
 
     auto child_capture = n.Pos().capture(move.move);
     n.DoMove(move.move);
-    auto [child_num_moves, child_rep_start] = MateMovesSearchImpl<!kOrNode>(mate_table, search_history, n);
+    auto [child_num_moves, child_rep_start] =
+        MateMovesSearchImpl<!kOrNode>(mate_table, search_history, n, max_start_depth, max_depth);
     n.UndoMove(move.move);
 
     rep_start = std::min(rep_start, child_rep_start);
     if (child_num_moves.num >= 0) {
-      bool update = false;
-      if ((kOrNode && curr.num_moves.num > child_num_moves.num + 1) ||
-          (!kOrNode && curr.num_moves.num < child_num_moves.num + 1)) {
-        update = true;
-      } else if (curr.num_moves.num == child_num_moves.num + 1) {
-        if (curr.num_moves.surplus > child_num_moves.surplus ||
-            (curr.num_moves.surplus == child_num_moves.surplus && !curr_capture && child_capture)) {
-          update = true;
-        }
-      }
+      curr.Update<kOrNode>(move.move, child_num_moves.num + 1, child_num_moves.surplus + (child_capture ? 1 : 0));
 
-      if (update) {
-        curr.move = move.move;
-        curr.num_moves.num = child_num_moves.num + 1;
-        curr.num_moves.surplus = child_num_moves.surplus;
-        curr_capture = child_capture;
+      if constexpr (kOrNode) {
+        if (max_depth > n.GetDepth() + curr.num_moves.num) {
+          max_start_depth = n.GetDepth();
+          max_depth = n.GetDepth() + curr.num_moves.num;
+        }
       }
     } else if (!kOrNode) {
       // nomate
@@ -418,7 +417,7 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
     if (rep_start == n.GetDepth() && curr.num_moves.num >= 0) {
       n.DoMove(curr.move);
       std::unordered_map<Key, Depth> new_search_history;
-      MateMovesSearchImpl<!kOrNode>(mate_table, new_search_history, n);
+      MateMovesSearchImpl<!kOrNode>(mate_table, new_search_history, n, max_start_depth, max_depth);
       n.UndoMove(curr.move);
     }
   }
@@ -454,9 +453,13 @@ template SearchResult KomoringHeights::SearchImpl<false>(Node& n,
 template std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl<false>(
     std::unordered_map<Key, MateMoveCache>& mate_table,
     std::unordered_map<Key, Depth>& search_history,
-    Node& n);
+    Node& n,
+    Depth max_start_depth,
+    Depth max_depth);
 template std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl<true>(
     std::unordered_map<Key, MateMoveCache>& mate_table,
     std::unordered_map<Key, Depth>& search_history,
-    Node& n);
+    Node& n,
+    Depth max_start_depth,
+    Depth max_depth);
 }  // namespace komori

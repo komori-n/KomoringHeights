@@ -80,11 +80,37 @@ class KomoringHeights {
   struct NumMoves {
     int num{kNoMateLen};  ///< 詰み手数
     int surplus{0};       ///< 駒余りの枚数
+
+    template <bool kOrNode>
+    bool Update(int new_num, int new_surplus) {
+      bool update = false;
+      if constexpr (kOrNode) {
+        update = (new_num < num) || (new_num == num && new_surplus < surplus);
+      } else {
+        update = (new_num > num) || (new_num == num && new_surplus < surplus);
+      }
+
+      if (update) {
+        num = new_num;
+        surplus = new_surplus;
+      }
+
+      return update;
+    }
   };
 
   struct MateMoveCache {
     Move move{MOVE_NONE};
     NumMoves num_moves{};
+
+    template <bool kOrNode>
+    bool Update(Move new_move, int new_num, int new_surplus) {
+      if (num_moves.Update<kOrNode>(new_num, new_surplus)) {
+        move = new_move;
+        return true;
+      }
+      return false;
+    }
   };
 
   /**
@@ -119,7 +145,9 @@ class KomoringHeights {
   template <bool kOrNode>
   std::pair<NumMoves, Depth> MateMovesSearchImpl(std::unordered_map<Key, MateMoveCache>& mate_table,
                                                  std::unordered_map<Key, Depth>& search_history,
-                                                 Node& n);
+                                                 Node& n,
+                                                 Depth max_start_depth,
+                                                 Depth max_depth);
 
   void PrintProgress(const Node& n) const;
 
