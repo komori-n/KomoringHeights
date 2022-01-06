@@ -88,7 +88,13 @@ inline bool IsStepCheck(const Position& n, Move move) {
 
 inline std::string HexString(std::uint64_t x) {
   std::stringstream ss;
-  ss << std::hex << std::setfill('0') << std::setw(16) << x;
+  ss << "0x" << std::hex << std::setfill('0') << std::setw(16) << x;
+  return ss.str();
+}
+
+inline std::string HexString(std::uint32_t x) {
+  std::stringstream ss;
+  ss << "0x" << std::hex << std::setfill('0') << std::setw(8) << x;
   return ss.str();
 }
 
