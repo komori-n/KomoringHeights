@@ -376,7 +376,6 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
 
   MateMoveCache curr{};
   curr.num_moves.num = kOrNode ? kMaxNumMateMoves : 0;
-  bool curr_capture = false;
   Depth rep_start = kNonRepetitionDepth;
 
   for (const auto& move : move_picker) {

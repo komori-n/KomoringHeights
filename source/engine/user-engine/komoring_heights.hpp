@@ -163,7 +163,6 @@ class KomoringHeights {
 
   std::atomic_bool print_flag_{false};
   SearchProgress progress_{};
-  std::uint64_t move_count_{};
   Score score_{};
   Depth max_depth_{kMaxNumMateMoves};
   int extra_search_count_{0};

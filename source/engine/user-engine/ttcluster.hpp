@@ -277,9 +277,9 @@ class SearchResult {
   SearchResult(const CommonEntry& entry, Hand hand)
       : state_{entry.GetNodeState()},
         amount_{entry.GetSearchedAmount()},
+        hand_{entry.ProperHand(hand)},
         pn_{entry.Pn()},
         dn_{entry.Dn()},
-        hand_{entry.ProperHand(hand)},
         move_{entry.BestMove(hand)},
         len_{entry.GetSolutionLen(hand)} {}
   /// 生データからコンストラクトする。
@@ -290,7 +290,7 @@ class SearchResult {
                Hand hand,
                Move16 move = MOVE_NONE,
                Depth len = kMaxNumMateMoves)
-      : state_{state}, amount_{amount}, pn_{pn}, dn_{dn}, hand_{hand}, move_{move}, len_{len} {}
+      : state_{state}, amount_{amount}, hand_{hand}, pn_{pn}, dn_{dn}, move_{move}, len_{len} {}
 
   PnDn Pn() const { return pn_; }
   PnDn Dn() const { return dn_; }
