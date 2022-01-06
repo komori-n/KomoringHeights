@@ -1,6 +1,24 @@
 #include "ttcluster.hpp"
 
 namespace komori {
+namespace {
+/// state の内容に沿って補正した amount を返す。例えば、ProvenState の Amount を大きくしたりする。
+inline SearchedAmount GetAdjustedAmount(NodeState state, SearchedAmount amount) {
+  // proven state は他のノードと比べて 5 倍探索したことにする（GCで消されづらくする）
+  constexpr SearchedAmount kProvenAmountIncrease = 5;
+
+  if (state == NodeState::kProvenState) {
+    // 単純に掛け算をするとオーバーフローする可能性があるので、範囲チェックをする
+    if (amount >= std::numeric_limits<SearchedAmount>::max() / kProvenAmountIncrease) {
+      amount = std::numeric_limits<SearchedAmount>::max();
+    } else {
+      amount *= kProvenAmountIncrease;
+    }
+  }
+  return amount;
+}
+}  // namespace
+
 const CommonEntry TTCluster::kRepetitionEntry{RepetitionData{}};
 
 std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
@@ -100,10 +118,10 @@ Hand CommonEntry::ProperHand(Hand hand) const {
   }
 }
 
-void CommonEntry::UpdatePnDn(PnDn pn, PnDn dn, std::uint64_t num_searched) {
+void CommonEntry::UpdatePnDn(PnDn pn, PnDn dn, SearchedAmount amount) {
   if (auto unknown = TryGetUnknown()) {
-    if (num_searched > 0) {
-      s_gen_.generation = CalcGeneration(num_searched);
+    if (amount >= kMinimumSearchedAmount) {
+      s_amount_.amount = amount;
     }
     unknown->UpdatePnDn(pn, dn);
   }
@@ -164,7 +182,7 @@ RepetitionData* CommonEntry::TryGetRepetition() {
 }
 
 std::ostream& operator<<(std::ostream& os, const CommonEntry& entry) {
-  os << HexString(entry.hash_high_) << " " << entry.s_gen_.node_state << " " << entry.s_gen_.generation << " ";
+  os << HexString(entry.hash_high_) << " " << entry.s_amount_.node_state << " " << entry.s_amount_.amount << " ";
   switch (entry.GetNodeState()) {
     case NodeState::kProvenState:
       return os << entry.proven_;
@@ -196,7 +214,7 @@ bool RepetitionCluster::DoesContain(Key key) const {
   return false;
 }
 
-TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand, std::uint64_t num_searched) {
+TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand, SearchedAmount amount) {
   Iterator ret_entry = nullptr;
   auto top = LowerBound(hash_high);
   auto itr = top;
@@ -212,7 +230,7 @@ TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_han
       if (auto proven = itr->TryGetProven(); ret_entry == nullptr && proven != nullptr && !proven->IsFull()) {
         // 証明済局面に空きがあるならそこに証明駒を書く
         proven->Add(proof_hand);
-        itr->UpdateGeneration(num_searched);
+        itr->UpdateSearchedAmount(amount);
         ret_entry = top;
       }
       // *top++ = *itr;
@@ -226,7 +244,7 @@ TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_han
   if (ret_entry == nullptr && top != itr) {
     // move の手間を省ける（かもしれない）ので、削除済局面があるならそこに証明済局面を上書き構築する。
     ret_entry = top;
-    *top++ = CommonEntry{hash_high, num_searched, ProvenData{proof_hand}};
+    *top++ = CommonEntry{hash_high, amount, ProvenData{proof_hand}};
   }
 
   if (top != itr) {
@@ -235,12 +253,12 @@ TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_han
   }
 
   if (ret_entry == nullptr) {
-    return Add({hash_high, num_searched, ProvenData{proof_hand}});
+    return Add({hash_high, amount, ProvenData{proof_hand}});
   }
   return ret_entry;
 }
 
-TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand, std::uint64_t num_searched) {
+TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand, SearchedAmount amount) {
   Iterator ret_entry = nullptr;
   auto top = LowerBound(hash_high);
   auto itr = top;
@@ -256,7 +274,7 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
       if (auto disproven = itr->TryGetDisproven();
           ret_entry == nullptr && disproven != nullptr && !disproven->IsFull()) {
         disproven->Add(disproof_hand);
-        itr->UpdateGeneration(num_searched);
+        itr->UpdateSearchedAmount(amount);
         ret_entry = top;
       }
       // *top++ = *itr;
@@ -269,7 +287,7 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
 
   if (ret_entry == nullptr && top != itr) {
     ret_entry = top;
-    *top++ = CommonEntry{hash_high, num_searched, DisprovenData{disproof_hand}};
+    *top++ = CommonEntry{hash_high, amount, DisprovenData{disproof_hand}};
   }
 
   if (top != itr) {
@@ -278,17 +296,32 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
   }
 
   if (ret_entry == nullptr) {
-    return Add({hash_high, num_searched, DisprovenData{disproof_hand}});
+    return Add({hash_high, amount, DisprovenData{disproof_hand}});
   }
   return ret_entry;
 }
 
-TTCluster::Iterator TTCluster::SetRepetition(Iterator entry, Key path_key, std::uint64_t /* num_searched */) {
+TTCluster::Iterator TTCluster::SetRepetition(Iterator entry, Key path_key, SearchedAmount /* amount */) {
   rep_.Add(path_key);
   if (entry->TryGetUnknown()) {
     entry->SetMaybeRepetition();
   }
   return const_cast<TTCluster::Iterator>(&kRepetitionEntry);
+}
+
+std::size_t TTCluster::CollectGarbage(SearchedAmount th_amount) {
+  auto p = begin();
+  for (auto q = begin(); q != end(); ++q) {
+    auto adjusted_amount = GetAdjustedAmount(q->GetNodeState(), q->GetSearchedAmount());
+    if (adjusted_amount > th_amount) {
+      *p++ = std::move(*q);
+    }
+  }
+
+  std::size_t removed_num = end() - p;
+  size_ = p - begin();
+
+  return removed_num;
 }
 
 template <bool kCreateIfNotExist>
@@ -366,23 +399,10 @@ TTCluster::Iterator TTCluster::Add(CommonEntry&& entry) {
 void TTCluster::RemoveOne() {
   // 最も必要なさそうなエントリを消す
   auto removed_entry = std::min_element(begin(), end(), [](const CommonEntry& lhs, const CommonEntry& rhs) {
-    auto lstate = StripMaybeRepetition(lhs.GetNodeState());
-    auto lgen = lhs.GetGeneration();
-    auto rstate = StripMaybeRepetition(rhs.GetNodeState());
-    auto rgen = rhs.GetGeneration();
-    if (lstate != rstate) {
-      if (lstate == NodeState::kRepetitionState) {
-        return true;
-      }
+    auto l_amount = GetAdjustedAmount(lhs.GetNodeState(), lhs.GetSearchedAmount());
+    auto r_amount = GetAdjustedAmount(rhs.GetNodeState(), rhs.GetSearchedAmount());
 
-      if (rstate == NodeState::kRepetitionState) {
-        return false;
-      }
-
-      return lstate < rstate;
-    }
-    // nodestate で決まらない場合は generation 勝負。
-    return lgen < rgen;
+    return l_amount < r_amount;
   });
 
   std::move(removed_entry + 1, end(), removed_entry);

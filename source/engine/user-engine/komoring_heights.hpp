@@ -41,7 +41,7 @@ class SearchProgress {
 /// df-pn探索の本体
 class KomoringHeights {
  public:
-  KomoringHeights() = default;
+  KomoringHeights();
   KomoringHeights(const KomoringHeights&) = delete;
   KomoringHeights(KomoringHeights&&) = delete;
   KomoringHeights& operator=(const KomoringHeights&) = delete;
@@ -125,11 +125,14 @@ class KomoringHeights {
 
   bool IsSearchStop() const;
 
-  TranspositionTable tt_{};
+  TranspositionTable tt_;
   std::stack<MovePicker> pickers_{};
   std::stack<ChildrenCache> children_cache_{};
 
   std::atomic_bool* stop_{nullptr};
+  Timer gc_timer_{};
+  TimePoint last_gc_{};
+
   std::atomic_bool print_flag_{false};
   SearchProgress progress_{};
   std::uint64_t move_count_{};

@@ -3,10 +3,10 @@
 #include <numeric>
 
 #include "../../mate/mate.h"
+#include "initial_estimation.hpp"
 #include "move_picker.hpp"
 #include "node.hpp"
 #include "ttcluster.hpp"
-#include "initial_estimation.hpp"
 
 namespace komori {
 namespace {
@@ -127,7 +127,7 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove mo
   cache.move = move;
 
   cache.entry = nullptr;
-  cache.search_result = {NodeState::kRepetitionState, kInfinitePnDn, 0, hand};
+  cache.search_result = {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand};
   cache.is_first = false;
   cache.is_sum_delta = true;
   cache.depth = Depth{kMaxNumMateMoves};
@@ -137,7 +137,7 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove mo
 
 template <bool kOrNode>
 ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(Node& n,
-  LookUpQuery&& query,
+                                                                   LookUpQuery&& query,
                                                                    ExtMove move,
                                                                    Hand hand,
                                                                    bool is_sum_delta) {
@@ -194,9 +194,9 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
         // 1手詰めチェック
         if (auto proof_hand = CheckMate1Ply(nn); proof_hand != kNullHand) {
           // move を選ぶと1手詰み。
-          SearchResult dummy_entry = {NodeState::kProvenState, 0, kInfinitePnDn, proof_hand};
+          SearchResult dummy_entry = {NodeState::kProvenState, kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand};
 
-          UpdateNthChildWithoutSort(curr_idx, dummy_entry, nn.GetMoveCount());
+          UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
           nn.UndoMove(move.move);
           continue;
         }
@@ -206,7 +206,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
         // 結果として探索が高速化される。
         if (!DoesHaveMatePossibility(n.Pos())) {
           auto hand2 = HandSet{DisproofHandTag{}}.Get(nn.Pos());
-          child.search_result = {NodeState::kDisprovenState, kInfinitePnDn, 0, hand2};
+          child.search_result = {NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2};
         }
         nn.UndoMove(move.move);
       }
@@ -262,64 +262,71 @@ std::pair<PnDn, PnDn> ChildrenCache::ChildThreshold(PnDn thpn, PnDn thdn) const 
 
 void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
                                               const SearchResult& search_result,
-                                              std::uint64_t num_searches) {
+                                              std::uint64_t move_count) {
   auto& child = NthChild(i);
   child.is_first = false;
   child.search_result = search_result;
+  auto amount = Update(search_result.GetSearchedAmount(), move_count);
 
   switch (search_result.GetNodeState()) {
     case NodeState::kProvenState:
-      child.query.SetProven(search_result.ProperHand(), num_searches);
+      child.query.SetProven(search_result.ProperHand(), amount);
       break;
     case NodeState::kDisprovenState:
-      child.query.SetDisproven(search_result.ProperHand(), num_searches);
+      child.query.SetDisproven(search_result.ProperHand(), amount);
       break;
     case NodeState::kRepetitionState:
       child.entry = child.query.RefreshWithCreation(child.entry);
-      child.query.SetRepetition(child.entry, num_searches);
+      child.query.SetRepetition(child.entry, amount);
       break;
     default:
       child.entry = child.query.RefreshWithCreation(child.entry);
-      child.entry->UpdatePnDn(search_result.Pn(), search_result.Dn(), num_searches);
+      child.entry->UpdatePnDn(search_result.Pn(), search_result.Dn(), amount);
   }
 }
 
 SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
   Hand proof_hand = kNullHand;
+  SearchedAmount amount = 0;
   if (or_node_) {
     auto& best_child = NthChild(0);
     proof_hand = BeforeHand(n.Pos(), best_child.move, best_child.search_result.ProperHand());
+    amount = best_child.search_result.GetSearchedAmount();
   } else {
     // 子局面の証明駒の極小集合を計算する
     HandSet set{ProofHandTag{}};
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = NthChild(i);
       set.Update(child.search_result.ProperHand());
+      amount += child.search_result.GetSearchedAmount();
     }
     proof_hand = set.Get(n.Pos());
   }
 
-  return {NodeState::kProvenState, 0, kInfinitePnDn, proof_hand};
+  return {NodeState::kProvenState, amount, 0, kInfinitePnDn, proof_hand};
 }
 
 SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
   // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
   if (children_len_ > 0 && NthChild(0).search_result.GetNodeState() == NodeState::kRepetitionState) {
-    return {NodeState::kRepetitionState, kInfinitePnDn, 0, n.OrHand()};
+    return {NodeState::kRepetitionState, NthChild(0).search_result.GetSearchedAmount(), kInfinitePnDn, 0, n.OrHand()};
   }
 
   // フツーの不詰
   Hand disproof_hand = kNullHand;
+  SearchedAmount amount = 0;
   if (or_node_) {
     // 子局面の反証駒の極大集合を計算する
     HandSet set{DisproofHandTag{}};
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = NthChild(i);
       set.Update(BeforeHand(n.Pos(), child.move, child.search_result.ProperHand()));
+      amount += child.search_result.GetSearchedAmount();
     }
     disproof_hand = set.Get(n.Pos());
   } else {
     disproof_hand = NthChild(0).search_result.ProperHand();
+    amount = NthChild(0).search_result.GetSearchedAmount();
 
     // 駒打ちならその駒を持っていないといけない
     if (is_drop(BestMove())) {
@@ -335,14 +342,16 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     }
   }
 
-  return {NodeState::kDisprovenState, kInfinitePnDn, 0, disproof_hand};
+  return {NodeState::kDisprovenState, amount, kInfinitePnDn, 0, disproof_hand};
 }
 
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
+  auto& child = NthChild(0);
+  auto amount = child.search_result.GetSearchedAmount();
   if (or_node_) {
-    return {NodeState::kOtherState, NthChild(0).Pn(), CalcDelta(), n.OrHand()};
+    return {NodeState::kOtherState, amount, child.Pn(), CalcDelta(), n.OrHand()};
   } else {
-    return {NodeState::kOtherState, CalcDelta(), NthChild(0).Dn(), n.OrHand()};
+    return {NodeState::kOtherState, amount, CalcDelta(), child.Dn(), n.OrHand()};
   }
 }
 

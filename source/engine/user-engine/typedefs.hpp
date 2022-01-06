@@ -46,52 +46,6 @@ inline std::string ToString(PnDn val) {
   }
 }
 
-/// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
-enum class NodeState : std::uint32_t {
-  kOtherState,
-  kMaybeRepetitionState,
-  kRepetitionState,
-  kDisprovenState,
-  kProvenState,
-};
-
-inline std::ostream& operator<<(std::ostream& os, NodeState node_state) {
-  os << static_cast<std::uint32_t>(node_state);
-  return os;
-}
-
-inline NodeState StripMaybeRepetition(NodeState node_state) {
-  return node_state == NodeState::kMaybeRepetitionState ? NodeState::kOtherState : node_state;
-}
-
-/**
- * @brief 置換表世代（Generation）と局面状態（NodeState）を1つの整数にまとめたもの。
- */
-struct StateGeneration {
-  NodeState node_state : 3;
-  std::uint32_t generation : 29;
-};
-
-inline constexpr bool operator==(const StateGeneration& lhs, const StateGeneration& rhs) {
-  return lhs.node_state == rhs.node_state && lhs.generation == rhs.generation;
-}
-
-inline constexpr bool operator!=(const StateGeneration& lhs, const StateGeneration& rhs) {
-  return !(lhs == rhs);
-}
-
-/// 置換表の世代を表す型。
-using Generation = std::uint32_t;
-
-inline constexpr StateGeneration kMarkDeleted = {NodeState::kOtherState, 0};
-inline constexpr StateGeneration kFirstSearch = {NodeState::kOtherState, 1};
-
-/// 何局面読んだら generation を進めるか
-inline constexpr std::uint32_t kNumSearchedPerGeneration = 128;
-inline constexpr Generation CalcGeneration(std::uint64_t num_searched) {
-  return 1 + static_cast<Generation>(num_searched / kNumSearchedPerGeneration);
-}
-
 /// c 側の sq にある pt の利き先の Bitboard を返す
 inline Bitboard StepEffect(PieceType pt, Color c, Square sq) {
   switch (pt) {

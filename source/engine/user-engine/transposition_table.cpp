@@ -52,16 +52,16 @@ CommonEntry* LookUpQuery::RefreshWithoutCreation(CommonEntry* entry) const {
   }
 }
 
-CommonEntry* LookUpQuery::SetProven(Hand proof_hand, std::uint64_t num_searches) const {
-  return cluster_->SetProven(hash_high_, proof_hand, num_searches);
+CommonEntry* LookUpQuery::SetProven(Hand proof_hand, SearchedAmount amount) const {
+  return cluster_->SetProven(hash_high_, proof_hand, amount);
 }
 
-CommonEntry* LookUpQuery::SetDisproven(Hand disproof_hand, std::uint64_t num_searches) const {
-  return cluster_->SetDisproven(hash_high_, disproof_hand, num_searches);
+CommonEntry* LookUpQuery::SetDisproven(Hand disproof_hand, SearchedAmount amount) const {
+  return cluster_->SetDisproven(hash_high_, disproof_hand, amount);
 }
 
-CommonEntry* LookUpQuery::SetRepetition(CommonEntry* entry, std::uint64_t num_searches) const {
-  return cluster_->SetRepetition(entry, path_key_, num_searches);
+CommonEntry* LookUpQuery::SetRepetition(CommonEntry* entry, SearchedAmount amount) const {
+  return cluster_->SetRepetition(entry, path_key_, amount);
 }
 
 bool LookUpQuery::IsStored(CommonEntry* entry) const {
@@ -80,7 +80,7 @@ bool LookUpQuery::IsValid(CommonEntry* entry) const {
   return false;
 }
 
-TranspositionTable::TranspositionTable(void) = default;
+TranspositionTable::TranspositionTable(int gc_hashfull) : gc_hashfull_{gc_hashfull} {};
 
 void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
   std::uint64_t new_num_clusters = hash_size_mb * 1024 * 1024 / sizeof(TTCluster);
@@ -100,6 +100,25 @@ void TranspositionTable::NewSearch() {
   for (std::uint64_t i = 0; i < num_clusters_; ++i) {
     tt_[i].Clear();
   }
+}
+
+std::size_t TranspositionTable::CollectGarbage() {
+  std::size_t removed_num = 0;
+  std::size_t obj_value = num_clusters_ * TTCluster::kClusterSize * gc_hashfull_ / 1000;
+
+  for (;;) {
+    for (std::uint64_t i = 0; i < num_clusters_; ++i) {
+      removed_num += tt_[i].CollectGarbage(threshold_);
+    }
+
+    if (removed_num >= obj_value) {
+      break;
+    }
+
+    threshold_++;
+  }
+
+  return removed_num;
 }
 
 template <bool kOrNode>

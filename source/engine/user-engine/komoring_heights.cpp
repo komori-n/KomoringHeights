@@ -17,6 +17,11 @@
 namespace komori {
 namespace {
 constexpr std::size_t kDefaultHashSizeMb = 1024;
+constexpr std::int64_t kGcInterval = 3000;
+
+/// TT の使用率が kGcHashfullThreshold を超えたら kGcHashfullRemoveRatio だけ削除する
+constexpr int kGcHashfullThreshold = 850;
+constexpr int kGcHashfullRemoveRatio = 300;
 
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
   std::vector<std::pair<Move, SearchResult>> ret;
@@ -58,6 +63,8 @@ void SearchProgress::WriteTo(UsiInfo& output) const {
       .Set(UsiInfo::KeyKind::kNps, nps);
 }
 
+KomoringHeights::KomoringHeights() : tt_{kGcHashfullRemoveRatio} {}
+
 void KomoringHeights::Init() {
   Resize(kDefaultHashSizeMb);
 }
@@ -70,6 +77,8 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   tt_.NewSearch();
   progress_.NewSearch();
   stop_ = &stop_flag;
+  gc_timer_.reset();
+  last_gc_ = 0;
   best_moves_.clear();
   tree_size_ = 0;
 
@@ -118,6 +127,9 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
     best_moves_ = CalcBestMoves(node);
     score_ = Score::Proven(best_moves_.size());
     sync_cout << "info string tree_size=" << tree_size_ << sync_endl;
+    if (best_moves_.size() % 2 != 1) {
+      sync_cout << "info string Failed to detect PV" << sync_endl;
+    }
     return true;
   } else {
     score_ = Score::Disproven();
@@ -266,7 +278,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
 
   // 深さ制限。これ以上探索を続けても詰みが見つかる見込みがないのでここで early return する。
   if (n.IsExceedLimit(max_depth_)) {
-    return {NodeState::kRepetitionState, kInfinitePnDn, 0, n.OrHand()};
+    return {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, n.OrHand()};
   }
 
   auto curr_result = cache.CurrentResult(n);
@@ -278,6 +290,13 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     } else {
       thpn = Clamp(thpn, curr_result.Pn() + 1);
     }
+  }
+
+  if (gc_timer_.elapsed() > last_gc_ + kGcInterval) {
+    if (tt_.Hashfull() >= kGcHashfullThreshold) {
+      tt_.CollectGarbage();
+    }
+    last_gc_ = gc_timer_.elapsed();
   }
 
   std::unordered_map<Move, ChildrenCache*> cache_cache;
@@ -294,6 +313,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
       inc_flag = false;
     }
 
+    auto move_count_org = n.GetMoveCount();
     n.DoMove(best_move);
     auto& child_cache = children_cache_.emplace(tt_, n, is_first_search, NodeTag<!kOrNode>{});
     SearchResult child_result;
@@ -306,7 +326,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     children_cache_.pop();
     n.UndoMove(best_move);
 
-    cache.UpdateFront(child_result, n.GetMoveCount());
+    cache.UpdateFront(child_result, n.GetMoveCount() - move_count_org);
     curr_result = cache.CurrentResult(n);
   }
 
@@ -352,12 +372,6 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
     auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move);
     auto child_entry = child_query.LookUpWithoutCreation();
     if (child_entry->GetNodeState() != NodeState::kProvenState) {
-      if (!kOrNode) {
-        // nomate
-        sync_cout << n.Pos() << sync_endl;
-        curr = {};
-        break;
-      }
       continue;
     }
 

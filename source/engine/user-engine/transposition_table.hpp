@@ -3,6 +3,7 @@
 
 #include <vector>
 
+#include "ttcluster.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
@@ -57,27 +58,27 @@ class LookUpQuery {
   CommonEntry* RefreshWithoutCreation(CommonEntry* entry) const;
 
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
-  CommonEntry* SetProven(Hand proof_hand, std::uint64_t num_searches) const;
+  CommonEntry* SetProven(Hand proof_hand, SearchedAmount amount) const;
   /// 調べていた局面が反証駒 `disproof_hand` で詰みであることを報告する
-  CommonEntry* SetDisproven(Hand disproof_hand, std::uint64_t num_searches) const;
+  CommonEntry* SetDisproven(Hand disproof_hand, SearchedAmount amount) const;
   /// 調べていた局面が千日手による不詰であることを報告する
-  CommonEntry* SetRepetition(CommonEntry* entry, std::uint64_t num_searches) const;
+  CommonEntry* SetRepetition(CommonEntry* entry, SearchedAmount amount) const;
   /// 調べていた局面が勝ちであることを報告する
   template <bool kOrNode>
-  CommonEntry* SetWin(Hand hand, std::uint64_t num_searches) const {
+  CommonEntry* SetWin(Hand hand, SearchedAmount amount) const {
     if constexpr (kOrNode) {
-      return SetProven(hand, num_searches);
+      return SetProven(hand, amount);
     } else {
-      return SetDisproven(hand, num_searches);
+      return SetDisproven(hand, amount);
     }
   }
   /// 調べていた局面が負けであることを報告する
   template <bool kOrNode>
-  CommonEntry* SetLose(Hand hand, std::uint64_t num_searches) const {
+  CommonEntry* SetLose(Hand hand, SearchedAmount amount) const {
     if constexpr (kOrNode) {
-      return SetDisproven(hand, num_searches);
+      return SetDisproven(hand, amount);
     } else {
-      return SetProven(hand, num_searches);
+      return SetProven(hand, amount);
     }
   }
   /// `entry` が cluster に存在するエントリかを問い合わせる。（ダミーエントリのチェックに使用する）
@@ -114,12 +115,14 @@ class TranspositionTable {
     double other_ratio;
   };
 
-  TranspositionTable(void);
+  explicit TranspositionTable(int gc_hashfull);
 
   /// ハッシュサイズを `hash_size_mb` （以下）に変更する。以前に保存されていた結果は削除される
   void Resize(std::uint64_t hash_size_mb);
   /// 以前の探索結果をすべて削除し、新たな探索をを始める
   void NewSearch();
+  /// GCを実行する
+  std::size_t CollectGarbage();
 
   /// 局面 `n` の LookUp 用の構造体を取得する
   template <bool kOrNode>
@@ -133,6 +136,8 @@ class TranspositionTable {
   /// 現在のハッシュの使用状況を取得する
   Stat GetStat() const;
 
+  void Debug() const;
+
  private:
   /// `board_key` に対応する cluster を返す
   TTCluster& ClusterOf(Key board_key);
@@ -142,7 +147,11 @@ class TranspositionTable {
   /// 置換表配列にアクセスするためのポインタ
   TTCluster* tt_{nullptr};
   /// 置換表に保存されているクラスタ数
-  std::uint64_t num_clusters_{0};
+  std::uint64_t num_clusters_{2};
+  /// GC で削除したい要素数の割合（千分率）
+  int gc_hashfull_;
+  /// 前回の GC で用いたしきい値
+  SearchedAmount threshold_{kMinimumSearchedAmount};
 };
 }  // namespace komori
 #endif  // TRANSPOSITION_TABLE_HPP_

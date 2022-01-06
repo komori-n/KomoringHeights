@@ -6,6 +6,55 @@
 #include "typedefs.hpp"
 
 namespace komori {
+/// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
+enum class NodeState : std::uint32_t {
+  kOtherState,
+  kMaybeRepetitionState,
+  kRepetitionState,
+  kDisprovenState,
+  kProvenState,
+};
+
+inline std::ostream& operator<<(std::ostream& os, NodeState node_state) {
+  os << static_cast<std::uint32_t>(node_state);
+  return os;
+}
+
+inline NodeState StripMaybeRepetition(NodeState node_state) {
+  return node_state == NodeState::kMaybeRepetitionState ? NodeState::kOtherState : node_state;
+}
+
+/// 大まかな探索量。TreeSize のようなもので、GCのときに削除するノードを選ぶ際に用いる。
+using SearchedAmount = std::uint32_t;
+inline constexpr SearchedAmount kMinimumSearchedAmount = 2;
+/// 何局面読んだら SearchedCmount を進めるか
+inline constexpr std::uint64_t kNumSearchedPerAmount = 128;
+inline constexpr SearchedAmount Update(SearchedAmount amount, std::uint64_t delta_searched) {
+  auto update = delta_searched / kNumSearchedPerAmount;
+  // 最低でも 1 は増加させる
+  update = std::max(update, std::uint64_t{1});
+  return amount + static_cast<SearchedAmount>(update);
+}
+
+/**
+ * @brief 局面の探索量（SearchedAmount）と局面状態（NodeState）を1つの整数にまとめたもの。
+ */
+struct StateAmount {
+  NodeState node_state : 3;
+  SearchedAmount amount : 29;
+};
+
+inline constexpr bool operator==(const StateAmount& lhs, const StateAmount& rhs) {
+  return lhs.node_state == rhs.node_state && lhs.amount == rhs.amount;
+}
+
+inline constexpr bool operator!=(const StateAmount& lhs, const StateAmount& rhs) {
+  return !(lhs == rhs);
+}
+
+inline constexpr StateAmount kMarkDeleted = {NodeState::kOtherState, 0};
+inline constexpr StateAmount kFirstSearch = {NodeState::kOtherState, 1};
+
 /**
  * @brief 通常局面のデータ。(pn, dn, hand, min_depth) を格納する。
  */
@@ -115,34 +164,30 @@ class CommonEntry {
   CommonEntry();
   /// 通常局面のエントリを作成する。
   constexpr CommonEntry(std::uint32_t hash_high, UnknownData&& unknown)
-      : hash_high_{hash_high}, s_gen_{kFirstSearch}, unknown_{std::move(unknown)} {}
+      : hash_high_{hash_high}, s_amount_{kFirstSearch}, unknown_{std::move(unknown)} {}
   /// 証明済局面のエントリを作成する。
-  constexpr CommonEntry(std::uint32_t hash_high, std::uint64_t num_searched, ProvenData&& proven)
-      : hash_high_{hash_high},
-        s_gen_{NodeState::kProvenState, CalcGeneration(num_searched)},
-        proven_{std::move(proven)} {}
+  constexpr CommonEntry(std::uint32_t hash_high, SearchedAmount amount, ProvenData&& proven)
+      : hash_high_{hash_high}, s_amount_{NodeState::kProvenState, amount}, proven_{std::move(proven)} {}
   /// 反証済局面のエントリを作成する。
-  constexpr CommonEntry(std::uint32_t hash_high, std::uint64_t num_searched, DisprovenData&& disproven)
-      : hash_high_{hash_high},
-        s_gen_{NodeState::kDisprovenState, CalcGeneration(num_searched)},
-        disproven_{std::move(disproven)} {}
+  constexpr CommonEntry(std::uint32_t hash_high, SearchedAmount amount, DisprovenData&& disproven)
+      : hash_high_{hash_high}, s_amount_{NodeState::kDisprovenState, amount}, disproven_{std::move(disproven)} {}
 
   /// 千日手用のダミーエントリを作成する。
   constexpr explicit CommonEntry(RepetitionData&& rep)
-      : hash_high_{0}, s_gen_{NodeState::kRepetitionState, 0}, rep_{std::move(rep)} {}
+      : hash_high_{0}, s_amount_{NodeState::kRepetitionState, 0}, rep_{std::move(rep)} {}
 
   constexpr std::uint32_t HashHigh() const { return hash_high_; }
-  constexpr NodeState GetNodeState() const { return s_gen_.node_state; }
-  constexpr Generation GetGeneration() const { return s_gen_.generation; }
-  constexpr StateGeneration GetStateGeneration() const { return s_gen_; }
-  constexpr void UpdateGeneration(std::uint64_t num_searched) { s_gen_.generation = CalcGeneration(num_searched); }
+  constexpr NodeState GetNodeState() const { return s_amount_.node_state; }
+  constexpr SearchedAmount GetSearchedAmount() const { return s_amount_.amount; }
+  constexpr StateAmount GetStateAmount() const { return s_amount_; }
+  constexpr void UpdateSearchedAmount(SearchedAmount amount) { s_amount_.amount = std::max(s_amount_.amount, amount); }
 
   /// 通常局面かつ千日手の可能性がある場合のみ true。
-  constexpr bool IsMaybeRepetition() const { return s_gen_.node_state == NodeState::kMaybeRepetitionState; }
+  constexpr bool IsMaybeRepetition() const { return s_amount_.node_state == NodeState::kMaybeRepetitionState; }
   /// 通常局面かつ千日手の可能性があることを報告する。
-  constexpr void SetMaybeRepetition() { s_gen_.node_state = NodeState::kMaybeRepetitionState; }
+  constexpr void SetMaybeRepetition() { s_amount_.node_state = NodeState::kMaybeRepetitionState; }
   /// 通常局面かつまだ初回探索をしていない場合のみ true。
-  constexpr bool IsFirstVisit() const { return s_gen_ == kFirstSearch; }
+  constexpr bool IsFirstVisit() const { return s_amount_ == kFirstSearch; }
 
   /// 証明数
   PnDn Pn() const;
@@ -167,7 +212,7 @@ class CommonEntry {
   Hand ProperHand(Hand hand) const;
 
   /// 通常局面なら (pn, dn) を更新する。そうでないなら何もしない。
-  void UpdatePnDn(PnDn pn, PnDn dn, std::uint64_t num_searched);
+  void UpdatePnDn(PnDn pn, PnDn dn, SearchedAmount amount);
   /// 証明駒 proof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
   bool UpdateWithProofHand(Hand proof_hand);
   /// 反証駒 disproof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
@@ -184,7 +229,7 @@ class CommonEntry {
 
  private:
   std::uint32_t hash_high_;  ///< 盤面のハッシュの上位32bit
-  StateGeneration s_gen_;    ///< ノード状態と置換表世代
+  StateAmount s_amount_;     ///< ノード状態とこの局面を何手読んだか
   union {
     std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< ダミーエントリ
     UnknownData unknown_;                                                           ///< 通常局面
@@ -206,12 +251,13 @@ std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
  * @brief  局面の探索結果を格納するデータ構造。
  *
  * CommonEntry が置換表に格納するためのデータ構造であるのに対し、SearchResult は純粋に探索結果を表現することが
- * 役割のクラスである。CommonEntry とは異なり、以下の4つの関数しか持たない。
+ * 役割のクラスである。CommonEntry とは異なり、以下の関数しか持たない。
  *
  * - Pn()
  * - Dn()
  * - ProperHand()
  * - GetNodeState()
+ * - GetSearchedAmount()
  *
  * また、SearchResult は探索結果を格納するためのクラスであるため、コンストラクト後に値の書き換えをすることはできない。
  */
@@ -221,24 +267,31 @@ class SearchResult {
   SearchResult() = default;
   /// CommonEntry からコンストラクトする。これだけだと証明駒／反証駒がわからないので、現在の OrHand も引数で渡す。
   SearchResult(const CommonEntry& entry, Hand hand)
-      : state_{entry.GetNodeState()}, pn_{entry.Pn()}, dn_{entry.Dn()}, hand_{entry.ProperHand(hand)} {}
+      : state_{entry.GetNodeState()},
+        amount_{entry.GetSearchedAmount()},
+        pn_{entry.Pn()},
+        dn_{entry.Dn()},
+        hand_{entry.ProperHand(hand)} {}
   /// 生データからコンストラクトする。
-  SearchResult(NodeState state, PnDn pn, PnDn dn, Hand hand) : state_{state}, pn_{pn}, dn_{dn}, hand_{hand} {}
+  SearchResult(NodeState state, SearchedAmount amount, PnDn pn, PnDn dn, Hand hand)
+      : state_{state}, amount_{amount}, pn_{pn}, dn_{dn}, hand_{hand} {}
 
   PnDn Pn() const { return pn_; }
   PnDn Dn() const { return dn_; }
   Hand ProperHand() const { return hand_; }
   NodeState GetNodeState() const { return state_; }
+  SearchedAmount GetSearchedAmount() const { return amount_; }
 
  private:
-  NodeState state_;  ///< 局面の状態（詰み／不詰／不明　など）
-  Hand hand_;        ///< 局面における ProperHand
+  NodeState state_;        ///< 局面の状態（詰み／不詰／不明　など）
+  SearchedAmount amount_;  ///< 局面に対して探索した局面数
+  Hand hand_;              ///< 局面における ProperHand
   PnDn pn_;
   PnDn dn_;
 };
 
 // サイズ&アラインチェック
-static_assert(sizeof(CommonEntry) == sizeof(std::uint32_t) + sizeof(StateGeneration) + sizeof(UnknownData));
+static_assert(sizeof(CommonEntry) == sizeof(std::uint32_t) + sizeof(StateAmount) + sizeof(UnknownData));
 static_assert(alignof(std::uint64_t) % alignof(CommonEntry) == 0);
 
 class RepetitionCluster {
@@ -311,11 +364,14 @@ class TTCluster {
   }
 
   /// proof_hand により詰みであることを報告する。
-  Iterator SetProven(std::uint32_t hash_high, Hand proof_hand, std::uint64_t num_searched);
+  Iterator SetProven(std::uint32_t hash_high, Hand proof_hand, SearchedAmount amount);
   /// disproof_hand により詰みであることを報告する。
-  Iterator SetDisproven(std::uint32_t hash_high, Hand disproof_hand, std::uint64_t num_searched);
+  Iterator SetDisproven(std::uint32_t hash_high, Hand disproof_hand, SearchedAmount amount);
   /// path_key により千日手であることを報告する。
-  Iterator SetRepetition(Iterator entry, Key path_key, std::uint64_t num_searched);
+  Iterator SetRepetition(Iterator entry, Key path_key, SearchedAmount amount);
+
+  /// GCを実行する
+  std::size_t CollectGarbage(SearchedAmount th_amount);
 
  private:
   static const CommonEntry kRepetitionEntry;

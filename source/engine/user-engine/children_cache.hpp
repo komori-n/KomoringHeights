@@ -70,7 +70,7 @@ class ChildrenCache {
    * @brief 最善手（i=0）への置換表登録と NodeCache の再ソートを行う。
    *
    * @param search_result 置換表へ登録する内容
-   * @param move_count   現在の探索局面数
+   * @param move_count   探索局面数
    */
   void UpdateFront(const SearchResult& search_result, std::uint64_t move_count);
 
@@ -119,7 +119,7 @@ class ChildrenCache {
   NodeCache& NthChild(std::size_t i) { return children_[idx_[i]]; }
   const NodeCache& NthChild(std::size_t i) const { return children_[idx_[i]]; }
   /// UpdateFront のソートしない版
-  void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result, std::uint64_t num_searches);
+  void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result, std::uint64_t move_count);
 
   /// 現局面が詰みであることがわかっている時、その SearchResult を計算して返す
   SearchResult GetProvenResult(const Node& n) const;
