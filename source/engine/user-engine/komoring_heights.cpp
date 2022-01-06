@@ -352,7 +352,7 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
 
   if (kOrNode && !n.Pos().in_check()) {
     if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
-      auto after_hand = AfterHand(n.Pos(), move, OrHand<kOrNode>(n.Pos()));
+      auto after_hand = AfterHand(n.Pos(), move, n.OrHand());
       NumMoves num_moves = {1, CountHand(after_hand)};
       mate_table[key] = {move, num_moves};
       return {num_moves, kNonRepetitionDepth};
@@ -410,7 +410,7 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
 
   if (!kOrNode && picker_is_empty) {
     curr.num_moves.num = 0;
-    curr.num_moves.surplus = OrHand<kOrNode>(n.Pos());
+    curr.num_moves.surplus = n.OrHand();
   }
 
   if (rep_start >= n.GetDepth()) {
