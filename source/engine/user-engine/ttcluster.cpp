@@ -27,10 +27,40 @@ std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
 }
 
 template <bool kProven>
-void HandsData<kProven>::Add(Hand hand) {
-  for (auto& h : hands_) {
-    if (h == kNullHand) {
-      h = hand;
+Move16 HandsData<kProven>::BestMove(Hand hand) const {
+  for (const auto& e : entries_) {
+    if (e.hand == kNullHand) {
+      break;
+    }
+
+    if ((kProven && hand_is_equal_or_superior(hand, e.hand)) ||   // hand を証明できる
+        (!kProven && hand_is_equal_or_superior(e.hand, hand))) {  // hand を反証できる
+      return e.move;
+    }
+  }
+  return MOVE_NONE;
+}
+
+template <bool kProven>
+Depth HandsData<kProven>::GetSolutionLen(Hand hand) const {
+  for (const auto& e : entries_) {
+    if (e.hand == kNullHand) {
+      break;
+    }
+
+    if ((kProven && hand_is_equal_or_superior(hand, e.hand)) ||   // hand を証明できる
+        (!kProven && hand_is_equal_or_superior(e.hand, hand))) {  // hand を反証できる
+      return e.len;
+    }
+  }
+  return kMaxNumMateMoves;
+}
+
+template <bool kProven>
+void HandsData<kProven>::Add(Hand hand, Move16 move, Depth len) {
+  for (auto& e : entries_) {
+    if (e.hand == kNullHand) {
+      e = {hand, move, static_cast<std::int16_t>(len)};
       return;
     }
   }
@@ -39,19 +69,19 @@ void HandsData<kProven>::Add(Hand hand) {
 template <bool kProven>
 bool HandsData<kProven>::Update(Hand hand) {
   std::size_t i = 0;
-  for (auto& h : hands_) {
-    if (h == kNullHand) {
+  for (auto& e : entries_) {
+    if (e.hand == kNullHand) {
       break;
     }
 
-    if ((kProven && hand_is_equal_or_superior(h, hand)) ||   // hand で証明できる -> h はいらない
-        (!kProven && hand_is_equal_or_superior(hand, h))) {  // hand で反証できる -> h はいらない
-      h = kNullHand;
+    if ((kProven && hand_is_equal_or_superior(e.hand, hand)) ||   // hand で証明できる -> h はいらない
+        (!kProven && hand_is_equal_or_superior(hand, e.hand))) {  // hand で反証できる -> h はいらない
+      e.hand = kNullHand;
       continue;
     }
 
     // 手前から詰める
-    std::swap(hands_[i], h);
+    std::swap(entries_[i], e);
     i++;
   }
   return i == 0;
@@ -68,7 +98,7 @@ std::ostream& operator<<(std::ostream& os, const HandsData<kProven>& data) {
     if (i != 0) {
       os << ", ";
     }
-    os << data.hands_[i];
+    os << data.entries_[i].hand << "/" << data.entries_[i].move << "/" << data.entries_[i].len;
   }
   return os << "}";
 }
@@ -115,6 +145,28 @@ Hand CommonEntry::ProperHand(Hand hand) const {
       return kNullHand;
     default:
       return unknown_.ProperHand(hand);
+  }
+}
+
+Move16 CommonEntry::BestMove(Hand hand) const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.BestMove(hand);
+    case NodeState::kDisprovenState:
+      return disproven_.BestMove(hand);
+    default:
+      return MOVE_NONE;
+  }
+}
+
+Depth CommonEntry::GetSolutionLen(Hand hand) const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.GetSolutionLen(hand);
+    case NodeState::kDisprovenState:
+      return disproven_.GetSolutionLen(hand);
+    default:
+      return kMaxNumMateMoves;
   }
 }
 
@@ -214,7 +266,11 @@ bool RepetitionCluster::DoesContain(Key key) const {
   return false;
 }
 
-TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_hand, SearchedAmount amount) {
+TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high,
+                                         Hand proof_hand,
+                                         Move16 move,
+                                         Depth len,
+                                         SearchedAmount amount) {
   Iterator ret_entry = nullptr;
   auto top = LowerBound(hash_high);
   auto itr = top;
@@ -229,7 +285,7 @@ TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_han
     } else {
       if (auto proven = itr->TryGetProven(); ret_entry == nullptr && proven != nullptr && !proven->IsFull()) {
         // 証明済局面に空きがあるならそこに証明駒を書く
-        proven->Add(proof_hand);
+        proven->Add(proof_hand, move, len);
         itr->UpdateSearchedAmount(amount);
         ret_entry = top;
       }
@@ -244,7 +300,7 @@ TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_han
   if (ret_entry == nullptr && top != itr) {
     // move の手間を省ける（かもしれない）ので、削除済局面があるならそこに証明済局面を上書き構築する。
     ret_entry = top;
-    *top++ = CommonEntry{hash_high, amount, ProvenData{proof_hand}};
+    *top++ = CommonEntry{hash_high, amount, ProvenData{proof_hand, move, len}};
   }
 
   if (top != itr) {
@@ -253,12 +309,16 @@ TTCluster::Iterator TTCluster::SetProven(std::uint32_t hash_high, Hand proof_han
   }
 
   if (ret_entry == nullptr) {
-    return Add({hash_high, amount, ProvenData{proof_hand}});
+    return Add({hash_high, amount, ProvenData{proof_hand, move, len}});
   }
   return ret_entry;
 }
 
-TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand disproof_hand, SearchedAmount amount) {
+TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high,
+                                            Hand disproof_hand,
+                                            Move16 move,
+                                            Depth len,
+                                            SearchedAmount amount) {
   Iterator ret_entry = nullptr;
   auto top = LowerBound(hash_high);
   auto itr = top;
@@ -273,7 +333,7 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
     } else {
       if (auto disproven = itr->TryGetDisproven();
           ret_entry == nullptr && disproven != nullptr && !disproven->IsFull()) {
-        disproven->Add(disproof_hand);
+        disproven->Add(disproof_hand, move, len);
         itr->UpdateSearchedAmount(amount);
         ret_entry = top;
       }
@@ -287,7 +347,7 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
 
   if (ret_entry == nullptr && top != itr) {
     ret_entry = top;
-    *top++ = CommonEntry{hash_high, amount, DisprovenData{disproof_hand}};
+    *top++ = CommonEntry{hash_high, amount, DisprovenData{disproof_hand, move, len}};
   }
 
   if (top != itr) {
@@ -296,7 +356,7 @@ TTCluster::Iterator TTCluster::SetDisproven(std::uint32_t hash_high, Hand dispro
   }
 
   if (ret_entry == nullptr) {
-    return Add({hash_high, amount, DisprovenData{disproof_hand}});
+    return Add({hash_high, amount, DisprovenData{disproof_hand, move, len}});
   }
   return ret_entry;
 }

@@ -52,12 +52,12 @@ CommonEntry* LookUpQuery::RefreshWithoutCreation(CommonEntry* entry) const {
   }
 }
 
-CommonEntry* LookUpQuery::SetProven(Hand proof_hand, SearchedAmount amount) const {
-  return cluster_->SetProven(hash_high_, proof_hand, amount);
+CommonEntry* LookUpQuery::SetProven(Hand proof_hand, Move16 move, Depth len, SearchedAmount amount) const {
+  return cluster_->SetProven(hash_high_, proof_hand, move, len, amount);
 }
 
-CommonEntry* LookUpQuery::SetDisproven(Hand disproof_hand, SearchedAmount amount) const {
-  return cluster_->SetDisproven(hash_high_, disproof_hand, amount);
+CommonEntry* LookUpQuery::SetDisproven(Hand disproof_hand, Move16 move, Depth len, SearchedAmount amount) const {
+  return cluster_->SetDisproven(hash_high_, disproof_hand, move, len, amount);
 }
 
 CommonEntry* LookUpQuery::SetRepetition(CommonEntry* entry, SearchedAmount amount) const {

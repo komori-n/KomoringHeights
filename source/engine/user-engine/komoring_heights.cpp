@@ -100,10 +100,10 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   auto query = tt_.GetQuery<true>(node);
   switch (result.GetNodeState()) {
     case NodeState::kProvenState:
-      query.SetProven(result.ProperHand(), node.GetMoveCount());
+      query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), node.GetMoveCount());
       break;
     case NodeState::kDisprovenState:
-      query.SetDisproven(result.ProperHand(), node.GetMoveCount());
+      query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), node.GetMoveCount());
       break;
     case NodeState::kRepetitionState: {
       auto entry = query.LookUpWithCreation();
@@ -126,7 +126,6 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   if (result.GetNodeState() == NodeState::kProvenState) {
     best_moves_ = CalcBestMoves(node);
     score_ = Score::Proven(best_moves_.size());
-    sync_cout << "info string tree_size=" << tree_size_ << sync_endl;
     if (best_moves_.size() % 2 != 1) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
@@ -138,21 +137,26 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 }
 
 std::vector<Move> KomoringHeights::CalcBestMoves(Node& n) {
-  std::unordered_map<Key, MateMoveCache> mate_table;
-  std::unordered_map<Key, Depth> search_history;
-  MateMovesSearchImpl<true>(mate_table, search_history, n, 0, kMaxNumMateMoves);
-
   std::vector<Move> moves;
-  while (mate_table.find(n.Pos().key()) != mate_table.end()) {
-    auto cache = mate_table[n.Pos().key()];
-    if (cache.move == MOVE_NONE) {
+
+  for (;;) {
+    auto query = n.IsOrNode() ? tt_.GetQuery<true>(n) : tt_.GetQuery<false>(n);
+    auto entry = query.LookUpWithoutCreation();
+    Move move = n.Pos().to_move(entry->BestMove(n.OrHand()));
+
+    if (move == MOVE_NONE || !n.Pos().pseudo_legal(move) || !n.Pos().legal(move)) {
       break;
     }
 
-    moves.emplace_back(cache.move);
-    n.DoMove(cache.move);
+    if (n.IsRepetitionAfter(move)) {
+      break;
+    }
+
+    moves.emplace_back(move);
+    n.DoMove(move);
   }
 
+  // 局面をもとに戻しておく
   for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
     n.UndoMove(*itr);
   }

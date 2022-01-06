@@ -103,28 +103,40 @@ class HandsData {
  public:
   template <bool kProven2>
   friend std::ostream& operator<<(std::ostream& os, const HandsData<kProven2>& data);
-  constexpr explicit HandsData(Hand hand) {
-    hands_[0] = hand;
-    std::fill(hands_.begin() + 1, hands_.end(), kNullHand);
+  constexpr HandsData(Hand hand, Move16 move, Depth len) {
+    entries_[0] = {hand, move, len};
+    std::fill(entries_.begin() + 1, entries_.end(), Entry{kNullHand, MOVE_NONE, 0});
   }
 
   constexpr PnDn Pn() const { return kProven ? 0 : kInfinitePnDn; }
   constexpr PnDn Dn() const { return kProven ? kInfinitePnDn : 0; }
   /// 証明駒（反証駒）を追加できる余地があるなら
   /// true。手前から順に格納されるので、末尾要素が空かどうか調べるだけでよい。
-  constexpr bool IsFull() const { return hands_[kHandsLen - 1] != kNullHand; };
+  constexpr bool IsFull() const { return entries_[kHandsLen - 1].hand != kNullHand; };
 
   /// hand を証明（反証）できるならその手を返す。証明（反証）できなければ kNullHand を返す。
   Hand ProperHand(Hand hand) const;
+  Move16 BestMove(Hand hand) const;
+  Depth GetSolutionLen(Hand hand) const;
+
   /// 証明駒（反証駒）を追加する。IsFull() の場合、何もしない。
-  void Add(Hand hand);
+  void Add(Hand hand, Move16 move, Depth len);
   /// 証明駒（反証駒）の追加を報告する。もう必要ない（下位互換）な局面があればすべて消す。
   /// 削除した結果、エントリ自体が不要になった場合のみ true が返る。
   bool Update(Hand hand);
 
  private:
-  static inline constexpr std::size_t kHandsLen = sizeof(UnknownData) / sizeof(Hand);
-  std::array<Hand, kHandsLen> hands_;  ///< 証明駒（反証駒）
+  struct Entry {
+    Hand hand;
+    Move16 move;
+    std::int16_t len;
+
+    Entry() = default;
+    Entry(Hand hand, Move16 move, Depth len) : hand{hand}, move{move}, len{static_cast<std::int16_t>(len)} {}
+  };
+
+  static inline constexpr std::size_t kHandsLen = sizeof(UnknownData) / sizeof(Entry);
+  std::array<Entry, kHandsLen> entries_;  ///< 証明駒（反証駒）
 };
 template <bool kProven>
 std::ostream& operator<<(std::ostream& os, const HandsData<kProven>& data);
@@ -210,6 +222,8 @@ class CommonEntry {
    * @return Hand   条件に一致する hand があればそれを返す。なければ kNullHand を返す。
    */
   Hand ProperHand(Hand hand) const;
+  Move16 BestMove(Hand hand) const;
+  Depth GetSolutionLen(Hand hand) const;
 
   /// 通常局面なら (pn, dn) を更新する。そうでないなら何もしない。
   void UpdatePnDn(PnDn pn, PnDn dn, SearchedAmount amount);
@@ -251,13 +265,7 @@ std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
  * @brief  局面の探索結果を格納するデータ構造。
  *
  * CommonEntry が置換表に格納するためのデータ構造であるのに対し、SearchResult は純粋に探索結果を表現することが
- * 役割のクラスである。CommonEntry とは異なり、以下の関数しか持たない。
- *
- * - Pn()
- * - Dn()
- * - ProperHand()
- * - GetNodeState()
- * - GetSearchedAmount()
+ * 役割のクラスである。
  *
  * また、SearchResult は探索結果を格納するためのクラスであるため、コンストラクト後に値の書き換えをすることはできない。
  */
@@ -271,16 +279,26 @@ class SearchResult {
         amount_{entry.GetSearchedAmount()},
         pn_{entry.Pn()},
         dn_{entry.Dn()},
-        hand_{entry.ProperHand(hand)} {}
+        hand_{entry.ProperHand(hand)},
+        move_{entry.BestMove(hand)},
+        len_{entry.GetSolutionLen(hand)} {}
   /// 生データからコンストラクトする。
-  SearchResult(NodeState state, SearchedAmount amount, PnDn pn, PnDn dn, Hand hand)
-      : state_{state}, amount_{amount}, pn_{pn}, dn_{dn}, hand_{hand} {}
+  SearchResult(NodeState state,
+               SearchedAmount amount,
+               PnDn pn,
+               PnDn dn,
+               Hand hand,
+               Move16 move = MOVE_NONE,
+               Depth len = kMaxNumMateMoves)
+      : state_{state}, amount_{amount}, pn_{pn}, dn_{dn}, hand_{hand}, move_{move}, len_{len} {}
 
   PnDn Pn() const { return pn_; }
   PnDn Dn() const { return dn_; }
   Hand ProperHand() const { return hand_; }
   NodeState GetNodeState() const { return state_; }
   SearchedAmount GetSearchedAmount() const { return amount_; }
+  Move16 BestMove() const { return move_; }
+  Depth GetSolutionLen() const { return len_; }
 
  private:
   NodeState state_;        ///< 局面の状態（詰み／不詰／不明　など）
@@ -288,6 +306,9 @@ class SearchResult {
   Hand hand_;              ///< 局面における ProperHand
   PnDn pn_;
   PnDn dn_;
+
+  Move16 move_;
+  Depth len_;
 };
 
 // サイズ&アラインチェック
@@ -364,9 +385,9 @@ class TTCluster {
   }
 
   /// proof_hand により詰みであることを報告する。
-  Iterator SetProven(std::uint32_t hash_high, Hand proof_hand, SearchedAmount amount);
+  Iterator SetProven(std::uint32_t hash_high, Hand proof_hand, Move16 len, Depth depth, SearchedAmount amount);
   /// disproof_hand により詰みであることを報告する。
-  Iterator SetDisproven(std::uint32_t hash_high, Hand disproof_hand, SearchedAmount amount);
+  Iterator SetDisproven(std::uint32_t hash_high, Hand disproof_hand, Move16 len, Depth depth, SearchedAmount amount);
   /// path_key により千日手であることを報告する。
   Iterator SetRepetition(Iterator entry, Key path_key, SearchedAmount amount);
 
@@ -408,14 +429,14 @@ class TTCluster {
 
 template <bool kProven>
 inline Hand HandsData<kProven>::ProperHand(Hand hand) const {
-  for (const auto& h : hands_) {
-    if (h == kNullHand) {
+  for (const auto& e : entries_) {
+    if (e.hand == kNullHand) {
       break;
     }
 
-    if ((kProven && hand_is_equal_or_superior(hand, h)) ||   // hand を証明できる
-        (!kProven && hand_is_equal_or_superior(h, hand))) {  // hand を反証できる
-      return h;
+    if ((kProven && hand_is_equal_or_superior(hand, e.hand)) ||   // hand を証明できる
+        (!kProven && hand_is_equal_or_superior(e.hand, hand))) {  // hand を反証できる
+      return e.hand;
     }
   }
   return kNullHand;

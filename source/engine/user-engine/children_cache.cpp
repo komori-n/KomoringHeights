@@ -63,17 +63,17 @@ inline bool IsSumDeltaNode(const Node& n, Move move, bool or_node) {
  * @param n  現局面（OrNode）
  * @return Hand （詰む場合）証明駒／（詰まない場合）kNullHand
  */
-inline Hand CheckMate1Ply(Node& n) {
+inline std::pair<Move, Hand> CheckMate1Ply(Node& n) {
   if (!n.Pos().in_check()) {
     if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
       n.DoMove(move);
       auto hand = HandSet{ProofHandTag{}}.Get(n.Pos());
       n.UndoMove(move);
 
-      return BeforeHand(n.Pos(), move, hand);
+      return {move, BeforeHand(n.Pos(), move, hand)};
     }
   }
-  return kNullHand;
+  return {MOVE_NONE, kNullHand};
 }
 
 /**
@@ -192,9 +192,10 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
       if (!kOrNode && first_search && child.is_first) {
         nn.DoMove(move.move);
         // 1手詰めチェック
-        if (auto proof_hand = CheckMate1Ply(nn); proof_hand != kNullHand) {
+        if (auto [best_move, proof_hand] = CheckMate1Ply(nn); proof_hand != kNullHand) {
           // move を選ぶと1手詰み。
-          SearchResult dummy_entry = {NodeState::kProvenState, kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand};
+          SearchResult dummy_entry = {
+              NodeState::kProvenState, kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand, best_move, 1};
 
           UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
           nn.UndoMove(move.move);
@@ -206,7 +207,8 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
         // 結果として探索が高速化される。
         if (!DoesHaveMatePossibility(n.Pos())) {
           auto hand2 = HandSet{DisproofHandTag{}}.Get(nn.Pos());
-          child.search_result = {NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2};
+          child.search_result = {
+              NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE, 0};
         }
         nn.UndoMove(move.move);
       }
@@ -266,14 +268,17 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
   auto& child = NthChild(i);
   child.is_first = false;
   child.search_result = search_result;
+  auto proper_hand = search_result.ProperHand();
+  auto best_move = search_result.BestMove();
+  auto len = search_result.GetSolutionLen();
   auto amount = Update(search_result.GetSearchedAmount(), move_count);
 
   switch (search_result.GetNodeState()) {
     case NodeState::kProvenState:
-      child.query.SetProven(search_result.ProperHand(), amount);
+      child.query.SetProven(proper_hand, best_move, len, amount);
       break;
     case NodeState::kDisprovenState:
-      child.query.SetDisproven(search_result.ProperHand(), amount);
+      child.query.SetDisproven(proper_hand, best_move, len, amount);
       break;
     case NodeState::kRepetitionState:
       child.entry = child.query.RefreshWithCreation(child.entry);
@@ -288,9 +293,14 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
 SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
   Hand proof_hand = kNullHand;
   SearchedAmount amount = 0;
+  Move best_move = MOVE_NONE;
+  Depth solution_len = 0;
+
   if (or_node_) {
     auto& best_child = NthChild(0);
     proof_hand = BeforeHand(n.Pos(), best_child.move, best_child.search_result.ProperHand());
+    best_move = best_child.move;
+    solution_len = best_child.search_result.GetSolutionLen() + 1;
     amount = best_child.search_result.GetSearchedAmount();
   } else {
     // 子局面の証明駒の極小集合を計算する
@@ -299,11 +309,15 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
       const auto& child = NthChild(i);
       set.Update(child.search_result.ProperHand());
       amount += child.search_result.GetSearchedAmount();
+      if (child.search_result.GetSolutionLen() > solution_len) {
+        best_move = child.move;
+        solution_len = child.search_result.GetSolutionLen() + 1;
+      }
     }
     proof_hand = set.Get(n.Pos());
   }
 
-  return {NodeState::kProvenState, amount, 0, kInfinitePnDn, proof_hand};
+  return {NodeState::kProvenState, amount, 0, kInfinitePnDn, proof_hand, best_move, solution_len};
 }
 
 SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
@@ -314,6 +328,8 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
 
   // フツーの不詰
   Hand disproof_hand = kNullHand;
+  Move best_move = MOVE_NONE;
+  Depth solution_len = 0;
   SearchedAmount amount = 0;
   if (or_node_) {
     // 子局面の反証駒の極大集合を計算する
@@ -322,11 +338,18 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
       const auto& child = NthChild(i);
       set.Update(BeforeHand(n.Pos(), child.move, child.search_result.ProperHand()));
       amount += child.search_result.GetSearchedAmount();
+      if (child.search_result.GetSolutionLen() > solution_len) {
+        best_move = child.move;
+        solution_len = child.search_result.GetSolutionLen() + 1;
+      }
     }
     disproof_hand = set.Get(n.Pos());
   } else {
-    disproof_hand = NthChild(0).search_result.ProperHand();
-    amount = NthChild(0).search_result.GetSearchedAmount();
+    auto& best_child = NthChild(0);
+    disproof_hand = best_child.search_result.ProperHand();
+    best_move = best_child.move;
+    solution_len = best_child.search_result.GetSolutionLen() + 1;
+    amount = best_child.search_result.GetSearchedAmount();
 
     // 駒打ちならその駒を持っていないといけない
     if (is_drop(BestMove())) {
@@ -342,7 +365,7 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     }
   }
 
-  return {NodeState::kDisprovenState, amount, kInfinitePnDn, 0, disproof_hand};
+  return {NodeState::kDisprovenState, amount, kInfinitePnDn, 0, disproof_hand, best_move, solution_len};
 }
 
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
