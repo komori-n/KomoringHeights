@@ -9,6 +9,8 @@ Checks: >
   performance-*,
   portability-*,
   readability-*,
+  -readability-function-cognitive-complexity,
+  -misc-no-recursion,
   -google-readability-braces-around-statements,
   -google-readability-namespace-comments,
   -google-runtime-references,
@@ -58,4 +60,4 @@ CheckOptions:
   - { key: readability-implicit-bool-conversion.AllowIntegerConditions,  value: 1   }
   - { key: readability-implicit-bool-conversion.AllowPointerConditions,  value: 1   }
   - { key: readability-function-size.NestingThreshold,  value: 5   }
-  - { key: readability-function-size.StatementThreshold,  value: 50   }
+  - { key: readability-function-size.StatementThreshold,  value: 100   }

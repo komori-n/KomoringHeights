@@ -125,7 +125,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   stop_ = nullptr;
   if (result.GetNodeState() == NodeState::kProvenState) {
     best_moves_ = CalcBestMoves(node);
-    score_ = Score::Proven(best_moves_.size());
+    score_ = Score::Proven(static_cast<Depth>(best_moves_.size()));
     if (best_moves_.size() % 2 != 1) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
@@ -220,7 +220,7 @@ void KomoringHeights::ShowPv(Position& n) {
     }
     sync_cout << oss.str() << sync_endl;
 
-    if (children.size() == 0 || (children[0].second.Pn() == 1 && children[0].second.Dn() == 1)) {
+    if (children.empty() || (children[0].second.Pn() == 1 && children[0].second.Dn() == 1)) {
       break;
     }
     auto best_move = children[0].first;
