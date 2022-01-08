@@ -43,6 +43,58 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
 
   return ret;
 }
+
+/**
+ * @brief move から始まる置換表に保存された手順を返す
+ */
+std::vector<Move> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
+  std::vector<Move> branch;
+
+  branch.emplace_back(move);
+  n.DoMove(move);
+  for (;;) {
+    bool or_node = n.IsOrNode();
+    Move move = or_node ? tt.LookUpBestMove<true>(n) : tt.LookUpBestMove<false>(n);
+    if (move != MOVE_NONE && (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move))) {
+      // 現局面の持ち駒 <= 証明駒  なので、置換表に保存された手を指せない可能性がある
+      // このときは、子局面の中から一番よさげな手を適当に選ぶ必要がある
+      Move best_move = MOVE_NONE;
+      Depth mate_len = 0;
+      for (const auto& m2 : or_node ? MovePicker{n.Pos(), NodeTag<true>{}} : MovePicker{n.Pos(), NodeTag<false>{}}) {
+        auto query = or_node ? tt.GetChildQuery<true>(n, m2.move) : tt.GetChildQuery<false>(n, m2.move);
+        auto entry = query.LookUpWithoutCreation();
+        if (entry->GetNodeState() != NodeState::kProvenState) {
+          continue;
+        }
+
+        auto child_mate_len = entry->GetSolutionLen(n.OrHand());
+        if ((or_node && child_mate_len + 1 < mate_len) || (!or_node && child_mate_len + 1 > mate_len)) {
+          mate_len = child_mate_len;
+          best_move = m2.move;
+        }
+      }
+      move = best_move;
+    }
+
+    if (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move) || n.IsRepetitionAfter(move)) {
+      break;
+    }
+
+    n.DoMove(move);
+    branch.emplace_back(move);
+  }
+
+  if (n.IsOrNode() && !n.Pos().in_check()) {
+    // 高速1手詰めルーチンで解ける局面は置換表に登録されていないのでチェックする必要がある
+    if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
+      n.DoMove(move);
+      branch.emplace_back(move);
+    }
+  }
+
+  RollBack(n, branch);
+  return branch;
+}
 }  // namespace
 
 void SearchProgress::NewSearch() {
@@ -76,6 +128,7 @@ void KomoringHeights::Resize(std::uint64_t size_mb) {
 bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   tt_.NewSearch();
   progress_.NewSearch();
+  proof_tree_.Clear();
   stop_ = &stop_flag;
   gc_timer_.reset();
   last_gc_ = 0;
@@ -122,9 +175,14 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   sync_cout << usi_output << sync_endl;
   // </for-debug>
 
-  stop_ = nullptr;
   if (result.GetNodeState() == NodeState::kProvenState) {
-    best_moves_ = CalcBestMoves(node);
+    auto best_move = node.Pos().to_move(tt_.LookUpBestMove<true>(node));
+    proof_tree_.AddBranch(node, ExpandBranch(tt_, node, best_move));
+
+    if (yozume_node_count_ > 0 && yozume_search_count_ > 0) {
+      DigYozume(node);
+    }
+    best_moves_ = proof_tree_.GetPv(node);
     score_ = Score::Proven(static_cast<Depth>(best_moves_.size()));
     if (best_moves_.size() % 2 != 1) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
@@ -136,32 +194,106 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   }
 }
 
-std::vector<Move> KomoringHeights::CalcBestMoves(Node& n) {
-  std::vector<Move> moves;
+void KomoringHeights::DigYozume(Node& n) {
+  auto best_move = n.Pos().to_move(tt_.LookUpBestMove<true>(n));
+  auto best_moves = ExpandBranch(tt_, n, best_move);
+  RollForward(n, best_moves);
 
-  for (;;) {
-    auto query = n.IsOrNode() ? tt_.GetQuery<true>(n) : tt_.GetQuery<false>(n);
-    auto entry = query.LookUpWithoutCreation();
-    Move move = n.Pos().to_move(entry->BestMove(n.OrHand()));
+  std::uint64_t found_count = 0;
+  Depth mate_len = kMaxNumMateMoves;
+  while (!best_moves.empty()) {
+    auto move = best_moves.back();
+    best_moves.pop_back();
 
-    if (move == MOVE_NONE || !n.Pos().pseudo_legal(move) || !n.Pos().legal(move)) {
-      break;
+    n.UndoMove(move);
+    proof_tree_.Update(n);
+    if (IsSearchStop() || n.GetDepth() >= mate_len - 2 || found_count >= yozume_search_count_) {
+      continue;
     }
 
-    if (n.IsRepetitionAfter(move)) {
-      break;
+    if (n.IsOrNode()) {
+      // 最善手以外に詰み手順がないか探す
+      for (auto&& m2 : MovePicker{n.Pos(), NodeTag<true>{}}) {
+        if (proof_tree_.HasEdgeAfter(n, m2.move)) {
+          // 既に木に追加されている
+          continue;
+        }
+
+        auto query = tt_.GetChildQuery<true>(n, m2.move);
+        auto entry = query.LookUpWithoutCreation();
+        if (entry->GetNodeState() == NodeState::kDisprovenState ||
+            entry->GetNodeState() == NodeState::kRepetitionState || n.IsRepetitionAfter(m2.move)) {
+          // 既に不詰が示されている
+          continue;
+        }
+
+        if (StripMaybeRepetition(entry->GetNodeState()) == NodeState::kOtherState) {
+          // 再探索
+          n.DoMove(m2.move);
+          auto max_search_node_org = max_search_node_;
+          max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
+          ChildrenCache cache{tt_, n, false, NodeTag<false>{}};
+          auto result = SearchImpl<false>(n, kInfinitePnDn, kInfinitePnDn, cache, false);
+          max_search_node_ = max_search_node_org;
+          n.UndoMove(m2.move);
+
+          switch (result.GetNodeState()) {
+            case NodeState::kProvenState:
+              query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), n.GetMoveCount());
+              break;
+            case NodeState::kDisprovenState:
+              query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), n.GetMoveCount());
+              break;
+            case NodeState::kRepetitionState: {
+              entry = query.RefreshWithoutCreation(entry);
+              query.SetRepetition(entry, n.GetMoveCount());
+            } break;
+            default:
+              entry = query.RefreshWithoutCreation(entry);
+              entry->UpdatePnDn(result.Pn(), result.Dn(), n.GetMoveCount());
+          }
+
+          entry = query.RefreshWithoutCreation(entry);
+        }
+
+        if (entry->GetNodeState() == NodeState::kProvenState) {
+          // 新しく手を見つけた
+          ++found_count;
+
+          auto new_branch = ExpandBranch(tt_, n, m2.move);
+          proof_tree_.AddBranch(n, new_branch);
+
+          new_branch = proof_tree_.GetPv(n);
+          RollForward(n, new_branch);
+          std::copy(new_branch.begin(), new_branch.end(), std::back_inserter(best_moves));
+          mate_len = std::min(mate_len, static_cast<Depth>(best_moves.size()));
+          break;
+        }
+      }
+    } else {
+      // AND node
+      // 余詰探索の結果、AND node の最善手が変わっている可能性がある
+      // 現在の詰み手順よりも長く生き延びられる手があるなら、そちらの読みを進めてみる
+      for (auto&& m2 : MovePicker{n.Pos(), NodeTag<false>{}}) {
+        if (!proof_tree_.HasEdgeAfter(n, m2.move)) {
+          auto branch = ExpandBranch(tt_, n, m2.move);
+          proof_tree_.AddBranch(n, branch);
+        }
+      }
+
+      if (auto new_mate_len = proof_tree_.MateLen(n) + n.GetDepth(); new_mate_len > mate_len) {
+        // こっちに逃げたほうが手数が伸びる
+        auto best_branch = proof_tree_.GetPv(n);
+
+        // 千日手が絡むと、pv.size() と MateLen() が一致しないことがある
+        // これは、pv の中に best_moves で一度通った局面が含まれるときに発生する
+        // このような AND node は深く探索する必要がない。なぜなら、best_move の選び方にそもそも問題があるためである
+        mate_len = new_mate_len;
+        RollForward(n, best_branch);
+        std::copy(best_branch.begin(), best_branch.end(), std::back_inserter(best_moves));
+      }
     }
-
-    moves.emplace_back(move);
-    n.DoMove(move);
   }
-
-  // 局面をもとに戻しておく
-  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
-    n.UndoMove(*itr);
-  }
-
-  return moves;
 }
 
 void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
@@ -203,20 +335,42 @@ void KomoringHeights::ShowPv(Position& n) {
       if (node.IsOrNode()) {
         if (lhs.second.Pn() != rhs.second.Pn()) {
           return lhs.second.Pn() < rhs.second.Pn();
+        } else if (lhs.second.Pn() == 0 && rhs.second.Pn() == 0) {
+          return lhs.second.GetSolutionLen() < rhs.second.GetSolutionLen();
         }
-        return lhs.second.Dn() > rhs.second.Dn();
+
+        if (lhs.second.Dn() != rhs.second.Dn()) {
+          return lhs.second.Dn() > rhs.second.Dn();
+        } else if (lhs.second.Dn() == 0 && rhs.second.Dn() == 0) {
+          return lhs.second.GetSolutionLen() > rhs.second.GetSolutionLen();
+        }
+        return false;
       } else {
         if (lhs.second.Dn() != rhs.second.Dn()) {
           return lhs.second.Dn() < rhs.second.Dn();
+        } else if (lhs.second.Dn() == 0 && rhs.second.Dn() == 0) {
+          return lhs.second.GetSolutionLen() < rhs.second.GetSolutionLen();
         }
-        return lhs.second.Pn() > rhs.second.Pn();
+
+        if (lhs.second.Pn() != rhs.second.Pn()) {
+          return lhs.second.Pn() > rhs.second.Pn();
+        } else if (lhs.second.Pn() == 0 && rhs.second.Pn() == 0) {
+          return lhs.second.GetSolutionLen() > rhs.second.GetSolutionLen();
+        }
+        return false;
       }
     });
 
     std::ostringstream oss;
     oss << "[" << node.GetDepth() << "] ";
     for (const auto& child : children) {
-      oss << child.first << "(" << ToString(child.second.Pn()) << "/" << ToString(child.second.Dn()) << ") ";
+      if (child.second.Pn() == 0) {
+        oss << child.first << "(+" << child.second.GetSolutionLen() << ") ";
+      } else if (child.second.Dn() == 0) {
+        oss << child.first << "(-" << child.second.GetSolutionLen() << ") ";
+      } else {
+        oss << child.first << "(" << ToString(child.second.Pn()) << "/" << ToString(child.second.Dn()) << ") ";
+      }
     }
     sync_cout << oss.str() << sync_endl;
 

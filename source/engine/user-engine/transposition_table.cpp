@@ -147,6 +147,13 @@ LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
   return {&cluster, hash_high, hand, n.GetDepth() + 1, n.PathKeyAfter(move)};
 }
 
+template <bool kOrNode>
+Move TranspositionTable::LookUpBestMove(const Node& n) {
+  auto query = GetQuery<kOrNode>(n);
+  auto entry = query.LookUpWithoutCreation();
+  return n.Pos().to_move(entry->BestMove(n.OrHand()));
+}
+
 int TranspositionTable::Hashfull() const {
   std::size_t used = 0;
   for (std::size_t i = 0; i < kHashfullCalcClusters; ++i) {
@@ -200,4 +207,6 @@ template LookUpQuery TranspositionTable::GetQuery<false>(const Node& n);
 template LookUpQuery TranspositionTable::GetQuery<true>(const Node& n);
 template LookUpQuery TranspositionTable::GetChildQuery<false>(const Node& n, Move move);
 template LookUpQuery TranspositionTable::GetChildQuery<true>(const Node& n, Move move);
+template Move TranspositionTable::LookUpBestMove<false>(const Node& n);
+template Move TranspositionTable::LookUpBestMove<true>(const Node& n);
 }  // namespace komori

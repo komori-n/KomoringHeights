@@ -84,15 +84,13 @@ void USI::extra_option(USI::OptionsMap& o) {
   o["PvInterval"] << Option(1000, 0, 1000000);
 
   o["DebugInfo"] << Option(false, [](bool /*b*/) {});
+  o["YozumeNodeCount"] << Option(300, 0, INT_MAX);
+  o["YozumePath"] << Option(10000, 0, INT_MAX);
 
 #if defined(USE_DEEP_DFPN)
   o["DeepDfpnPerMile"] << Option(5, 0, 10000);
   o["DeepDfpnMaxVal"] << Option(1000000, 1, INT64_MAX);
 #endif  // defined(USE_DEEP_DFPN)
-
-#if defined(YOZUME_SEARCH)
-  o["YozumeSearch"] << Option(0, 0, INT_MAX);
-#endif  // defined(YOZUME_SEARCH)
 }
 
 // 起動時に呼び出される。時間のかからない探索関係の初期化処理はここに書くこと。
@@ -126,11 +124,13 @@ void Search::clear() {
     g_searcher.SetMaxDepth(depth_limit);
   }
 
-#if defined(YOZUME_SEARCH)
-  if (int yozume_count = Options["YozumeSearch"]) {
-    g_searcher.SetExtraSearchCount(yozume_count);
+  if (auto max_yozume_count = Options["YozumeNodeCount"]) {
+    g_searcher.SetYozumeCount(max_yozume_count);
   }
-#endif  // defined(YOZUME_SEARCH)
+
+  if (auto max_yozume_path = Options["YozumePath"]) {
+    g_searcher.SetYozumePath(max_yozume_path);
+  }
 }
 
 // 探索開始時に呼び出される。

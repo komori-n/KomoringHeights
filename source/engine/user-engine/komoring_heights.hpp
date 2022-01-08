@@ -13,6 +13,7 @@
 #include "children_cache.hpp"
 #include "move_picker.hpp"
 #include "node.hpp"
+#include "proof_tree.hpp"
 #include "transposition_table.hpp"
 #include "ttcluster.hpp"
 #include "usi.hpp"
@@ -56,8 +57,10 @@ class KomoringHeights {
   void SetMaxSearchNode(std::uint64_t max_search_node) { max_search_node_ = max_search_node; }
   /// 探索深さ上限を設定する
   void SetMaxDepth(Depth max_depth) { max_depth_ = max_depth; }
-  /// 余詰探索
-  void SetExtraSearchCount(int extra_search_count) { extra_search_count_ = extra_search_count; }
+  /// 余詰探索で探索する局面数
+  void SetYozumeCount(int yozume_count) { yozume_node_count_ = yozume_count; }
+  /// 余詰探索で何個まで別解を探索するか
+  void SetYozumePath(int yozume_path) { yozume_search_count_ = yozume_path; }
 
   /// 探索情報のPrintを指示する。Printが完了したらフラグはfalseになる
   void SetPrintFlag() { print_flag_ = true; }
@@ -128,8 +131,11 @@ class KomoringHeights {
   template <bool kOrNode>
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag);
 
-  /// 局面 n が詰む場合、最善応手列を返す。詰まない場合は {} を返す。
-  std::vector<Move> CalcBestMoves(Node& n);
+  /// 局面 n に対し、余詰探索を実施する
+  void DigYozume(Node& n);
+
+  /// CommonEntry に保存された best_move を元に最善応手列（PV）を復元する
+  std::vector<Move> GetPv(Node& n);
 
   /**
    * @brief Pv（最善応手列）を再帰的に探索する
@@ -165,12 +171,14 @@ class KomoringHeights {
   SearchProgress progress_{};
   Score score_{};
   Depth max_depth_{kMaxNumMateMoves};
-  int extra_search_count_{0};
   std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};
 
   /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
   std::vector<Move> best_moves_{};
+  ProofTree proof_tree_{};
   std::uint64_t tree_size_{};
+  std::uint64_t yozume_node_count_{};
+  std::uint64_t yozume_search_count_{};
 };
 }  // namespace komori
 

@@ -131,6 +131,10 @@ class TranspositionTable {
   template <bool kOrNode>
   LookUpQuery GetChildQuery(const Node& n, Move move);
 
+  /// 局面 `n` の最善手を取得する。探索中の場合、MOVE_NONE が返る可能性がある
+  template <bool kOrNode>
+  Move LookUpBestMove(const Node& n);
+
   /// ハッシュ使用率を返す（戻り値は千分率）
   int Hashfull() const;
   /// 現在のハッシュの使用状況を取得する

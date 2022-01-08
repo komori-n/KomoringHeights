@@ -65,5 +65,19 @@ class Node {
   Key path_key_{};
   std::uint64_t move_count_{};
 };
+
+/// 局面 n から moves で手を一気に進める。nに対し、moves の前から順に n.DoMove(m) を適用する。
+inline void RollForward(Node& n, const std::vector<Move>& moves) {
+  for (const auto& move : moves) {
+    n.DoMove(move);
+  }
+}
+
+/// 局面 n から moves で手を一気に戻す。n に対し、moves の後ろから順に n.UndoMove(m) を適用する。
+inline void RollBack(Node& n, const std::vector<Move>& moves) {
+  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
+    n.UndoMove(*itr);
+  }
+}
 }  // namespace komori
 #endif  // NODE_HPP_

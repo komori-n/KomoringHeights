@@ -503,8 +503,6 @@ constexpr int MAX_PLY_NUM = 246;
 #define USE_BOARD_KEY_AFTER
 #define USE_DFPN_PLUS
 // #define USE_DEEP_DFPN
-// 余詰探索機能はまだまだ重くて実用からは程遠いのでデフォルトではオフにする
-// #define YOZUME_SEARCH
 #endif
 
 // --------------------
