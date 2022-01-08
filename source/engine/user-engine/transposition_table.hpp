@@ -45,27 +45,27 @@ class LookUpQuery {
   CommonEntry* LookUpWithoutCreation() const;
 
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
-  CommonEntry* SetProven(Hand proof_hand, Move16 move, Depth len, SearchedAmount amount) const;
+  void SetProven(Hand proof_hand, Move16 move, Depth len, SearchedAmount amount) const;
   /// 調べていた局面が反証駒 `disproof_hand` で詰みであることを報告する
-  CommonEntry* SetDisproven(Hand disproof_hand, Move16 move, Depth len, SearchedAmount amount) const;
+  void SetDisproven(Hand disproof_hand, Move16 move, Depth len, SearchedAmount amount) const;
   /// 調べていた局面が千日手による不詰であることを報告する
-  CommonEntry* SetRepetition(SearchedAmount amount) const;
+  void SetRepetition(SearchedAmount amount) const;
   /// 調べていた局面が勝ちであることを報告する
   template <bool kOrNode>
-  CommonEntry* SetWin(Hand hand, Move move, Depth len, SearchedAmount amount) const {
+  void SetWin(Hand hand, Move move, Depth len, SearchedAmount amount) const {
     if constexpr (kOrNode) {
-      return SetProven(hand, move, len, amount);
+      SetProven(hand, move, len, amount);
     } else {
-      return SetDisproven(hand, move, len, amount);
+      SetDisproven(hand, move, len, amount);
     }
   }
   /// 調べていた局面が負けであることを報告する
   template <bool kOrNode>
-  CommonEntry* SetLose(Hand hand, Move move, Depth len, SearchedAmount amount) const {
+  void SetLose(Hand hand, Move move, Depth len, SearchedAmount amount) const {
     if constexpr (kOrNode) {
-      return SetDisproven(hand, move, len, amount);
+      SetDisproven(hand, move, len, amount);
     } else {
-      return SetProven(hand, move, len, amount);
+      SetProven(hand, move, len, amount);
     }
   }
   /// `entry` が cluster に存在するエントリかを問い合わせる。（ダミーエントリのチェックに使用する）

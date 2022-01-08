@@ -45,17 +45,17 @@ CommonEntry* LookUpQuery::LookUpWithoutCreation() const {
   }
 }
 
-CommonEntry* LookUpQuery::SetProven(Hand proof_hand, Move16 move, Depth len, SearchedAmount amount) const {
-  return cluster_->SetProven(hash_high_, proof_hand, move, len, amount);
+void LookUpQuery::SetProven(Hand proof_hand, Move16 move, Depth len, SearchedAmount amount) const {
+  entry_ = cluster_->SetProven(hash_high_, proof_hand, move, len, amount);
 }
 
-CommonEntry* LookUpQuery::SetDisproven(Hand disproof_hand, Move16 move, Depth len, SearchedAmount amount) const {
-  return cluster_->SetDisproven(hash_high_, disproof_hand, move, len, amount);
+void LookUpQuery::SetDisproven(Hand disproof_hand, Move16 move, Depth len, SearchedAmount amount) const {
+  entry_ = cluster_->SetDisproven(hash_high_, disproof_hand, move, len, amount);
 }
 
-CommonEntry* LookUpQuery::SetRepetition(SearchedAmount amount) const {
+void LookUpQuery::SetRepetition(SearchedAmount amount) const {
   LookUpWithCreation();
-  return cluster_->SetRepetition(entry_, path_key_, amount);
+  cluster_->SetRepetition(entry_, path_key_, amount);
 }
 
 bool LookUpQuery::IsStored(CommonEntry* entry) const {
