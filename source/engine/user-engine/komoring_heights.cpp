@@ -18,6 +18,7 @@ namespace komori {
 namespace {
 constexpr std::size_t kDefaultHashSizeMb = 1024;
 constexpr std::int64_t kGcInterval = 3000;
+constexpr PnDn kIncreaseDeltaThreshold = 1000;
 
 /// TT の使用率が kGcHashfullThreshold を超えたら kGcHashfullRemoveRatio だけ削除する
 constexpr int kGcHashfullThreshold = 850;
@@ -428,8 +429,14 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   if (inc_flag && curr_result.Pn() > 0 && curr_result.Dn() > 0) {
     if constexpr (kOrNode) {
       thdn = Clamp(thdn, curr_result.Dn() + 1);
+      if (curr_result.Pn() > kIncreaseDeltaThreshold) {
+        thpn = Clamp(thpn, curr_result.Pn() + 1);
+      }
     } else {
       thpn = Clamp(thpn, curr_result.Pn() + 1);
+      if (curr_result.Dn() > kIncreaseDeltaThreshold) {
+        thdn = Clamp(thdn, curr_result.Dn() + 1);
+      }
     }
   }
 
