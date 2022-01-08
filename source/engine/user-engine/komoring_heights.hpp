@@ -77,45 +77,6 @@ class KomoringHeights {
   void PrintDebugInfo() const;
 
  private:
-  static inline constexpr Depth kNonRepetitionDepth = Depth{kMaxNumMateMoves + 1};
-  static inline constexpr Depth kNoMateLen = Depth{-1};
-
-  struct NumMoves {
-    int num{kNoMateLen};  ///< 詰み手数
-    int surplus{0};       ///< 駒余りの枚数
-
-    template <bool kOrNode>
-    bool Update(int new_num, int new_surplus) {
-      bool update = false;
-      if constexpr (kOrNode) {
-        update = (new_num < num) || (new_num == num && new_surplus < surplus);
-      } else {
-        update = (new_num > num) || (new_num == num && new_surplus < surplus);
-      }
-
-      if (update) {
-        num = new_num;
-        surplus = new_surplus;
-      }
-
-      return update;
-    }
-  };
-
-  struct MateMoveCache {
-    Move move{MOVE_NONE};
-    NumMoves num_moves{};
-
-    template <bool kOrNode>
-    bool Update(Move new_move, int new_num, int new_surplus) {
-      if (num_moves.Update<kOrNode>(new_num, new_surplus)) {
-        move = new_move;
-        return true;
-      }
-      return false;
-    }
-  };
-
   /**
    * @brief
    *
@@ -137,30 +98,11 @@ class KomoringHeights {
   /// CommonEntry に保存された best_move を元に最善応手列（PV）を復元する
   std::vector<Move> GetPv(Node& n);
 
-  /**
-   * @brief Pv（最善応手列）を再帰的に探索する
-   *
-   * @param mate_table      探索結果のメモ
-   * @param search_history  現在探索中の局面
-   * @param n               現局面
-   * @return std::pair<NodeCache, Depth>
-   *     first   局面の探索結果
-   *     second  firstが千日手絡みの評価値の場合、千日手がスタートした局面の深さ。
-   *             firstが千日手絡みの評価値ではない場合、kNonRepetitionDepth。
-   */
-  template <bool kOrNode>
-  std::pair<NumMoves, Depth> MateMovesSearchImpl(std::unordered_map<Key, MateMoveCache>& mate_table,
-                                                 std::unordered_map<Key, Depth>& search_history,
-                                                 Node& n,
-                                                 Depth max_start_depth,
-                                                 Depth max_depth);
-
   void PrintProgress(const Node& n) const;
 
   bool IsSearchStop() const;
 
   TranspositionTable tt_;
-  std::stack<MovePicker> pickers_{};
   std::stack<ChildrenCache> children_cache_{};
 
   std::atomic_bool* stop_{nullptr};
@@ -176,7 +118,6 @@ class KomoringHeights {
   /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
   std::vector<Move> best_moves_{};
   ProofTree proof_tree_{};
-  std::uint64_t tree_size_{};
   std::uint64_t yozume_node_count_{};
   std::uint64_t yozume_search_count_{};
 };
