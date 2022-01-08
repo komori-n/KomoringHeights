@@ -53,8 +53,9 @@ CommonEntry* LookUpQuery::SetDisproven(Hand disproof_hand, Move16 move, Depth le
   return cluster_->SetDisproven(hash_high_, disproof_hand, move, len, amount);
 }
 
-CommonEntry* LookUpQuery::SetRepetition(CommonEntry* entry, SearchedAmount amount) const {
-  return cluster_->SetRepetition(entry, path_key_, amount);
+CommonEntry* LookUpQuery::SetRepetition(SearchedAmount amount) const {
+  LookUpWithCreation();
+  return cluster_->SetRepetition(entry_, path_key_, amount);
 }
 
 bool LookUpQuery::IsStored(CommonEntry* entry) const {

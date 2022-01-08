@@ -49,7 +49,7 @@ class LookUpQuery {
   /// 調べていた局面が反証駒 `disproof_hand` で詰みであることを報告する
   CommonEntry* SetDisproven(Hand disproof_hand, Move16 move, Depth len, SearchedAmount amount) const;
   /// 調べていた局面が千日手による不詰であることを報告する
-  CommonEntry* SetRepetition(CommonEntry* entry, SearchedAmount amount) const;
+  CommonEntry* SetRepetition(SearchedAmount amount) const;
   /// 調べていた局面が勝ちであることを報告する
   template <bool kOrNode>
   CommonEntry* SetWin(Hand hand, Move move, Depth len, SearchedAmount amount) const {

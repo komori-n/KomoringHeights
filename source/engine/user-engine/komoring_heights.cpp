@@ -160,10 +160,9 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
     case NodeState::kDisprovenState:
       query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), node.GetMoveCount());
       break;
-    case NodeState::kRepetitionState: {
-      auto entry = query.LookUpWithCreation();
-      query.SetRepetition(entry, node.GetMoveCount());
-    } break;
+    case NodeState::kRepetitionState:
+      query.SetRepetition(node.GetMoveCount());
+      break;
     default:
       auto entry = query.LookUpWithCreation();
       entry->UpdatePnDn(result.Pn(), result.Dn(), node.GetMoveCount());
@@ -253,10 +252,9 @@ void KomoringHeights::DigYozume(Node& n) {
             case NodeState::kDisprovenState:
               query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), n.GetMoveCount());
               break;
-            case NodeState::kRepetitionState: {
-              entry = query.LookUpWithoutCreation();
-              query.SetRepetition(entry, n.GetMoveCount());
-            } break;
+            case NodeState::kRepetitionState:
+              query.SetRepetition(n.GetMoveCount());
+              break;
             default:
               entry = query.LookUpWithoutCreation();
               entry->UpdatePnDn(result.Pn(), result.Dn(), n.GetMoveCount());

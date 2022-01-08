@@ -279,8 +279,7 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
       child.query.SetDisproven(proper_hand, best_move, len, amount);
       break;
     case NodeState::kRepetitionState: {
-      auto entry = child.query.LookUpWithCreation();
-      child.query.SetRepetition(entry, amount);
+      child.query.SetRepetition(amount);
     } break;
     default: {
       auto entry = child.query.LookUpWithCreation();
