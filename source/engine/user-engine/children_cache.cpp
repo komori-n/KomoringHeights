@@ -126,7 +126,6 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove mo
   NodeCache cache;
   cache.move = move;
 
-  cache.entry = nullptr;
   cache.search_result = {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand};
   cache.is_first = false;
   cache.is_sum_delta = true;
@@ -145,7 +144,6 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(Node& n,
   cache.move = move;
   cache.query = std::move(query);
   auto* entry = cache.query.LookUpWithoutCreation();
-  cache.entry = entry;
   cache.is_first = entry->IsFirstVisit();
   cache.is_sum_delta = is_sum_delta;
   if (auto unknown = entry->TryGetUnknown()) {
@@ -280,13 +278,14 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
     case NodeState::kDisprovenState:
       child.query.SetDisproven(proper_hand, best_move, len, amount);
       break;
-    case NodeState::kRepetitionState:
-      child.entry = child.query.RefreshWithCreation(child.entry);
-      child.query.SetRepetition(child.entry, amount);
-      break;
-    default:
-      child.entry = child.query.RefreshWithCreation(child.entry);
-      child.entry->UpdatePnDn(search_result.Pn(), search_result.Dn(), amount);
+    case NodeState::kRepetitionState: {
+      auto entry = child.query.LookUpWithCreation();
+      child.query.SetRepetition(entry, amount);
+    } break;
+    default: {
+      auto entry = child.query.LookUpWithCreation();
+      entry->UpdatePnDn(search_result.Pn(), search_result.Dn(), amount);
+    }
   }
 }
 

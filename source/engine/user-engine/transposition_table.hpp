@@ -44,19 +44,6 @@ class LookUpQuery {
    */
   CommonEntry* LookUpWithoutCreation() const;
 
-  /**
-   * @brief entry が有効（前回呼び出しから移動していない）場合、それをそのまま帰す。
-   *
-   * entry が無効の場合、改めて LookUpWithCreation() する。
-   */
-  CommonEntry* RefreshWithCreation(CommonEntry* entry) const;
-  /**
-   * @brief entry が有効（前回呼び出しから移動していない）場合、それをそのまま帰す。
-   *
-   * entry が無効の場合、改めて LookUpWithoutCreation() する。
-   */
-  CommonEntry* RefreshWithoutCreation(CommonEntry* entry) const;
-
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
   CommonEntry* SetProven(Hand proof_hand, Move16 move, Depth len, SearchedAmount amount) const;
   /// 調べていた局面が反証駒 `disproof_hand` で詰みであることを報告する
@@ -97,6 +84,8 @@ class LookUpQuery {
   Hand hand_;
   Depth depth_;
   Key path_key_;
+
+  mutable CommonEntry* entry_;
 };
 
 /**

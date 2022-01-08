@@ -99,7 +99,6 @@ class ChildrenCache {
     ExtMove move;
 
     LookUpQuery query;
-    CommonEntry* entry;
     SearchResult search_result;
     bool is_first;
     bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false

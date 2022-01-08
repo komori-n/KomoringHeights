@@ -254,15 +254,15 @@ void KomoringHeights::DigYozume(Node& n) {
               query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), n.GetMoveCount());
               break;
             case NodeState::kRepetitionState: {
-              entry = query.RefreshWithoutCreation(entry);
+              entry = query.LookUpWithoutCreation();
               query.SetRepetition(entry, n.GetMoveCount());
             } break;
             default:
-              entry = query.RefreshWithoutCreation(entry);
+              entry = query.LookUpWithoutCreation();
               entry->UpdatePnDn(result.Pn(), result.Dn(), n.GetMoveCount());
           }
 
-          entry = query.RefreshWithoutCreation(entry);
+          entry = query.LookUpWithoutCreation();
         }
 
         if (entry->GetNodeState() == NodeState::kProvenState) {

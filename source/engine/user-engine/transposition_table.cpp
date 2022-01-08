@@ -24,31 +24,24 @@ T RoundDownToPow2(T val) {
 
 namespace komori {
 LookUpQuery::LookUpQuery(TTCluster* cluster, std::uint32_t hash_high, Hand hand, Depth depth, Key path_key)
-    : cluster_{cluster}, hash_high_{hash_high}, hand_{hand}, depth_{depth}, path_key_{path_key} {}
+    : cluster_{cluster}, hash_high_{hash_high}, hand_{hand}, depth_{depth}, path_key_{path_key}, entry_{nullptr} {}
 
 CommonEntry* LookUpQuery::LookUpWithCreation() const {
-  return cluster_->LookUpWithCreation(hash_high_, hand_, depth_, path_key_);
+  // 再 LookUp がサボれる場合、entry をそのまま返す
+  if (IsValid(entry_)) {
+    return entry_;
+  } else {
+    return entry_ = cluster_->LookUpWithCreation(hash_high_, hand_, depth_, path_key_);
+  }
 }
 
 CommonEntry* LookUpQuery::LookUpWithoutCreation() const {
   return cluster_->LookUpWithoutCreation(hash_high_, hand_, depth_, path_key_);
-}
-
-CommonEntry* LookUpQuery::RefreshWithCreation(CommonEntry* entry) const {
   // 再 LookUp がサボれる場合、entry をそのまま返す
-  if (IsValid(entry)) {
-    return entry;
+  if (IsValid(entry_)) {
+    return entry_;
   } else {
-    return LookUpWithCreation();
-  }
-}
-
-CommonEntry* LookUpQuery::RefreshWithoutCreation(CommonEntry* entry) const {
-  // 再 LookUp がサボれる場合、entry をそのまま返す
-  if (IsValid(entry)) {
-    return entry;
-  } else {
-    return LookUpWithoutCreation();
+    return cluster_->LookUpWithoutCreation(hash_high_, hand_, depth_, path_key_);
   }
 }
 
