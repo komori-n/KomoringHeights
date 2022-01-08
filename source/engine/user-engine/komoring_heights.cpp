@@ -27,14 +27,14 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
   std::vector<std::pair<Move, SearchResult>> ret;
   if (n.IsOrNode()) {
     for (auto&& move : MovePicker{n.Pos(), NodeTag<true>{}}) {
-      auto query = tt.GetChildQuery<true>(n, move.move);
+      auto query = tt.GetChildQuery(n, move.move);
       auto entry = query.LookUpWithoutCreation();
       SearchResult result{*entry, query.GetHand()};
       ret.emplace_back(move.move, result);
     }
   } else {
     for (auto&& move : MovePicker{n.Pos(), NodeTag<false>{}}) {
-      auto query = tt.GetChildQuery<false>(n, move.move);
+      auto query = tt.GetChildQuery(n, move.move);
       auto entry = query.LookUpWithoutCreation();
       SearchResult result{*entry, query.GetHand()};
       ret.emplace_back(move.move, result);
@@ -54,14 +54,14 @@ std::vector<Move> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
   n.DoMove(move);
   for (;;) {
     bool or_node = n.IsOrNode();
-    Move move = or_node ? tt.LookUpBestMove<true>(n) : tt.LookUpBestMove<false>(n);
+    Move move = tt.LookUpBestMove(n);
     if (move != MOVE_NONE && (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move))) {
       // 現局面の持ち駒 <= 証明駒  なので、置換表に保存された手を指せない可能性がある
       // このときは、子局面の中から一番よさげな手を適当に選ぶ必要がある
       Move best_move = MOVE_NONE;
       Depth mate_len = 0;
       for (const auto& m2 : or_node ? MovePicker{n.Pos(), NodeTag<true>{}} : MovePicker{n.Pos(), NodeTag<false>{}}) {
-        auto query = or_node ? tt.GetChildQuery<true>(n, m2.move) : tt.GetChildQuery<false>(n, m2.move);
+        auto query = tt.GetChildQuery(n, m2.move);
         auto entry = query.LookUpWithoutCreation();
         if (entry->GetNodeState() != NodeState::kProvenState) {
           continue;
@@ -150,7 +150,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   }
 
   // <for-debug>
-  auto query = tt_.GetQuery<true>(node);
+  auto query = tt_.GetQuery(node);
   switch (result.GetNodeState()) {
     case NodeState::kProvenState:
       query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), node.GetMoveCount());
@@ -176,7 +176,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   // </for-debug>
 
   if (result.GetNodeState() == NodeState::kProvenState) {
-    auto best_move = node.Pos().to_move(tt_.LookUpBestMove<true>(node));
+    auto best_move = node.Pos().to_move(tt_.LookUpBestMove(node));
     proof_tree_.AddBranch(node, ExpandBranch(tt_, node, best_move));
 
     if (yozume_node_count_ > 0 && yozume_search_count_ > 0) {
@@ -195,7 +195,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 }
 
 void KomoringHeights::DigYozume(Node& n) {
-  auto best_move = n.Pos().to_move(tt_.LookUpBestMove<true>(n));
+  auto best_move = n.Pos().to_move(tt_.LookUpBestMove(n));
   auto best_moves = ExpandBranch(tt_, n, best_move);
   RollForward(n, best_moves);
 
@@ -219,7 +219,7 @@ void KomoringHeights::DigYozume(Node& n) {
           continue;
         }
 
-        auto query = tt_.GetChildQuery<true>(n, m2.move);
+        auto query = tt_.GetChildQuery(n, m2.move);
         auto entry = query.LookUpWithoutCreation();
         if (entry->GetNodeState() == NodeState::kDisprovenState ||
             entry->GetNodeState() == NodeState::kRepetitionState || n.IsRepetitionAfter(m2.move)) {
@@ -307,13 +307,13 @@ void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
 
   if (depth_max % 2 == 0) {
     for (auto&& move : MovePicker{n, NodeTag<true>{}}) {
-      auto query = tt_.GetChildQuery<true>(node, move.move);
+      auto query = tt_.GetChildQuery(node, move.move);
       auto entry = query.LookUpWithoutCreation();
       sync_cout << move.move << " " << *entry << sync_endl;
     }
   } else {
     for (auto&& move : MovePicker{n, NodeTag<false>{}}) {
-      auto query = tt_.GetChildQuery<false>(node, move.move);
+      auto query = tt_.GetChildQuery(node, move.move);
       auto entry = query.LookUpWithoutCreation();
       sync_cout << move.move << " " << *entry << sync_endl;
     }
@@ -533,7 +533,7 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
   Depth rep_start = kNonRepetitionDepth;
 
   for (const auto& move : move_picker) {
-    auto child_query = tt_.GetChildQuery<kOrNode>(n, move.move);
+    auto child_query = tt_.GetChildQuery(n, move.move);
     auto child_entry = child_query.LookUpWithoutCreation();
     if (child_entry->GetNodeState() != NodeState::kProvenState) {
       continue;

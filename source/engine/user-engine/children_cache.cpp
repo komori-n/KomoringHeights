@@ -181,7 +181,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
     if (nn.IsRepetitionAfter(move.move)) {
       child = NodeCache::FromRepetitionMove(move, nn.OrHand());
     } else {
-      auto&& query = tt.GetChildQuery<kOrNode>(nn, move.move);
+      auto&& query = tt.GetChildQuery(nn, move.move);
       auto hand = kOrNode ? AfterHand(nn.Pos(), move.move, nn.OrHand()) : nn.OrHand();
       child = NodeCache::FromUnknownMove<kOrNode>(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move, kOrNode));
       if (child.depth < nn.GetDepth()) {

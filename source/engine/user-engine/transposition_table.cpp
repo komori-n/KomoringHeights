@@ -121,7 +121,6 @@ std::size_t TranspositionTable::CollectGarbage() {
   return removed_num;
 }
 
-template <bool kOrNode>
 LookUpQuery TranspositionTable::GetQuery(const Node& n) {
   Key key = n.Pos().state()->board_key();
   std::uint32_t hash_high = key >> 32;
@@ -131,10 +130,9 @@ LookUpQuery TranspositionTable::GetQuery(const Node& n) {
   return {&cluster, hash_high, hand, n.GetDepth(), n.GetPathKey()};
 }
 
-template <bool kOrNode>
 LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
   Hand hand;
-  if constexpr (kOrNode) {
+  if (n.IsOrNode()) {
     hand = AfterHand(n.Pos(), move, n.OrHand());
   } else {
     hand = n.OrHand();
@@ -147,9 +145,8 @@ LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
   return {&cluster, hash_high, hand, n.GetDepth() + 1, n.PathKeyAfter(move)};
 }
 
-template <bool kOrNode>
 Move TranspositionTable::LookUpBestMove(const Node& n) {
-  auto query = GetQuery<kOrNode>(n);
+  auto query = GetQuery(n);
   auto entry = query.LookUpWithoutCreation();
   return n.Pos().to_move(entry->BestMove(n.OrHand()));
 }
@@ -202,11 +199,4 @@ TranspositionTable::Stat TranspositionTable::GetStat() const {
 TTCluster& TranspositionTable::ClusterOf(Key board_key) {
   return tt_[board_key % num_clusters_];
 }
-
-template LookUpQuery TranspositionTable::GetQuery<false>(const Node& n);
-template LookUpQuery TranspositionTable::GetQuery<true>(const Node& n);
-template LookUpQuery TranspositionTable::GetChildQuery<false>(const Node& n, Move move);
-template LookUpQuery TranspositionTable::GetChildQuery<true>(const Node& n, Move move);
-template Move TranspositionTable::LookUpBestMove<false>(const Node& n);
-template Move TranspositionTable::LookUpBestMove<true>(const Node& n);
 }  // namespace komori

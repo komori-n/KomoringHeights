@@ -125,14 +125,11 @@ class TranspositionTable {
   std::size_t CollectGarbage();
 
   /// 局面 `n` の LookUp 用の構造体を取得する
-  template <bool kOrNode>
   LookUpQuery GetQuery(const Node& n);
   /// 局面 `n` から `move` で進めた局面の、LookUp 用の構造体を取得する
-  template <bool kOrNode>
   LookUpQuery GetChildQuery(const Node& n, Move move);
 
   /// 局面 `n` の最善手を取得する。探索中の場合、MOVE_NONE が返る可能性がある
-  template <bool kOrNode>
   Move LookUpBestMove(const Node& n);
 
   /// ハッシュ使用率を返す（戻り値は千分率）
