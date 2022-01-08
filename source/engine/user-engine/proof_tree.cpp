@@ -60,10 +60,9 @@ std::vector<Move> ProofTree::GetPv(Node& n) {
 void ProofTree::Update(Node& n) {
   bool or_node = n.IsOrNode();
 
-  auto mp = or_node ? MovePicker{n.Pos(), NodeTag<true>{}} : MovePicker{n.Pos(), NodeTag<false>{}};
   Move best_move = MOVE_NONE;
   Depth mate_len = or_node ? kMaxNumMateMoves : 0;
-  for (const auto& move : mp) {
+  for (const auto& move : MovePicker{n}) {
     auto key_after = n.Pos().key_after(move.move);
     if (auto itr = edges_.find(key_after); itr != edges_.end()) {
       auto child_mate_len = itr->second.mate_len + 1;
@@ -83,19 +82,10 @@ void ProofTree::Verbose(Node& n) const {
 
   for (;;) {
     std::ostringstream oss;
-    if (n.IsOrNode()) {
-      for (auto&& move : MovePicker{n.Pos(), NodeTag<true>{}}) {
-        auto child_key = n.Pos().key_after(move.move);
-        if (auto itr = edges_.find(child_key); itr != edges_.end()) {
-          oss << move.move << "(" << itr->second.mate_len << ") ";
-        }
-      }
-    } else {
-      for (auto&& move : MovePicker{n.Pos(), NodeTag<false>{}}) {
-        auto child_key = n.Pos().key_after(move.move);
-        if (auto itr = edges_.find(child_key); itr != edges_.end()) {
-          oss << move.move << "(" << itr->second.mate_len << ") ";
-        }
+    for (auto&& move : MovePicker{n}) {
+      auto child_key = n.Pos().key_after(move.move);
+      if (auto itr = edges_.find(child_key); itr != edges_.end()) {
+        oss << move.move << "(" << itr->second.mate_len << ") ";
       }
     }
     sync_cout << "info string [" << n.GetDepth() << "] " << oss.str() << sync_endl;

@@ -25,20 +25,11 @@ constexpr int kGcHashfullRemoveRatio = 300;
 
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
   std::vector<std::pair<Move, SearchResult>> ret;
-  if (n.IsOrNode()) {
-    for (auto&& move : MovePicker{n.Pos(), NodeTag<true>{}}) {
-      auto query = tt.GetChildQuery(n, move.move);
-      auto entry = query.LookUpWithoutCreation();
-      SearchResult result{*entry, query.GetHand()};
-      ret.emplace_back(move.move, result);
-    }
-  } else {
-    for (auto&& move : MovePicker{n.Pos(), NodeTag<false>{}}) {
-      auto query = tt.GetChildQuery(n, move.move);
-      auto entry = query.LookUpWithoutCreation();
-      SearchResult result{*entry, query.GetHand()};
-      ret.emplace_back(move.move, result);
-    }
+  for (auto&& move : MovePicker{n}) {
+    auto query = tt.GetChildQuery(n, move.move);
+    auto entry = query.LookUpWithoutCreation();
+    SearchResult result{*entry, query.GetHand()};
+    ret.emplace_back(move.move, result);
   }
 
   return ret;
@@ -60,7 +51,7 @@ std::vector<Move> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
       // このときは、子局面の中から一番よさげな手を適当に選ぶ必要がある
       Move best_move = MOVE_NONE;
       Depth mate_len = 0;
-      for (const auto& m2 : or_node ? MovePicker{n.Pos(), NodeTag<true>{}} : MovePicker{n.Pos(), NodeTag<false>{}}) {
+      for (const auto& m2 : MovePicker{n}) {
         auto query = tt.GetChildQuery(n, m2.move);
         auto entry = query.LookUpWithoutCreation();
         if (entry->GetNodeState() != NodeState::kProvenState) {
@@ -213,7 +204,7 @@ void KomoringHeights::DigYozume(Node& n) {
 
     if (n.IsOrNode()) {
       // 最善手以外に詰み手順がないか探す
-      for (auto&& m2 : MovePicker{n.Pos(), NodeTag<true>{}}) {
+      for (auto&& m2 : MovePicker{n}) {
         if (proof_tree_.HasEdgeAfter(n, m2.move)) {
           // 既に木に追加されている
           continue;
@@ -274,7 +265,7 @@ void KomoringHeights::DigYozume(Node& n) {
       // AND node
       // 余詰探索の結果、AND node の最善手が変わっている可能性がある
       // 現在の詰み手順よりも長く生き延びられる手があるなら、そちらの読みを進めてみる
-      for (auto&& m2 : MovePicker{n.Pos(), NodeTag<false>{}}) {
+      for (auto&& m2 : MovePicker{n}) {
         if (!proof_tree_.HasEdgeAfter(n, m2.move)) {
           auto branch = ExpandBranch(tt_, n, m2.move);
           proof_tree_.AddBranch(n, branch);
@@ -305,18 +296,10 @@ void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
     node.DoMove(moves[depth]);
   }
 
-  if (depth_max % 2 == 0) {
-    for (auto&& move : MovePicker{n, NodeTag<true>{}}) {
-      auto query = tt_.GetChildQuery(node, move.move);
-      auto entry = query.LookUpWithoutCreation();
-      sync_cout << move.move << " " << *entry << sync_endl;
-    }
-  } else {
-    for (auto&& move : MovePicker{n, NodeTag<false>{}}) {
-      auto query = tt_.GetChildQuery(node, move.move);
-      auto entry = query.LookUpWithoutCreation();
-      sync_cout << move.move << " " << *entry << sync_endl;
-    }
+  for (auto&& move : MovePicker{node}) {
+    auto query = tt_.GetChildQuery(node, move.move);
+    auto entry = query.LookUpWithoutCreation();
+    sync_cout << move.move << " " << *entry << sync_endl;
   }
 
   static_assert(std::is_signed_v<Depth>);
@@ -525,7 +508,7 @@ std::pair<KomoringHeights::NumMoves, Depth> KomoringHeights::MateMovesSearchImpl
   }
 
   search_history.insert(std::make_pair(key, n.GetDepth()));
-  auto& move_picker = pickers_.emplace(n.Pos(), NodeTag<kOrNode>{});
+  auto& move_picker = pickers_.emplace(n);
   auto picker_is_empty = move_picker.empty();
 
   MateMoveCache curr{};

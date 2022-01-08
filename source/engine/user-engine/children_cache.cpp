@@ -175,7 +175,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
   // 1 手詰めの場合、指し手生成をサボることができる
   // が、AndNode の 2 手詰めルーチンで mate_1ply を呼ぶのでここでやっても意味がない
 
-  for (auto&& move : MovePicker{nn.Pos(), NodeTag<kOrNode>{}, true}) {
+  for (auto&& move : MovePicker{nn, true}) {
     auto& curr_idx = idx_[children_len_] = children_len_;
     auto& child = children_[children_len_++];
     if (nn.IsRepetitionAfter(move.move)) {

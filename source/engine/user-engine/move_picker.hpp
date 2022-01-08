@@ -3,6 +3,7 @@
 
 #include <array>
 
+#include "node.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
@@ -17,33 +18,35 @@ class MovePicker {
   MovePicker& operator=(MovePicker&& rhs) noexcept = delete;
   ~MovePicker() = default;
 
-  template <bool kOrNode>
-  explicit MovePicker(const Position& n, NodeTag<kOrNode>, bool ordering = false) {
+  explicit MovePicker(const Node& n, bool ordering = false) {
     bool judge_check = false;
     ExtMove* last = nullptr;
-    if constexpr (kOrNode) {
-      if (n.in_check()) {
-        last = generateMoves<EVASIONS_ALL>(n, move_list_.data());
+    bool or_node = n.IsOrNode();
+    const Position& pos = n.Pos();
+    if (or_node) {
+      if (pos.in_check()) {
+        last = generateMoves<EVASIONS_ALL>(pos, move_list_.data());
         // 逆王手になっているかチェックする必要がある
         judge_check = true;
       } else {
-        last = generateMoves<CHECKS_ALL>(n, move_list_.data());
+        last = generateMoves<CHECKS_ALL>(pos, move_list_.data());
       }
     } else {
-      last = generateMoves<EVASIONS_ALL>(n, move_list_.data());
+      last = generateMoves<EVASIONS_ALL>(pos, move_list_.data());
     }
 
     // OrNodeで王手ではない手と違法手を取り除く
-    last = std::remove_if(move_list_.data(), last,
-                          [&](const auto& m) { return (judge_check && !n.gives_check(m.move)) || !n.legal(m.move); });
+    last = std::remove_if(move_list_.data(), last, [&](const auto& m) {
+      return (judge_check && !pos.gives_check(m.move)) || !pos.legal(m.move);
+    });
     size_ = last - &move_list_[0];
 
     // オーダリング情報を付加したほうが定数倍速くなる
     if (ordering) {
-      auto us = n.side_to_move();
+      auto us = pos.side_to_move();
       auto them = ~us;
-      auto king_color = kOrNode ? them : us;
-      auto king_sq = n.king_square(king_color);
+      auto king_color = or_node ? them : us;
+      auto king_sq = pos.king_square(king_color);
       constexpr int kPtValues[] = {
           0, 1, 2, 2, 3, 5, 5, 5, 8, 5, 5, 5, 5, 8, 8, 8,
       };
@@ -52,7 +55,7 @@ class MovePicker {
         auto to = to_sq(move);
         // auto attackers_to_us = n.attackers_to(us, to);
         // auto attackers_to_them = n.attackers_to(them, to);
-        auto pt = type_of(n.moved_piece_before(move));
+        auto pt = type_of(pos.moved_piece_before(move));
         itr->value = 0;
 
         // 成れるのに成らない
