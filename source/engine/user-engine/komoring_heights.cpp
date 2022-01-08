@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include "../../mate/mate.h"
 #include "children_cache.hpp"
@@ -39,7 +40,7 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
 /**
  * @brief move から始まる置換表に保存された手順を返す
  */
-std::vector<Move> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
+std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
   std::vector<Move> branch;
 
   branch.emplace_back(move);
@@ -84,8 +85,18 @@ std::vector<Move> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
     }
   }
 
+  bool found_mate = true;
+  if (n.IsOrNode() || !MovePicker{n}.empty()) {
+    found_mate = false;
+  }
+
   RollBack(n, branch);
-  return branch;
+
+  if (found_mate) {
+    return {branch};
+  } else {
+    return {};
+  }
 }
 }  // namespace
 
@@ -168,11 +179,14 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 
   if (result.GetNodeState() == NodeState::kProvenState) {
     auto best_move = node.Pos().to_move(tt_.LookUpBestMove(node));
-    proof_tree_.AddBranch(node, ExpandBranch(tt_, node, best_move));
-
-    if (yozume_node_count_ > 0 && yozume_search_count_ > 0) {
-      DigYozume(node);
+    auto pv = ExpandBranch(tt_, node, best_move);
+    if (pv) {
+      proof_tree_.AddBranch(node, *pv);
+      if (yozume_node_count_ > 0 && yozume_search_count_ > 0) {
+        DigYozume(node);
+      }
     }
+
     best_moves_ = proof_tree_.GetPv(node);
     score_ = Score::Proven(static_cast<Depth>(best_moves_.size()));
     if (best_moves_.size() % 2 != 1) {
@@ -187,7 +201,11 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 
 void KomoringHeights::DigYozume(Node& n) {
   auto best_move = n.Pos().to_move(tt_.LookUpBestMove(n));
-  auto best_moves = ExpandBranch(tt_, n, best_move);
+  std::vector<Move> best_moves;
+  auto root_pv = ExpandBranch(tt_, n, best_move);
+  if (root_pv) {
+    best_moves = std::move(*root_pv);
+  }
   RollForward(n, best_moves);
 
   std::uint64_t found_count = 0;
@@ -252,13 +270,15 @@ void KomoringHeights::DigYozume(Node& n) {
           ++found_count;
 
           auto new_branch = ExpandBranch(tt_, n, m2.move);
-          proof_tree_.AddBranch(n, new_branch);
+          if (new_branch) {
+            proof_tree_.AddBranch(n, *new_branch);
 
-          new_branch = proof_tree_.GetPv(n);
-          RollForward(n, new_branch);
-          std::copy(new_branch.begin(), new_branch.end(), std::back_inserter(best_moves));
-          mate_len = std::min(mate_len, static_cast<Depth>(best_moves.size()));
-          break;
+            auto new_pv = proof_tree_.GetPv(n);
+            RollForward(n, new_pv);
+            std::copy(new_pv.begin(), new_pv.end(), std::back_inserter(best_moves));
+            mate_len = std::min(mate_len, static_cast<Depth>(best_moves.size()));
+            break;
+          }
         }
       }
     } else {
@@ -268,7 +288,9 @@ void KomoringHeights::DigYozume(Node& n) {
       for (auto&& m2 : MovePicker{n}) {
         if (!proof_tree_.HasEdgeAfter(n, m2.move)) {
           auto branch = ExpandBranch(tt_, n, m2.move);
-          proof_tree_.AddBranch(n, branch);
+          if (branch) {
+            proof_tree_.AddBranch(n, *branch);
+          }
         }
       }
 
