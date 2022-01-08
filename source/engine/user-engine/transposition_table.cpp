@@ -125,13 +125,7 @@ LookUpQuery TranspositionTable::GetQuery(const Node& n) {
 }
 
 LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
-  Hand hand;
-  if (n.IsOrNode()) {
-    hand = AfterHand(n.Pos(), move, n.OrHand());
-  } else {
-    hand = n.OrHand();
-  }
-
+  Hand hand = n.OrHandAfter(move);
   Key key = n.Pos().board_key_after(move);
   std::uint32_t hash_high = key >> 32;
   auto& cluster = ClusterOf(key);

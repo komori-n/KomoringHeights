@@ -34,6 +34,13 @@ class Node {
 
   Hand OrHand() const { return n_.hand_of(or_color_); }
   Hand AndHand() const { return n_.hand_of(~or_color_); }
+  Hand OrHandAfter(Move move) const {
+    if (IsOrNode()) {
+      return AfterHand(n_, move, OrHand());
+    } else {
+      return OrHand();
+    }
+  }
 
   bool IsRepetition() const {
     auto node_state = node_history_.State(n_.state()->board_key(), this->OrHand());
@@ -41,7 +48,7 @@ class Node {
   }
 
   bool IsRepetitionAfter(Move move) const {
-    Hand hand = IsOrNode() ? AfterHand(n_, move, this->OrHand()) : this->OrHand();
+    Hand hand = OrHandAfter(move);
     auto node_state = node_history_.State(n_.board_key_after(move), hand);
     return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
   }

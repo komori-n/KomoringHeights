@@ -21,15 +21,6 @@ Hand AfterHand(const Position& n, Move move, Hand before_hand);
 /// move 後の手駒が after_hand のとき、移動前の持ち駒を返す
 Hand BeforeHand(const Position& n, Move move, Hand after_hand);
 
-template <bool kOrNode>
-inline Hand OrHand(const Position& n) {
-  if constexpr (kOrNode) {
-    return n.hand_of(n.side_to_move());
-  } else {
-    return n.hand_of(~n.side_to_move());
-  }
-}
-
 /**
  * @brief 局面 n の子局面がすべて 反証駒 disproof_hand で不詰であることが既知の場合、もとの局面 n の反証駒を計算する。
  *
@@ -97,8 +88,8 @@ Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand);
 Hand AddIfHandGivesOtherEvasions(const Position& n, Hand proof_hand);
 
 /// HandSet の初期化時に使うタグ
-struct ProofHandTag{};
-struct DisproofHandTag{};
+struct ProofHandTag {};
+struct DisproofHandTag {};
 
 /// 持ち駒集合を扱うクラス。駒の種別ごとに別の変数で保存しているので、Hand を直接扱うよりもやや高速に処理できる。
 ///
@@ -114,7 +105,6 @@ class HandSet {
       val_[pr] = PIECE_BIT_MASK2[pr];
     }
   }
-
 
   HandSet() = delete;
   HandSet(const HandSet&) = default;
