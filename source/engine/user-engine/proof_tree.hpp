@@ -49,9 +49,9 @@ class ProofTree {
   /**
    * @brief 局面 n の最善応手列（PV）を返す
    *
-   *n が ProofTree に保存されていない場合、空 vector を返す。
+   * n が ProofTree に保存されていない場合と千日手により PV が指せない場合、nullopt を返す
    */
-  std::vector<Move> GetPv(Node& n);
+  std::optional<std::vector<Move>> GetPv(Node& n);
   /**
    * @brief 木に登録された情報を元に、局面 n の最善手を更新する
    *

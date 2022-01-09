@@ -31,10 +31,13 @@ Depth ProofTree::MateLen(Node& n) const {
   }
 }
 
-std::vector<Move> ProofTree::GetPv(Node& n) {
+std::optional<std::vector<Move>> ProofTree::GetPv(Node& n) {
   std::vector<Move> pv;
 
   for (;;) {
+    // このタイミングで最善手を更新しないとループに迷い込むことがある
+    Update(n);
+
     auto key = n.Pos().key();
     auto itr = edges_.find(key);
     if (itr == edges_.end()) {
@@ -50,11 +53,20 @@ std::vector<Move> ProofTree::GetPv(Node& n) {
     n.DoMove(best_move);
   }
 
+  bool found_pv = true;
+  if (n.IsOrNode() || !MovePicker{n}.empty()) {
+    found_pv = false;
+  }
+
   for (auto itr = pv.crbegin(); itr != pv.crend(); ++itr) {
     n.UndoMove(*itr);
   }
 
-  return pv;
+  if (found_pv) {
+    return std::make_optional(pv);
+  } else {
+    return std::nullopt;
+  }
 }
 
 void ProofTree::Update(Node& n) {

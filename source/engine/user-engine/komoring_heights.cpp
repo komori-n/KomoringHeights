@@ -43,6 +43,10 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
 std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
   std::vector<Move> branch;
 
+  if (n.IsRepetitionAfter(move)) {
+    return std::nullopt;
+  }
+
   branch.emplace_back(move);
   n.DoMove(move);
   for (;;) {
@@ -93,9 +97,9 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
   RollBack(n, branch);
 
   if (found_mate) {
-    return {branch};
+    return std::make_optional(std::move(branch));
   } else {
-    return {};
+    return std::nullopt;
   }
 }
 }  // namespace
@@ -186,7 +190,11 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
       }
     }
 
-    best_moves_ = proof_tree_.GetPv(node);
+    pv = proof_tree_.GetPv(node);
+    if (pv) {
+      best_moves_ = *pv;
+    }
+
     score_ = Score::Proven(static_cast<Depth>(best_moves_.size()));
     if (best_moves_.size() % 2 != 1) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
@@ -272,10 +280,12 @@ void KomoringHeights::DigYozume(Node& n) {
             proof_tree_.AddBranch(n, *new_branch);
 
             auto new_pv = proof_tree_.GetPv(n);
-            RollForward(n, new_pv);
-            std::copy(new_pv.begin(), new_pv.end(), std::back_inserter(best_moves));
-            mate_len = std::min(mate_len, static_cast<Depth>(best_moves.size()));
-            break;
+            if (new_pv) {
+              RollForward(n, *new_pv);
+              std::copy(new_pv->begin(), new_pv->end(), std::back_inserter(best_moves));
+              mate_len = std::min(mate_len, static_cast<Depth>(best_moves.size()));
+              break;
+            }
           }
         }
       }
@@ -296,12 +306,14 @@ void KomoringHeights::DigYozume(Node& n) {
         // こっちに逃げたほうが手数が伸びる
         auto best_branch = proof_tree_.GetPv(n);
 
-        // 千日手が絡むと、pv.size() と MateLen() が一致しないことがある
-        // これは、pv の中に best_moves で一度通った局面が含まれるときに発生する
-        // このような AND node は深く探索する必要がない。なぜなら、best_move の選び方にそもそも問題があるためである
-        mate_len = new_mate_len;
-        RollForward(n, best_branch);
-        std::copy(best_branch.begin(), best_branch.end(), std::back_inserter(best_moves));
+        if (best_branch) {
+          // 千日手が絡むと、pv.size() と MateLen() が一致しないことがある
+          // これは、pv の中に best_moves で一度通った局面が含まれるときに発生する
+          // このような AND node は深く探索する必要がない。なぜなら、best_move の選び方にそもそも問題があるためである
+          mate_len = new_mate_len;
+          RollForward(n, *best_branch);
+          std::copy(best_branch->begin(), best_branch->end(), std::back_inserter(best_moves));
+        }
       }
     }
   }
