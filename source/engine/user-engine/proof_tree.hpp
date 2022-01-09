@@ -2,6 +2,7 @@
 #define PROOF_TREE_HPP_
 
 #include <unordered_map>
+#include <optional>
 
 #include "node.hpp"
 #include "typedefs.hpp"
