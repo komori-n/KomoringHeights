@@ -36,6 +36,10 @@ inline constexpr SearchedAmount Update(SearchedAmount amount, std::uint64_t delt
   return amount + static_cast<SearchedAmount>(update);
 }
 
+inline constexpr SearchedAmount ToAmount(std::uint64_t num_searched) {
+  return std::max(kMinimumSearchedAmount, static_cast<SearchedAmount>(num_searched / kNumSearchedPerAmount));
+}
+
 /**
  * @brief 局面の探索量（SearchedAmount）と局面状態（NodeState）を1つの整数にまとめたもの。
  */

@@ -157,19 +157,20 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
 
   // <for-debug>
   auto query = tt_.GetQuery(node);
+  auto amount = ToAmount(node.GetMoveCount());
   switch (result.GetNodeState()) {
     case NodeState::kProvenState:
-      query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), node.GetMoveCount());
+      query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
       break;
     case NodeState::kDisprovenState:
-      query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), node.GetMoveCount());
+      query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
       break;
     case NodeState::kRepetitionState:
-      query.SetRepetition(node.GetMoveCount());
+      query.SetRepetition(amount);
       break;
     default:
       auto entry = query.LookUpWithCreation();
-      entry->UpdatePnDn(result.Pn(), result.Dn(), node.GetMoveCount());
+      entry->UpdatePnDn(result.Pn(), result.Dn(), amount);
   }
 
   std::ostringstream oss;
@@ -245,6 +246,9 @@ void KomoringHeights::DigYozume(Node& n) {
 
         if (StripMaybeRepetition(entry->GetNodeState()) == NodeState::kOtherState) {
           // 再探索
+          auto amount = entry->GetSearchedAmount();
+          auto move_count_org = n.GetMoveCount();
+
           n.DoMove(m2.move);
           auto max_search_node_org = max_search_node_;
           max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
@@ -253,19 +257,20 @@ void KomoringHeights::DigYozume(Node& n) {
           max_search_node_ = max_search_node_org;
           n.UndoMove(m2.move);
 
+          amount = Update(amount, n.GetMoveCount() - move_count_org);
           switch (result.GetNodeState()) {
             case NodeState::kProvenState:
-              query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), n.GetMoveCount());
+              query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
               break;
             case NodeState::kDisprovenState:
-              query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), n.GetMoveCount());
+              query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
               break;
             case NodeState::kRepetitionState:
-              query.SetRepetition(n.GetMoveCount());
+              query.SetRepetition(amount);
               break;
             default:
               entry = query.LookUpWithoutCreation();
-              entry->UpdatePnDn(result.Pn(), result.Dn(), n.GetMoveCount());
+              entry->UpdatePnDn(result.Pn(), result.Dn(), amount);
           }
 
           entry = query.LookUpWithoutCreation();
