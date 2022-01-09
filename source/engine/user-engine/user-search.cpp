@@ -162,6 +162,7 @@ void MainThread::search() {
       last_pv_out = timer.elapsed();
     }
   }
+  Threads.stop = true;
   thread.join();
 
   if (Options["DebugInfo"] != 0) {
@@ -169,16 +170,16 @@ void MainThread::search() {
   }
 
   bool is_mate_search = Search::Limits.mate != 0;
-  if (time_up()) {
-    PrintResult(is_mate_search, LoseKind::kTimeout);
-  } else if (search_end) {
-    if (search_result) {
-      auto best_moves = g_searcher.BestMoves();
-      std::ostringstream oss;
-      for (const auto& move : best_moves) {
-        oss << move << " ";
-      }
-      PrintResult(is_mate_search, LoseKind::kMate, oss.str());
+  if (search_result) {
+    auto best_moves = g_searcher.BestMoves();
+    std::ostringstream oss;
+    for (const auto& move : best_moves) {
+      oss << move << " ";
+    }
+    PrintResult(is_mate_search, LoseKind::kMate, oss.str());
+  } else {
+    if (time_up()) {
+      PrintResult(is_mate_search, LoseKind::kTimeout);
     } else {
       PrintResult(is_mate_search, LoseKind::kNoMate);
     }
