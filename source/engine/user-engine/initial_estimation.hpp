@@ -90,6 +90,45 @@ inline std::pair<PnDn, PnDn> InitialPnDn(const Node& n, Move move) {
   return {kInitialPn, kInitialDn};
 #endif
 }
+
+/**
+ * @brief move はδ値をsumで計算すべきか／maxで計上すべきかを判定する
+ *
+ * 似たような子局面になる move が複数ある場合、δ値を定義通りに sum で計算すると局面を過小評価
+ * （実際の値よりも大きく出る）ことがある。そのため、move の内容によっては sum ではなく max でδ値を計上したほうが良い。
+ *
+ * @return true   move に対するδ値は sum で計上すべき
+ * @return false  move に対するδ値は max で計上すべき
+ */
+inline bool IsSumDeltaNode(const Node& n, Move move, bool or_node) {
+  if (is_drop(move)) {
+    // 駒打ち
+    if (or_node) {
+      if (move_dropped_piece(move) == BISHOP || move_dropped_piece(move) == ROOK) {
+        // 飛車と角はだいたいどこから打っても同じ
+        return false;
+      }
+    } else {
+      // 合駒はだいたい何を打っても同じ
+      return false;
+    }
+  } else {
+    // 駒移動（駒打ちではない）
+    Color us = n.Pos().side_to_move();
+    Square from = from_sq(move);
+    Square to = to_sq(move);
+    Piece moved_piece = n.Pos().piece_on(from);
+    PieceType moved_pr = type_of(moved_piece);
+    if (EnemyField[us].test(from) || EnemyField[us].test(to)) {
+      if (moved_pr == PAWN || moved_pr == BISHOP || moved_pr == ROOK) {
+        // 歩、角、飛車は基本成ればいいので、成らなかった時のδ値を足す必要がない
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
 }  // namespace komori
 
 #endif  // PNDN_ESTIMATION_HPP_
