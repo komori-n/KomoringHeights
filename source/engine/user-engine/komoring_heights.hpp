@@ -15,7 +15,6 @@
 #include "node.hpp"
 #include "proof_tree.hpp"
 #include "transposition_table.hpp"
-#include "ttcluster.hpp"
 #include "usi.hpp"
 
 namespace komori {
@@ -74,7 +73,6 @@ class KomoringHeights {
   void ShowPv(Position& n);
 
   UsiInfo Info() const;
-  void PrintDebugInfo() const;
 
  private:
   /**

@@ -83,7 +83,6 @@ void USI::extra_option(USI::OptionsMap& o) {
   o["NodesLimit"] << Option(0, 0, INT64_MAX);
   o["PvInterval"] << Option(1000, 0, 1000000);
 
-  o["DebugInfo"] << Option(false, [](bool /*b*/) {});
   o["YozumeNodeCount"] << Option(300, 0, INT_MAX);
   o["YozumePath"] << Option(10000, 0, INT_MAX);
 
@@ -164,10 +163,6 @@ void MainThread::search() {
   }
   Threads.stop = true;
   thread.join();
-
-  if (Options["DebugInfo"] != 0) {
-    g_searcher.PrintDebugInfo();
-  }
 
   bool is_mate_search = Search::Limits.mate != 0;
   if (search_result) {

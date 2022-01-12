@@ -6,7 +6,6 @@
 #include "initial_estimation.hpp"
 #include "move_picker.hpp"
 #include "node.hpp"
-#include "ttcluster.hpp"
 
 namespace komori {
 namespace {

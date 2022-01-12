@@ -30,7 +30,7 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
   for (auto&& move : MovePicker{n}) {
     auto query = tt.GetChildQuery(n, move.move);
     auto entry = query.LookUpWithoutCreation();
-    SearchResult result{*entry, query.GetHand()};
+    SearchResult result{*entry, n.OrHandAfter(move.move)};
     ret.emplace_back(move.move, result);
   }
 
@@ -429,17 +429,6 @@ UsiInfo KomoringHeights::Info() const {
   usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
 
   return usi_output;
-}
-
-void KomoringHeights::PrintDebugInfo() const {
-  auto stat = tt_.GetStat();
-  std::ostringstream oss;
-
-  oss << "hashfull=" << stat.hashfull << " proven=" << stat.proven_ratio << " disproven=" << stat.disproven_ratio
-      << " repetition=" << stat.repetition_ratio << " maybe_repetition=" << stat.maybe_repetition_ratio
-      << " other=" << stat.other_ratio;
-
-  sync_cout << UsiInfo::String(oss.str()) << sync_endl;
 }
 
 template <bool kOrNode>

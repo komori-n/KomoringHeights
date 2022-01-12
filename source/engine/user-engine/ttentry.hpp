@@ -8,11 +8,12 @@
 namespace komori {
 /// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
 enum class NodeState : std::uint32_t {
-  kOtherState,
-  kMaybeRepetitionState,
-  kRepetitionState,
-  kDisprovenState,
-  kProvenState,
+  kOtherState,            ///< 詰みでも不詰でもない探索中局面
+  kMaybeRepetitionState,  ///< kOtherState で千日手の可能性がある局面
+  kRepetitionState,       ///< 千日手による不詰
+  kDisprovenState,        ///< 不詰
+  kProvenState,           ///< 詰み
+  kNullState,             ///< 無効値
 };
 
 inline std::ostream& operator<<(std::ostream& os, NodeState node_state) {
@@ -192,6 +193,11 @@ class CommonEntry {
   constexpr explicit CommonEntry(RepetitionData&& rep)
       : hash_high_{0}, s_amount_{NodeState::kRepetitionState, 0}, rep_{std::move(rep)} {}
 
+  /// エントリの中身を空にする
+  constexpr void Clear() { s_amount_.node_state = NodeState::kNullState; }
+  /// エントリが空かどうかチェックする
+  constexpr bool IsNull() const { return s_amount_.node_state == NodeState::kNullState; }
+
   constexpr std::uint32_t HashHigh() const { return hash_high_; }
   constexpr NodeState GetNodeState() const { return s_amount_.node_state; }
   constexpr SearchedAmount GetSearchedAmount() const { return s_amount_.amount; }
@@ -268,6 +274,56 @@ std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
 // サイズ&アラインチェック
 static_assert(sizeof(CommonEntry) == sizeof(std::uint32_t) + sizeof(StateAmount) + sizeof(UnknownData));
 static_assert(alignof(std::uint64_t) % alignof(CommonEntry) == 0);
+
+/**
+ * @brief  局面の探索結果を格納するデータ構造。
+ *
+ * CommonEntry が置換表に格納するためのデータ構造であるのに対し、SearchResult は純粋に探索結果を表現することが
+ * 役割のクラスである。
+ *
+ * また、SearchResult は探索結果を格納するためのクラスであるため、コンストラクト後に値の書き換えをすることはできない。
+ */
+class SearchResult {
+ public:
+  /// 初期化なしのコンストラクタも有効にしておく
+  SearchResult() = default;
+  /// CommonEntry からコンストラクトする。これだけだと証明駒／反証駒がわからないので、現在の OrHand も引数で渡す。
+  SearchResult(const CommonEntry& entry, Hand hand)
+      : state_{entry.GetNodeState()},
+        amount_{entry.GetSearchedAmount()},
+        hand_{entry.ProperHand(hand)},
+        pn_{entry.Pn()},
+        dn_{entry.Dn()},
+        move_{entry.BestMove(hand)},
+        len_{entry.GetSolutionLen(hand)} {}
+  /// 生データからコンストラクトする。
+  SearchResult(NodeState state,
+               SearchedAmount amount,
+               PnDn pn,
+               PnDn dn,
+               Hand hand,
+               Move16 move = MOVE_NONE,
+               Depth len = kMaxNumMateMoves)
+      : state_{state}, amount_{amount}, hand_{hand}, pn_{pn}, dn_{dn}, move_{move}, len_{len} {}
+
+  PnDn Pn() const { return pn_; }
+  PnDn Dn() const { return dn_; }
+  Hand ProperHand() const { return hand_; }
+  NodeState GetNodeState() const { return state_; }
+  SearchedAmount GetSearchedAmount() const { return amount_; }
+  Move16 BestMove() const { return move_; }
+  Depth GetSolutionLen() const { return len_; }
+
+ private:
+  NodeState state_;        ///< 局面の状態（詰み／不詰／不明　など）
+  SearchedAmount amount_;  ///< 局面に対して探索した局面数
+  Hand hand_;              ///< 局面における ProperHand
+  PnDn pn_;
+  PnDn dn_;
+
+  Move16 move_;
+  Depth len_;
+};
 
 template <bool kProven>
 inline Hand HandsData<kProven>::ProperHand(Hand hand) const {

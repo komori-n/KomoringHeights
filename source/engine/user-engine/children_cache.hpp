@@ -4,7 +4,6 @@
 #include <array>
 
 #include "transposition_table.hpp"
-#include "ttcluster.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
