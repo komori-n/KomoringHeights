@@ -59,6 +59,7 @@ inline constexpr bool operator!=(const StateAmount& lhs, const StateAmount& rhs)
 
 inline constexpr StateAmount kMarkDeleted = {NodeState::kOtherState, 0};
 inline constexpr StateAmount kFirstSearch = {NodeState::kOtherState, 1};
+inline constexpr StateAmount kNullEntry = {NodeState::kNullState, 0};
 
 /**
  * @brief 通常局面のデータ。(pn, dn, hand, min_depth) を格納する。
@@ -194,9 +195,9 @@ class CommonEntry {
       : hash_high_{0}, s_amount_{NodeState::kRepetitionState, 0}, rep_{std::move(rep)} {}
 
   /// エントリの中身を空にする
-  constexpr void Clear() { s_amount_.node_state = NodeState::kNullState; }
+  constexpr void Clear() { s_amount_ = kNullEntry; }
   /// エントリが空かどうかチェックする
-  constexpr bool IsNull() const { return s_amount_.node_state == NodeState::kNullState; }
+  constexpr bool IsNull() const { return s_amount_ == kNullEntry; }
 
   constexpr std::uint32_t HashHigh() const { return hash_high_; }
   constexpr NodeState GetNodeState() const { return s_amount_.node_state; }
