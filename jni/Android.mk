@@ -228,6 +228,7 @@ LOCAL_SRC_FILES += \
 		../source/engine/user-engine/proof_tree.cpp \
 		../source/engine/user-engine/transposition_table.cpp\
 		../source/engine/user-engine/ttcluster.cpp \
+		../source/engine/user-engine/ttentry.cpp \
 		../source/engine/user-engine/user-search.cpp \
     ../source/engine/user-engine/usi.cpp
 endif
