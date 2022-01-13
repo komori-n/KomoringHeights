@@ -125,7 +125,7 @@ class BoardCluster {
 class RepetitionTable {
  public:
   /// 置換表に保存された path key をすべて削除する
-  constexpr void Clear() { keys_.clear(); }
+  void Clear() { keys_.clear(); }
 
   /// `path_key` を千日手として登録する
   void Insert(Key path_key) { keys_.insert(path_key); }
