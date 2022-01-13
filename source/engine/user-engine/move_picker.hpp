@@ -53,21 +53,20 @@ class MovePicker {
       for (ExtMove* itr = move_list_.data(); itr != last; ++itr) {
         const auto& move = itr->move;
         auto to = to_sq(move);
-        // auto attackers_to_us = n.attackers_to(us, to);
-        // auto attackers_to_them = n.attackers_to(them, to);
-        auto pt = type_of(pos.moved_piece_before(move));
         itr->value = 0;
 
         // 成れるのに成らない
         if (!is_drop(move) && !is_promote(move)) {
           auto from = from_sq(move);
-          if ((pt == PAWN || pt == BISHOP || pt == ROOK) && (enemy_field(us).test(from) || enemy_field(us).test(to))) {
+          auto before_pt = type_of(pos.moved_piece_before(move));
+          if ((before_pt == PAWN || before_pt == BISHOP || before_pt == ROOK) &&
+              (enemy_field(us).test(from) || enemy_field(us).test(to))) {
             itr->value += 100;  // 歩、角、飛車を成らないのは大きく減点する（打ち歩詰めの時以外は考える必要ない）
           }
         }
 
-        itr->value -= kPtValues[pt];
-        // itr->value -= 2 * (attackers_to_us.pop_count() + is_drop(move)) - attackers_to_them.pop_count();
+        auto after_pt = type_of(pos.moved_piece_after(move));
+        itr->value -= kPtValues[after_pt];
         itr->value += dist(king_sq, to);
       }
     }
