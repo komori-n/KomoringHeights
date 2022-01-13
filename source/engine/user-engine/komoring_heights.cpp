@@ -465,12 +465,12 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   if (inc_flag && curr_result.Pn() > 0 && curr_result.Dn() > 0) {
     if constexpr (kOrNode) {
       thdn = Clamp(thdn, curr_result.Dn() + 1);
-      if (curr_result.Pn() > kIncreaseDeltaThreshold) {
+      if (kIncreaseDeltaThreshold < curr_result.Pn() && curr_result.Pn() < kInfinitePnDn) {
         thpn = Clamp(thpn, curr_result.Pn() + 1);
       }
     } else {
       thpn = Clamp(thpn, curr_result.Pn() + 1);
-      if (curr_result.Dn() > kIncreaseDeltaThreshold) {
+      if (kIncreaseDeltaThreshold < curr_result.Dn() && curr_result.Dn() < kInfinitePnDn) {
         thdn = Clamp(thdn, curr_result.Dn() + 1);
       }
     }
