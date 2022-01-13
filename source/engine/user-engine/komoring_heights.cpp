@@ -73,7 +73,7 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
       move = best_move;
     }
 
-    if (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move) || n.IsRepetitionOrInferiorAfter(move)) {
+    if (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move) || n.IsRepetitionAfter(move)) {
       break;
     }
 
