@@ -10,19 +10,24 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/schollz/progressbar"
 )
 
 type Options struct {
 	HashSize   int
 	DepthLimit int
+	Process    int
 }
 
 func parseOptions() Options {
 	hash_size := flag.Int("hash", 64, "the size of hash (MB)")
 	depth_limit := flag.Int("mate-limit", 0, "the maximum mate length")
+	num_process := flag.Int("process", 4, "the number of process")
 	flag.Parse()
 
-	return Options{HashSize: *hash_size, DepthLimit: *depth_limit}
+	return Options{HashSize: *hash_size, DepthLimit: *depth_limit, Process: *num_process}
 }
 
 type EngineProcess struct {
@@ -80,7 +85,6 @@ func (ep *EngineProcess) GoMate(sfen string) (int, error) {
 	num_searched := 0
 	for ep.scanner.Scan() {
 		text := ep.scanner.Text()
-		fmt.Println(text)
 		switch {
 		case r.MatchString(text):
 			num, err := strconv.Atoi(r.FindStringSubmatch(text)[1])
@@ -90,11 +94,11 @@ func (ep *EngineProcess) GoMate(sfen string) (int, error) {
 		case strings.Contains(text, "nomate"):
 			return num_searched, fmt.Errorf("got nomate")
 		case strings.Contains(text, "checkmate "):
-      if text == "checkmate " {
-        return num_searched, fmt.Errorf("got checkout without mate moves")
-      } else {
-        return num_searched, nil
-      }
+			if text == "checkmate " {
+				return num_searched, fmt.Errorf("got checkout without mate moves")
+			} else {
+				return num_searched, nil
+			}
 		}
 	}
 
@@ -106,16 +110,9 @@ func (ep *EngineProcess) GoMate(sfen string) (int, error) {
 	return num_searched, fmt.Errorf("got no \"readyok\"")
 }
 
-func main() {
-	op := parseOptions()
+func solve(wg *sync.WaitGroup, bar *progressbar.ProgressBar, command string, op Options, sfen_input chan string) {
+	defer wg.Done()
 
-	if flag.NArg() == 0 {
-		fmt.Println("error: solver command was not specified")
-		flag.Usage()
-		os.Exit(2)
-	}
-
-	command := flag.Arg(0)
 	process, err := newEngineProcess(command)
 	if err != nil {
 		fmt.Println("error:", err)
@@ -128,22 +125,41 @@ func main() {
 		os.Exit(2)
 	}
 
-	num_searched := 0
-	sfen_cnt := 1
+	for sfen := range sfen_input {
+		_, err := process.GoMate(sfen)
+		if err != nil {
+			fmt.Println("error:", err)
+			fmt.Println("sfen:", sfen)
+		}
+		bar.Add(1)
+	}
+}
+
+func main() {
+	op := parseOptions()
+
+	if flag.NArg() == 0 {
+		fmt.Println("error: solver command was not specified")
+		flag.Usage()
+		os.Exit(2)
+	}
+
+	bar := progressbar.Default(-1)
+
+	command := flag.Arg(0)
+	sfen_chan := make(chan string)
+	var wg sync.WaitGroup
+	for i := 0; i < op.Process; i++ {
+		wg.Add(1)
+		go solve(&wg, bar, command, op, sfen_chan)
+	}
+
 	sfen_scanner := bufio.NewScanner(os.Stdin)
 	for sfen_scanner.Scan() {
 		sfen := sfen_scanner.Text()
-		fmt.Printf("[%d] sfen %s\n", sfen_cnt, sfen)
-		num, err := process.GoMate(sfen)
-		fmt.Println("")
-
-		if err != nil {
-			fmt.Println("error:", err)
-			break
-		}
-		num_searched += num
-
-		sfen_cnt += 1
+		sfen_chan <- sfen
 	}
-	fmt.Println("num_searched:", num_searched)
+	close(sfen_chan)
+
+	wg.Wait()
 }
