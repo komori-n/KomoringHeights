@@ -129,7 +129,7 @@ func solve(wg *sync.WaitGroup, bar *progressbar.ProgressBar, command string, op 
 		_, err := process.GoMate(sfen)
 		if err != nil {
 			fmt.Println("error:", err)
-			fmt.Println("sfen:", sfen)
+			fmt.Println("sfen", sfen)
 		}
 		bar.Add(1)
 	}
