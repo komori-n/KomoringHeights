@@ -137,7 +137,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
   for (auto&& move : MovePicker{nn, true}) {
     auto& curr_idx = idx_[children_len_] = children_len_;
     auto& child = children_[children_len_++];
-    if (nn.IsRepetitionAfter(move.move)) {
+    if (nn.IsRepetitionOrInferiorAfter(move.move)) {
       child = NodeCache::FromRepetitionMove(move, nn.OrHand());
     } else {
       auto&& query = tt.GetChildQuery(nn, move.move);

@@ -42,14 +42,19 @@ class Node {
     }
   }
 
-  bool IsRepetition() const {
+  bool IsRepetition() const { return node_history_.Contains(n_.state()->board_key(), this->OrHand()); }
+
+  bool IsRepetitionAfter(Move move) const {
+    return node_history_.Contains(n_.board_key_after(move), this->OrHandAfter(move));
+  }
+
+  bool IsRepetitionOrInferior() const {
     auto node_state = node_history_.State(n_.state()->board_key(), this->OrHand());
     return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
   }
 
-  bool IsRepetitionAfter(Move move) const {
-    Hand hand = OrHandAfter(move);
-    auto node_state = node_history_.State(n_.board_key_after(move), hand);
+  bool IsRepetitionOrInferiorAfter(Move move) const {
+    auto node_state = node_history_.State(n_.board_key_after(move), this->OrHandAfter(move));
     return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
   }
 

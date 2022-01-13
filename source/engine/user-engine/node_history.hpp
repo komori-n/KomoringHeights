@@ -61,6 +61,25 @@ class NodeHistory {
   }
 
   /**
+   * @brief (board_key, hand) の同一局面が履歴に記録されているか調べる。
+   *
+   * @param board_key 盤面のハッシュ
+   * @param hand      攻め方の持ち駒
+   */
+  bool Contains(Key board_key, Hand hand) const {
+    auto [begin, end] = visited_.equal_range(board_key);
+
+    for (auto itr = begin; itr != end; ++itr) {
+      auto history_hand = itr->second;
+      if (history_hand == hand) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * @brief (board_key, hand) を履歴に登録する
    *
    * State(board_key, hand) == NodeState::kRepetition の場合、呼び出し禁止。

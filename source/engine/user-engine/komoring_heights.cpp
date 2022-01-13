@@ -73,7 +73,7 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
       move = best_move;
     }
 
-    if (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move) || n.IsRepetitionAfter(move)) {
+    if (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move) || n.IsRepetitionOrInferiorAfter(move)) {
       break;
     }
 
@@ -239,7 +239,7 @@ void KomoringHeights::DigYozume(Node& n) {
         auto query = tt_.GetChildQuery(n, m2.move);
         auto entry = query.LookUpWithoutCreation();
         if (entry->GetNodeState() == NodeState::kDisprovenState ||
-            entry->GetNodeState() == NodeState::kRepetitionState || n.IsRepetitionAfter(m2.move)) {
+            entry->GetNodeState() == NodeState::kRepetitionState || n.IsRepetitionOrInferiorAfter(m2.move)) {
           // 既に不詰が示されている
           continue;
         }
