@@ -99,6 +99,9 @@ class BoardCluster {
   /// entry　が cluster に含まれるなら true
   bool IsStored(CommonEntry* entry) const { return begin() <= entry && entry < end(); }
 
+  constexpr CommonEntry* begin() const { return head_entry_; }
+  constexpr CommonEntry* end() const { return head_entry_ + kClusterSize; };
+
  private:
   /// LookUpWithCreation() と LookUpWithoutCreation() の実装本体。
   template <bool kCreateIfNotExist>
@@ -109,12 +112,6 @@ class BoardCluster {
 
   /// 新たな entry をクラスタに追加する。クラスタに空きがない場合は、最も必要なさそうなエントリを削除する
   CommonEntry* Add(CommonEntry&& entry) const;
-
-  // <iterate>
-  // hah_high_ に一致しない要素も iterator してしまうので、private に隠しておく
-  constexpr CommonEntry* begin() const { return head_entry_; }
-  constexpr CommonEntry* end() const { return head_entry_ + kClusterSize; };
-  // </iterate>
 
   /// BoardCluster が管理する NormalTable の先頭要素。ここから kClusterSize 個のエントリが cluster に含まれる
   CommonEntry* head_entry_{nullptr};
@@ -154,7 +151,8 @@ class LookUpQuery {
         board_cluster_{std::move(board_claster)},
         hand_{hand},
         depth_{depth},
-        path_key_{path_key} {}
+        path_key_{path_key},
+        entry_{board_cluster_.begin()} {}
 
   /// キャッシュに使用するため、デフォルトコンストラクタを有効にする
   LookUpQuery() = default;
@@ -204,8 +202,8 @@ class LookUpQuery {
   }
 
  private:
-  /// `entry` が有効（前回呼び出しから移動していない）かどうかをチェックする
-  bool IsValid(CommonEntry* entry) const;
+  /// `entry_` が有効（前回呼び出しから移動していない）かどうかをチェックする
+  bool IsValid() const;
 
   /// 千日手置換表へのポインタ。デフォルトコンストラクト可能にするために参照ではなくポインタで持つ。
   RepetitionTable* rep_table_;
@@ -219,7 +217,7 @@ class LookUpQuery {
   Key path_key_;
 
   /// entry のキャッシュ。毎回 LookUp をすると時間がかかるので、サボれる時はこれを返す。
-  CommonEntry* entry_{nullptr};
+  CommonEntry* entry_;
 };
 
 /**

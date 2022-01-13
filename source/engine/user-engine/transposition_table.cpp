@@ -144,7 +144,7 @@ CommonEntry* BoardCluster::Add(CommonEntry&& entry) const {
 }
 
 CommonEntry* LookUpQuery::LookUpWithCreation() {
-  if (!IsValid(entry_)) {
+  if (!IsValid()) {
     entry_ = board_cluster_.LookUpWithCreation(hand_, depth_);
 
     if (entry_->GetNodeState() == NodeState::kMaybeRepetitionState) {
@@ -159,7 +159,7 @@ CommonEntry* LookUpQuery::LookUpWithCreation() {
 }
 
 CommonEntry* LookUpQuery::LookUpWithoutCreation() {
-  if (!IsValid(entry_)) {
+  if (!IsValid()) {
     auto entry = board_cluster_.LookUpWithoutCreation(hand_, depth_);
 
     if (entry->GetNodeState() == NodeState::kMaybeRepetitionState) {
@@ -190,20 +190,20 @@ void LookUpQuery::SetRepetition(SearchedAmount amount) {
   entry_ = const_cast<CommonEntry*>(&kRepetitionEntry);
 }
 
-bool LookUpQuery::IsValid(CommonEntry* entry) const {
-  if (entry == nullptr || entry->IsNull()) {
+bool LookUpQuery::IsValid() const {
+  if (entry_->IsNull()) {
     return false;
   }
 
-  if (entry->GetNodeState() == NodeState::kRepetitionState) {
+  if (entry_->GetNodeState() == NodeState::kRepetitionState) {
     // 千日手エントリは結果が変わることがないので必ず真
     return true;
   }
 
-  if (entry->HashHigh() == board_cluster_.HashHigh()) {
-    if (entry->ProperHand(hand_) != kNullHand) {
+  if (entry_->HashHigh() == board_cluster_.HashHigh()) {
+    if (entry_->ProperHand(hand_) != kNullHand) {
       // 千日手っぽいときは注意が必要
-      if (entry->IsMaybeRepetition() && rep_table_->Contains(path_key_)) {
+      if (entry_->IsMaybeRepetition() && rep_table_->Contains(path_key_)) {
         // 千日手なので再 LookUp が必要
         return false;
       } else {
