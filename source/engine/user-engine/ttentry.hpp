@@ -17,8 +17,22 @@ enum class NodeState : std::uint32_t {
 };
 
 inline std::ostream& operator<<(std::ostream& os, NodeState node_state) {
-  os << static_cast<std::uint32_t>(node_state);
-  return os;
+  switch (node_state) {
+    case NodeState::kOtherState:
+      return os << "kOtherState";
+    case NodeState::kMaybeRepetitionState:
+      return os << "kMaybeRepetitionState";
+    case NodeState::kRepetitionState:
+      return os << "kRepetitionState";
+    case NodeState::kDisprovenState:
+      return os << "kDisprovenState";
+    case NodeState::kProvenState:
+      return os << "kProvenState";
+    case NodeState::kNullState:
+      return os << "kNullState";
+    default:
+      return os << "Unknown(" << static_cast<std::uint32_t>(node_state) << ")";
+  }
 }
 
 inline NodeState StripMaybeRepetition(NodeState node_state) {
