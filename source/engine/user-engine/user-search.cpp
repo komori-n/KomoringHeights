@@ -13,6 +13,24 @@
 namespace {
 komori::KomoringHeights g_searcher;
 std::once_flag g_path_key_init_flag;
+bool g_root_is_and_node_if_checked{false};
+
+/// 局面が OR node っぽいかどうかを調べる。困ったら OR node として処理する。
+bool IsPosOrNode(const Position& root_pos) {
+  Color us = root_pos.side_to_move();
+  Color them = ~us;
+
+  if (root_pos.king_square(us) == SQ_NB) {
+    return true;
+  } else if (root_pos.king_square(them) == SQ_NB) {
+    return false;
+  }
+
+  if (root_pos.in_check() && g_root_is_and_node_if_checked) {
+    return false;
+  }
+  return true;
+}
 
 enum class LoseKind {
   kTimeout,
@@ -57,11 +75,13 @@ void ShowCommand(Position& pos, std::istringstream& is) {
     st_info.pop_back();
   }
 
-  g_searcher.ShowValues(pos, moves);
+  bool is_root_or_node = IsPosOrNode(pos);
+  g_searcher.ShowValues(pos, is_root_or_node, moves);
 }
 
 void PvCommand(Position& pos, std::istringstream& /* is */) {
-  g_searcher.ShowPv(pos);
+  bool is_root_or_node = IsPosOrNode(pos);
+  g_searcher.ShowPv(pos, is_root_or_node);
 }
 }  // namespace
 
@@ -85,6 +105,8 @@ void USI::extra_option(USI::OptionsMap& o) {
 
   o["YozumeNodeCount"] << Option(300, 0, INT_MAX);
   o["YozumePath"] << Option(10000, 0, INT_MAX);
+
+  o["RootIsAndNodeIfChecked"] << Option(false);
 
 #if defined(USE_DEEP_DFPN)
   o["DeepDfpnPerMile"] << Option(5, 0, 10000);
@@ -130,6 +152,8 @@ void Search::clear() {
   if (auto max_yozume_path = Options["YozumePath"]) {
     g_searcher.SetYozumePath(max_yozume_path);
   }
+
+  g_root_is_and_node_if_checked = Options["RootIsAndNodeIfChecked"];
 }
 
 // 探索開始時に呼び出される。
@@ -144,10 +168,12 @@ void MainThread::search() {
   Timer timer;
   timer.reset();
 
+  bool is_root_or_node = IsPosOrNode(rootPos);
+
   std::atomic_bool search_end = false;
   std::atomic_bool search_result = false;
   auto thread = std::thread([&]() {
-    search_result = g_searcher.Search(rootPos, Threads.stop);
+    search_result = g_searcher.Search(rootPos, is_root_or_node, Threads.stop);
     search_end = true;
   });
 

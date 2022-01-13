@@ -26,6 +26,8 @@ KomoringHeightsを動かすには、[将棋所](http://shogidokoro.starfree.jp/)
 * `PvInterval`: PVの出力周期（ミリ秒）
 * `YozumeNodeCount`: 余詰め探索局面数
 * `YozumePath`: 余詰め探索回数制限
+* `RootIsAndNodeIfChecked`: 開始局面が双玉かつ王手されている場合、手番側を玉方として扱う
+  * 開始局面が片玉の場合、このオプションに関係なく玉方を自動的に判断する
 * `Threads`: unimplemented
 
 # 技術解説

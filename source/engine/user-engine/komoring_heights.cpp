@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <optional>
 
 #include "../../mate/mate.h"
@@ -129,7 +130,7 @@ void KomoringHeights::Resize(std::uint64_t size_mb) {
   tt_.Resize(size_mb);
 }
 
-bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
+bool KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic_bool& stop_flag) {
   tt_.NewSearch();
   progress_.NewSearch();
   proof_tree_.Clear();
@@ -138,10 +139,15 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
   last_gc_ = 0;
   best_moves_.clear();
 
-  Node node{n};
+  Node node{n, is_root_or_node};
   PnDn thpndn = 1;
-  ChildrenCache cache{tt_, node, true, NodeTag<true>{}};
-  SearchResult result = cache.CurrentResult(node);
+  std::unique_ptr<ChildrenCache> cache;
+  if (is_root_or_node) {
+    cache = std::make_unique<ChildrenCache>(tt_, node, true, NodeTag<true>{});
+  } else {
+    cache = std::make_unique<ChildrenCache>(tt_, node, true, NodeTag<false>{});
+  }
+  SearchResult result = cache->CurrentResult(node);
   while (StripMaybeRepetition(result.GetNodeState()) == NodeState::kOtherState && !IsSearchStop()) {
     thpndn = std::max(2 * result.Pn(), 2 * result.Dn());
     thpndn = std::max(thpndn, result.Pn() + 1);
@@ -149,10 +155,13 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
     thpndn = std::min(thpndn, kInfinitePnDn);
     score_ = Score::Unknown(result.Pn(), result.Dn());
 
-    result = SearchImpl<true>(node, thpndn, thpndn, cache, false);
+    if (is_root_or_node) {
+      result = SearchImpl<true>(node, thpndn, thpndn, *cache, false);
+    } else {
+      result = SearchImpl<false>(node, thpndn, thpndn, *cache, false);
+    }
   }
 
-  // <for-debug>
   auto query = tt_.GetQuery(node);
   auto amount = ToAmount(node.GetMoveCount());
   switch (result.GetNodeState()) {
@@ -170,6 +179,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
       entry->UpdatePnDn(result.Pn(), result.Dn(), amount);
   }
 
+  // <for-debug>
   std::ostringstream oss;
   auto entry = query.LookUpWithCreation();
   oss << *entry;
@@ -194,7 +204,7 @@ bool KomoringHeights::Search(Position& n, std::atomic_bool& stop_flag) {
     }
 
     score_ = Score::Proven(static_cast<Depth>(best_moves_.size()));
-    if (best_moves_.size() % 2 != 1) {
+    if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
     return true;
@@ -321,10 +331,10 @@ void KomoringHeights::DigYozume(Node& n) {
   }
 }
 
-void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
+void KomoringHeights::ShowValues(Position& n, bool is_root_or_node, const std::vector<Move>& moves) {
   auto depth_max = static_cast<Depth>(moves.size());
   Key path_key = 0;
-  Node node{n};
+  Node node{n, is_root_or_node};
   for (Depth depth = 0; depth < depth_max; ++depth) {
     path_key = PathKeyAfter(path_key, moves[depth], depth);
     node.DoMove(moves[depth]);
@@ -342,8 +352,8 @@ void KomoringHeights::ShowValues(Position& n, const std::vector<Move>& moves) {
   }
 }
 
-void KomoringHeights::ShowPv(Position& n) {
-  Node node{n};
+void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
+  Node node{n, is_root_or_node};
   std::vector<Move> moves;
 
   for (;;) {
