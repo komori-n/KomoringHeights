@@ -340,6 +340,19 @@ inline Hand HandsData<kProven>::ProperHand(Hand hand) const {
   }
   return kNullHand;
 }
+
+inline Hand CommonEntry::ProperHand(Hand hand) const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.ProperHand(hand);
+    case NodeState::kDisprovenState:
+      return disproven_.ProperHand(hand);
+    case NodeState::kRepetitionState:
+      return kNullHand;
+    default:
+      return unknown_.ProperHand(hand);
+  }
+}
 }  // namespace komori
 
 #endif  // TTENTRY_HPP_

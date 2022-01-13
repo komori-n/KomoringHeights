@@ -115,19 +115,6 @@ PnDn CommonEntry::Dn() const {
   }
 }
 
-Hand CommonEntry::ProperHand(Hand hand) const {
-  switch (GetNodeState()) {
-    case NodeState::kProvenState:
-      return proven_.ProperHand(hand);
-    case NodeState::kDisprovenState:
-      return disproven_.ProperHand(hand);
-    case NodeState::kRepetitionState:
-      return kNullHand;
-    default:
-      return unknown_.ProperHand(hand);
-  }
-}
-
 Move16 CommonEntry::BestMove(Hand hand) const {
   switch (GetNodeState()) {
     case NodeState::kProvenState:
