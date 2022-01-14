@@ -192,6 +192,7 @@ bool KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic_bool
     auto best_move = node.Pos().to_move(tt_.LookUpBestMove(node));
     auto pv = ExpandBranch(tt_, node, best_move);
     if (pv) {
+      score_ = Score::Proven(static_cast<Depth>(pv->size()));
       proof_tree_.AddBranch(node, *pv);
       if (yozume_node_count_ > 0 && yozume_search_count_ > 0) {
         DigYozume(node);
@@ -203,7 +204,6 @@ bool KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic_bool
       best_moves_ = *pv;
     }
 
-    score_ = Score::Proven(static_cast<Depth>(best_moves_.size()));
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
@@ -295,7 +295,10 @@ void KomoringHeights::DigYozume(Node& n) {
             if (new_pv) {
               RollForward(n, *new_pv);
               std::copy(new_pv->begin(), new_pv->end(), std::back_inserter(best_moves));
-              mate_len = std::min(mate_len, static_cast<Depth>(best_moves.size()));
+              if (auto found_mate_len = static_cast<Depth>(best_moves.size()); found_mate_len < mate_len) {
+                score_ = Score::Proven(found_mate_len);
+                mate_len = found_mate_len;
+              }
               break;
             }
           }
@@ -322,6 +325,7 @@ void KomoringHeights::DigYozume(Node& n) {
           // 千日手が絡むと、pv.size() と MateLen() が一致しないことがある
           // これは、pv の中に best_moves で一度通った局面が含まれるときに発生する
           // このような AND node は深く探索する必要がない。なぜなら、best_move の選び方にそもそも問題があるためである
+          score_ = Score::Proven(new_mate_len);
           mate_len = new_mate_len;
           RollForward(n, *best_branch);
           std::copy(best_branch->begin(), best_branch->end(), std::back_inserter(best_moves));
