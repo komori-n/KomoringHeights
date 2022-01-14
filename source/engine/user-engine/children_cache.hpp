@@ -36,11 +36,11 @@ class Node;
  * 自局面の置換表登録は行わない。もし必要な場合、CurrentResult() の結果をもとに ChildrenCache の使用者が登録する
  * 必要がある。
  *
- * 細かい工夫点については、ChildrenCache::NodeCache のコメントも参照。
+ * 細かい工夫点については、ChildrenCache::Child のコメントも参照。
  *
  * # LookUp 結果をよさげ順に並べる
  *
- * NodeCache の並び順は UpdateFront() の呼び出し前後で変化する可能性があるので注意。
+ * Child の並び順は UpdateFront() の呼び出し前後で変化する可能性があるので注意。
  *
  * # 現局面の pn/dn および証明駒／反証駒を計算する
  *
@@ -66,7 +66,7 @@ class ChildrenCache {
   ~ChildrenCache() = default;
 
   /**
-   * @brief 最善手（i=0）への置換表登録と NodeCache の再ソートを行う。
+   * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
    *
    * @param search_result 置換表へ登録する内容
    * @param move_count   探索局面数
@@ -94,7 +94,7 @@ class ChildrenCache {
   /**
    * @brief 子局面の置換表 LookUp のキャッシュを行う構造体。
    */
-  struct NodeCache {
+  struct Child {
     ExtMove move;
 
     LookUpQuery query;
@@ -103,9 +103,9 @@ class ChildrenCache {
     bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false
     Depth depth;
 
-    static NodeCache FromRepetitionMove(ExtMove move, Hand hand);
+    static Child FromRepetitionMove(ExtMove move, Hand hand);
     template <bool kOrNode>
-    static NodeCache FromUnknownMove(Node& n, LookUpQuery&& query, ExtMove move, Hand hand, bool is_sum_delta);
+    static Child FromUnknownMove(Node& n, LookUpQuery&& query, ExtMove move, Hand hand, bool is_sum_delta);
 
     PnDn Pn() const { return search_result.Pn(); }
     PnDn Dn() const { return search_result.Dn(); }
@@ -113,9 +113,9 @@ class ChildrenCache {
     PnDn Delta(bool or_node) const { return or_node ? search_result.Dn() : search_result.Pn(); }
   };
 
-  /// i 番目に良い手に対する NodeCache を返す
-  NodeCache& NthChild(std::size_t i) { return children_[idx_[i]]; }
-  const NodeCache& NthChild(std::size_t i) const { return children_[idx_[i]]; }
+  /// i 番目に良い手に対する Child を返す
+  Child& NthChild(std::size_t i) { return children_[idx_[i]]; }
+  const Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
   /// UpdateFront のソートしない版
   void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result, std::uint64_t move_count);
 
@@ -134,7 +134,7 @@ class ChildrenCache {
   PnDn CalcDelta() const;
 
   /// NodeCache同士の比較演算子。sortしたときにφ値の昇順かつ千日手の判定がしやすい順番に並び替える。
-  bool Compare(const NodeCache& lhs, const NodeCache& rhs) const;
+  bool Compare(const Child& lhs, const Child& rhs) const;
 
   /// 現局面における置換表クエリ
   const bool or_node_;
@@ -142,7 +142,7 @@ class ChildrenCache {
   /// ここで old child とは、置換表に登録されている深さが現局面のそれよりも深いような局面のことを言う。
   bool does_have_old_child_{false};
 
-  std::array<NodeCache, kMaxCheckMovesPerNode> children_;
+  std::array<Child, kMaxCheckMovesPerNode> children_;
   /// children_ をソートしたときの添字。children_ 辞退を並べ替えると時間がかかるので、添字を会してアクセスするようにする
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
   std::size_t children_len_{0};

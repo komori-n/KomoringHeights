@@ -74,8 +74,8 @@ inline bool DoesHaveMatePossibility(const Position& n) {
 }
 }  // namespace
 
-ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove move, Hand hand) {
-  NodeCache cache;
+ChildrenCache::Child ChildrenCache::Child::FromRepetitionMove(ExtMove move, Hand hand) {
+  Child cache;
   cache.move = move;
 
   cache.search_result = {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand};
@@ -87,12 +87,12 @@ ChildrenCache::NodeCache ChildrenCache::NodeCache::FromRepetitionMove(ExtMove mo
 }
 
 template <bool kOrNode>
-ChildrenCache::NodeCache ChildrenCache::NodeCache::FromUnknownMove(Node& n,
-                                                                   LookUpQuery&& query,
-                                                                   ExtMove move,
-                                                                   Hand hand,
-                                                                   bool is_sum_delta) {
-  NodeCache cache;
+ChildrenCache::Child ChildrenCache::Child::FromUnknownMove(Node& n,
+                                                           LookUpQuery&& query,
+                                                           ExtMove move,
+                                                           Hand hand,
+                                                           bool is_sum_delta) {
+  Child cache;
   cache.move = move;
   cache.query = std::move(query);
   auto* entry = cache.query.LookUpWithoutCreation();
@@ -129,11 +129,11 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
     auto& curr_idx = idx_[children_len_] = children_len_;
     auto& child = children_[children_len_++];
     if (nn.IsRepetitionOrInferiorAfter(move.move)) {
-      child = NodeCache::FromRepetitionMove(move, nn.OrHand());
+      child = Child::FromRepetitionMove(move, nn.OrHand());
     } else {
       auto&& query = tt.GetChildQuery(nn, move.move);
       auto hand = nn.OrHandAfter(move.move);
-      child = NodeCache::FromUnknownMove<kOrNode>(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move, kOrNode));
+      child = Child::FromUnknownMove<kOrNode>(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move, kOrNode));
       if (child.depth < nn.GetDepth()) {
         does_have_old_child_ = true;
       }
@@ -380,7 +380,7 @@ PnDn ChildrenCache::CalcDelta() const {
   return sum_delta + max_delta;
 }
 
-bool ChildrenCache::Compare(const NodeCache& lhs, const NodeCache& rhs) const {
+bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
   if (or_node_) {
     if (lhs.Pn() != rhs.Pn()) {
       return lhs.Pn() < rhs.Pn();
