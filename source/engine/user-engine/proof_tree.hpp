@@ -1,8 +1,8 @@
 #ifndef PROOF_TREE_HPP_
 #define PROOF_TREE_HPP_
 
-#include <unordered_map>
 #include <optional>
+#include <unordered_map>
 
 #include "node.hpp"
 #include "typedefs.hpp"
@@ -78,6 +78,9 @@ class ProofTree {
     Edge(Move16 best_move, Depth mate_len) : best_move{best_move}, mate_len{static_cast<int16_t>(mate_len)} {}
     Move BestMove(const Node& n) const { return n.Pos().to_move(best_move); }
   };
+
+  void RollForwardAndUpdate(Node& n, const std::vector<Move>& moves);
+  void RollBackAndUpdate(Node& n, const std::vector<Move>& moves);
 
   /// 木構造の本体
   std::unordered_map<Key, Edge> edges_{};
