@@ -479,7 +479,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     last_gc_ = gc_timer_.elapsed();
   }
 
-  std::unordered_map<Move, ChildrenCache*> cache_cache;
   while (!IsSearchStop()) {
     if (curr_result.Pn() >= thpn || curr_result.Dn() >= thdn) {
       break;
