@@ -393,14 +393,20 @@ bool ChildrenCache::Compare(const NodeCache& lhs, const NodeCache& rhs) const {
     if (lhs.Pn() != rhs.Pn()) {
       return lhs.Pn() < rhs.Pn();
     }
+    if (lhs.Dn() != rhs.Dn()) {
+      return lhs.Dn() < rhs.Dn();
+    }
   } else {
     if (lhs.Dn() != rhs.Dn()) {
       return lhs.Dn() < rhs.Dn();
     }
+    if (lhs.Pn() != rhs.Pn()) {
+      return lhs.Pn() < rhs.Pn();
+    }
   }
 
-  auto lstate = lhs.search_result.GetNodeState();
-  auto rstate = rhs.search_result.GetNodeState();
+  auto lstate = StripMaybeRepetition(lhs.search_result.GetNodeState());
+  auto rstate = StripMaybeRepetition(rhs.search_result.GetNodeState());
   if (lstate != rstate) {
     if (or_node_) {
       return static_cast<std::uint32_t>(lstate) < static_cast<std::uint32_t>(rstate);
