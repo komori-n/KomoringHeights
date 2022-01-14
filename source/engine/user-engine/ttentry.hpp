@@ -230,6 +230,7 @@ class CommonEntry {
   PnDn Pn() const;
   /// 反証数
   PnDn Dn() const;
+  bool IsFinal() const { return Pn() == 0 || Dn() == 0; }
   /**
    * @brief 置換表に保存されている手のうち、調べたい局面に"ふさわしい"手を返す。
    *        条件に一致する hand がなければ kNullHand を返す。
@@ -323,6 +324,7 @@ class SearchResult {
 
   PnDn Pn() const { return pn_; }
   PnDn Dn() const { return dn_; }
+  bool IsFinal() const { return Pn() == 0 || Dn() == 0; }
   Hand ProperHand() const { return hand_; }
   NodeState GetNodeState() const { return state_; }
   SearchedAmount GetSearchedAmount() const { return amount_; }

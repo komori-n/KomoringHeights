@@ -9,14 +9,6 @@
 
 namespace komori {
 namespace {
-inline PnDn Phi(PnDn pn, PnDn dn, bool or_node) {
-  return or_node ? pn : dn;
-}
-
-inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) {
-  return or_node ? dn : pn;
-}
-
 /**
  * @brief 1手詰めルーチン。詰む場合は証明駒を返す。
  *

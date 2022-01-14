@@ -35,6 +35,16 @@ inline constexpr PnDn kInitialDn = 2;
 inline constexpr PnDn Clamp(PnDn val, PnDn min = 0, PnDn max = kInfinitePnDn) {
   return std::clamp(val, min, max);
 }
+/// Phi値（OR node なら pn、AND node なら dn）を計算する。
+inline PnDn Phi(PnDn pn, PnDn dn, bool or_node) {
+  return or_node ? pn : dn;
+}
+
+/// Delta値（OR node ならdn、AND node なら pn）を計算する。
+inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) {
+  return or_node ? dn : pn;
+}
+
 /// pn/dn 値を文字列に変換する。
 inline std::string ToString(PnDn val) {
   if (val == kInfinitePnDn) {

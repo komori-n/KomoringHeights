@@ -458,7 +458,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   auto curr_result = cache.CurrentResult(n);
   // 探索延長。浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
   inc_flag = inc_flag || cache.DoesHaveOldChild();
-  if (inc_flag && curr_result.Pn() > 0 && curr_result.Dn() > 0) {
+  if (inc_flag && !curr_result.IsFinal()) {
     if constexpr (kOrNode) {
       thdn = Clamp(thdn, curr_result.Dn() + 1);
       if (kIncreaseDeltaThreshold < curr_result.Pn() && curr_result.Pn() < kInfinitePnDn) {
