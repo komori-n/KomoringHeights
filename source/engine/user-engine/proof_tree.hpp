@@ -2,8 +2,11 @@
 #define PROOF_TREE_HPP_
 
 #include <optional>
+#include <stack>
 #include <unordered_map>
+#include <unordered_set>
 
+#include "move_picker.hpp"
 #include "node.hpp"
 #include "typedefs.hpp"
 
@@ -79,11 +82,20 @@ class ProofTree {
     Move BestMove(const Node& n) const { return n.Pos().to_move(best_move); }
   };
 
+  /// n を根とするループを解消する
+  void EliminateLoop(Node& n);
+  /// EliminateLoop() の本体（再帰関数）。ノードをたどってループを解消する
+  Depth EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited);
+
+  /// 局面 n における最善手
+  Move BestMove(Node& n) const;
+
   void RollForwardAndUpdate(Node& n, const std::vector<Move>& moves);
   void RollBackAndUpdate(Node& n, const std::vector<Move>& moves);
 
   /// 木構造の本体
   std::unordered_map<Key, Edge> edges_{};
+  std::stack<MovePicker> pickers_{};
 };
 }  // namespace komori
 

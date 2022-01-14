@@ -39,22 +39,14 @@ std::optional<std::vector<Move>> ProofTree::GetPv(Node& n) {
   for (int i = 0; !found_pv && i < kMaxLoopUpdate; ++i) {
     pv.clear();
 
+    bool rep = false;
     for (;;) {
       // このタイミングで最善手を更新しないとループに迷い込むことがある
       Update(n);
-
-      auto key = n.Pos().key();
-      auto itr = edges_.find(key);
-      if (itr == edges_.end()) {
-        break;
-      }
-
-      auto best_move = itr->second.BestMove(n);
+      auto best_move = BestMove(n);
       if (best_move == MOVE_NONE || n.IsRepetitionAfter(best_move)) {
         // 局面がループしているので探索やり直し
-        // ループ開始局面を∞にして更新しながら戻ることで、ループではない手順に best move が更新される
-        auto key_after = n.Pos().key_after(best_move);
-        edges_.insert_or_assign(key_after, Edge{MOVE_NONE, kMaxNumMateMoves});
+        rep = true;
         break;
       }
 
@@ -66,18 +58,10 @@ std::optional<std::vector<Move>> ProofTree::GetPv(Node& n) {
       found_pv = true;
     }
 
-    Update(n);
-    if (found_pv) {
-      RollBack(n, pv);
-    } else {
-      // ループにより PV が見つけられなかった場合、戻りがけ順で詰み手数を更新する
-      RollBackAndUpdate(n, pv);
-
-      // これでループは解消されたはず
-      // 詰み手数∞のままだと後に問題になるかもしれないので、正しい詰み手数に更新しておく
-      RollForwardAndUpdate(n, pv);
-      Update(n);
-      RollBackAndUpdate(n, pv);
+    RollBack(n, pv);
+    if (rep) {
+      // 局面がループしている場合、ループの解消が必要。
+      EliminateLoop(n);
     }
   }
 
@@ -121,13 +105,7 @@ void ProofTree::Verbose(Node& n) const {
     }
     sync_cout << "info string [" << n.GetDepth() << "] " << oss.str() << sync_endl;
 
-    auto key = n.Pos().key();
-    auto itr = edges_.find(key);
-    if (itr == edges_.end()) {
-      break;
-    }
-
-    auto best_move = itr->second.BestMove(n);
+    auto best_move = BestMove(n);
     if (best_move == MOVE_NONE || n.IsRepetitionAfter(best_move)) {
       break;
     }
@@ -137,6 +115,66 @@ void ProofTree::Verbose(Node& n) const {
   }
 
   RollBack(n, pv);
+}
+
+void ProofTree::EliminateLoop(Node& n) {
+  Node n_copy = n.HistoryClearedNode();
+  std::unordered_set<Key> visited;
+
+  EliminateLoopImpl(n_copy, visited);
+}
+
+Depth ProofTree::EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited) {
+  auto key = n.Pos().key();
+  visited.insert(key);
+
+  auto best_move = BestMove(n);
+  if (best_move == MOVE_NONE) {
+    return 0;
+  }
+
+  auto key_after = n.Pos().key_after(best_move);
+  Depth mate_len = kMaxNumMateMoves;
+  if (visited.find(key_after) == visited.end()) {
+    n.DoMove(best_move);
+    mate_len = EliminateLoopImpl(n, visited) + 1;
+    n.UndoMove(best_move);
+  }
+
+  if (mate_len >= kMaxNumMateMoves && n.IsOrNode()) {
+    mate_len = kMaxNumMateMoves;
+    // best_move を選ぶとループしてしまうのでもっといい手があるはず
+    auto& mp = pickers_.emplace(n);
+    for (const auto& move : mp) {
+      auto key_after = n.Pos().key_after(move.move);
+      if (edges_.find(key_after) != edges_.end() && visited.find(key_after) == visited.end()) {
+        n.DoMove(move);
+        Depth child_mate_len = EliminateLoopImpl(n, visited) + 1;
+        n.UndoMove(move);
+
+        if ((n.IsOrNode() && child_mate_len < mate_len) || (!n.IsOrNode() && child_mate_len > mate_len)) {
+          child_mate_len = mate_len;
+          best_move = move.move;
+        }
+      }
+    }
+    pickers_.pop();
+  }
+
+  if (mate_len < kMaxNumMateMoves) {
+    edges_.insert_or_assign(key, Edge{best_move, mate_len});
+  }
+
+  return mate_len;
+}
+
+Move ProofTree::BestMove(Node& n) const {
+  auto itr = edges_.find(n.Pos().key());
+  if (itr != edges_.end()) {
+    return n.Pos().to_move(itr->second.best_move);
+  } else {
+    return MOVE_NONE;
+  }
 }
 
 void ProofTree::RollForwardAndUpdate(Node& n, const std::vector<Move>& moves) {

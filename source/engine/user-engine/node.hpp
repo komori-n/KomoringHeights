@@ -11,10 +11,14 @@
 namespace komori {
 class Node {
  public:
-  explicit Node(Position& n, Key path_key = 0, Depth depth = 0)
-      : n_{n}, or_color_{n.side_to_move()}, depth_{depth}, path_key_{path_key} {}
+  explicit Node(Position& n, Key path_key = 0, Depth depth = 0, bool and_node = false)
+      : n_{n}, or_color_{and_node ? ~n.side_to_move() : n.side_to_move()}, depth_{depth}, path_key_{path_key} {}
 
   Node NewInstance() { return Node{n_, path_key_, depth_}; }
+
+  /// 探索履歴を削除した node を作成する。局面の参照は内部で共有しているので、片方の局面を動かすともう片方の局面も
+  /// 変わってしまうので注意。
+  Node HistoryClearedNode() { return Node{n_, path_key_, depth_, or_color_ != n_.side_to_move()}; }
 
   void DoMove(Move m) {
     path_key_ = PathKeyAfter(m);
