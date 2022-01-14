@@ -180,8 +180,16 @@ void MainThread::search() {
   auto time_up = [&]() { return Search::Limits.mate != 0 && timer.elapsed() >= Search::Limits.mate; };
   TimePoint pv_interval = Options["PvInterval"];
   TimePoint last_pv_out = 0;
+  int sleep_cnt = 0;
   while (!Threads.stop && !time_up() && !search_end) {
-    Tools::sleep(100);
+    ++sleep_cnt;
+
+    if (sleep_cnt < 100) {
+      Tools::sleep(2);  // 100ms 寝ると時間がかかるので、探索開始直後は sleep 時間を短くする
+    } else {
+      Tools::sleep(100);
+    }
+
     if (pv_interval && timer.elapsed() > last_pv_out + pv_interval) {
       g_searcher.SetPrintFlag();
       last_pv_out = timer.elapsed();
