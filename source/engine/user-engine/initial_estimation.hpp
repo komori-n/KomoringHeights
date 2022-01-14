@@ -92,6 +92,43 @@ inline std::pair<PnDn, PnDn> InitialPnDn(const Node& n, Move move) {
 }
 
 /**
+ * @brief 局面 n の手 move に対するざっくりとした評価値を返す。
+ *
+ * 値が小さければ小さいほど（手番側にとって）良い手を表す。
+ * MovePicker において指し手のオーダリングをする際に使う。
+ */
+inline int MoveBriefEvaluation(const Node& n, Move move) {
+  // 駒のざっくりとした価値。
+  constexpr int kPtValues[] = {
+      0, 1, 2, 2, 3, 5, 5, 5, 8, 5, 5, 5, 5, 8, 8, 8,
+  };
+
+  auto us = n.Pos().side_to_move();
+  auto them = ~us;
+  auto king_color = n.AndColor();
+  auto king_sq = n.Pos().king_square(king_color);
+  auto to = to_sq(move);
+
+  int value = 0;
+
+  // 成れるのに成らない
+  if (!is_drop(move) && !is_promote(move)) {
+    auto from = from_sq(move);
+    auto before_pt = type_of(n.Pos().moved_piece_before(move));
+    if ((before_pt == PAWN || before_pt == BISHOP || before_pt == ROOK) &&
+        (enemy_field(us).test(from) || enemy_field(us).test(to))) {
+      value += 100;  // 歩、角、飛車を成らないのは大きく減点する（打ち歩詰めの時以外は考える必要ない）
+    }
+  }
+
+  auto after_pt = type_of(n.Pos().moved_piece_after(move));
+  value -= kPtValues[after_pt];
+  value += dist(king_sq, to);
+
+  return value;
+}
+
+/**
  * @brief move はδ値をsumで計算すべきか／maxで計上すべきかを判定する
  *
  * 似たような子局面になる move が複数ある場合、δ値を定義通りに sum で計算すると局面を過小評価

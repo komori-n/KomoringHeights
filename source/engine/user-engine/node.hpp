@@ -69,6 +69,8 @@ class Node {
   Key PathKeyAfter(Move m) const { return ::komori::PathKeyAfter(path_key_, m, depth_); }
   std::uint64_t GetMoveCount() const { return move_count_; }
   bool IsOrNode() const { return n_.side_to_move() == or_color_; }
+  Color OrColor() const { return or_color_; }
+  Color AndColor() const { return ~or_color_; }
 
  private:
   Position& n_;
