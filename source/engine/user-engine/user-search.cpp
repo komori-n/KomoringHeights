@@ -156,8 +156,7 @@ void Search::clear() {
   }
 #endif  // defined(USE_DEEP_DFPN)
 
-  g_searcher.Init();
-  g_searcher.Resize(Options["USI_Hash"]);
+  g_searcher.Init(Options["USI_Hash"]);
 
   if (auto max_search_node = Options["NodesLimit"]) {
     g_searcher.SetMaxSearchNode(max_search_node);

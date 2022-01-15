@@ -51,9 +51,7 @@ class KomoringHeights {
   ~KomoringHeights() = default;
 
   /// 内部変数（tt 含む）を初期化する
-  void Init();
-  /// tt のサイズを変更する
-  void Resize(std::uint64_t size_mb);
+  void Init(std::uint64_t size_mb);
   /// 探索局面数上限を設定する
   void SetMaxSearchNode(std::uint64_t max_search_node) { max_search_node_ = max_search_node; }
   /// 探索深さ上限を設定する

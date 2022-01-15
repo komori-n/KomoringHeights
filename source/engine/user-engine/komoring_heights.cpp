@@ -131,11 +131,7 @@ void SearchProgress::WriteTo(UsiInfo& output) const {
 
 KomoringHeights::KomoringHeights() : tt_{kGcHashfullRemoveRatio} {}
 
-void KomoringHeights::Init() {
-  Resize(kDefaultHashSizeMb);
-}
-
-void KomoringHeights::Resize(std::uint64_t size_mb) {
+void KomoringHeights::Init(std::uint64_t size_mb) {
   tt_.Resize(size_mb);
 }
 
