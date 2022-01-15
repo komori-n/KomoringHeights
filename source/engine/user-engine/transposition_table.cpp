@@ -10,8 +10,6 @@ namespace {
 constexpr std::size_t kHashfullCalcEntries = 10000;
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合
 constexpr double kNormalRepetitionRatio = 0.95;
-/// 千日手用のダミーエントリ。千日手の場合は CommonEntry が tt の中に保存されていないので、適当に返す
-const CommonEntry kRepetitionEntry{RepetitionData{}};
 
 /// state の内容に沿って補正した amount を返す。例えば、ProvenState の Amount を大きくしたりする。
 inline SearchedAmount GetAdjustedAmount(NodeState state, SearchedAmount amount) {
@@ -29,52 +27,6 @@ inline SearchedAmount GetAdjustedAmount(NodeState state, SearchedAmount amount) 
   return amount;
 }
 }  // namespace
-
-template <bool kCreateIfNotExist>
-CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
-  std::uint32_t hash_high = hash_high_;
-  PnDn pn = 1;
-  PnDn dn = 1;
-
-  for (auto& entry : *this) {
-    if (entry.IsNull() || entry.HashHigh() != hash_high) {
-      continue;
-    }
-
-    if (entry.ProperHand(hand) != kNullHand) {
-      // 探索中エントリの場合、優等情報からpn/dnを更新しておく
-      if (auto unknown = entry.TryGetUnknown()) {
-        pn = std::max(pn, unknown->Pn());
-        dn = std::max(dn, unknown->Dn());
-        unknown->UpdatePnDn(pn, dn);
-
-        // エントリの更新が可能なら最小距離をこのタイミングで更新しておく
-        unknown->UpdateDepth(depth);
-      }
-      return &entry;
-    }
-
-    // 優等局面／劣等局面の情報から (pn, dn) の初期値を引き上げる
-    if (auto unknown = entry.TryGetUnknown(); unknown != nullptr && unknown->MinDepth() >= depth) {
-      if (unknown->IsSuperiorThan(hand)) {
-        // 現局面より itr の方が優等している -> 現局面は itr 以上に詰ますのが難しいはず
-        pn = std::max(pn, unknown->Pn());
-      } else if (unknown->IsInferiorThan(hand)) {
-        // itr より現局面の方が優等している -> 現局面は itr 以上に不詰を示すのが難しいはず
-        dn = std::max(dn, unknown->Dn());
-      }
-    }
-  }
-
-  if constexpr (kCreateIfNotExist) {
-    return Add({hash_high, UnknownData{pn, dn, hand, depth}});
-  } else {
-    // エントリを新たに作るのはダメなので、適当な一時領域にデータを詰めて返す
-    static CommonEntry dummy_entry;
-    dummy_entry = {hash_high, UnknownData{pn, dn, hand, depth}};
-    return &dummy_entry;
-  }
-}
 
 template <bool kProven>
 CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, Depth mate_len, SearchedAmount amount) const {
@@ -141,43 +93,6 @@ CommonEntry* BoardCluster::Add(CommonEntry&& entry) const {
   // 空きエントリが見つからなかったので、いちばんいらなさそうなエントリを上書きする
   *removed_entry = std::move(entry);
   return removed_entry;
-}
-
-CommonEntry* LookUpQuery::LookUpWithCreation() {
-  if (!IsValid()) {
-    entry_ = board_cluster_.LookUpWithCreation(hand_, depth_);
-
-    if (entry_->GetNodeState() == NodeState::kMaybeRepetitionState) {
-      if (rep_table_->Contains(path_key_)) {
-        // 千日手
-        entry_ = const_cast<CommonEntry*>(&kRepetitionEntry);
-      }
-    }
-  }
-
-  return entry_;
-}
-
-CommonEntry* LookUpQuery::LookUpWithoutCreation() {
-  if (!IsValid()) {
-    auto entry = board_cluster_.LookUpWithoutCreation(hand_, depth_);
-
-    if (entry->GetNodeState() == NodeState::kMaybeRepetitionState) {
-      if (rep_table_->Contains(path_key_)) {
-        // 千日手
-        entry_ = const_cast<CommonEntry*>(&kRepetitionEntry);
-        return entry_;
-      }
-    }
-
-    if (!board_cluster_.IsStored(entry)) {
-      return entry;
-    }
-
-    entry_ = entry;
-  }
-
-  return entry_;
 }
 
 void LookUpQuery::SetResult(const SearchResult& result, SearchedAmount amount) {
