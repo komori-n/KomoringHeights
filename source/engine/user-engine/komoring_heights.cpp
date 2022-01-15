@@ -130,7 +130,7 @@ void KomoringHeights::Resize(std::uint64_t size_mb) {
   tt_.Resize(size_mb);
 }
 
-bool KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic_bool& stop_flag) {
+NodeState KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic_bool& stop_flag) {
   tt_.NewSearch();
   progress_.NewSearch();
   proof_tree_.Clear();
@@ -207,10 +207,10 @@ bool KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic_bool
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
-    return true;
+    return NodeState::kProvenState;
   } else {
     score_ = Score::Disproven();
-    return false;
+    return result.GetNodeState();
   }
 }
 

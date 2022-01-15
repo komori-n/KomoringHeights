@@ -65,7 +65,7 @@ class KomoringHeights {
   void SetPrintFlag() { print_flag_ = true; }
 
   /// df-pn 探索本体。局面 n が詰むかを調べる
-  bool Search(Position& n, bool is_root_or_node, std::atomic_bool& stop_flag);
+  NodeState Search(Position& n, bool is_root_or_node, std::atomic_bool& stop_flag);
   /// 見つけた詰み手順を返す
   const auto& BestMoves() const { return best_moves_; }
 

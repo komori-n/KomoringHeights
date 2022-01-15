@@ -83,6 +83,31 @@ void PvCommand(Position& pos, std::istringstream& /* is */) {
   bool is_root_or_node = IsPosOrNode(pos);
   g_searcher.ShowPv(pos, is_root_or_node);
 }
+
+void WaitSearchEnd(const std::atomic_bool& search_end) {
+  Timer timer;
+  timer.reset();
+
+  bool is_mate_search = Search::Limits.mate != 0;
+  auto time_up = [&]() { return is_mate_search && timer.elapsed() >= Search::Limits.mate; };
+  TimePoint pv_interval = Options["PvInterval"];
+  TimePoint last_pv_out = 0;
+  int sleep_cnt = 0;
+  while (!Threads.stop && !time_up() && !search_end) {
+    ++sleep_cnt;
+
+    if (sleep_cnt < 100) {
+      Tools::sleep(2);  // 100ms 寝ると時間がかかるので、探索開始直後は sleep 時間を短くする
+    } else {
+      Tools::sleep(100);
+    }
+
+    if (pv_interval && timer.elapsed() > last_pv_out + pv_interval) {
+      g_searcher.SetPrintFlag();
+      last_pv_out = timer.elapsed();
+    }
+  }
+}
 }  // namespace
 
 // USI拡張コマンド"user"が送られてくるとこの関数が呼び出される。実験に使ってください。
@@ -160,46 +185,22 @@ void Search::clear() {
 // この関数内で初期化を終わらせ、slaveスレッドを起動してThread::search()を呼び出す。
 // そのあとslaveスレッドを終了させ、ベストな指し手を返すこと。
 void MainThread::search() {
-  // 例)
-  //  for (auto th : Threads.slaves) th->start_searching();
-  //  Thread::search();
-  //  for (auto th : Threads.slaves) th->wait_for_search_finished();
-
-  Timer timer;
-  timer.reset();
-
+  // `go mate` で探索開始したときは true、`go` で探索開始したときは false
+  bool is_mate_search = Search::Limits.mate != 0;
   bool is_root_or_node = IsPosOrNode(rootPos);
 
   std::atomic_bool search_end = false;
-  std::atomic_bool search_result = false;
+  komori::NodeState search_result = komori::NodeState::kNullState;
   auto thread = std::thread([&]() {
     search_result = g_searcher.Search(rootPos, is_root_or_node, Threads.stop);
     search_end = true;
   });
 
-  auto time_up = [&]() { return Search::Limits.mate != 0 && timer.elapsed() >= Search::Limits.mate; };
-  TimePoint pv_interval = Options["PvInterval"];
-  TimePoint last_pv_out = 0;
-  int sleep_cnt = 0;
-  while (!Threads.stop && !time_up() && !search_end) {
-    ++sleep_cnt;
-
-    if (sleep_cnt < 100) {
-      Tools::sleep(2);  // 100ms 寝ると時間がかかるので、探索開始直後は sleep 時間を短くする
-    } else {
-      Tools::sleep(100);
-    }
-
-    if (pv_interval && timer.elapsed() > last_pv_out + pv_interval) {
-      g_searcher.SetPrintFlag();
-      last_pv_out = timer.elapsed();
-    }
-  }
+  WaitSearchEnd(search_end);
   Threads.stop = true;
   thread.join();
 
-  bool is_mate_search = Search::Limits.mate != 0;
-  if (search_result) {
+  if (search_result == komori::NodeState::kProvenState) {
     auto best_moves = g_searcher.BestMoves();
     std::ostringstream oss;
     for (const auto& move : best_moves) {
@@ -207,10 +208,10 @@ void MainThread::search() {
     }
     PrintResult(is_mate_search, LoseKind::kMate, oss.str());
   } else {
-    if (time_up()) {
-      PrintResult(is_mate_search, LoseKind::kTimeout);
-    } else {
+    if (search_result == komori::NodeState::kDisprovenState) {
       PrintResult(is_mate_search, LoseKind::kNoMate);
+    } else {
+      PrintResult(is_mate_search, LoseKind::kTimeout);
     }
   }
 
