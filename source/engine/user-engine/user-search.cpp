@@ -200,6 +200,7 @@ void MainThread::search() {
   g_searcher.SetStop();
   thread.join();
 
+  Move best_move = MOVE_NONE;
   if (search_result == komori::NodeState::kProvenState) {
     auto best_moves = g_searcher.BestMoves();
     std::ostringstream oss;
@@ -207,6 +208,10 @@ void MainThread::search() {
       oss << move << " ";
     }
     PrintResult(is_mate_search, LoseKind::kMate, oss.str());
+
+    if (best_moves.size() > 0) {
+      best_move = best_moves[0];
+    }
   } else {
     if (search_result == komori::NodeState::kDisprovenState) {
       PrintResult(is_mate_search, LoseKind::kNoMate);
@@ -221,7 +226,11 @@ void MainThread::search() {
     while (!Threads.stop && Search::Limits.infinite) {
       Tools::sleep(1);
     }
-    sync_cout << "bestmove resign" << sync_endl;
+    if (best_move == MOVE_NONE) {
+      sync_cout << "bestmove resign" << sync_endl;
+    } else {
+      sync_cout << "bestmove " << best_move << sync_endl;
+    }
     return;
   }
 }
