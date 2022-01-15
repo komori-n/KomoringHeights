@@ -127,6 +127,7 @@ TranspositionTable::TranspositionTable(int gc_hashfull) : gc_hashfull_{gc_hashfu
 void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
   std::uint64_t new_bytes = hash_size_mb * 1024 * 1024;
   std::uint64_t normal_bytes = static_cast<std::uint64_t>(static_cast<double>(new_bytes) * kNormalRepetitionRatio);
+  std::uint64_t rep_bytes = static_cast<std::uint64_t>(static_cast<double>(new_bytes) * (1.0 - kNormalRepetitionRatio));
   // board_cluster 分だけ少し余分にメモリ確保が必要
   std::uint64_t new_num_entries =
       std::max(static_cast<std::uint64_t>(BoardCluster::kClusterSize + 1), normal_bytes / sizeof(CommonEntry));
@@ -137,6 +138,10 @@ void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
   tt_.resize(new_num_entries);
   tt_.shrink_to_fit();
   entry_mod_ = new_num_entries - BoardCluster::kClusterSize;
+
+  std::uint64_t rep_entry_max = rep_bytes / sizeof(Key);
+  rep_table_.SetTableSizeMax(rep_entry_max);
+
   NewSearch();
 }
 
@@ -148,6 +153,8 @@ void TranspositionTable::NewSearch() {
 }
 
 std::size_t TranspositionTable::CollectGarbage() {
+  rep_table_.CollectGarbage();
+
   std::size_t removed_num = 0;
   std::size_t obj_value = tt_.size() * gc_hashfull_ / 1000;
 

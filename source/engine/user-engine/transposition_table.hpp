@@ -127,18 +127,48 @@ class BoardCluster {
  */
 class RepetitionTable {
  public:
+  static constexpr inline std::size_t kTableLen = 2;
   /// 置換表に保存された path key をすべて削除する
-  void Clear() { keys_.clear(); }
+  void Clear() {
+    for (auto& tbl : keys_) {
+      tbl.clear();
+    }
+  }
+  /// 置換表に登録してもよい key の個数を設定する
+  void SetTableSizeMax(std::size_t size_max) { size_max_ = size_max; }
+
+  /// 置換表のうち古くなった部分を削除する
+  void CollectGarbage() {
+    if (Size() >= size_max_) {
+      keys_[idx_].clear();
+      idx_ = (idx_ + 1) % kTableLen;
+    }
+  }
 
   /// `path_key` を千日手として登録する
-  void Insert(Key path_key) { keys_.insert(path_key); }
+  void Insert(Key path_key) { keys_[idx_].insert(path_key); }
   /// `path_key` が保存されていれば true
-  bool Contains(Key path_key) { return keys_.find(path_key) != keys_.end(); }
+  bool Contains(Key path_key) const {
+    for (auto& tbl : keys_) {
+      if (tbl.find(path_key) != tbl.end()) {
+        return true;
+      }
+    }
+    return false;
+  }
   /// 現在の置換表サイズ
-  std::size_t Size() const { return keys_.size(); }
+  std::size_t Size() const {
+    std::size_t ret = 0;
+    for (auto& tbl : keys_) {
+      ret += tbl.size();
+    }
+    return ret;
+  }
 
  private:
-  std::unordered_set<Key> keys_;
+  std::unordered_set<Key> keys_[kTableLen];
+  std::size_t idx_{0};
+  std::size_t size_max_{0};
 };
 
 /**
