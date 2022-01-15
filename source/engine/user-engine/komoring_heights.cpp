@@ -149,7 +149,8 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic
   best_moves_.clear();
 
   Node node{n, is_root_or_node};
-  PnDn thpndn = 1;
+  PnDn thpn = 1;
+  PnDn thdn = 1;
   std::unique_ptr<ChildrenCache> cache;
   if (is_root_or_node) {
     cache = std::make_unique<ChildrenCache>(tt_, node, true, NodeTag<true>{});
@@ -158,41 +159,24 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic
   }
   SearchResult result = cache->CurrentResult(node);
   while (StripMaybeRepetition(result.GetNodeState()) == NodeState::kOtherState && !IsSearchStop()) {
-    thpndn = std::max(2 * result.Pn(), 2 * result.Dn());
-    thpndn = std::max(thpndn, result.Pn() + 1);
-    thpndn = std::max(thpndn, result.Dn() + 1);
-    thpndn = std::min(thpndn, kInfinitePnDn);
+    thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
+    thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
     score_ = Score::Unknown(result.Pn(), result.Dn());
 
     if (is_root_or_node) {
-      result = SearchImpl<true>(node, thpndn, thpndn, *cache, false);
+      result = SearchImpl<true>(node, thpn, thdn, *cache, false);
     } else {
-      result = SearchImpl<false>(node, thpndn, thpndn, *cache, false);
+      result = SearchImpl<false>(node, thpn, thdn, *cache, false);
     }
   }
 
   auto query = tt_.GetQuery(node);
   auto amount = ToAmount(node.GetMoveCount());
-  switch (result.GetNodeState()) {
-    case NodeState::kProvenState:
-      query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
-      break;
-    case NodeState::kDisprovenState:
-      query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
-      break;
-    case NodeState::kRepetitionState:
-      query.SetRepetition(amount);
-      break;
-    default:
-      auto entry = query.LookUpWithCreation();
-      entry->UpdatePnDn(result.Pn(), result.Dn(), amount);
-  }
+  query.SetResult(result, amount);
 
   // <for-debug>
-  std::ostringstream oss;
   auto entry = query.LookUpWithCreation();
   auto entry_str = ToString(*entry);
-  oss << *entry;
   auto info = Info();
   info.Set(UsiInfo::KeyKind::kString, entry_str);
   sync_cout << info << sync_endl;
@@ -275,21 +259,7 @@ void KomoringHeights::DigYozume(Node& n) {
           n.UndoMove(m2.move);
 
           amount = Update(amount, n.GetMoveCount() - move_count_org);
-          switch (result.GetNodeState()) {
-            case NodeState::kProvenState:
-              query.SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
-              break;
-            case NodeState::kDisprovenState:
-              query.SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
-              break;
-            case NodeState::kRepetitionState:
-              query.SetRepetition(amount);
-              break;
-            default:
-              entry = query.LookUpWithoutCreation();
-              entry->UpdatePnDn(result.Pn(), result.Dn(), amount);
-          }
-
+          query.SetResult(result, amount);
           entry = query.LookUpWithoutCreation();
         }
 

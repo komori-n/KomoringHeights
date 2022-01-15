@@ -180,6 +180,23 @@ CommonEntry* LookUpQuery::LookUpWithoutCreation() {
   return entry_;
 }
 
+void LookUpQuery::SetResult(const SearchResult& result, SearchedAmount amount) {
+  switch (result.GetNodeState()) {
+    case NodeState::kProvenState:
+      SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
+      break;
+    case NodeState::kDisprovenState:
+      SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
+      break;
+    case NodeState::kRepetitionState:
+      SetRepetition(amount);
+      break;
+    default:
+      auto entry = LookUpWithCreation();
+      entry->UpdatePnDn(result.Pn(), result.Dn(), amount);
+  }
+}
+
 void LookUpQuery::SetRepetition(SearchedAmount amount) {
   LookUpWithCreation();
   if (entry_->GetNodeState() == NodeState::kOtherState) {

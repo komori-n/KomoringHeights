@@ -223,21 +223,7 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
   auto len = search_result.GetSolutionLen();
   auto amount = Update(search_result.GetSearchedAmount(), move_count);
 
-  switch (search_result.GetNodeState()) {
-    case NodeState::kProvenState:
-      child.query.SetProven(proper_hand, best_move, len, amount);
-      break;
-    case NodeState::kDisprovenState:
-      child.query.SetDisproven(proper_hand, best_move, len, amount);
-      break;
-    case NodeState::kRepetitionState: {
-      child.query.SetRepetition(amount);
-    } break;
-    default: {
-      auto entry = child.query.LookUpWithCreation();
-      entry->UpdatePnDn(search_result.Pn(), search_result.Dn(), amount);
-    }
-  }
+  child.query.SetResult(search_result, amount);
 }
 
 SearchResult ChildrenCache::GetProvenResult(const Node& n) const {

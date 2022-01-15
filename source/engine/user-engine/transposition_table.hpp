@@ -172,6 +172,9 @@ class LookUpQuery {
    */
   CommonEntry* LookUpWithoutCreation();
 
+  /// result を置換表に登録する。内部では SetProven, SetDisproven などを呼び分けている
+  void SetResult(const SearchResult& result, SearchedAmount amount);
+
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
   void SetProven(Hand proof_hand, Move16 move, Depth mate_len, SearchedAmount amount) {
     entry_ = board_cluster_.SetProven(proof_hand, move, mate_len, amount);
