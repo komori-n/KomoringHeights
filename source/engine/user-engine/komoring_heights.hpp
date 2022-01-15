@@ -21,6 +21,7 @@ namespace komori {
 // forward decleration
 class NodeHistory;
 
+namespace detail {
 class SearchProgress {
  public:
   void NewSearch();
@@ -37,6 +38,7 @@ class SearchProgress {
   Depth depth_;
   std::uint64_t move_count_;
 };
+}  // namespace detail
 
 /// df-pn探索の本体
 class KomoringHeights {
@@ -108,7 +110,7 @@ class KomoringHeights {
   TimePoint last_gc_{};
 
   std::atomic_bool print_flag_{false};
-  SearchProgress progress_{};
+  detail::SearchProgress progress_{};
   Score score_{};
   Depth max_depth_{kMaxNumMateMoves};
   std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};

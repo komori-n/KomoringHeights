@@ -214,6 +214,12 @@ std::ostream& operator<<(std::ostream& os, const CommonEntry& entry) {
   }
 }
 
+std::string ToString(const CommonEntry& entry) {
+  std::ostringstream oss;
+  oss << entry;
+  return oss.str();
+}
+
 template std::ostream& operator<<<false>(std::ostream& os, const HandsData<false>& data);
 template std::ostream& operator<<<true>(std::ostream& os, const HandsData<true>& data);
 template class HandsData<false>;

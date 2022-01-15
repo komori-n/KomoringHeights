@@ -66,15 +66,10 @@ class UsiInfo {
     kNps,
     kHashfull,
     kScore,
+    kCurrMove,
     kPv,
     kString,
   };
-
-  static UsiInfo String(const std::string& str) {
-    UsiInfo usi_output{};
-    usi_output.Set(KeyKind::kString, std::move(str));
-    return usi_output;
-  }
 
   std::string ToString() const;
 
@@ -94,6 +89,9 @@ class UsiInfo {
       string_ = std::move(value);
     } else {
       options_[kind] = std::move(value);
+      if (kind == KeyKind::kSelDepth && options_.find(KeyKind::kDepth) == options_.end()) {
+        options_[KeyKind::kDepth] = "0";
+      }
     }
     return *this;
   }

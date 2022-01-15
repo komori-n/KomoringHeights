@@ -38,6 +38,28 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
   return ret;
 }
 
+/// n の子局面のうち、詰み手順としてふさわしそうな局面を選んで返す。
+Move SelectBestMove(TranspositionTable& tt, const Node& n) {
+  bool or_node = n.IsOrNode();
+  Move best_move = MOVE_NONE;
+  Depth mate_len = or_node ? kMaxNumMateMoves : 0;
+  for (const auto& m2 : MovePicker{n}) {
+    auto query = tt.GetChildQuery(n, m2.move);
+    auto entry = query.LookUpWithoutCreation();
+    if (entry->GetNodeState() != NodeState::kProvenState) {
+      continue;
+    }
+
+    auto child_mate_len = entry->GetSolutionLen(n.OrHand());
+    if ((or_node && child_mate_len + 1 < mate_len) || (!or_node && child_mate_len + 1 > mate_len)) {
+      mate_len = child_mate_len;
+      best_move = m2.move;
+    }
+  }
+
+  return best_move;
+}
+
 /**
  * @brief move から始まる置換表に保存された手順を返す
  */
@@ -53,22 +75,7 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
     if (move != MOVE_NONE && (!n_copy.Pos().pseudo_legal(move) || !n_copy.Pos().legal(move))) {
       // 現局面の持ち駒 <= 証明駒  なので、置換表に保存された手を指せない可能性がある
       // このときは、子局面の中から一番よさげな手を適当に選ぶ必要がある
-      Move best_move = MOVE_NONE;
-      Depth mate_len = 0;
-      for (const auto& m2 : MovePicker{n_copy}) {
-        auto query = tt.GetChildQuery(n_copy, m2.move);
-        auto entry = query.LookUpWithoutCreation();
-        if (entry->GetNodeState() != NodeState::kProvenState) {
-          continue;
-        }
-
-        auto child_mate_len = entry->GetSolutionLen(n_copy.OrHand());
-        if ((or_node && child_mate_len + 1 < mate_len) || (!or_node && child_mate_len + 1 > mate_len)) {
-          mate_len = child_mate_len;
-          best_move = m2.move;
-        }
-      }
-      move = best_move;
+      move = SelectBestMove(tt, n_copy);
     }
 
     if (!n_copy.Pos().pseudo_legal(move) || !n_copy.Pos().legal(move) || n_copy.IsRepetitionAfter(move)) {
@@ -102,6 +109,7 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
 }
 }  // namespace
 
+namespace detail {
 void SearchProgress::NewSearch() {
   start_time_ = std::chrono::system_clock::now();
   depth_ = 0;
@@ -119,6 +127,7 @@ void SearchProgress::WriteTo(UsiInfo& output) const {
       .Set(UsiInfo::KeyKind::kNodes, move_count_)
       .Set(UsiInfo::KeyKind::kNps, nps);
 }
+}  // namespace detail
 
 KomoringHeights::KomoringHeights() : tt_{kGcHashfullRemoveRatio} {}
 
@@ -182,10 +191,11 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic
   // <for-debug>
   std::ostringstream oss;
   auto entry = query.LookUpWithCreation();
+  auto entry_str = ToString(*entry);
   oss << *entry;
-  auto usi_output = UsiInfo::String(oss.str());
-  progress_.WriteTo(usi_output);
-  sync_cout << usi_output << sync_endl;
+  auto info = Info();
+  info.Set(UsiInfo::KeyKind::kString, entry_str);
+  sync_cout << info << sync_endl;
   // </for-debug>
 
   if (result.GetNodeState() == NodeState::kProvenState) {

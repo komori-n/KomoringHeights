@@ -286,6 +286,7 @@ class CommonEntry {
 };
 
 std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
+std::string ToString(const CommonEntry& entry);
 
 // サイズ&アラインチェック
 static_assert(sizeof(CommonEntry) == sizeof(std::uint32_t) + sizeof(StateAmount) + sizeof(UnknownData));
