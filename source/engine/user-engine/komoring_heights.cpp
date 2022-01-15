@@ -17,7 +17,7 @@
 
 namespace komori {
 namespace {
-constexpr std::size_t kDefaultHashSizeMb = 1024;
+constexpr std::size_t kDefaultHashSizeMb = 64;
 constexpr std::int64_t kGcInterval = 3000;
 constexpr PnDn kIncreaseDeltaThreshold = 1000;
 

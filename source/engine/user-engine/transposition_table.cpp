@@ -84,6 +84,7 @@ void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
 
   num_clusters_ = new_num_clusters;
   tt_raw_.resize(new_num_clusters * sizeof(TTCluster) + kCacheLineSize);
+  tt_raw_.shrink_to_fit();
   auto tt_addr = (reinterpret_cast<std::uintptr_t>(tt_raw_.data()) + kCacheLineSize) & ~kCacheLineSize;
   tt_ = reinterpret_cast<TTCluster*>(tt_addr);
 
