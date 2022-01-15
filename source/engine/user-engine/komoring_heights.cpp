@@ -466,7 +466,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     // 最も良さげな子ノードを展開する
     auto best_move = cache.BestMove();
     bool is_first_search = cache.BestMoveIsFirstVisit();
-    auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
     if (is_first_search) {
       inc_flag = false;
     }
@@ -478,6 +477,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     if (is_first_search) {
       child_result = child_cache.CurrentResult(n);
     } else {
+      auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
       child_result = SearchImpl<!kOrNode>(n, child_thpn, child_thdn, child_cache, inc_flag);
     }
 
