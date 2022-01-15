@@ -171,10 +171,16 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
 
   std::sort(idx_.begin(), idx_.begin() + children_len_,
             [this](const auto& lhs, const auto& rhs) { return Compare(children_[lhs], children_[rhs]); });
+
+  RecalcDelta();
 }
 
 void ChildrenCache::UpdateFront(const SearchResult& search_result, std::uint64_t move_count) {
   UpdateNthChildWithoutSort(0, search_result, move_count);
+
+  auto& old_best_child = NthChild(0);
+  bool old_is_sum_delta = old_best_child.is_sum_delta;
+  PnDn old_delta = old_best_child.Delta(or_node_);
 
   // idx=0 の更新を受けて子ノードをソートし直す
   // [1, n) はソート済なので、insertion sort で高速にソートできる
@@ -183,20 +189,36 @@ void ChildrenCache::UpdateFront(const SearchResult& search_result, std::uint64_t
     ++j;
   }
   std::rotate(idx_.begin(), idx_.begin() + 1, idx_.begin() + j);
+
+  auto& new_best_child = NthChild(0);
+  if (old_is_sum_delta) {
+    sum_delta_except_best_ += old_delta;
+  } else {
+    max_delta_except_best_ = std::max(max_delta_except_best_, old_delta);
+  }
+
+  if (new_best_child.is_sum_delta) {
+    sum_delta_except_best_ -= new_best_child.Delta(or_node_);
+  } else if (new_best_child.Delta(or_node_) < max_delta_except_best_) {
+    // new_best_child を抜いても max_delta_except_best_ の値は変わらない
+  } else {
+    // max_delta_ の再計算が必要
+    RecalcDelta();
+  }
 }
 
 SearchResult ChildrenCache::CurrentResult(const Node& n) const {
-  if (CalcDelta() == 0) {
+  if (children_len_ > 0 && NthChild(0).Phi(or_node_) == 0) {
     if (or_node_) {
-      return GetDisprovenResult(n);
-    } else {
       return GetProvenResult(n);
+    } else {
+      return GetDisprovenResult(n);
     }
-  } else if (NthChild(0).Phi(or_node_) == 0) {
+  } else if (GetDelta() == 0) {
     if (or_node_) {
-      return GetProvenResult(n);
-    } else {
       return GetDisprovenResult(n);
+    } else {
+      return GetProvenResult(n);
     }
   } else {
     return GetUnknownResult(n);
@@ -308,9 +330,9 @@ SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   auto& child = NthChild(0);
   auto amount = child.search_result.GetSearchedAmount();
   if (or_node_) {
-    return {NodeState::kOtherState, amount, child.Pn(), CalcDelta(), n.OrHand()};
+    return {NodeState::kOtherState, amount, child.Pn(), GetDelta(), n.OrHand()};
   } else {
-    return {NodeState::kOtherState, amount, CalcDelta(), child.Dn(), n.OrHand()};
+    return {NodeState::kOtherState, amount, GetDelta(), child.Dn(), n.OrHand()};
   }
 }
 
@@ -323,47 +345,45 @@ PnDn ChildrenCache::SecondPhi() const {
 }
 
 PnDn ChildrenCache::NewThdeltaForBestMove(PnDn thdelta) const {
-  // まず best_child 抜きのδ値を計算しておく
-  PnDn sum_delta{0};
-  PnDn max_delta{0};
-  for (std::size_t i = 1; i < children_len_; ++i) {
-    const auto& child = NthChild(i);
-    if (child.is_sum_delta) {
-      sum_delta += child.Delta(or_node_);
-    } else {
-      max_delta = std::max(max_delta, child.Delta(or_node_));
+  auto& best_child = NthChild(0);
+  if (best_child.is_sum_delta) {
+    if (thdelta >= sum_delta_except_best_ + max_delta_except_best_) {
+      return Clamp(thdelta - (sum_delta_except_best_ + max_delta_except_best_));
+    }
+  } else {
+    if (thdelta >= sum_delta_except_best_) {
+      return Clamp(thdelta - sum_delta_except_best_);
     }
   }
 
-  // 上記をもとに、best_child.Delta() がいくつ以上になったら thdelta を超えるか計算する
-  auto& best_child = NthChild(0);
-  if (best_child.is_sum_delta) {
-    if (thdelta >= sum_delta + max_delta) {
-      return Clamp(thdelta - (sum_delta + max_delta));
-    }
-  } else {
-    if (thdelta >= sum_delta) {
-      return Clamp(thdelta - sum_delta);
-    }
-  }
-  // 現時点で thdelta >= Delta() (>= sum_delta + max_delta) なので、このパスは通らないはず
   return 0;
 }
 
-PnDn ChildrenCache::CalcDelta() const {
-  PnDn sum_delta{0};
-  PnDn max_delta{0};
+void ChildrenCache::RecalcDelta() {
+  sum_delta_except_best_ = 0;
+  max_delta_except_best_ = 0;
 
-  for (std::size_t i = 0; i < children_len_; ++i) {
+  for (std::size_t i = 1; i < children_len_; ++i) {
     const auto& child = NthChild(i);
     if (child.is_sum_delta) {
-      sum_delta += child.Delta(or_node_);
+      sum_delta_except_best_ += child.Delta(or_node_);
     } else {
-      max_delta = std::max(max_delta, child.Delta(or_node_));
+      max_delta_except_best_ = std::max(max_delta_except_best_, child.Delta(or_node_));
     }
   }
+}
 
-  return sum_delta + max_delta;
+PnDn ChildrenCache::GetDelta() const {
+  if (children_len_ == 0) {
+    return 0;
+  }
+
+  const auto& best_child = NthChild(0);
+  if (best_child.is_sum_delta) {
+    return sum_delta_except_best_ + max_delta_except_best_ + best_child.Delta(or_node_);
+  } else {
+    return sum_delta_except_best_ + std::max(max_delta_except_best_, best_child.Delta(or_node_));
+  }
 }
 
 bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
