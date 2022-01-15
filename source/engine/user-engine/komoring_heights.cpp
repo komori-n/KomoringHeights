@@ -135,11 +135,10 @@ void KomoringHeights::Init(std::uint64_t size_mb) {
   tt_.Resize(size_mb);
 }
 
-NodeState KomoringHeights::Search(Position& n, bool is_root_or_node, std::atomic_bool& stop_flag) {
+NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   tt_.NewSearch();
   progress_.NewSearch();
   proof_tree_.Clear();
-  stop_ = &stop_flag;
   gc_timer_.reset();
   last_gc_ = 0;
   best_moves_.clear();
@@ -504,7 +503,7 @@ void KomoringHeights::PrintProgress(const Node& n) const {
 }
 
 bool KomoringHeights::IsSearchStop() const {
-  return progress_.MoveCount() > max_search_node_ || *stop_;
+  return progress_.MoveCount() > max_search_node_ || stop_;
 }
 
 template SearchResult KomoringHeights::SearchImpl<true>(Node& n,

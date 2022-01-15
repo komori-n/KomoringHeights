@@ -60,12 +60,16 @@ class KomoringHeights {
   void SetYozumeCount(int yozume_count) { yozume_node_count_ = yozume_count; }
   /// 余詰探索で何個まで別解を探索するか
   void SetYozumePath(int yozume_path) { yozume_search_count_ = yozume_path; }
+  /// 詰将棋探索をやめさせる
+  void SetStop() { stop_ = true; }
+  /// stopフラグをクリアする
+  void ResetStop() { stop_ = false; }
 
   /// 探索情報のPrintを指示する。Printが完了したらフラグはfalseになる
   void SetPrintFlag() { print_flag_ = true; }
 
   /// df-pn 探索本体。局面 n が詰むかを調べる
-  NodeState Search(Position& n, bool is_root_or_node, std::atomic_bool& stop_flag);
+  NodeState Search(Position& n, bool is_root_or_node);
   /// 見つけた詰み手順を返す
   const auto& BestMoves() const { return best_moves_; }
 
@@ -103,7 +107,7 @@ class KomoringHeights {
   TranspositionTable tt_;
   std::stack<ChildrenCache> children_cache_{};
 
-  std::atomic_bool* stop_{nullptr};
+  std::atomic_bool stop_{false};
   Timer gc_timer_{};
   TimePoint last_gc_{};
 

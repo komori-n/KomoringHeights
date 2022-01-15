@@ -190,13 +190,14 @@ void MainThread::search() {
 
   std::atomic_bool search_end = false;
   komori::NodeState search_result = komori::NodeState::kNullState;
+  g_searcher.ResetStop();
   auto thread = std::thread([&]() {
-    search_result = g_searcher.Search(rootPos, is_root_or_node, Threads.stop);
+    search_result = g_searcher.Search(rootPos, is_root_or_node);
     search_end = true;
   });
 
   WaitSearchEnd(search_end);
-  Threads.stop = true;
+  g_searcher.SetStop();
   thread.join();
 
   if (search_result == komori::NodeState::kProvenState) {
