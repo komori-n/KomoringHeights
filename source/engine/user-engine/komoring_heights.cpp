@@ -42,29 +42,26 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
  */
 std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
   std::vector<Move> branch;
-
-  if (n.IsRepetitionAfter(move)) {
-    return std::nullopt;
-  }
+  Node n_copy = n.HistoryClearedNode();
 
   branch.emplace_back(move);
-  n.DoMove(move);
+  n_copy.DoMove(move);
   for (;;) {
-    bool or_node = n.IsOrNode();
-    Move move = tt.LookUpBestMove(n);
-    if (move != MOVE_NONE && (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move))) {
+    bool or_node = n_copy.IsOrNode();
+    Move move = tt.LookUpBestMove(n_copy);
+    if (move != MOVE_NONE && (!n_copy.Pos().pseudo_legal(move) || !n_copy.Pos().legal(move))) {
       // 現局面の持ち駒 <= 証明駒  なので、置換表に保存された手を指せない可能性がある
       // このときは、子局面の中から一番よさげな手を適当に選ぶ必要がある
       Move best_move = MOVE_NONE;
       Depth mate_len = 0;
-      for (const auto& m2 : MovePicker{n}) {
-        auto query = tt.GetChildQuery(n, m2.move);
+      for (const auto& m2 : MovePicker{n_copy}) {
+        auto query = tt.GetChildQuery(n_copy, m2.move);
         auto entry = query.LookUpWithoutCreation();
         if (entry->GetNodeState() != NodeState::kProvenState) {
           continue;
         }
 
-        auto child_mate_len = entry->GetSolutionLen(n.OrHand());
+        auto child_mate_len = entry->GetSolutionLen(n_copy.OrHand());
         if ((or_node && child_mate_len + 1 < mate_len) || (!or_node && child_mate_len + 1 > mate_len)) {
           mate_len = child_mate_len;
           best_move = m2.move;
@@ -73,28 +70,28 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
       move = best_move;
     }
 
-    if (!n.Pos().pseudo_legal(move) || !n.Pos().legal(move) || n.IsRepetitionAfter(move)) {
+    if (!n_copy.Pos().pseudo_legal(move) || !n_copy.Pos().legal(move) || n_copy.IsRepetitionAfter(move)) {
       break;
     }
 
-    n.DoMove(move);
+    n_copy.DoMove(move);
     branch.emplace_back(move);
   }
 
-  if (n.IsOrNode() && !n.Pos().in_check()) {
+  if (n_copy.IsOrNode() && !n_copy.Pos().in_check()) {
     // 高速1手詰めルーチンで解ける局面は置換表に登録されていないのでチェックする必要がある
-    if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
-      n.DoMove(move);
+    if (auto move = Mate::mate_1ply(n_copy.Pos()); move != MOVE_NONE) {
+      n_copy.DoMove(move);
       branch.emplace_back(move);
     }
   }
 
   bool found_mate = true;
-  if (n.IsOrNode() || !MovePicker{n}.empty()) {
+  if (n_copy.IsOrNode() || !MovePicker{n_copy}.empty()) {
     found_mate = false;
   }
 
-  RollBack(n, branch);
+  RollBack(n_copy, branch);
 
   if (found_mate) {
     return std::make_optional(std::move(branch));
