@@ -133,7 +133,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
     } else {
       auto&& query = tt.GetChildQuery(nn, move.move);
       auto hand = nn.OrHandAfter(move.move);
-      child = Child::FromUnknownMove<kOrNode>(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move, kOrNode));
+      child = Child::FromUnknownMove<kOrNode>(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move));
       if (child.depth < nn.GetDepth()) {
         does_have_old_child_ = true;
       }

@@ -137,7 +137,8 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
  * @return true   move に対するδ値は sum で計上すべき
  * @return false  move に対するδ値は max で計上すべき
  */
-inline bool IsSumDeltaNode(const Node& n, Move move, bool or_node) {
+inline bool IsSumDeltaNode(const Node& n, Move move) {
+  bool or_node = n.IsOrNode();
   if (is_drop(move)) {
     // 駒打ち
     if (or_node) {
