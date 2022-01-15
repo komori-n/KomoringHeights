@@ -148,17 +148,16 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
               NodeState::kProvenState, kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand, best_move, 1};
 
           UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
-          nn.UndoMove(move.move);
-          continue;
-        }
-
-        // 1手不詰チェック
-        // 一見重そうな処理だが、実験したところここの if 文（これ以上王手ができるどうかの判定} を入れたほうが
-        // 結果として探索が高速化される。
-        if (!DoesHaveMatePossibility(n.Pos())) {
-          auto hand2 = HandSet{DisproofHandTag{}}.Get(nn.Pos());
-          child.search_result = {
-              NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE, 0};
+        } else {
+          // 1手不詰チェック
+          // 一見重そうな処理だが、実験したところここの if 文（これ以上王手ができるどうかの判定} を入れたほうが
+          // 結果として探索が高速化される。
+          if (!DoesHaveMatePossibility(n.Pos())) {
+            auto hand2 = HandSet{DisproofHandTag{}}.Get(nn.Pos());
+            SearchResult dummy_entry = {
+                NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE, 0};
+            UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
+          }
         }
         nn.UndoMove(move.move);
       }
