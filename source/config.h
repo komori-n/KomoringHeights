@@ -515,7 +515,9 @@ constexpr int MAX_PLY_NUM = 246;
 #undef EVAL_LEARN
 #undef ENABLE_TEST_CMD
 #undef USE_GLOBAL_OPTIONS
+#if !defined(USER_ENGINE)
 #undef KEEP_LAST_MOVE
+#endif
 #endif
 
 // --------------------
