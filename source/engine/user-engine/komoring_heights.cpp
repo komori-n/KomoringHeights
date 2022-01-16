@@ -181,7 +181,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     auto best_move = node.Pos().to_move(tt_.LookUpBestMove(node));
     auto pv = ExpandBranch(tt_, node, best_move);
     if (pv) {
-      score_ = Score::Proven(static_cast<Depth>(pv->size()));
+      score_ = Score::Proven(static_cast<Depth>(pv->size()), is_root_or_node);
       proof_tree_.AddBranch(node, *pv);
       if (yozume_node_count_ > 0 && yozume_search_count_ > 0) {
         DigYozume(node);
@@ -198,12 +198,15 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     }
     return NodeState::kProvenState;
   } else {
-    score_ = Score::Disproven();
+    if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
+      score_ = Score::Disproven(result.GetSolutionLen(), is_root_or_node);
+    }
     return result.GetNodeState();
   }
 }
 
 void KomoringHeights::DigYozume(Node& n) {
+  bool is_root_or_node = n.IsOrNode();
   auto best_move = n.Pos().to_move(tt_.LookUpBestMove(n));
   std::vector<Move> best_moves;
   auto root_pv = ExpandBranch(tt_, n, best_move);
@@ -271,7 +274,7 @@ void KomoringHeights::DigYozume(Node& n) {
               RollForward(n, *new_pv);
               std::copy(new_pv->begin(), new_pv->end(), std::back_inserter(best_moves));
               if (auto found_mate_len = static_cast<Depth>(best_moves.size()); found_mate_len < mate_len) {
-                score_ = Score::Proven(found_mate_len);
+                score_ = Score::Proven(found_mate_len, is_root_or_node);
                 mate_len = found_mate_len;
               }
               break;
@@ -300,7 +303,7 @@ void KomoringHeights::DigYozume(Node& n) {
           // 千日手が絡むと、pv.size() と MateLen() が一致しないことがある
           // これは、pv の中に best_moves で一度通った局面が含まれるときに発生する
           // このような AND node は深く探索する必要がない。なぜなら、best_move の選び方にそもそも問題があるためである
-          score_ = Score::Proven(new_mate_len);
+          score_ = Score::Proven(new_mate_len, is_root_or_node);
           mate_len = new_mate_len;
           RollForward(n, *best_branch);
           std::copy(best_branch->begin(), best_branch->end(), std::back_inserter(best_moves));

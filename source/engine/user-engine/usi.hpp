@@ -21,17 +21,29 @@ class Score {
     double value = -kA * std::log(static_cast<double>(pn) / static_cast<double>(dn));
     return Score{Kind::kUnknown, static_cast<int>(value)};
   }
-  static Score Proven(Depth mate_len) { return Score{Kind::kProven, mate_len}; }
-  static Score Disproven() { return Score{Kind::kDisproven, 0}; }
+  static Score Proven(Depth mate_len, bool is_root_or_node) {
+    if (is_root_or_node) {
+      return Score{Kind::kWin, mate_len};
+    } else {
+      return Score{Kind::kLose, mate_len};
+    }
+  }
+  static Score Disproven(Depth mate_len, bool is_root_or_node) {
+    if (is_root_or_node) {
+      return Score{Kind::kLose, mate_len};
+    } else {
+      return Score{Kind::kWin, mate_len};
+    }
+  }
 
   Score() = default;
 
   std::string ToString() const {
     switch (kind_) {
-      case Kind::kProven:
+      case Kind::kWin:
         return std::string{"mate "} + std::to_string(value_);
-      case Kind::kDisproven:
-        return std::string{"mate -0"};
+      case Kind::kLose:
+        return std::string{"mate -"} + std::to_string(value_);
       default:
         return std::string{"cp "} + std::to_string(value_);
     }
@@ -40,8 +52,8 @@ class Score {
  private:
   enum class Kind {
     kUnknown,
-    kProven,
-    kDisproven,
+    kWin,
+    kLose,
   };
 
   static inline constexpr int kMinValue = -32767;
