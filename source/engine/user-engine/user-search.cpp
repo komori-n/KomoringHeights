@@ -131,7 +131,7 @@ void USI::extra_option(USI::OptionsMap& o) {
   o["YozumeNodeCount"] << Option(300, 0, INT_MAX);
   o["YozumePath"] << Option(10000, 0, INT_MAX);
 
-  o["RootIsAndNodeIfChecked"] << Option(false);
+  o["RootIsAndNodeIfChecked"] << Option(true);
 
 #if defined(USE_DEEP_DFPN)
   o["DeepDfpnPerMile"] << Option(5, 0, 10000);
