@@ -104,7 +104,6 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
   };
 
   auto us = n.Pos().side_to_move();
-  auto them = ~us;
   auto king_color = n.AndColor();
   auto king_sq = n.Pos().king_square(king_color);
   auto to = to_sq(move);

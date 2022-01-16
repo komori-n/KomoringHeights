@@ -73,7 +73,6 @@ CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, Depth mate_len, Sear
 }
 
 CommonEntry* BoardCluster::Add(CommonEntry&& entry) const {
-  std::uint32_t hash_high = hash_high_;
   CommonEntry* removed_entry = nullptr;
   SearchedAmount removed_amount = std::numeric_limits<SearchedAmount>::max();
 
@@ -189,7 +188,6 @@ LookUpQuery TranspositionTable::GetQuery(const Node& n) {
 }
 
 LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
-  Hand hand = n.OrHandAfter(move);
   Key board_key = n.Pos().board_key_after(move);
   std::uint32_t hash_high = board_key >> 32;
   CommonEntry* head_entry = HeadOf(board_key);

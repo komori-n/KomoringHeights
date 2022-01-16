@@ -239,9 +239,6 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
   auto& child = NthChild(i);
   child.is_first = false;
   child.search_result = search_result;
-  auto proper_hand = search_result.ProperHand();
-  auto best_move = search_result.BestMove();
-  auto len = search_result.GetSolutionLen();
   auto amount = Update(search_result.GetSearchedAmount(), move_count);
 
   child.query.SetResult(search_result, amount);

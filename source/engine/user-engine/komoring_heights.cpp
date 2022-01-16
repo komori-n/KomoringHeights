@@ -18,7 +18,6 @@
 
 namespace komori {
 namespace {
-constexpr std::size_t kDefaultHashSizeMb = 64;
 constexpr std::int64_t kGcInterval = 3000;
 constexpr PnDn kIncreaseDeltaThreshold = 1000;
 
@@ -70,7 +69,6 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
   branch.emplace_back(move);
   n_copy.DoMove(move);
   for (;;) {
-    bool or_node = n_copy.IsOrNode();
     Move move = tt.LookUpBestMove(n_copy);
     if (move != MOVE_NONE && (!n_copy.Pos().pseudo_legal(move) || !n_copy.Pos().legal(move))) {
       // 現局面の持ち駒 <= 証明駒  なので、置換表に保存された手を指せない可能性がある

@@ -139,7 +139,7 @@ void ProofTree::EliminateLoop(Node& n) {
   Node n_copy = n.HistoryClearedNode();
   std::unordered_set<Key> visited;
 
-  auto mate_len = EliminateLoopImpl(n_copy, visited);
+  EliminateLoopImpl(n_copy, visited);
 }
 
 Depth ProofTree::EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited) {
