@@ -208,10 +208,16 @@ int TranspositionTable::Hashfull() const {
   // tt_ の最初と最後はエントリ数が若干少ないので、真ん中から kHashfullCalcEntries 個のエントリを調べる
   std::size_t begin_idx = BoardCluster::kClusterSize;
   std::size_t end_idx = std::min(begin_idx + kHashfullCalcEntries, static_cast<std::size_t>(entry_mod_));
+
   std::size_t num_entries = end_idx - begin_idx;
-  for (std::size_t i = begin_idx; i < end_idx; ++i) {
-    if (!tt_[i].IsNull()) {
+  std::size_t idx = begin_idx;
+  for (std::size_t i = 0; i < num_entries; ++i) {
+    if (!tt_[idx].IsNull()) {
       used++;
+    }
+    idx += 334;
+    if (idx > end_idx) {
+      idx -= end_idx - begin_idx;
     }
   }
   return static_cast<int>(used * 1000 / num_entries);

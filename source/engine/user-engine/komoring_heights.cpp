@@ -22,8 +22,8 @@ constexpr std::int64_t kGcInterval = 3000;
 constexpr PnDn kIncreaseDeltaThreshold = 1000;
 
 /// TT の使用率が kGcHashfullThreshold を超えたら kGcHashfullRemoveRatio だけ削除する
-constexpr int kGcHashfullThreshold = 850;
-constexpr int kGcHashfullRemoveRatio = 300;
+constexpr int kGcHashfullThreshold = 700;
+constexpr int kGcHashfullRemoveRatio = 200;
 
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
   std::vector<std::pair<Move, SearchResult>> ret;
