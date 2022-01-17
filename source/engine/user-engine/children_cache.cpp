@@ -239,9 +239,9 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
   auto& child = NthChild(i);
   child.is_first = false;
   child.search_result = search_result;
-  auto amount = Update(search_result.GetSearchedAmount(), move_count);
+  child.search_result.UpdateSearchedAmount(move_count);
 
-  child.query.SetResult(search_result, amount);
+  child.query.SetResult(child.search_result);
 }
 
 SearchResult ChildrenCache::GetProvenResult(const Node& n) const {

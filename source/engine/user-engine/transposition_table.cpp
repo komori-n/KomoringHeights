@@ -94,7 +94,8 @@ CommonEntry* BoardCluster::Add(CommonEntry&& entry) const {
   return removed_entry;
 }
 
-void LookUpQuery::SetResult(const SearchResult& result, SearchedAmount amount) {
+void LookUpQuery::SetResult(const SearchResult& result) {
+  auto amount = result.GetSearchedAmount();
   switch (result.GetNodeState()) {
     case NodeState::kProvenState:
       SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);

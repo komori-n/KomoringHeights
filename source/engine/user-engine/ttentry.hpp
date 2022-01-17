@@ -332,6 +332,8 @@ class SearchResult {
   Move16 BestMove() const { return move_; }
   Depth GetSolutionLen() const { return len_; }
 
+  void UpdateSearchedAmount(std::uint64_t move_count) { amount_ = Update(amount_, move_count); }
+
  private:
   NodeState state_;        ///< 局面の状態（詰み／不詰／不明　など）
   SearchedAmount amount_;  ///< 局面に対して探索した局面数

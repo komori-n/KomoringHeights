@@ -164,8 +164,8 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   }
 
   auto query = tt_.GetQuery(node);
-  auto amount = ToAmount(node.GetMoveCount());
-  query.SetResult(result, amount);
+  result.UpdateSearchedAmount(node.GetMoveCount());
+  query.SetResult(result);
 
   // <for-debug>
   auto entry = query.LookUpWithCreation();
@@ -254,8 +254,8 @@ void KomoringHeights::DigYozume(Node& n) {
           max_search_node_ = max_search_node_org;
           n.UndoMove(m2.move);
 
-          amount = Update(amount, n.GetMoveCount() - move_count_org);
-          query.SetResult(result, amount);
+          result.UpdateSearchedAmount(n.GetMoveCount() - move_count_org);
+          query.SetResult(result);
           entry = query.LookUpWithoutCreation();
         }
 
