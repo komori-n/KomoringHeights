@@ -383,20 +383,10 @@ PnDn ChildrenCache::GetDelta() const {
 }
 
 bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
-  if (or_node_) {
-    if (lhs.Pn() != rhs.Pn()) {
-      return lhs.Pn() < rhs.Pn();
-    }
-    if (lhs.Dn() != rhs.Dn()) {
-      return lhs.Dn() < rhs.Dn();
-    }
-  } else {
-    if (lhs.Dn() != rhs.Dn()) {
-      return lhs.Dn() < rhs.Dn();
-    }
-    if (lhs.Pn() != rhs.Pn()) {
-      return lhs.Pn() < rhs.Pn();
-    }
+  if (lhs.Phi(or_node_) != rhs.Phi(or_node_)) {
+    return lhs.Phi(or_node_) < rhs.Phi(or_node_);
+  } else if (lhs.Delta(or_node_) != rhs.Delta(or_node_)) {
+    return lhs.Delta(or_node_) < rhs.Delta(or_node_);
   }
 
   auto lstate = StripMaybeRepetition(lhs.search_result.GetNodeState());
