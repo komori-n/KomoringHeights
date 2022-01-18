@@ -9,6 +9,9 @@
 #include "typedefs.hpp"
 
 namespace komori {
+/**
+ * @brief Position を wrap して千日手判定や OR/AND node の区別など詰将棋探索に必要な機能を追加したクラス
+ */
 class Node {
  public:
   explicit Node(Position& n, bool or_node, Key path_key = 0, Depth depth = 0)
@@ -69,17 +72,18 @@ class Node {
   Key PathKeyAfter(Move m) const { return ::komori::PathKeyAfter(path_key_, m, depth_); }
   std::uint64_t GetMoveCount() const { return move_count_; }
   bool IsOrNode() const { return n_.side_to_move() == or_color_; }
+
   Color OrColor() const { return or_color_; }
   Color AndColor() const { return ~or_color_; }
 
  private:
-  Position& n_;
-  Color or_color_;
-  Depth depth_{};
-  NodeHistory node_history_{};
-  std::stack<StateInfo> st_info_{};
-  Key path_key_{};
-  std::uint64_t move_count_{};
+  Position& n_;                      ///< 現在の局面
+  Color or_color_;                   ///< OR node（攻め方）の手番
+  Depth depth_{};                    ///< root から数えた探索深さ
+  NodeHistory node_history_{};       ///< 千日手・優等局面の一覧
+  std::stack<StateInfo> st_info_{};  ///< do_move で必要な一時領域
+  Key path_key_{};                   ///< 経路ハッシュ値。差分計算により求める。
+  std::uint64_t move_count_{};       ///< DoMove() した回数
 };
 
 /// 局面 n から moves で手を一気に進める。nに対し、moves の前から順に n.DoMove(m) を適用する。

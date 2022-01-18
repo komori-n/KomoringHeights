@@ -55,7 +55,7 @@ class ChildrenCache {
    * @param n   現在の局面
    * @param first_search  初めて訪れた局面なら true。（n 手詰めルーチンを走らせる）
    */
-  ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search);
+  ChildrenCache(TranspositionTable& tt, Node& n, bool first_search);
 
   ChildrenCache() = delete;
   ChildrenCache(const ChildrenCache&) = delete;
@@ -100,10 +100,13 @@ class ChildrenCache {
     SearchResult search_result;
     bool is_first;
     bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false
-    Depth depth;
 
     static Child FromRepetitionMove(ExtMove move, Hand hand);
-    static Child FromUnknownMove(Node& n, LookUpQuery&& query, ExtMove move, Hand hand, bool is_sum_delta);
+    static Child FromUnknownMove(TranspositionTable& tt,
+                                 Node& n,
+                                 ExtMove move,
+                                 bool is_sum_delta,
+                                 bool& does_have_old_child);
 
     PnDn Pn() const { return search_result.Pn(); }
     PnDn Dn() const { return search_result.Dn(); }
@@ -136,14 +139,13 @@ class ChildrenCache {
   /// NodeCache同士の比較演算子。sortしたときにφ値の昇順かつ千日手の判定がしやすい順番に並び替える。
   bool Compare(const Child& lhs, const Child& rhs) const;
 
-  /// 現局面における置換表クエリ
   const bool or_node_;
   /// 現局面が old child を持つなら true。
   /// ここで old child とは、置換表に登録されている深さが現局面のそれよりも深いような局面のことを言う。
   bool does_have_old_child_{false};
 
   std::array<Child, kMaxCheckMovesPerNode> children_;
-  /// children_ をソートしたときの添字。children_ 辞退を並べ替えると時間がかかるので、添字を会してアクセスするようにする
+  /// children_ をソートしたときの添字。children_ 自体を並べ替えると時間がかかるので、添字を会してアクセスするようにする
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
   std::size_t children_len_{0};
 

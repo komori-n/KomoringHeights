@@ -106,6 +106,20 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
     return std::nullopt;
   }
 }
+
+void ExtendThreshold(PnDn& thpn, PnDn& thdn, PnDn pn, PnDn dn, bool or_node) {
+  if (or_node) {
+    thdn = Clamp(thdn, dn + 1);
+    if (kIncreaseDeltaThreshold < pn && pn < kInfinitePnDn) {
+      thpn = Clamp(thpn, pn + 1);
+    }
+  } else {
+    thpn = Clamp(thpn, pn + 1);
+    if (kIncreaseDeltaThreshold < dn && dn < kInfinitePnDn) {
+      thdn = Clamp(thdn, dn + 1);
+    }
+  }
+}
 }  // namespace
 
 namespace detail {
@@ -135,19 +149,25 @@ void KomoringHeights::Init(std::uint64_t size_mb) {
 }
 
 NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
+  // <初期化>
   tt_.NewSearch();
   progress_.NewSearch();
   proof_tree_.Clear();
   gc_timer_.reset();
   last_gc_ = 0;
   best_moves_.clear();
+  // </初期化>
 
+  // Position より Node のほうが便利なので、探索中は node を用いる
   Node node{n, is_root_or_node};
+
+  // thpn/thdn で反復深化探索を行う
   PnDn thpn = 1;
   PnDn thdn = 1;
   ChildrenCache cache{tt_, node, true};
   SearchResult result = cache.CurrentResult(node);
-  while (StripMaybeRepetition(result.GetNodeState()) == NodeState::kOtherState && !IsSearchStop()) {
+  while (!IsFinal(result.GetNodeState()) && !IsSearchStop()) {
+    // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
     score_ = Score::Unknown(result.Pn(), result.Dn());
@@ -155,20 +175,18 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     result = SearchImpl(node, thpn, thdn, cache, false);
   }
 
+  // SearchImpl 内では root node の探索結果は置換表に保存しない。
+  // そのため、ここで置換表の登録を行わなければならない。
   auto query = tt_.GetQuery(node);
   result.UpdateSearchedAmount(node.GetMoveCount());
   query.SetResult(result);
 
-  // <for-debug>
-  auto entry = query.LookUpWithCreation();
-  auto entry_str = ToString(*entry);
   auto info = Info();
-  info.Set(UsiInfo::KeyKind::kString, entry_str);
+  info.Set(UsiInfo::KeyKind::kString, ToString(result));
   sync_cout << info << sync_endl;
-  // </for-debug>
 
   if (result.GetNodeState() == NodeState::kProvenState) {
-    auto best_move = node.Pos().to_move(tt_.LookUpBestMove(node));
+    auto best_move = tt_.LookUpBestMove(node);
     auto pv = ExpandBranch(tt_, node, best_move);
     if (pv) {
       score_ = Score::Proven(static_cast<Depth>(pv->size()), is_root_or_node);
@@ -180,7 +198,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
 
     pv = proof_tree_.GetPv(node);
     if (pv) {
-      best_moves_ = *pv;
+      best_moves_ = std::move(*pv);
     }
 
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
@@ -233,7 +251,7 @@ void KomoringHeights::DigYozume(Node& n) {
           continue;
         }
 
-        if (StripMaybeRepetition(entry->GetNodeState()) == NodeState::kOtherState) {
+        if (!IsFinal(entry->GetNodeState())) {
           // 再探索
           auto amount = entry->GetSearchedAmount();
           auto move_count_org = n.GetMoveCount();
@@ -426,21 +444,13 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     return {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, n.OrHand()};
   }
 
+  // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
   auto curr_result = cache.CurrentResult(n);
-  // 探索延長。浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
+  // Threshold Controlling Algorithm(TCA).
+  // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
   inc_flag = inc_flag || cache.DoesHaveOldChild();
   if (inc_flag && !curr_result.IsFinal()) {
-    if (n.IsOrNode()) {
-      thdn = Clamp(thdn, curr_result.Dn() + 1);
-      if (kIncreaseDeltaThreshold < curr_result.Pn() && curr_result.Pn() < kInfinitePnDn) {
-        thpn = Clamp(thpn, curr_result.Pn() + 1);
-      }
-    } else {
-      thpn = Clamp(thpn, curr_result.Pn() + 1);
-      if (kIncreaseDeltaThreshold < curr_result.Dn() && curr_result.Dn() < kInfinitePnDn) {
-        thdn = Clamp(thdn, curr_result.Dn() + 1);
-      }
-    }
+    ExtendThreshold(thpn, thdn, curr_result.Pn(), curr_result.Dn(), n.IsOrNode());
   }
 
   if (gc_timer_.elapsed() > last_gc_ + kGcInterval) {
@@ -450,29 +460,42 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     last_gc_ = gc_timer_.elapsed();
   }
 
-  while (!IsSearchStop()) {
-    if (curr_result.Pn() >= thpn || curr_result.Dn() >= thdn) {
-      break;
-    }
-
-    // 最も良さげな子ノードを展開する
+  while (!IsSearchStop() && !curr_result.Exceeds(thpn, thdn)) {
+    // cache.BestMove() にしたがい子局面を展開する
+    // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     auto best_move = cache.BestMove();
     bool is_first_search = cache.BestMoveIsFirstVisit();
-    if (is_first_search) {
-      inc_flag = false;
-    }
+    auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
 
+    // 子局面を何局面分探索したのかを見るために探索前に move count を取得しておく
     auto move_count_org = n.GetMoveCount();
     n.DoMove(best_move);
+
+    // ChildrenCache をローカル変数として持つとスタックが枯渇する。v0.4.1時点では
+    //     sizeof(ChildrenCache) == 10832
+    // なので、ミクロコスモスを解く場合、スタック領域が 16.5 MB 必要になる。スマホや低スペックPCでも動作するように
+    // したいので、ChildrenCache は動的メモリにより確保する。
+    //
+    // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
     auto& child_cache = children_cache_.emplace(tt_, n, is_first_search);
+
     SearchResult child_result;
     if (is_first_search) {
       child_result = child_cache.CurrentResult(n);
-    } else {
-      auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
-      child_result = SearchImpl(n, child_thpn, child_thdn, child_cache, inc_flag);
-    }
+      // 新規局面を展開したので、TCA による探索延長をこれ以上続ける必要はない
+      inc_flag = false;
 
+      // 子局面を初展開する場合、child_result を計算した時点で threshold を超過する可能性がある
+      // しかし、SearchImpl をコールしてしまうと TCA の探索延長によりすぐに返ってこない可能性がある
+      // ゆえに、この時点で Exceed している場合は SearchImpl を呼ばないようにする。
+      if (child_result.Exceeds(child_thpn, child_thdn)) {
+        goto CHILD_SEARCH_END;
+      }
+    }
+    child_result = SearchImpl(n, child_thpn, child_thdn, child_cache, inc_flag);
+
+  CHILD_SEARCH_END:
+    // 動的に確保した ChildrenCache の領域を忘れずに開放する
     children_cache_.pop();
     n.UndoMove(best_move);
 

@@ -6,6 +6,7 @@
 #include "typedefs.hpp"
 
 namespace komori {
+// <NodeState>
 /// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
 enum class NodeState : std::uint32_t {
   kOtherState,            ///< 詰みでも不詰でもない探索中局面
@@ -35,13 +36,20 @@ inline std::ostream& operator<<(std::ostream& os, NodeState node_state) {
   }
 }
 
-inline NodeState StripMaybeRepetition(NodeState node_state) {
+inline constexpr bool IsFinal(NodeState node_state) {
+  return node_state == NodeState::kProvenState || node_state == NodeState::kDisprovenState ||
+         node_state == NodeState::kRepetitionState;
+}
+
+inline constexpr NodeState StripMaybeRepetition(NodeState node_state) {
   return node_state == NodeState::kMaybeRepetitionState ? NodeState::kOtherState : node_state;
 }
+// </NodeState>
 
 /// 大まかな探索量。TreeSize のようなもので、GCのときに削除するノードを選ぶ際に用いる。
 using SearchedAmount = std::uint32_t;
 inline constexpr SearchedAmount kMinimumSearchedAmount = 2;
+inline constexpr SearchedAmount kFirstSearchAmount = 2;
 /// 何局面読んだら SearchedCmount を進めるか
 inline constexpr std::uint64_t kNumSearchedPerAmount = 128;
 inline constexpr SearchedAmount Update(SearchedAmount amount, std::uint64_t delta_searched) {
@@ -72,7 +80,7 @@ inline constexpr bool operator!=(const StateAmount& lhs, const StateAmount& rhs)
 }
 
 inline constexpr StateAmount kMarkDeleted = {NodeState::kOtherState, 0};
-inline constexpr StateAmount kFirstSearch = {NodeState::kOtherState, 1};
+inline constexpr StateAmount kFirstSearch = {NodeState::kOtherState, kFirstSearchAmount};
 inline constexpr StateAmount kNullEntry = {NodeState::kNullState, 0};
 
 /**
@@ -224,13 +232,13 @@ class CommonEntry {
   /// 通常局面かつ千日手の可能性があることを報告する。
   constexpr void SetMaybeRepetition() { s_amount_.node_state = NodeState::kMaybeRepetitionState; }
   /// 通常局面かつまだ初回探索をしていない場合のみ true。
-  constexpr bool IsFirstVisit() const { return s_amount_ == kFirstSearch; }
+  constexpr bool IsFirstVisit() const { return !IsFinal() && s_amount_.amount == kFirstSearchAmount; }
 
   /// 証明数
   PnDn Pn() const;
   /// 反証数
   PnDn Dn() const;
-  bool IsFinal() const { return Pn() == 0 || Dn() == 0; }
+  bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
   /**
    * @brief 置換表に保存されている手のうち、調べたい局面に"ふさわしい"手を返す。
    *        条件に一致する hand がなければ kNullHand を返す。
@@ -258,14 +266,22 @@ class CommonEntry {
   /// 反証駒 disproof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
   bool UpdateWithDisproofHand(Hand disproof_hand);
 
-  /// 通常局面ならメンバのポインタを返す。そうでないなら nullptr を返す。
-  UnknownData* TryGetUnknown();
-  /// 証明済局面ならメンバのポインタを返す。そうでないなら nullptr を返す。
-  ProvenData* TryGetProven();
-  /// 反証済局面ならメンバのポインタを返す。そうでないなら nullptr を返す。
-  DisprovenData* TryGetDisproven();
-  /// 千日手局面ならメンバのポインタを返す。そうでないなら nullptr を返す。
-  RepetitionData* TryGetRepetition();
+  // <TryGet>
+  // TryGetXXX: 現在が XXX 状態なら内部データへのポインタを返す。そうでないなら、nullptr を返す。
+  UnknownData* TryGetUnknown() { return !IsFinal() ? &unknown_ : nullptr; }
+  ProvenData* TryGetProven() { return GetNodeState() == NodeState::kProvenState ? &proven_ : nullptr; }
+  DisprovenData* TryGetDisproven() { return GetNodeState() == NodeState::kDisprovenState ? &disproven_ : nullptr; }
+  RepetitionData* TryGetRepetition() { return GetNodeState() == NodeState::kRepetitionState ? &rep_ : nullptr; }
+
+  const UnknownData* TryGetUnknown() const { return !IsFinal() ? &unknown_ : nullptr; }
+  const ProvenData* TryGetProven() const { return GetNodeState() == NodeState::kProvenState ? &proven_ : nullptr; }
+  const DisprovenData* TryGetDisproven() const {
+    return GetNodeState() == NodeState::kDisprovenState ? &disproven_ : nullptr;
+  }
+  const RepetitionData* TryGetRepetition() const {
+    return GetNodeState() == NodeState::kRepetitionState ? &rep_ : nullptr;
+  }
+  // </TryGet>
 
  private:
   std::uint32_t hash_high_;  ///< 盤面のハッシュの上位32bit
@@ -302,6 +318,8 @@ static_assert(alignof(std::uint64_t) % alignof(CommonEntry) == 0);
  */
 class SearchResult {
  public:
+  friend std::ostream& operator<<(std::ostream& os, const SearchResult& result);
+
   /// 初期化なしのコンストラクタも有効にしておく
   SearchResult() = default;
   /// CommonEntry からコンストラクトする。これだけだと証明駒／反証駒がわからないので、現在の OrHand も引数で渡す。
@@ -334,6 +352,8 @@ class SearchResult {
 
   void UpdateSearchedAmount(std::uint64_t move_count) { amount_ = Update(amount_, move_count); }
 
+  bool Exceeds(PnDn thpn, PnDn thdn) { return pn_ >= thpn || dn_ >= thdn; }
+
  private:
   NodeState state_;        ///< 局面の状態（詰み／不詰／不明　など）
   SearchedAmount amount_;  ///< 局面に対して探索した局面数
@@ -344,6 +364,9 @@ class SearchResult {
   Move16 move_;
   Depth len_;
 };
+
+std::ostream& operator<<(std::ostream& os, const SearchResult& result);
+std::string ToString(const SearchResult& result);
 
 template <bool kProven>
 inline Hand HandsData<kProven>::ProperHand(Hand hand) const {

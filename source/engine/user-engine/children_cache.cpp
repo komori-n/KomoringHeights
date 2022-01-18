@@ -76,33 +76,35 @@ inline bool DoesHaveMatePossibility(const Position& n) {
 
 ChildrenCache::Child ChildrenCache::Child::FromRepetitionMove(ExtMove move, Hand hand) {
   Child cache;
-  cache.move = move;
 
+  cache.move = move;
   cache.search_result = {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand};
   cache.is_first = false;
   cache.is_sum_delta = true;
-  cache.depth = Depth{kMaxNumMateMoves};
+
+  // 他の変数は時間節約のために未初期化のままにする
 
   return cache;
 }
 
-ChildrenCache::Child ChildrenCache::Child::FromUnknownMove(Node& n,
-                                                           LookUpQuery&& query,
+ChildrenCache::Child ChildrenCache::Child::FromUnknownMove(TranspositionTable& tt,
+                                                           Node& n,
                                                            ExtMove move,
-                                                           Hand hand,
-                                                           bool is_sum_delta) {
+                                                           bool is_sum_delta,
+                                                           bool& does_have_old_child) {
   Child cache;
   cache.move = move;
-  cache.query = std::move(query);
-  auto* entry = cache.query.LookUpWithoutCreation();
-  cache.is_first = entry->IsFirstVisit();
   cache.is_sum_delta = is_sum_delta;
+  cache.query = tt.GetChildQuery(n, move.move);
+  auto* entry = cache.query.LookUpWithoutCreation();
+
   if (auto unknown = entry->TryGetUnknown()) {
-    cache.depth = unknown->MinDepth();
-  } else {
-    cache.depth = Depth{kMaxNumMateMoves};
+    if (unknown->MinDepth() < n.GetDepth()) {
+      does_have_old_child = true;
+    }
   }
 
+  cache.is_first = entry->IsFirstVisit();
   if (cache.is_first) {
     auto [pn, dn] = InitialPnDn(n, move.move);
     pn = std::max(pn, entry->Pn());
@@ -110,60 +112,62 @@ ChildrenCache::Child ChildrenCache::Child::FromUnknownMove(Node& n,
     entry->UpdatePnDn(pn, dn, 0);
   }
 
-  cache.search_result = {*entry, hand};
+  auto hand_after = n.OrHandAfter(move.move);
+  cache.search_result = {*entry, hand_after};
 
   return cache;
 }
 
-ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search)
-    : or_node_{n.IsOrNode()} {
-  // DoMove() や UndoMove() をしたいので const を外す
-  Node& nn = const_cast<Node&>(n);
-
+ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search) : or_node_{n.IsOrNode()} {
   // 1 手詰めの場合、指し手生成をサボることができる
   // が、AndNode の 2 手詰めルーチンで mate_1ply を呼ぶのでここでやっても意味がない
 
-  for (auto&& move : MovePicker{nn, true}) {
+  // 後で子局面を良さげ順に並び替えるため、ordering=true で指し手生成を行う
+  for (auto&& move : MovePicker{n, true}) {
     auto& curr_idx = idx_[children_len_] = children_len_;
     auto& child = children_[children_len_++];
-    if (nn.IsRepetitionOrInferiorAfter(move.move)) {
-      child = Child::FromRepetitionMove(move, nn.OrHand());
+    if (n.IsRepetitionOrInferiorAfter(move.move)) {
+      // どう見ても千日手の局面 or どう見ても詰まない局面は読み進める必要がない
+      // 置換表 LookUp の回数を減らすために別処理に分ける
+      child = Child::FromRepetitionMove(move, n.OrHand());
     } else {
-      auto&& query = tt.GetChildQuery(nn, move.move);
-      auto hand = nn.OrHandAfter(move.move);
-      child = Child::FromUnknownMove(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move));
-      if (child.depth < nn.GetDepth()) {
-        does_have_old_child_ = true;
-      }
+      child = Child::FromUnknownMove(tt, n, move, IsSumDeltaNode(n, move), does_have_old_child_);
 
-      // 受け方の first search の場合、1手掘り進めてみる
+      // AND node の first search の場合、1手掘り進めてみる（2手詰ルーチン）
+      // OR node の場合、詰みかどうかを高速に判定できないので first_search でも先読みはしない
       if (!or_node_ && first_search && child.is_first) {
-        nn.DoMove(move.move);
-        // 1手詰めチェック
-        if (auto [best_move, proof_hand] = CheckMate1Ply(nn); proof_hand != kNullHand) {
-          // move を選ぶと1手詰み。
+        n.DoMove(move.move);
+        // 1手詰めチェック & 0手不詰チェック
+        // 0手不詰チェックを先にした方が 1% ぐらい高速
+
+        if (!DoesHaveMatePossibility(n.Pos())) {
+          // 明らかに王手がかけられないので不詰
+
+          auto hand2 = HandSet{DisproofHandTag{}}.Get(n.Pos());
+          // 置換表に不詰であることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
+          SearchResult dummy_entry = {
+              NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE, 0};
+          UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
+        } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
+          // best_move を選ぶと1手詰み。
+
+          // 置換表に詰みであることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
           SearchResult dummy_entry = {
               NodeState::kProvenState, kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand, best_move, 1};
-
           UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
-        } else {
-          // 1手不詰チェック
-          // 一見重そうな処理だが、実験したところここの if 文（これ以上王手ができるどうかの判定} を入れたほうが
-          // 結果として探索が高速化される。
-          if (!DoesHaveMatePossibility(n.Pos())) {
-            auto hand2 = HandSet{DisproofHandTag{}}.Get(nn.Pos());
-            SearchResult dummy_entry = {
-                NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE, 0};
-            UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
-          }
         }
-        nn.UndoMove(move.move);
+        n.UndoMove(move.move);
       }
     }
+
+    // 1つでも（現在の手番側から見て）勝ちの手があるならそれを選べばOK。これ以上探索しても
+    // CurrentResult() の結果はほとんど変化しない。
 
     if (child.Phi(or_node_) == 0) {
       break;
     }
+
+    // ここで Delta() >= thdelta を根拠に子局面の展開をやめると、CurrentResult() の結果があまりよくなくなるのでダメ。
   }
 
   std::sort(idx_.begin(), idx_.begin() + children_len_,
@@ -187,6 +191,7 @@ void ChildrenCache::UpdateFront(const SearchResult& search_result, std::uint64_t
   }
   std::rotate(idx_.begin(), idx_.begin() + 1, idx_.begin() + j);
 
+  // RecalcDelta() をすると時間がかかるので、差分更新で済む場合はそうする
   auto& new_best_child = NthChild(0);
   if (old_is_sum_delta) {
     sum_delta_except_best_ += old_delta;
@@ -206,12 +211,14 @@ void ChildrenCache::UpdateFront(const SearchResult& search_result, std::uint64_t
 
 SearchResult ChildrenCache::CurrentResult(const Node& n) const {
   if (children_len_ > 0 && NthChild(0).Phi(or_node_) == 0) {
+    // 手番側の勝ち
     if (or_node_) {
       return GetProvenResult(n);
     } else {
       return GetDisprovenResult(n);
     }
   } else if (GetDelta() == 0) {
+    // 手番側の負け
     if (or_node_) {
       return GetDisprovenResult(n);
     } else {
@@ -373,6 +380,7 @@ PnDn ChildrenCache::GetDelta() const {
   }
 
   const auto& best_child = NthChild(0);
+  // 差分計算用の値を予め持っているので、高速に計算できる
   if (best_child.is_sum_delta) {
     return sum_delta_except_best_ + max_delta_except_best_ + best_child.Delta(or_node_);
   } else {
@@ -381,6 +389,8 @@ PnDn ChildrenCache::GetDelta() const {
 }
 
 bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
+  // or_node_ と move.value を参照しなければならないので ChildrenCache の内部で定義している
+
   if (lhs.Phi(or_node_) != rhs.Phi(or_node_)) {
     return lhs.Phi(or_node_) < rhs.Phi(or_node_);
   } else if (lhs.Delta(or_node_) != rhs.Delta(or_node_)) {

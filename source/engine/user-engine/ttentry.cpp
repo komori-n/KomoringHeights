@@ -172,34 +172,6 @@ bool CommonEntry::UpdateWithDisproofHand(Hand disproof_hand) {
   }
 }
 
-UnknownData* CommonEntry::TryGetUnknown() {
-  if (GetNodeState() == NodeState::kOtherState || GetNodeState() == NodeState::kMaybeRepetitionState) {
-    return &unknown_;
-  }
-  return nullptr;
-}
-
-ProvenData* CommonEntry::TryGetProven() {
-  if (GetNodeState() == NodeState::kProvenState) {
-    return &proven_;
-  }
-  return nullptr;
-}
-
-DisprovenData* CommonEntry::TryGetDisproven() {
-  if (GetNodeState() == NodeState::kDisprovenState) {
-    return &disproven_;
-  }
-  return nullptr;
-}
-
-RepetitionData* CommonEntry::TryGetRepetition() {
-  if (GetNodeState() == NodeState::kRepetitionState) {
-    return &rep_;
-  }
-  return nullptr;
-}
-
 std::ostream& operator<<(std::ostream& os, const CommonEntry& entry) {
   os << HexString(entry.hash_high_) << " " << entry.s_amount_.node_state << " " << entry.s_amount_.amount << " ";
   switch (entry.GetNodeState()) {
@@ -217,6 +189,34 @@ std::ostream& operator<<(std::ostream& os, const CommonEntry& entry) {
 std::string ToString(const CommonEntry& entry) {
   std::ostringstream oss;
   oss << entry;
+  return oss.str();
+}
+
+std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
+  os << result.state_ << " ";
+  os << "amount=" << result.amount_ << " ";
+
+  if (result.state_ == NodeState::kProvenState) {
+    os << "proven_hand=";
+  } else if (result.state_ == NodeState::kDisprovenState) {
+    os << "disproven_hand=";
+  } else {
+    os << "hand=";
+  }
+  os << result.hand_ << " ";
+
+  if (result.IsFinal()) {
+    os << "move=" << result.move_ << " len=" << result.len_;
+  } else {
+    os << "pn=" << result.pn_ << " dn=" << result.dn_;
+  }
+
+  return os;
+}
+
+std::string ToString(const SearchResult& result) {
+  std::ostringstream oss;
+  oss << result;
   return oss.str();
 }
 
