@@ -131,9 +131,9 @@ class HandsData {
  public:
   template <bool kProven2>
   friend std::ostream& operator<<(std::ostream& os, const HandsData<kProven2>& data);
-  constexpr HandsData(Hand hand, Move16 move, Depth len) {
-    entries_[0] = {hand, move, len};
-    std::fill(entries_.begin() + 1, entries_.end(), Entry{kNullHand, MOVE_NONE, 0});
+  constexpr HandsData(Hand hand, Move16 move, MateLen mate_len) {
+    entries_[0] = {hand, move, mate_len};
+    std::fill(entries_.begin() + 1, entries_.end(), Entry{kNullHand, MOVE_NONE, MateLen{0, HAND_ZERO}});
   }
 
   constexpr PnDn Pn() const { return kProven ? 0 : kInfinitePnDn; }
@@ -145,10 +145,10 @@ class HandsData {
   /// hand を証明（反証）できるならその手を返す。証明（反証）できなければ kNullHand を返す。
   Hand ProperHand(Hand hand) const;
   Move16 BestMove(Hand hand) const;
-  Depth GetSolutionLen(Hand hand) const;
+  MateLen GetMateLen(Hand hand) const;
 
   /// 証明駒（反証駒）を追加する。IsFull() の場合、何もしない。
-  void Add(Hand hand, Move16 move, Depth len);
+  void Add(Hand hand, Move16 move, MateLen mate_len);
   /// 証明駒（反証駒）の追加を報告する。もう必要ない（下位互換）な局面があればすべて消す。
   /// 削除した結果、エントリ自体が不要になった場合のみ true が返る。
   bool Update(Hand hand);
@@ -157,10 +157,10 @@ class HandsData {
   struct Entry {
     Hand hand;
     Move16 move;
-    std::int16_t len;
+    MateLen mate_len;
 
     Entry() = default;
-    Entry(Hand hand, Move16 move, Depth len) : hand{hand}, move{move}, len{static_cast<std::int16_t>(len)} {}
+    Entry(Hand hand, Move16 move, MateLen mate_len) : hand{hand}, move{move}, mate_len{mate_len} {}
   };
 
   static inline constexpr std::size_t kHandsLen = sizeof(UnknownData) / sizeof(Entry);
@@ -257,7 +257,7 @@ class CommonEntry {
    */
   Hand ProperHand(Hand hand) const;
   Move16 BestMove(Hand hand) const;
-  Depth GetSolutionLen(Hand hand) const;
+  MateLen GetMateLen(Hand hand) const;
 
   /// 通常局面なら (pn, dn) を更新する。そうでないなら何もしない。
   void UpdatePnDn(PnDn pn, PnDn dn, SearchedAmount amount);
@@ -330,7 +330,7 @@ class SearchResult {
         pn_{entry.Pn()},
         dn_{entry.Dn()},
         move_{entry.BestMove(hand)},
-        len_{entry.GetSolutionLen(hand)} {}
+        mate_len_{entry.GetMateLen(hand)} {}
   /// 生データからコンストラクトする。
   SearchResult(NodeState state,
                SearchedAmount amount,
@@ -338,8 +338,8 @@ class SearchResult {
                PnDn dn,
                Hand hand,
                Move16 move = MOVE_NONE,
-               Depth len = kMaxNumMateMoves)
-      : state_{state}, amount_{amount}, hand_{hand}, pn_{pn}, dn_{dn}, move_{move}, len_{len} {}
+               MateLen mate_len = {kMaxNumMateMoves, HAND_ZERO})
+      : state_{state}, amount_{amount}, hand_{hand}, pn_{pn}, dn_{dn}, move_{move}, mate_len_{mate_len} {}
 
   PnDn Pn() const { return pn_; }
   PnDn Dn() const { return dn_; }
@@ -348,7 +348,7 @@ class SearchResult {
   NodeState GetNodeState() const { return state_; }
   SearchedAmount GetSearchedAmount() const { return amount_; }
   Move16 BestMove() const { return move_; }
-  Depth GetSolutionLen() const { return len_; }
+  MateLen GetMateLen() const { return mate_len_; }
 
   void UpdateSearchedAmount(std::uint64_t move_count) { amount_ = Update(amount_, move_count); }
 
@@ -362,7 +362,7 @@ class SearchResult {
   PnDn dn_;
 
   Move16 move_;
-  Depth len_;
+  MateLen mate_len_;
 };
 
 std::ostream& operator<<(std::ostream& os, const SearchResult& result);

@@ -29,7 +29,7 @@ inline SearchedAmount GetAdjustedAmount(NodeState state, SearchedAmount amount) 
 }  // namespace
 
 template <bool kProven>
-CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, Depth mate_len, SearchedAmount amount) const {
+CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, MateLen mate_len, SearchedAmount amount) const {
   std::uint32_t hash_high = hash_high_;
   CommonEntry* ret = nullptr;
 
@@ -98,10 +98,10 @@ void LookUpQuery::SetResult(const SearchResult& result) {
   auto amount = result.GetSearchedAmount();
   switch (result.GetNodeState()) {
     case NodeState::kProvenState:
-      SetProven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
+      SetProven(result.ProperHand(), result.BestMove(), result.GetMateLen(), amount);
       break;
     case NodeState::kDisprovenState:
-      SetDisproven(result.ProperHand(), result.BestMove(), result.GetSolutionLen(), amount);
+      SetDisproven(result.ProperHand(), result.BestMove(), result.GetMateLen(), amount);
       break;
     case NodeState::kRepetitionState:
       SetRepetition(amount);
@@ -226,7 +226,10 @@ int TranspositionTable::Hashfull() const {
 
 template CommonEntry* BoardCluster::SetFinal<false>(Hand hand,
                                                     Move16 move,
-                                                    Depth mate_len,
+                                                    MateLen mate_len,
                                                     SearchedAmount amount) const;
-template CommonEntry* BoardCluster::SetFinal<true>(Hand hand, Move16 move, Depth mate_len, SearchedAmount amount) const;
+template CommonEntry* BoardCluster::SetFinal<true>(Hand hand,
+                                                   Move16 move,
+                                                   MateLen mate_len,
+                                                   SearchedAmount amount) const;
 }  // namespace komori

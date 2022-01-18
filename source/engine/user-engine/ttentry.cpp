@@ -22,7 +22,7 @@ Move16 HandsData<kProven>::BestMove(Hand hand) const {
 }
 
 template <bool kProven>
-Depth HandsData<kProven>::GetSolutionLen(Hand hand) const {
+MateLen HandsData<kProven>::GetMateLen(Hand hand) const {
   for (const auto& e : entries_) {
     if (e.hand == kNullHand) {
       break;
@@ -30,17 +30,17 @@ Depth HandsData<kProven>::GetSolutionLen(Hand hand) const {
 
     if ((kProven && hand_is_equal_or_superior(hand, e.hand)) ||   // hand を証明できる
         (!kProven && hand_is_equal_or_superior(e.hand, hand))) {  // hand を反証できる
-      return e.len;
+      return e.mate_len;
     }
   }
-  return kMaxNumMateMoves;
+  return {kMaxNumMateMoves, 0};
 }
 
 template <bool kProven>
-void HandsData<kProven>::Add(Hand hand, Move16 move, Depth len) {
+void HandsData<kProven>::Add(Hand hand, Move16 move, MateLen mate_len) {
   for (auto& e : entries_) {
     if (e.hand == kNullHand) {
-      e = {hand, move, static_cast<std::int16_t>(len)};
+      e = {hand, move, mate_len};
       return;
     }
   }
@@ -78,7 +78,7 @@ std::ostream& operator<<(std::ostream& os, const HandsData<kProven>& data) {
     if (i != 0) {
       os << ", ";
     }
-    os << data.entries_[i].hand << "/" << data.entries_[i].move << "/" << data.entries_[i].len;
+    os << data.entries_[i].hand << "/" << data.entries_[i].move << "/" << data.entries_[i].mate_len;
   }
   return os << "}";
 }
@@ -126,14 +126,14 @@ Move16 CommonEntry::BestMove(Hand hand) const {
   }
 }
 
-Depth CommonEntry::GetSolutionLen(Hand hand) const {
+MateLen CommonEntry::GetMateLen(Hand hand) const {
   switch (GetNodeState()) {
     case NodeState::kProvenState:
-      return proven_.GetSolutionLen(hand);
+      return proven_.GetMateLen(hand);
     case NodeState::kDisprovenState:
-      return disproven_.GetSolutionLen(hand);
+      return disproven_.GetMateLen(hand);
     default:
-      return kMaxNumMateMoves;
+      return {kMaxNumMateMoves, 0};
   }
 }
 
@@ -206,7 +206,7 @@ std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
   os << result.hand_ << " ";
 
   if (result.IsFinal()) {
-    os << "move=" << result.move_ << " len=" << result.len_;
+    os << "move=" << result.move_ << " mate_len=" << result.mate_len_;
   } else {
     os << "pn=" << result.pn_ << " dn=" << result.dn_;
   }

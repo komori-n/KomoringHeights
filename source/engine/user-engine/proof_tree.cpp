@@ -23,13 +23,15 @@ bool ProofTree::HasEdgeAfter(Node& n, Move16 move16) const {
   return edges_.find(key_after) != edges_.end();
 }
 
-Depth ProofTree::MateLen(Node& n) const {
+MateLen ProofTree::GetMateLen(Node& n) const {
   auto key = n.Pos().key();
-  if (auto itr = edges_.find(key); itr != edges_.end()) {
-    return itr->second.mate_len;
-  } else {
-    return 0;
+  auto it = edges_.find(key);
+
+  if (it == edges_.end()) {
+    return kZeroMateLen;
   }
+
+  return it->second.mate_len;
 }
 
 std::optional<std::vector<Move>> ProofTree::GetPv(Node& n) {
@@ -94,7 +96,7 @@ void ProofTree::Update(Node& n) {
   bool or_node = n.IsOrNode();
 
   Move best_move = MOVE_NONE;
-  Depth mate_len = or_node ? kMaxNumMateMoves : 0;
+  MateLen mate_len = or_node ? kMaxMateLen : MateLen{0, static_cast<std::uint16_t>(CountHand(n.OrHand()))};
   for (const auto& move : MovePicker{n}) {
     auto key_after = n.Pos().key_after(move.move);
     if (auto itr = edges_.find(key_after); itr != edges_.end()) {
@@ -142,12 +144,12 @@ void ProofTree::EliminateLoop(Node& n) {
   EliminateLoopImpl(n_copy, visited);
 }
 
-Depth ProofTree::EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited) {
+MateLen ProofTree::EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited) {
   auto key = n.Pos().key();
   visited.insert(key);
 
   Move best_move = MOVE_NONE;
-  Depth mate_len = kMaxNumMateMoves;
+  MateLen mate_len = kMaxMateLen;
   for (auto&& m1 : MovePicker{n}) {
     if (n.IsRepetitionAfter(m1.move)) {
       continue;
@@ -160,10 +162,10 @@ Depth ProofTree::EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited) {
     n.DoMove(m1.move);
     auto k1 = n.Pos().key();
     auto m2 = BestMove(n);
-    auto child_mate_len = kMaxNumMateMoves;
+    auto child_mate_len = kMaxMateLen;
     if (m2 == MOVE_NONE) {
       best_move = m1.move;
-      child_mate_len = 0;
+      child_mate_len = {std::uint16_t{0}, static_cast<std::uint16_t>(CountHand(n.OrHand()))};
     } else if (!n.IsRepetitionAfter(m2) && HasEdgeAfter(n, m2)) {
       n.DoMove(m2);
       auto k2 = n.Pos().key();
@@ -173,7 +175,7 @@ Depth ProofTree::EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited) {
       n.UndoMove(m2);
     }
 
-    if (child_mate_len < kMaxNumMateMoves) {
+    if (child_mate_len < kMaxMateLen) {
       edges_.insert_or_assign(k1, Edge{m2, child_mate_len});
     }
 
@@ -185,7 +187,7 @@ Depth ProofTree::EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited) {
     n.UndoMove(m1.move);
   }
 
-  if (mate_len < kMaxNumMateMoves) {
+  if (mate_len < kMaxMateLen) {
     edges_.insert_or_assign(key, Edge{best_move, mate_len});
   }
 

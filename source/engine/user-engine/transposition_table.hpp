@@ -90,11 +90,11 @@ class BoardCluster {
   CommonEntry* LookUpWithoutCreation(Hand hand, Depth depth) const { return LookUp<false>(hand, depth); }
 
   /// proof_hand により詰みであることを報告する
-  CommonEntry* SetProven(Hand proof_hand, Move16 move, Depth mate_len, SearchedAmount amount) const {
+  CommonEntry* SetProven(Hand proof_hand, Move16 move, MateLen mate_len, SearchedAmount amount) const {
     return SetFinal<true>(proof_hand, move, mate_len, amount);
   }
   /// disproof_hand により不詰であることを報告する
-  CommonEntry* SetDisproven(Hand disproof_hand, Move16 move, Depth mate_len, SearchedAmount amount) const {
+  CommonEntry* SetDisproven(Hand disproof_hand, Move16 move, MateLen mate_len, SearchedAmount amount) const {
     return SetFinal<false>(disproof_hand, move, mate_len, amount);
   }
 
@@ -111,7 +111,7 @@ class BoardCluster {
   CommonEntry* LookUp(Hand hand, Depth depth) const;
   /// SetProven() と SetDisproven() の実装本体。
   template <bool kProven>
-  CommonEntry* SetFinal(Hand hand, Move16 move, Depth mate_len, SearchedAmount amount) const;
+  CommonEntry* SetFinal(Hand hand, Move16 move, MateLen mate_len, SearchedAmount amount) const;
 
   /// 新たな entry をクラスタに追加する。クラスタに空きがない場合は、最も必要なさそうなエントリを削除する
   CommonEntry* Add(CommonEntry&& entry) const;
@@ -209,11 +209,11 @@ class LookUpQuery {
   void SetResult(const SearchResult& result);
 
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
-  void SetProven(Hand proof_hand, Move16 move, Depth mate_len, SearchedAmount amount) {
+  void SetProven(Hand proof_hand, Move16 move, MateLen mate_len, SearchedAmount amount) {
     entry_ = board_cluster_.SetProven(proof_hand, move, mate_len, amount);
   }
   /// 調べていた局面が反証駒 `disproof_hand` で不詰であることを報告する
-  void SetDisproven(Hand disproof_hand, Move16 move, Depth mate_len, SearchedAmount amount) {
+  void SetDisproven(Hand disproof_hand, Move16 move, MateLen mate_len, SearchedAmount amount) {
     entry_ = board_cluster_.SetDisproven(disproof_hand, move, mate_len, amount);
   }
   /// 調べていた局面が千日手による不詰であることを報告する

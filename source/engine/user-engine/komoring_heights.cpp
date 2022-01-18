@@ -25,6 +25,11 @@ constexpr PnDn kIncreaseDeltaThreshold = 1000;
 constexpr int kGcHashfullThreshold = 700;
 constexpr int kGcHashfullRemoveRatio = 200;
 
+/// 詰み手数と持ち駒から MateLen を作る
+inline MateLen MakeMateLen(Depth depth, Hand hand) {
+  return {static_cast<std::uint16_t>(depth), static_cast<std::uint16_t>(CountHand(hand))};
+}
+
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
   std::vector<std::pair<Move, SearchResult>> ret;
   for (auto&& move : MovePicker{n}) {
@@ -41,7 +46,7 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
 Move SelectBestMove(TranspositionTable& tt, const Node& n) {
   bool or_node = n.IsOrNode();
   Move best_move = MOVE_NONE;
-  Depth mate_len = or_node ? kMaxNumMateMoves : 0;
+  MateLen mate_len = or_node ? kMaxMateLen : kZeroMateLen;
   for (const auto& m2 : MovePicker{n}) {
     auto query = tt.GetChildQuery(n, m2.move);
     auto entry = query.LookUpWithoutCreation();
@@ -49,7 +54,7 @@ Move SelectBestMove(TranspositionTable& tt, const Node& n) {
       continue;
     }
 
-    auto child_mate_len = entry->GetSolutionLen(n.OrHand());
+    MateLen child_mate_len = entry->GetMateLen(n.OrHand());
     if ((or_node && child_mate_len + 1 < mate_len) || (!or_node && child_mate_len + 1 > mate_len)) {
       mate_len = child_mate_len;
       best_move = m2.move;
@@ -207,7 +212,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     return NodeState::kProvenState;
   } else {
     if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
-      score_ = Score::Disproven(result.GetSolutionLen(), is_root_or_node);
+      score_ = Score::Disproven(result.GetMateLen().len, is_root_or_node);
     }
     return result.GetNodeState();
   }
@@ -224,14 +229,14 @@ void KomoringHeights::DigYozume(Node& n) {
   RollForward(n, best_moves);
 
   std::uint64_t found_count = 0;
-  Depth mate_len = kMaxNumMateMoves;
+  MateLen mate_len = kMaxMateLen;
   while (!best_moves.empty()) {
     auto move = best_moves.back();
     best_moves.pop_back();
 
     n.UndoMove(move);
     proof_tree_.Update(n);
-    if (IsSearchStop() || n.GetDepth() >= mate_len - 2 || found_count >= yozume_search_count_) {
+    if (IsSearchStop() || n.GetDepth() >= mate_len.len - 2 || found_count >= yozume_search_count_) {
       continue;
     }
 
@@ -281,8 +286,9 @@ void KomoringHeights::DigYozume(Node& n) {
             if (new_pv) {
               RollForward(n, *new_pv);
               std::copy(new_pv->begin(), new_pv->end(), std::back_inserter(best_moves));
-              if (auto found_mate_len = static_cast<Depth>(best_moves.size()); found_mate_len < mate_len) {
-                score_ = Score::Proven(found_mate_len, is_root_or_node);
+              MateLen found_mate_len = MakeMateLen(best_moves.size(), n.OrHand());
+              if (found_mate_len < mate_len) {
+                score_ = Score::Proven(found_mate_len.len, is_root_or_node);
                 mate_len = found_mate_len;
               }
               break;
@@ -303,7 +309,7 @@ void KomoringHeights::DigYozume(Node& n) {
         }
       }
 
-      if (auto new_mate_len = proof_tree_.MateLen(n) + n.GetDepth(); new_mate_len > mate_len) {
+      if (auto new_mate_len = proof_tree_.GetMateLen(n) + n.GetDepth(); new_mate_len > mate_len) {
         // こっちに逃げたほうが手数が伸びる
         auto best_branch = proof_tree_.GetPv(n);
 
@@ -311,7 +317,7 @@ void KomoringHeights::DigYozume(Node& n) {
           // 千日手が絡むと、pv.size() と MateLen() が一致しないことがある
           // これは、pv の中に best_moves で一度通った局面が含まれるときに発生する
           // このような AND node は深く探索する必要がない。なぜなら、best_move の選び方にそもそも問題があるためである
-          score_ = Score::Proven(new_mate_len, is_root_or_node);
+          score_ = Score::Proven(new_mate_len.len, is_root_or_node);
           mate_len = new_mate_len;
           RollForward(n, *best_branch);
           std::copy(best_branch->begin(), best_branch->end(), std::back_inserter(best_moves));
@@ -353,26 +359,26 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
         if (lhs.second.Pn() != rhs.second.Pn()) {
           return lhs.second.Pn() < rhs.second.Pn();
         } else if (lhs.second.Pn() == 0 && rhs.second.Pn() == 0) {
-          return lhs.second.GetSolutionLen() < rhs.second.GetSolutionLen();
+          return lhs.second.GetMateLen() < rhs.second.GetMateLen();
         }
 
         if (lhs.second.Dn() != rhs.second.Dn()) {
           return lhs.second.Dn() > rhs.second.Dn();
         } else if (lhs.second.Dn() == 0 && rhs.second.Dn() == 0) {
-          return lhs.second.GetSolutionLen() > rhs.second.GetSolutionLen();
+          return lhs.second.GetMateLen() > rhs.second.GetMateLen();
         }
         return false;
       } else {
         if (lhs.second.Dn() != rhs.second.Dn()) {
           return lhs.second.Dn() < rhs.second.Dn();
         } else if (lhs.second.Dn() == 0 && rhs.second.Dn() == 0) {
-          return lhs.second.GetSolutionLen() < rhs.second.GetSolutionLen();
+          return lhs.second.GetMateLen() < rhs.second.GetMateLen();
         }
 
         if (lhs.second.Pn() != rhs.second.Pn()) {
           return lhs.second.Pn() > rhs.second.Pn();
         } else if (lhs.second.Pn() == 0 && rhs.second.Pn() == 0) {
-          return lhs.second.GetSolutionLen() > rhs.second.GetSolutionLen();
+          return lhs.second.GetMateLen() > rhs.second.GetMateLen();
         }
         return false;
       }
@@ -382,9 +388,9 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
     oss << "[" << node.GetDepth() << "] ";
     for (const auto& child : children) {
       if (child.second.Pn() == 0) {
-        oss << child.first << "(+" << child.second.GetSolutionLen() << ") ";
+        oss << child.first << "(+" << child.second.GetMateLen() << ") ";
       } else if (child.second.Dn() == 0) {
-        oss << child.first << "(-" << child.second.GetSolutionLen() << ") ";
+        oss << child.first << "(-" << child.second.GetMateLen() << ") ";
       } else {
         oss << child.first << "(" << ToString(child.second.Pn()) << "/" << ToString(child.second.Dn()) << ") ";
       }

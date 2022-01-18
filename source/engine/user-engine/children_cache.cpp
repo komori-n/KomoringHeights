@@ -9,6 +9,10 @@
 
 namespace komori {
 namespace {
+/// 詰み手数と持ち駒から MateLen を作る
+inline MateLen MakeMateLen(Depth depth, Hand hand) {
+  return {static_cast<std::uint16_t>(depth), static_cast<std::uint16_t>(CountHand(hand))};
+}
 /**
  * @brief 1手詰めルーチン。詰む場合は証明駒を返す。
  *
@@ -146,14 +150,17 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
           auto hand2 = HandSet{DisproofHandTag{}}.Get(n.Pos());
           // 置換表に不詰であることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
           SearchResult dummy_entry = {
-              NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE, 0};
+              NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE,
+              MakeMateLen(0, hand2)};
           UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
         } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
           // best_move を選ぶと1手詰み。
 
           // 置換表に詰みであることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
+          auto after_hand = AfterHand(n.Pos(), best_move, proof_hand);
           SearchResult dummy_entry = {
-              NodeState::kProvenState, kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand, best_move, 1};
+              NodeState::kProvenState,   kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand, best_move,
+              MakeMateLen(1, after_hand)};
           UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
         }
         n.UndoMove(move.move);
@@ -253,13 +260,13 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
   Hand proof_hand = kNullHand;
   SearchedAmount amount = 0;
   Move best_move = MOVE_NONE;
-  Depth solution_len = 0;
+  MateLen mate_len = kZeroMateLen;
 
   if (or_node_) {
     auto& best_child = NthChild(0);
     proof_hand = BeforeHand(n.Pos(), best_child.move, best_child.search_result.ProperHand());
     best_move = best_child.move;
-    solution_len = best_child.search_result.GetSolutionLen() + 1;
+    mate_len = best_child.search_result.GetMateLen() + 1;
     amount = best_child.search_result.GetSearchedAmount();
   } else {
     // 子局面の証明駒の極小集合を計算する
@@ -268,15 +275,15 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
       const auto& child = NthChild(i);
       set.Update(child.search_result.ProperHand());
       amount += child.search_result.GetSearchedAmount();
-      if (child.search_result.GetSolutionLen() > solution_len) {
+      if (child.search_result.GetMateLen() > mate_len) {
         best_move = child.move;
-        solution_len = child.search_result.GetSolutionLen() + 1;
+        mate_len = child.search_result.GetMateLen() + 1;
       }
     }
     proof_hand = set.Get(n.Pos());
   }
 
-  return {NodeState::kProvenState, amount, 0, kInfinitePnDn, proof_hand, best_move, solution_len};
+  return {NodeState::kProvenState, amount, 0, kInfinitePnDn, proof_hand, best_move, mate_len};
 }
 
 SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
@@ -288,7 +295,7 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
   // フツーの不詰
   Hand disproof_hand = kNullHand;
   Move best_move = MOVE_NONE;
-  Depth solution_len = 0;
+  MateLen mate_len = kZeroMateLen;
   SearchedAmount amount = 0;
   if (or_node_) {
     // 子局面の反証駒の極大集合を計算する
@@ -297,9 +304,9 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
       const auto& child = NthChild(i);
       set.Update(BeforeHand(n.Pos(), child.move, child.search_result.ProperHand()));
       amount += child.search_result.GetSearchedAmount();
-      if (child.search_result.GetSolutionLen() > solution_len) {
+      if (child.search_result.GetMateLen() > mate_len) {
         best_move = child.move;
-        solution_len = child.search_result.GetSolutionLen() + 1;
+        mate_len = child.search_result.GetMateLen() + 1;
       }
     }
     disproof_hand = set.Get(n.Pos());
@@ -307,7 +314,7 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     auto& best_child = NthChild(0);
     disproof_hand = best_child.search_result.ProperHand();
     best_move = best_child.move;
-    solution_len = best_child.search_result.GetSolutionLen() + 1;
+    mate_len = best_child.search_result.GetMateLen() + 1;
     amount = best_child.search_result.GetSearchedAmount();
 
     // 駒打ちならその駒を持っていないといけない
@@ -324,7 +331,7 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     }
   }
 
-  return {NodeState::kDisprovenState, amount, kInfinitePnDn, 0, disproof_hand, best_move, solution_len};
+  return {NodeState::kDisprovenState, amount, kInfinitePnDn, 0, disproof_hand, best_move, mate_len};
 }
 
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {

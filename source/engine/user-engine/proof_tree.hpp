@@ -49,7 +49,7 @@ class ProofTree {
    *
    * n が ProofTree に保存されていない場合、0 を返す。
    */
-  Depth MateLen(Node& n) const;
+  MateLen GetMateLen(Node& n) const;
   /**
    * @brief 局面 n の最善応手列（PV）を返す
    *
@@ -76,16 +76,16 @@ class ProofTree {
     /// （暫定）最善手。メモリ消費を抑えるため Move ではなく Move16 を用いる。
     Move16 best_move;
     /// 詰み手数。メモリ消費を抑えるために Depth ではなく int16_t を用いる。
-    std::int16_t mate_len;
+    MateLen mate_len;
 
-    Edge(Move16 best_move, Depth mate_len) : best_move{best_move}, mate_len{static_cast<int16_t>(mate_len)} {}
+    Edge(Move16 best_move, MateLen mate_len) : best_move{best_move}, mate_len{mate_len} {}
     Move BestMove(const Node& n) const { return n.Pos().to_move(best_move); }
   };
 
   /// n を根とするループを解消する
   void EliminateLoop(Node& n);
   /// EliminateLoop() の本体（再帰関数）。ノードをたどってループを解消する
-  Depth EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited);
+  MateLen EliminateLoopImpl(Node& n, std::unordered_set<Key>& visited);
 
   /// 局面 n における最善手
   Move BestMove(Node& n) const;
