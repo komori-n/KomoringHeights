@@ -505,7 +505,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     children_cache_.pop();
     n.UndoMove(best_move);
 
-    cache.UpdateFront(child_result, n.GetMoveCount() - move_count_org);
+    cache.UpdateBestChild(child_result, n.GetMoveCount() - move_count_org);
     curr_result = cache.CurrentResult(n);
   }
 

@@ -50,27 +50,27 @@ class ChildrenCache {
  public:
   /**
    * @brief 子局面一覧を作成し、子局面を pn/dn がよさげな順に並べ替えて初期化する
-   *
-   * @param tt  置換表
-   * @param n   現在の局面
-   * @param first_search  初めて訪れた局面なら true。（n 手詰めルーチンを走らせる）
    */
   ChildrenCache(TranspositionTable& tt, Node& n, bool first_search);
 
   ChildrenCache() = delete;
+  /// 計算コストがとても大きいので move でも禁止。例えば、v0.4.1 だと ChildrenCache は 16.5MB。
   ChildrenCache(const ChildrenCache&) = delete;
   ChildrenCache(ChildrenCache&&) = delete;
   ChildrenCache& operator=(const ChildrenCache&) = delete;
   ChildrenCache& operator=(ChildrenCache&&) = delete;
   ~ChildrenCache() = default;
 
+  /// 現在の最善手を返す。合法手が 1 つ以上する場合に限り呼び出すことができる
+  Move BestMove() const { return NthChild(0).move.move; }
+  bool BestMoveIsFirstVisit() const { return NthChild(0).is_first; }
   /**
    * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
    *
    * @param search_result 置換表へ登録する内容
    * @param move_count   探索局面数
    */
-  void UpdateFront(const SearchResult& search_result, std::uint64_t move_count);
+  void UpdateBestChild(const SearchResult& search_result, std::uint64_t move_count);
 
   /**
    * @brief 現在の pn/dn および証明駒／反証駒を返す。
@@ -79,10 +79,6 @@ class ChildrenCache {
    * @return SearchResult 現局面の状況。
    */
   SearchResult CurrentResult(const Node& n) const;
-
-  /// 現在の最善手を返す。合法手が 1 つ以上する場合に限り呼び出すことができる
-  Move BestMove() const { return NthChild(0).move.move; }
-  bool BestMoveIsFirstVisit() const { return NthChild(0).is_first; }
 
   /// BestMove() により探索をすすめるとき、子局面で用いる pn/dn の探索しきい値を求める
   std::pair<PnDn, PnDn> ChildThreshold(PnDn thpn, PnDn thdn) const;
@@ -94,19 +90,22 @@ class ChildrenCache {
    * @brief 子局面の置換表 LookUp のキャッシュを行う構造体。
    */
   struct Child {
-    ExtMove move;
+    ExtMove move;  ///< 子局面への move とその簡易評価値
 
-    LookUpQuery query;
-    SearchResult search_result;
-    bool is_first;
+    LookUpQuery query;  ///< 子局面の置換表エントリを LookUp するためのクエリ
+    SearchResult search_result;  ///< 子局面の現在の pn/dn の値。LookUp はとても時間がかかるので、前回の LookUp
+                                 ///< 結果をコピーして持っておく。
+    bool is_first;      ///< この子局面を初めて探索するなら true。
     bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false
 
+    /// 千日手の子局面の Child を構築する
     static Child FromRepetitionMove(ExtMove move, Hand hand);
-    static Child FromUnknownMove(TranspositionTable& tt,
-                                 Node& n,
-                                 ExtMove move,
-                                 bool is_sum_delta,
-                                 bool& does_have_old_child);
+    /// 千日手ではない子局面の Child を構築する
+    static Child FromNonRepetitionMove(TranspositionTable& tt,
+                                       Node& n,
+                                       ExtMove move,
+                                       bool is_sum_delta,
+                                       bool& does_have_old_child);
 
     PnDn Pn() const { return search_result.Pn(); }
     PnDn Dn() const { return search_result.Dn(); }
@@ -139,18 +138,28 @@ class ChildrenCache {
   /// NodeCache同士の比較演算子。sortしたときにφ値の昇順かつ千日手の判定がしやすい順番に並び替える。
   bool Compare(const Child& lhs, const Child& rhs) const;
 
+  /// 展開元の局面が OR node なら true
+  /// コンストラクト時に渡された node から取得する。node 全部をコピーする必要がないので、これだけ持っておく。
   const bool or_node_;
   /// 現局面が old child を持つなら true。
   /// ここで old child とは、置換表に登録されている深さが現局面のそれよりも深いような局面のことを言う。
   bool does_have_old_child_{false};
 
+  /// 子局面とその pn/dn 値等の情報一覧。MovePicker の手と同じ順番で格納されている
   std::array<Child, kMaxCheckMovesPerNode> children_;
-  /// children_ をソートしたときの添字。children_ 自体を並べ替えると時間がかかるので、添字を会してアクセスするようにする
+  /// children_ を良さげ順にソートした時のインデックス。children_ 自体を move(copy) すると時間がかかるので、
+  /// ソートの際は idx_ だけ並び替えを行う。
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
+  /// 子局面の数。
   std::size_t children_len_{0};
 
+  // <delta>
+  // これらの値を事前計算しておくことで、Delta値を O(1) で計算できる。詳しくは GetDelta() を参照。
+  /// 和で計算する子局面のDelta値のうち、最善要素を除いたものの総和。
   PnDn sum_delta_except_best_;
+  /// maxで計算する子局面のDelta値のうち、最善要素を除いたものの最大値。
   PnDn max_delta_except_best_;
+  // </delta>
 };
 }  // namespace komori
 
