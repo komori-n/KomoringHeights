@@ -69,7 +69,16 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
   branch.emplace_back(move);
   n_copy.DoMove(move);
   for (;;) {
-    Move move = tt.LookUpBestMove(n_copy);
+    Move move = MOVE_NONE;
+    if (n_copy.IsOrNode() && !n_copy.Pos().in_check()) {
+      // 1手詰の局面では、最善手が置換表に書かれていない可能性がある
+      move = Mate::mate_1ply(n_copy.Pos());
+    }
+
+    if (move == MOVE_NONE) {
+      move = tt.LookUpBestMove(n_copy);
+    }
+
     if (move != MOVE_NONE && (!n_copy.Pos().pseudo_legal(move) || !n_copy.Pos().legal(move))) {
       // 現局面の持ち駒 <= 証明駒  なので、置換表に保存された手を指せない可能性がある
       // このときは、子局面の中から一番よさげな手を適当に選ぶ必要がある
@@ -82,14 +91,6 @@ std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, M
 
     n_copy.DoMove(move);
     branch.emplace_back(move);
-  }
-
-  if (n_copy.IsOrNode() && !n_copy.Pos().in_check()) {
-    // 高速1手詰めルーチンで解ける局面は置換表に登録されていないのでチェックする必要がある
-    if (auto move = Mate::mate_1ply(n_copy.Pos()); move != MOVE_NONE) {
-      n_copy.DoMove(move);
-      branch.emplace_back(move);
-    }
   }
 
   bool found_mate = true;
