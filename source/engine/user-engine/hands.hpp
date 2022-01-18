@@ -6,15 +6,29 @@
 #include "typedefs.hpp"
 
 namespace komori {
-
 /// hand から pr を消す
-void RemoveHand(Hand& hand, PieceType pr);
+inline void RemoveHand(Hand& hand, PieceType pr) {
+  hand = static_cast<Hand>(hand & ~PIECE_BIT_MASK2[pr]);
+}
+
 /// 2 つの持ち駒を 1 つにまとめる
-Hand MergeHand(Hand h1, Hand h2);
+inline Hand MergeHand(Hand h1, Hand h2) {
+  return static_cast<Hand>(h1 + h2);
+}
+
 /// 先後の持ち駒（盤上にない駒）を全てかき集める
-Hand CollectHand(const Position& n);
+inline Hand CollectHand(const Position& n) {
+  return MergeHand(n.hand_of(BLACK), n.hand_of(WHITE));
+}
+
 /// 持ち駒の枚数
-int CountHand(Hand hand);
+inline int CountHand(Hand hand) {
+  int count = 0;
+  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+    count += hand_count(hand, pr);
+  }
+  return count;
+}
 
 /// move 後の手駒を返す
 Hand AfterHand(const Position& n, Move move, Hand before_hand);
