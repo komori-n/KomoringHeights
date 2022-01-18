@@ -19,7 +19,7 @@
 namespace komori {
 namespace {
 constexpr std::int64_t kGcInterval = 3000;
-constexpr PnDn kIncreaseDeltaThreshold = 1000;
+constexpr PnDn kIncreaseDeltaThreshold = 100;
 
 /// TT の使用率が kGcHashfullThreshold を超えたら kGcHashfullRemoveRatio だけ削除する
 constexpr int kGcHashfullThreshold = 700;
