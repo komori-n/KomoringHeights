@@ -82,7 +82,6 @@ class KomoringHeights {
   /**
    * @brief
    *
-   * @tparam kOrNode
    * @param n         現局面
    * @param thpn      pn のしきい値
    * @param thdn      dn のしきい値
@@ -91,7 +90,6 @@ class KomoringHeights {
    * @return SearchResult  n の探索結果。この時点では tt_ にはに登録されていないので、
    *                            必要なら呼び出し側が登録する必要がある
    */
-  template <bool kOrNode>
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag);
 
   /// 局面 n に対し、余詰探索を実施する

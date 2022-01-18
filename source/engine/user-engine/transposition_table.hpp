@@ -218,24 +218,6 @@ class LookUpQuery {
   }
   /// 調べていた局面が千日手による不詰であることを報告する
   void SetRepetition(SearchedAmount amount);
-  /// 調べていた局面が勝ちであることを報告する
-  template <bool kOrNode>
-  void SetWin(Hand hand, Move move, Depth len, SearchedAmount amount) {
-    if constexpr (kOrNode) {
-      SetProven(hand, move, len, amount);
-    } else {
-      SetDisproven(hand, move, len, amount);
-    }
-  }
-  /// 調べていた局面が負けであることを報告する
-  template <bool kOrNode>
-  void SetLose(Hand hand, Move move, Depth len, SearchedAmount amount) {
-    if constexpr (kOrNode) {
-      SetDisproven(hand, move, len, amount);
-    } else {
-      SetProven(hand, move, len, amount);
-    }
-  }
 
  private:
   /// `entry_` が有効（前回呼び出しから移動していない）かどうかをチェックする

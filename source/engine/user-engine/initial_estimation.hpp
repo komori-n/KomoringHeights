@@ -71,14 +71,14 @@ void DeepDfpnInit(Depth d, double e);
 PnDn InitialDeepPnDn(Depth depth);
 #endif
 
-template <bool kOrNode>
 inline std::pair<PnDn, PnDn> InitialPnDn(const Node& n, Move move) {
 #if defined(USE_DFPN_PLUS)
   // df-pn+
   // 評価関数の設計は GPS 将棋を参考にした。
   // https://gps.tanaka.ecc.u-tokyo.ac.jp/cgi-bin/viewvc.cgi/trunk/osl/std/osl/checkmate/libertyEstimator.h?view=markup
 
-  if constexpr (kOrNode) {
+  bool or_node = n.IsOrNode();
+  if (or_node) {
     return detail::InitialPnDnPlusOrNode(n.Pos(), move);
   } else {
     return detail::InitialPnDnPlusAndNode(n.Pos(), move);

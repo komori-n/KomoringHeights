@@ -86,7 +86,6 @@ ChildrenCache::Child ChildrenCache::Child::FromRepetitionMove(ExtMove move, Hand
   return cache;
 }
 
-template <bool kOrNode>
 ChildrenCache::Child ChildrenCache::Child::FromUnknownMove(Node& n,
                                                            LookUpQuery&& query,
                                                            ExtMove move,
@@ -105,7 +104,7 @@ ChildrenCache::Child ChildrenCache::Child::FromUnknownMove(Node& n,
   }
 
   if (cache.is_first) {
-    auto [pn, dn] = InitialPnDn<kOrNode>(n, move.move);
+    auto [pn, dn] = InitialPnDn(n, move.move);
     pn = std::max(pn, entry->Pn());
     dn = std::max(dn, entry->Dn());
     entry->UpdatePnDn(pn, dn, 0);
@@ -116,9 +115,8 @@ ChildrenCache::Child ChildrenCache::Child::FromUnknownMove(Node& n,
   return cache;
 }
 
-template <bool kOrNode>
-ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search, NodeTag<kOrNode>)
-    : or_node_{kOrNode} {
+ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search)
+    : or_node_{n.IsOrNode()} {
   // DoMove() や UndoMove() をしたいので const を外す
   Node& nn = const_cast<Node&>(n);
 
@@ -133,13 +131,13 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
     } else {
       auto&& query = tt.GetChildQuery(nn, move.move);
       auto hand = nn.OrHandAfter(move.move);
-      child = Child::FromUnknownMove<kOrNode>(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move));
+      child = Child::FromUnknownMove(nn, std::move(query), move, hand, IsSumDeltaNode(nn, move));
       if (child.depth < nn.GetDepth()) {
         does_have_old_child_ = true;
       }
 
       // 受け方の first search の場合、1手掘り進めてみる
-      if (!kOrNode && first_search && child.is_first) {
+      if (!or_node_ && first_search && child.is_first) {
         nn.DoMove(move.move);
         // 1手詰めチェック
         if (auto [best_move, proof_hand] = CheckMate1Ply(nn); proof_hand != kNullHand) {
@@ -163,7 +161,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_s
       }
     }
 
-    if (child.Phi(kOrNode) == 0) {
+    if (child.Phi(or_node_) == 0) {
       break;
     }
   }
@@ -401,7 +399,4 @@ bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
 
   return lhs.move.value < rhs.move.value;
 }
-
-template ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search, NodeTag<false>);
-template ChildrenCache::ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search, NodeTag<true>);
 }  // namespace komori

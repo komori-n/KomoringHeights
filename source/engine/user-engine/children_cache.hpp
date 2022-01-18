@@ -55,8 +55,7 @@ class ChildrenCache {
    * @param n   現在の局面
    * @param first_search  初めて訪れた局面なら true。（n 手詰めルーチンを走らせる）
    */
-  template <bool kOrNode>
-  ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search, NodeTag<kOrNode>);
+  ChildrenCache(TranspositionTable& tt, const Node& n, bool first_search);
 
   ChildrenCache() = delete;
   ChildrenCache(const ChildrenCache&) = delete;
@@ -104,7 +103,6 @@ class ChildrenCache {
     Depth depth;
 
     static Child FromRepetitionMove(ExtMove move, Hand hand);
-    template <bool kOrNode>
     static Child FromUnknownMove(Node& n, LookUpQuery&& query, ExtMove move, Hand hand, bool is_sum_delta);
 
     PnDn Pn() const { return search_result.Pn(); }

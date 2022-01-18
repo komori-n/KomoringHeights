@@ -145,23 +145,14 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   Node node{n, is_root_or_node};
   PnDn thpn = 1;
   PnDn thdn = 1;
-  std::unique_ptr<ChildrenCache> cache;
-  if (is_root_or_node) {
-    cache = std::make_unique<ChildrenCache>(tt_, node, true, NodeTag<true>{});
-  } else {
-    cache = std::make_unique<ChildrenCache>(tt_, node, true, NodeTag<false>{});
-  }
-  SearchResult result = cache->CurrentResult(node);
+  ChildrenCache cache{tt_, node, true};
+  SearchResult result = cache.CurrentResult(node);
   while (StripMaybeRepetition(result.GetNodeState()) == NodeState::kOtherState && !IsSearchStop()) {
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
     score_ = Score::Unknown(result.Pn(), result.Dn());
 
-    if (is_root_or_node) {
-      result = SearchImpl<true>(node, thpn, thdn, *cache, false);
-    } else {
-      result = SearchImpl<false>(node, thpn, thdn, *cache, false);
-    }
+    result = SearchImpl(node, thpn, thdn, cache, false);
   }
 
   auto query = tt_.GetQuery(node);
@@ -250,8 +241,8 @@ void KomoringHeights::DigYozume(Node& n) {
           n.DoMove(m2.move);
           auto max_search_node_org = max_search_node_;
           max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
-          ChildrenCache cache{tt_, n, false, NodeTag<false>{}};
-          auto result = SearchImpl<false>(n, kInfinitePnDn, kInfinitePnDn, cache, false);
+          ChildrenCache cache{tt_, n, false};
+          auto result = SearchImpl(n, kInfinitePnDn, kInfinitePnDn, cache, false);
           max_search_node_ = max_search_node_org;
           n.UndoMove(m2.move);
 
@@ -422,7 +413,6 @@ UsiInfo KomoringHeights::Info() const {
   return usi_output;
 }
 
-template <bool kOrNode>
 SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag) {
   progress_.Visit(n.GetDepth(), n.GetMoveCount());
 
@@ -440,7 +430,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   // 探索延長。浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
   inc_flag = inc_flag || cache.DoesHaveOldChild();
   if (inc_flag && !curr_result.IsFinal()) {
-    if constexpr (kOrNode) {
+    if (n.IsOrNode()) {
       thdn = Clamp(thdn, curr_result.Dn() + 1);
       if (kIncreaseDeltaThreshold < curr_result.Pn() && curr_result.Pn() < kInfinitePnDn) {
         thpn = Clamp(thpn, curr_result.Pn() + 1);
@@ -474,13 +464,13 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
 
     auto move_count_org = n.GetMoveCount();
     n.DoMove(best_move);
-    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search, NodeTag<!kOrNode>{});
+    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search);
     SearchResult child_result;
     if (is_first_search) {
       child_result = child_cache.CurrentResult(n);
     } else {
       auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
-      child_result = SearchImpl<!kOrNode>(n, child_thpn, child_thdn, child_cache, inc_flag);
+      child_result = SearchImpl(n, child_thpn, child_thdn, child_cache, inc_flag);
     }
 
     children_cache_.pop();
@@ -507,15 +497,4 @@ void KomoringHeights::PrintProgress(const Node& n) const {
 bool KomoringHeights::IsSearchStop() const {
   return progress_.MoveCount() > max_search_node_ || stop_;
 }
-
-template SearchResult KomoringHeights::SearchImpl<true>(Node& n,
-                                                        PnDn thpn,
-                                                        PnDn thdn,
-                                                        ChildrenCache& cache,
-                                                        bool inc_flag);
-template SearchResult KomoringHeights::SearchImpl<false>(Node& n,
-                                                         PnDn thpn,
-                                                         PnDn thdn,
-                                                         ChildrenCache& cache,
-                                                         bool inc_flag);
 }  // namespace komori
