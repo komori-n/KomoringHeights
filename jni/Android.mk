@@ -225,7 +225,7 @@ LOCAL_SRC_FILES += \
     ../source/engine/user-engine/initial_estimation.cpp \
 		../source/engine/user-engine/komoring_heights.cpp \
 		../source/engine/user-engine/path_keys.cpp \
-		../source/engine/user-engine/proof_tree.cpp \
+		../source/engine/user-engine/pv_tree.cpp \
 		../source/engine/user-engine/transposition_table.cpp\
 		../source/engine/user-engine/ttentry.cpp \
 		../source/engine/user-engine/user-search.cpp \
