@@ -43,7 +43,9 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
 }
 
 /// n の子局面のうち、詰み手順としてふさわしそうな局面を選んで返す。
-Move SelectBestMove(TranspositionTable& tt, const Node& n) {
+/// sizeof(MovePicker) がそこそこ大きいので、もし再帰関数で inline 展開されるとスタックサイズが足りなくなるので
+/// inline 展開させないようにする。
+__attribute__((noinline)) Move SelectBestMove(TranspositionTable& tt, const Node& n) {
   bool or_node = n.IsOrNode();
   Move best_move = MOVE_NONE;
   MateLen mate_len = or_node ? kMaxMateLen : kZeroMateLen;
@@ -62,54 +64,6 @@ Move SelectBestMove(TranspositionTable& tt, const Node& n) {
   }
 
   return best_move;
-}
-
-/**
- * @brief move から始まる置換表に保存された手順を返す
- */
-std::optional<std::vector<Move>> ExpandBranch(TranspositionTable& tt, Node& n, Move move) {
-  std::vector<Move> branch;
-  Node n_copy = n.HistoryClearedNode();
-
-  branch.emplace_back(move);
-  n_copy.DoMove(move);
-  for (;;) {
-    Move move = MOVE_NONE;
-    if (n_copy.IsOrNode() && !n_copy.Pos().in_check()) {
-      // 1手詰の局面では、最善手が置換表に書かれていない可能性がある
-      move = Mate::mate_1ply(n_copy.Pos());
-    }
-
-    if (move == MOVE_NONE) {
-      move = tt.LookUpBestMove(n_copy);
-    }
-
-    if (move != MOVE_NONE && (!n_copy.Pos().pseudo_legal(move) || !n_copy.Pos().legal(move))) {
-      // 現局面の持ち駒 <= 証明駒  なので、置換表に保存された手を指せない可能性がある
-      // このときは、子局面の中から一番よさげな手を適当に選ぶ必要がある
-      move = SelectBestMove(tt, n_copy);
-    }
-
-    if (!n_copy.Pos().pseudo_legal(move) || !n_copy.Pos().legal(move) || n_copy.IsRepetitionAfter(move)) {
-      break;
-    }
-
-    n_copy.DoMove(move);
-    branch.emplace_back(move);
-  }
-
-  bool found_mate = true;
-  if (n_copy.IsOrNode() || !MovePicker{n_copy}.empty()) {
-    found_mate = false;
-  }
-
-  RollBack(n_copy, branch);
-
-  if (found_mate) {
-    return std::make_optional(std::move(branch));
-  } else {
-    return std::nullopt;
-  }
 }
 
 void ExtendThreshold(PnDn& thpn, PnDn& thdn, PnDn pn, PnDn dn, bool or_node) {
@@ -157,7 +111,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
   progress_.NewSearch();
-  proof_tree_.Clear();
+  pv_tree_.Clear();
   gc_timer_.reset();
   last_gc_ = 0;
   best_moves_.clear();
@@ -191,21 +145,11 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   sync_cout << info << sync_endl;
 
   if (result.GetNodeState() == NodeState::kProvenState) {
-    auto best_move = tt_.LookUpBestMove(node);
-    auto pv = ExpandBranch(tt_, node, best_move);
-    if (pv) {
-      score_ = Score::Proven(static_cast<Depth>(pv->size()), is_root_or_node);
-      proof_tree_.AddBranch(node, *pv);
-      if (yozume_node_count_ > 0 && yozume_search_count_ > 0) {
-        DigYozume(node);
-      }
-    }
+    // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
+    auto mate_len = PvSearch(node, kZeroMateLen, kMaxMateLen);
+    sync_cout << "info string mate_len=" << mate_len << sync_endl;
 
-    pv = proof_tree_.GetPv(node);
-    if (pv) {
-      best_moves_ = std::move(*pv);
-    }
-
+    best_moves_ = pv_tree_.Pv(node);
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
@@ -218,113 +162,169 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   }
 }
 
-void KomoringHeights::DigYozume(Node& n) {
-  bool is_root_or_node = n.IsOrNode();
-  auto best_move = n.Pos().to_move(tt_.LookUpBestMove(n));
-  std::vector<Move> best_moves;
-  auto root_pv = ExpandBranch(tt_, n, best_move);
-  if (root_pv) {
-    best_moves = std::move(*root_pv);
-  }
-  RollForward(n, best_moves);
+MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
+  MateLen mate_len = n.IsOrNode() ? kMaxMateLen : MakeMateLen(0, n.OrHand());
+  Key key = n.Pos().key();
+  Move best_move;
+  MateLen orig_alpha = alpha;
+  MateLen orig_beta = beta;
 
-  std::uint64_t found_count = 0;
-  MateLen mate_len = kMaxMateLen;
-  while (!best_moves.empty()) {
-    auto move = best_moves.back();
-    best_moves.pop_back();
-
-    n.UndoMove(move);
-    proof_tree_.Update(n);
-    if (IsSearchStop() || n.GetDepth() >= mate_len.len - 2 || found_count >= yozume_search_count_) {
-      continue;
-    }
-
+  // この条件が満たされれば探索終了
+  auto is_end = [&]() { return alpha >= beta; };
+  // 子局面の探索結果が child_mate_len のとき、alpha/beta と mate_len の更新を行う
+  auto update_mate_len = [&](Move move, MateLen child_mate_len) {
     if (n.IsOrNode()) {
-      // 最善手以外に詰み手順がないか探す
-      for (auto&& m2 : MovePicker{n}) {
-        if (proof_tree_.HasEdgeAfter(n, m2.move)) {
-          // 既に木に追加されている
-          continue;
-        }
-
-        auto query = tt_.GetChildQuery(n, m2.move);
-        auto entry = query.LookUpWithoutCreation();
-        if (entry->GetNodeState() == NodeState::kDisprovenState ||
-            entry->GetNodeState() == NodeState::kRepetitionState || n.IsRepetitionOrInferiorAfter(m2.move)) {
-          // 既に不詰が示されている
-          continue;
-        }
-
-        if (!IsFinal(entry->GetNodeState())) {
-          // 再探索
-          auto amount = entry->GetSearchedAmount();
-          auto move_count_org = n.GetMoveCount();
-
-          n.DoMove(m2.move);
-          auto max_search_node_org = max_search_node_;
-          max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
-          ChildrenCache cache{tt_, n, false};
-          auto result = SearchImpl(n, kInfinitePnDn, kInfinitePnDn, cache, false);
-          max_search_node_ = max_search_node_org;
-          n.UndoMove(m2.move);
-
-          result.UpdateSearchedAmount(n.GetMoveCount() - move_count_org);
-          query.SetResult(result);
-          entry = query.LookUpWithoutCreation();
-        }
-
-        if (entry->GetNodeState() == NodeState::kProvenState) {
-          // 新しく手を見つけた
-          ++found_count;
-
-          auto new_branch = ExpandBranch(tt_, n, m2.move);
-          if (new_branch) {
-            proof_tree_.AddBranch(n, *new_branch);
-
-            auto new_pv = proof_tree_.GetPv(n);
-            if (new_pv) {
-              RollForward(n, *new_pv);
-              std::copy(new_pv->begin(), new_pv->end(), std::back_inserter(best_moves));
-              MateLen found_mate_len = MakeMateLen(best_moves.size(), n.OrHand());
-              if (found_mate_len < mate_len) {
-                score_ = Score::Proven(found_mate_len.len, is_root_or_node);
-                mate_len = found_mate_len;
-              }
-              break;
-            }
-          }
-        }
+      // child_mate_len 手詰みが見つかったので、この局面は高々 child_mate_len 手詰み。
+      beta = Min(beta, child_mate_len);
+      if (mate_len > child_mate_len) {
+        best_move = move;
+        mate_len = child_mate_len;
       }
     } else {
-      // AND node
-      // 余詰探索の結果、AND node の最善手が変わっている可能性がある
-      // 現在の詰み手順よりも長く生き延びられる手があるなら、そちらの読みを進めてみる
-      for (auto&& m2 : MovePicker{n}) {
-        if (!proof_tree_.HasEdgeAfter(n, m2.move)) {
-          auto branch = ExpandBranch(tt_, n, m2.move);
-          if (branch) {
-            proof_tree_.AddBranch(n, *branch);
-          }
-        }
+      // child_mate_len 手詰みが見つかったので、この局面は少なくとも child_mate_len 手詰み以上。
+      alpha = Max(alpha, child_mate_len);
+      if (mate_len < child_mate_len) {
+        best_move = move;
+        mate_len = child_mate_len;
       }
+    }
+  };
+  auto update_pv_tree = [&]() {
+    if (n.IsOrNode()) {
+      if (mate_len < orig_beta) {
+        // beta より小さいなら正しく upper bound が取れている
+        PvTree::Entry entry{BOUND_UPPER, mate_len, best_move};
+        pv_tree_.Insert(n, entry);
+      }
+    } else {
+      if (mate_len > orig_alpha) {
+        // alpha より大きいなら正しく lower bound が取れている
+        PvTree::Entry entry{BOUND_LOWER, mate_len, best_move};
+        pv_tree_.Insert(n, entry);
+      }
+    }
+  };
 
-      if (auto new_mate_len = proof_tree_.GetMateLen(n) + n.GetDepth(); new_mate_len > mate_len) {
-        // こっちに逃げたほうが手数が伸びる
-        auto best_branch = proof_tree_.GetPv(n);
-
-        if (best_branch) {
-          // 千日手が絡むと、pv.size() と MateLen() が一致しないことがある
-          // これは、pv の中に best_moves で一度通った局面が含まれるときに発生する
-          // このような AND node は深く探索する必要がない。なぜなら、best_move の選び方にそもそも問題があるためである
-          score_ = Score::Proven(new_mate_len.len, is_root_or_node);
-          mate_len = new_mate_len;
-          RollForward(n, *best_branch);
-          std::copy(best_branch->begin(), best_branch->end(), std::back_inserter(best_moves));
-        }
+  if (beta.len == 0) {
+    // 詰み手数は非負なので、探索するまでもなく fail high と判定できる
+    if (n.IsOrNode()) {
+      // この時点で mate_len >= 1 が確定しているので、この局面をこれ以上読む必要がない
+      // pv_tree_ への登録を行いたくないのでここで early return する
+      return MakeMateLen(1, n.OrHand());
+    } else {
+      if (beta <= mate_len) {
+        // 探索するまでもなく beta <= mate_len が確定した
+        return mate_len;
       }
     }
   }
+
+  if (print_flag_) {
+    PrintProgress(n);
+    print_flag_ = false;
+  }
+
+  // 1手詰チェック
+  if (n.IsOrNode() && !n.Pos().in_check()) {
+    if (Move move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
+      update_mate_len(move, MakeMateLen(1, n.OrHandAfter(move)));
+      // 1手詰を見つけたので終わり（最終手余詰は考えない）
+      goto PV_END;
+    }
+  }
+
+  {
+    // 置換表にそこそこよい手が書かれているはず
+    // それを先に読んで alpha/beta を更新しておくことで、探索が少しだけ高速化される
+    auto tt_move = MOVE_NONE;
+    if (auto&& proved_entry = pv_tree_.Probe(n)) {
+      tt_move = proved_entry->best_move;
+      if (proved_entry->bound == BOUND_EXACT) {
+        update_mate_len(proved_entry->best_move, proved_entry->mate_len);
+        if (is_end()) {
+          goto PV_END;
+        }
+      }
+    }
+
+    // pv_tree_ に登録されていなければ、置換表から最善手を読んでくる
+    // （n が詰みなので、ほとんどの場合は置換表にエンドが保存されている）
+    if (tt_move == MOVE_NONE) {
+      tt_move = tt_.LookUpBestMove(n);
+    }
+
+    // 優等局面の詰みから現局面の詰みを示した場合、置換表に書いてある最善手を指せないことがある
+    // そのときは、子局面の手の中からいい感じの手を選んで優先的に探索する
+    if (!n.Pos().pseudo_legal(tt_move) || !n.Pos().legal(tt_move)) {
+      tt_move = SelectBestMove(tt_, n);
+    }
+
+    if (tt_move != MOVE_NONE && !n.IsRepetitionAfter(tt_move)) {
+      n.DoMove(tt_move);
+      // 現局面の window が [alpha, beta] なので、子局面は1手減らした window で探索する
+      auto child_mate_len = PvSearch(n, alpha - 1, beta - 1);
+      n.UndoMove(tt_move);
+      update_mate_len(tt_move, child_mate_len + 1);
+      update_pv_tree();
+    }
+
+    auto& mp = pickers_.emplace(n, true);
+    std::sort(mp.begin(), mp.end(), [](const ExtMove& m1, const ExtMove& m2) { return m1.value < m2.value; });
+    for (const auto& move : mp) {
+      if (IsSearchStop() || is_end()) {
+        break;
+      }
+
+      if (n.IsRepetitionAfter(move.move)) {
+        continue;
+      }
+
+      if (move.move == tt_move) {
+        continue;
+      }
+
+      auto query = tt_.GetChildQuery(n, move.move);
+      auto entry = query.LookUpWithoutCreation();
+      if (!entry->IsFinal()) {
+        // まだ詰むかどうか結論が出ていない
+        auto amount = entry->GetSearchedAmount();
+        auto move_count_org = n.GetMoveCount();
+
+        n.DoMove(move.move);
+        auto max_search_node_org = max_search_node_;
+        max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
+        auto& cache = children_cache_.emplace(tt_, n, false);
+        auto result = SearchImpl(n, kInfinitePnDn, kInfinitePnDn, cache, false);
+        max_search_node_ = max_search_node_org;
+        children_cache_.pop();
+        n.UndoMove(move.move);
+
+        result.UpdateSearchedAmount(n.GetMoveCount() - move_count_org);
+        query.SetResult(result);
+        entry = query.LookUpWithoutCreation();
+      }
+
+      if (entry->GetNodeState() == NodeState::kProvenState) {
+        // move を選べば詰みなので、PV探索をしてみる
+        n.DoMove(move.move);
+        auto child_mate_len = PvSearch(n, alpha - 1, beta - 1);
+        n.UndoMove(move.move);
+        update_mate_len(move.move, child_mate_len + 1);
+        update_pv_tree();
+      }
+    }
+
+    pickers_.pop();
+  }
+
+PV_END:
+  if ((n.IsOrNode() && alpha < mate_len && mate_len < orig_beta) ||
+      (!n.IsOrNode() && orig_alpha < mate_len && mate_len < beta)) {
+    PvTree::Entry entry{BOUND_EXACT, mate_len, best_move};
+    pv_tree_.Insert(n, entry);
+  }
+
+  return mate_len;
 }
 
 void KomoringHeights::ShowValues(Position& n, bool is_root_or_node, const std::vector<Move>& moves) {

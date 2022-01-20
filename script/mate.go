@@ -57,6 +57,7 @@ func newEngineProcess(command string) (*EngineProcess, error) {
 func (ep *EngineProcess) SetOption(op Options) {
 	fmt.Fprintf(ep.stdin, "setoption name USI_Hash value %d\n", op.HashSize)
 	fmt.Fprintf(ep.stdin, "setoption name DepthLimit value %d\n", op.DepthLimit)
+	fmt.Fprintf(ep.stdin, "setoption name RootIsAndNodeIfChecked value false\n")
 }
 
 func (ep *EngineProcess) Ready() error {
@@ -79,7 +80,7 @@ func (ep *EngineProcess) Ready() error {
 
 func (ep *EngineProcess) GoMate(sfen string) (int, error) {
 	fmt.Fprintf(ep.stdin, "sfen %s\n", sfen)
-	fmt.Fprintln(ep.stdin, "go mate infinite")
+	fmt.Fprintln(ep.stdin, "go mate 10000")
 
 	r := regexp.MustCompile(`.*num_searched=(\d+).*`)
 	num_searched := 0

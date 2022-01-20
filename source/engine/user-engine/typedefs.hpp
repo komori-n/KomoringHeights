@@ -145,12 +145,36 @@ inline bool operator>(const MateLen& lhs, const MateLen& rhs) {
   return !(lhs < rhs) && !(lhs == rhs);
 }
 
+inline bool operator<=(const MateLen& lhs, const MateLen& rhs) {
+  return lhs < rhs || lhs == rhs;
+}
+
+inline bool operator>=(const MateLen& lhs, const MateLen& rhs) {
+  return lhs > rhs || lhs == rhs;
+}
+
 inline MateLen operator+(const MateLen& lhs, Depth d) {
   return MateLen{static_cast<std::uint16_t>(lhs.len + d), lhs.final_hand};
 }
 
 inline MateLen operator+(Depth d, const MateLen& rhs) {
   return MateLen{static_cast<std::uint16_t>(rhs.len + d), rhs.final_hand};
+}
+
+inline MateLen operator-(const MateLen& lhs, Depth d) {
+  // len は unsigned なので、マイナスにならないようにする
+  if (lhs.len < d) {
+    return kZeroMateLen;
+  }
+  return MateLen{static_cast<std::uint16_t>(lhs.len - d), lhs.final_hand};
+}
+
+inline MateLen Min(const MateLen& lhs, const MateLen& rhs) {
+  return lhs > rhs ? rhs : lhs;
+}
+
+inline MateLen Max(const MateLen& lhs, const MateLen& rhs) {
+  return lhs < rhs ? rhs : lhs;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const MateLen& mate_len) {

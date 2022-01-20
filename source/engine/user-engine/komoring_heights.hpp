@@ -13,7 +13,7 @@
 #include "children_cache.hpp"
 #include "move_picker.hpp"
 #include "node.hpp"
-#include "proof_tree.hpp"
+#include "pv_tree.hpp"
 #include "transposition_table.hpp"
 #include "usi.hpp"
 
@@ -92,8 +92,7 @@ class KomoringHeights {
    */
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag);
 
-  /// 局面 n に対し、余詰探索を実施する
-  void DigYozume(Node& n);
+  MateLen PvSearch(Node& n, MateLen alpha, MateLen beta);
 
   /// CommonEntry に保存された best_move を元に最善応手列（PV）を復元する
   std::vector<Move> GetPv(Node& n);
@@ -104,6 +103,7 @@ class KomoringHeights {
 
   TranspositionTable tt_;
   std::stack<ChildrenCache> children_cache_{};
+  std::stack<MovePicker> pickers_{};
 
   std::atomic_bool stop_{false};
   Timer gc_timer_{};
@@ -117,7 +117,7 @@ class KomoringHeights {
 
   /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
   std::vector<Move> best_moves_{};
-  ProofTree proof_tree_{};
+  PvTree pv_tree_{};
   std::uint64_t yozume_node_count_{};
   std::uint64_t yozume_search_count_{};
 };
