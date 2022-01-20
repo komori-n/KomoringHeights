@@ -123,22 +123,15 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // thpn/thdn で反復深化探索を行う
   PnDn thpn = 1;
   PnDn thdn = 1;
-  ChildrenCache cache{tt_, node, true};
-  SearchResult result = cache.CurrentResult(node);
+  SearchResult result = SearchEntry(node, thpn, thdn);
   while (!IsFinal(result.GetNodeState()) && !IsSearchStop()) {
     // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
     score_ = Score::Unknown(result.Pn(), result.Dn());
 
-    result = SearchImpl(node, thpn, thdn, cache, false);
+    result = SearchEntry(node, thpn, thdn);
   }
-
-  // SearchImpl 内では root node の探索結果は置換表に保存しない。
-  // そのため、ここで置換表の登録を行わなければならない。
-  auto query = tt_.GetQuery(node);
-  result.UpdateSearchedAmount(node.GetMoveCount());
-  query.SetResult(result);
 
   auto info = Info();
   info.Set(UsiInfo::KeyKind::kString, ToString(result));
@@ -293,14 +286,10 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
         n.DoMove(move.move);
         auto max_search_node_org = max_search_node_;
         max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
-        auto& cache = children_cache_.emplace(tt_, n, false);
-        auto result = SearchImpl(n, kInfinitePnDn, kInfinitePnDn, cache, false);
+        auto result = SearchEntry(n);
         max_search_node_ = max_search_node_org;
-        children_cache_.pop();
         n.UndoMove(move.move);
 
-        result.UpdateSearchedAmount(n.GetMoveCount() - move_count_org);
-        query.SetResult(result);
         entry = query.LookUpWithoutCreation();
       }
 
@@ -435,6 +424,18 @@ UsiInfo KomoringHeights::Info() const {
   usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
 
   return usi_output;
+}
+
+SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
+  ChildrenCache cache{tt_, n, true};
+  auto move_count_org = n.GetMoveCount();
+  auto result = SearchImpl(n, thpn, thdn, cache, false);
+
+  auto query = tt_.GetQuery(n);
+  result.UpdateSearchedAmount(n.GetMoveCount() - move_count_org);
+  query.SetResult(result);
+
+  return result;
 }
 
 SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag) {

@@ -79,6 +79,7 @@ class KomoringHeights {
   UsiInfo Info() const;
 
  private:
+  SearchResult SearchEntry(Node& n, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
   /**
    * @brief
    *
