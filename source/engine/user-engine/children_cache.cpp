@@ -423,17 +423,21 @@ bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
     // DisprovenState と RepetitionState はちゃんと順番をつけなければならない
     // - repetition -> まだ頑張れば詰むかもしれない
     // - disproven -> どうやっても詰まない
-    if (or_node_) {
-      if (lhs.search_result.GetNodeState() == NodeState::kRepetitionState) {
-        return true;
-      } else if (rhs.search_result.GetNodeState() == NodeState::kRepetitionState) {
-        return false;
-      }
-    } else {
-      if (rhs.search_result.GetNodeState() == NodeState::kRepetitionState) {
-        return false;
-      } else if (lhs.search_result.GetNodeState() == NodeState::kRepetitionState) {
-        return true;
+    auto lstate = lhs.search_result.GetNodeState();
+    auto rstate = rhs.search_result.GetNodeState();
+    if (lstate != rstate) {
+      if (or_node_) {
+        if (lstate == NodeState::kRepetitionState) {
+          return true;
+        } else if (rstate == NodeState::kRepetitionState) {
+          return false;
+        }
+      } else {
+        if (lstate == NodeState::kRepetitionState) {
+          return false;
+        } else if (lstate == NodeState::kRepetitionState) {
+          return true;
+        }
       }
     }
   }
