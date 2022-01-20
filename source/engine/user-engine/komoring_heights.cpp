@@ -238,6 +238,14 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
           goto PV_END;
         }
       }
+
+      if (n.IsOrNode() && proved_entry->bound == BOUND_UPPER && proved_entry->mate_len < alpha) {
+        update_mate_len(proved_entry->best_move, proved_entry->mate_len);
+        goto PV_END;
+      } else if (!n.IsOrNode() && proved_entry->bound == BOUND_LOWER && proved_entry->mate_len > beta) {
+        update_mate_len(proved_entry->best_move, proved_entry->mate_len);
+        goto PV_END;
+      }
     }
 
     // pv_tree_ に登録されていなければ、置換表から最善手を読んでくる
