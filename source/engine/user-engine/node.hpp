@@ -53,14 +53,16 @@ class Node {
     return node_history_.Contains(n_.board_key_after(move), this->OrHandAfter(move));
   }
 
-  bool IsRepetitionOrInferior() const {
-    auto node_state = node_history_.State(n_.state()->board_key(), this->OrHand());
-    return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
-  }
+  bool IsRepetitionOrInferior() const { return node_history_.IsInferior(n_.state()->board_key(), this->OrHand()); }
 
   bool IsRepetitionOrInferiorAfter(Move move) const {
-    auto node_state = node_history_.State(n_.board_key_after(move), this->OrHandAfter(move));
-    return node_state == NodeHistory::NodeState::kRepetitionOrInferior;
+    return node_history_.IsInferior(n_.board_key_after(move), this->OrHandAfter(move));
+  }
+
+  bool IsRepetitionOrSuperior() const { return node_history_.IsSuperior(n_.state()->board_key(), this->OrHand()); }
+
+  bool IsRepetitionOrSuperiorAfter(Move move) const {
+    return node_history_.IsSuperior(n_.board_key_after(move), this->OrHandAfter(move));
   }
 
   bool IsExceedLimit(Depth max_depth) const { return depth_ >= max_depth; }

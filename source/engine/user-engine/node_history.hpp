@@ -40,24 +40,35 @@ class NodeHistory {
   /**
    * @brief (board_key, hand) の同一／優等局面が履歴に記録されているか調べる
    *
-   * 同一局面または優等局面が登録されていれば kRepetitionOrInferior を返す。
-   * そうでないなら、kFirst を返す。
+   * 同一局面または優等局面が登録されていれば true を返す。
    *
    * @param board_key   盤面ハッシュ
    * @param hand        攻め方の持ち駒
-   * @return NodeState  渡された局面の判定結果
    */
-  NodeState State(Key board_key, Hand hand) const {
+  bool IsInferior(Key board_key, Hand hand) const {
     auto [begin, end] = visited_.equal_range(board_key);
 
     for (auto itr = begin; itr != end; ++itr) {
       auto history_hand = itr->second;
       if (hand_is_equal_or_superior(history_hand, hand)) {
-        return NodeState::kRepetitionOrInferior;
+        return true;
       }
     }
 
-    return NodeState::kFirst;
+    return false;
+  }
+
+  bool IsSuperior(Key board_key, Hand hand) const {
+    auto [begin, end] = visited_.equal_range(board_key);
+
+    for (auto itr = begin; itr != end; ++itr) {
+      auto history_hand = itr->second;
+      if (hand_is_equal_or_superior(hand, history_hand)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

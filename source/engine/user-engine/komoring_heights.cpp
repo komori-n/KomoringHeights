@@ -27,7 +27,7 @@ constexpr int kGcHashfullRemoveRatio = 200;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
-  return {static_cast<std::uint16_t>(depth), static_cast<std::uint16_t>(CountHand(hand))};
+  return {static_cast<std::uint16_t>(depth), static_cast<std::uint16_t>(std::min(15, CountHand(hand)))};
 }
 
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
@@ -47,8 +47,10 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
 /// inline 展開させないようにする。
 __attribute__((noinline)) Move SelectBestMove(TranspositionTable& tt, const Node& n) {
   bool or_node = n.IsOrNode();
-  Move best_move = MOVE_NONE;
-  MateLen mate_len = or_node ? kMaxMateLen : kZeroMateLen;
+  Move nondrop_best_move = MOVE_NONE;
+  Move drop_best_move = MOVE_NONE;
+  MateLen drop_mate_len = or_node ? kMaxMateLen : kZeroMateLen;
+  MateLen nondrop_mate_len = drop_mate_len;
   for (const auto& m2 : MovePicker{n}) {
     auto query = tt.GetChildQuery(n, m2.move);
     auto entry = query.LookUpWithoutCreation();
@@ -57,13 +59,24 @@ __attribute__((noinline)) Move SelectBestMove(TranspositionTable& tt, const Node
     }
 
     MateLen child_mate_len = entry->GetMateLen(n.OrHand());
-    if ((or_node && child_mate_len + 1 < mate_len) || (!or_node && child_mate_len + 1 > mate_len)) {
-      mate_len = child_mate_len;
-      best_move = m2.move;
+    if (is_drop(m2.move)) {
+      if ((or_node && child_mate_len + 1 < drop_mate_len) || (!or_node && child_mate_len + 1 > drop_mate_len)) {
+        drop_mate_len = child_mate_len;
+        drop_best_move = m2.move;
+      }
+    } else {
+      if ((or_node && child_mate_len + 1 < nondrop_mate_len) || (!or_node && child_mate_len + 1 > nondrop_mate_len)) {
+        nondrop_mate_len = child_mate_len;
+        nondrop_best_move = m2.move;
+      }
     }
   }
 
-  return best_move;
+  if (nondrop_best_move != MOVE_NONE) {
+    return nondrop_best_move;
+  }
+
+  return drop_best_move;
 }
 
 void ExtendThreshold(PnDn& thpn, PnDn& thdn, PnDn pn, PnDn dn, bool or_node) {
@@ -261,12 +274,14 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
     }
 
     if (tt_move != MOVE_NONE && !n.IsRepetitionAfter(tt_move)) {
-      n.DoMove(tt_move);
-      // 現局面の window が [alpha, beta] なので、子局面は1手減らした window で探索する
-      auto child_mate_len = PvSearch(n, alpha - 1, beta - 1);
-      n.UndoMove(tt_move);
-      update_mate_len(tt_move, child_mate_len + 1);
-      update_pv_tree();
+      if (n.IsOrNode() || !n.IsRepetitionOrSuperiorAfter(tt_move)) {
+        n.DoMove(tt_move);
+        // 現局面の window が [alpha, beta] なので、子局面は1手減らした window で探索する
+        auto child_mate_len = PvSearch(n, alpha - 1, beta - 1);
+        n.UndoMove(tt_move);
+        update_mate_len(tt_move, child_mate_len + 1);
+        update_pv_tree();
+      }
     }
 
     auto& mp = pickers_.emplace(n, true);
@@ -277,6 +292,10 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
       }
 
       if (n.IsRepetitionAfter(move.move)) {
+        continue;
+      }
+
+      if (!n.IsOrNode() && n.IsRepetitionOrSuperiorAfter(move.move)) {
         continue;
       }
 
