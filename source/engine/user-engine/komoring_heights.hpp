@@ -82,6 +82,7 @@ class KomoringHeights {
   UsiInfo Info() const;
 
  private:
+  SearchResult YozumeSearchEntry(Node& n, Move move);
   SearchResult SearchEntry(Node& n, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
   /**
    * @brief

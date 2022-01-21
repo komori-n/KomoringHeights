@@ -231,6 +231,8 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
     print_flag_ = false;
   }
 
+  bool exact = false;
+  MateLen mm;
   // 1手詰チェック
   if (n.IsOrNode() && !n.Pos().in_check()) {
     if (Move move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
@@ -245,21 +247,25 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
     // それを先に読んで alpha/beta を更新しておくことで、探索が少しだけ高速化される
     auto tt_move = MOVE_NONE;
     if (auto&& proved_entry = pv_tree_.Probe(n)) {
-      tt_move = proved_entry->best_move;
       if (proved_entry->bound == BOUND_EXACT) {
-        update_mate_len(proved_entry->best_move, proved_entry->mate_len);
-        if (is_end()) {
-          goto PV_END;
-        }
+        // 探索したことがある局面なら、その結果を再利用する。
+        return proved_entry->mate_len;
+        ;
       }
 
-      if (n.IsOrNode() && proved_entry->bound == BOUND_UPPER && proved_entry->mate_len < alpha) {
-        update_mate_len(proved_entry->best_move, proved_entry->mate_len);
-        goto PV_END;
-      } else if (!n.IsOrNode() && proved_entry->bound == BOUND_LOWER && proved_entry->mate_len > beta) {
+      // OR node かつ upper bound かつ 手数が alpha よりも小さいなら、見込み 0 なので探索を打ち切れる
+      // 3 番目の条件（entry->mate_len < alpha) は等号を入れてはいけない。もしここで等号を入れて
+      // 探索を打ち切ってしまうと、ちょうど alpha 手詰めのときに詰み手順の探索が行われない可能性がある。
+      //
+      // AND node の場合も同様。
+      if ((n.IsOrNode() && proved_entry->bound == BOUND_UPPER && proved_entry->mate_len < alpha) ||
+          (!n.IsOrNode() && proved_entry->bound == BOUND_LOWER && proved_entry->mate_len > beta)) {
         update_mate_len(proved_entry->best_move, proved_entry->mate_len);
         goto PV_END;
       }
+
+      // このタイミングで探索を打ち切れない場合でも、最善手だけは覚えて置くと後の探索が楽になる
+      tt_move = proved_entry->best_move;
     }
 
     // pv_tree_ に登録されていなければ、置換表から最善手を読んでくる
@@ -274,54 +280,29 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
       tt_move = SelectBestMove(tt_, n);
     }
 
-    if (tt_move != MOVE_NONE && !n.IsRepetitionAfter(tt_move)) {
-      if (n.IsOrNode() || !n.IsRepetitionOrSuperiorAfter(tt_move)) {
-        n.DoMove(tt_move);
-        // 現局面の window が [alpha, beta] なので、子局面は1手減らした window で探索する
-        auto child_mate_len = PvSearch(n, alpha - 1, beta - 1);
-        n.UndoMove(tt_move);
-        update_mate_len(tt_move, child_mate_len + 1);
-        update_pv_tree();
-      }
-    }
-
     auto& mp = pickers_.emplace(n, true);
-    std::sort(mp.begin(), mp.end(), [](const ExtMove& m1, const ExtMove& m2) { return m1.value < m2.value; });
+    std::sort(mp.begin(), mp.end(), [tt_move](const ExtMove& m1, const ExtMove& m2) {
+      // tt_move がいちばん手前にくるようにする
+      if (m1.move == tt_move) {
+        return true;
+      } else if (m2.move == tt_move) {
+        return false;
+      }
+      return m1.value < m2.value;
+    });
+
     for (const auto& move : mp) {
       if (IsSearchStop() || is_end()) {
         break;
       }
 
-      if (n.IsRepetitionAfter(move.move)) {
+      if (n.IsRepetitionAfter(move.move) ||                               // 千日手
+          (!n.IsOrNode() && n.IsRepetitionOrSuperiorAfter(move.move))) {  // AND node で優等ループにはまっている
         continue;
       }
 
-      if (!n.IsOrNode() && n.IsRepetitionOrSuperiorAfter(move.move)) {
-        continue;
-      }
-
-      if (move.move == tt_move) {
-        continue;
-      }
-
-      auto query = tt_.GetChildQuery(n, move.move);
-      auto entry = query.LookUpWithoutCreation();
-      if (!entry->IsFinal()) {
-        // まだ詰むかどうか結論が出ていない
-        auto amount = entry->GetSearchedAmount();
-        auto move_count_org = n.GetMoveCount();
-
-        n.DoMove(move.move);
-        auto max_search_node_org = max_search_node_;
-        max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
-        auto result = SearchEntry(n);
-        max_search_node_ = max_search_node_org;
-        n.UndoMove(move.move);
-
-        entry = query.LookUpWithoutCreation();
-      }
-
-      if (entry->GetNodeState() == NodeState::kProvenState) {
+      auto result = YozumeSearchEntry(n, move);
+      if (result.GetNodeState() == NodeState::kProvenState) {
         // move を選べば詰みなので、PV探索をしてみる
         n.DoMove(move.move);
         auto child_mate_len = PvSearch(n, alpha - 1, beta - 1);
@@ -452,6 +433,23 @@ UsiInfo KomoringHeights::Info() const {
   usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
 
   return usi_output;
+}
+
+SearchResult KomoringHeights::YozumeSearchEntry(Node& n, Move move) {
+  auto query = tt_.GetChildQuery(n, move);
+  auto entry = query.LookUpWithoutCreation();
+  if (entry->IsFinal()) {
+    return {*entry, n.OrHandAfter(move)};
+  } else {
+    n.DoMove(move);
+    auto max_search_node_org = max_search_node_;
+    max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
+    auto result = SearchEntry(n);
+    max_search_node_ = max_search_node_org;
+    n.UndoMove(move);
+
+    return result;
+  }
 }
 
 SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
