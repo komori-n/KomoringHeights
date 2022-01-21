@@ -2,6 +2,7 @@
 #define CHILDREN_CACHE_HPP_
 
 #include <array>
+#include <utility>
 
 #include "transposition_table.hpp"
 #include "typedefs.hpp"

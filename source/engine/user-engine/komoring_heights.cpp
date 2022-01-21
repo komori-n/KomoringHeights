@@ -8,6 +8,7 @@
 #include <cmath>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "../../mate/mate.h"
 #include "children_cache.hpp"

@@ -1,5 +1,7 @@
 #include "transposition_table.hpp"
 
+#include <limits>
+
 #include "hands.hpp"
 #include "node.hpp"
 #include "path_keys.hpp"

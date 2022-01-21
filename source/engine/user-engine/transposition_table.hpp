@@ -41,7 +41,9 @@
 #ifndef TRANSPOSITION_TABLE_HPP_
 #define TRANSPOSITION_TABLE_HPP_
 
+#include <algorithm>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "ttentry.hpp"
@@ -103,7 +105,7 @@ class BoardCluster {
   bool IsStored(CommonEntry* entry) const { return begin() <= entry && entry < end(); }
 
   constexpr CommonEntry* begin() const { return head_entry_; }
-  constexpr CommonEntry* end() const { return head_entry_ + kClusterSize; };
+  constexpr CommonEntry* end() const { return head_entry_ + kClusterSize; }
 
  private:
   /// LookUpWithCreation() と LookUpWithoutCreation() の実装本体。

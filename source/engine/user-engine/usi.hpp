@@ -1,9 +1,13 @@
 #ifndef USI_HPP_
 #define USI_HPP_
+
+#include <algorithm>
 #include <cmath>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 
 #include "typedefs.hpp"
 

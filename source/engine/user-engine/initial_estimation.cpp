@@ -1,6 +1,7 @@
 #include "initial_estimation.hpp"
 
 #include <cmath>
+#include <vector>
 
 #if defined(USE_DEEP_DFPN)
 namespace {

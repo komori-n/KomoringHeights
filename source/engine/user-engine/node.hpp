@@ -2,6 +2,7 @@
 #define NODE_HPP_
 
 #include <stack>
+#include <vector>
 
 #include "hands.hpp"
 #include "node_history.hpp"

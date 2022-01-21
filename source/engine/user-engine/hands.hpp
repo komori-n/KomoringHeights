@@ -1,6 +1,7 @@
 #ifndef PROOF_HAND_HPP_
 #define PROOF_HAND_HPP_
 
+#include <algorithm>
 #include <array>
 
 #include "typedefs.hpp"

@@ -1,5 +1,6 @@
 #include "children_cache.hpp"
 
+#include <algorithm>
 #include <numeric>
 
 #include "../../mate/mate.h"

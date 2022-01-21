@@ -1,10 +1,13 @@
 ﻿#ifndef KOMORING_HEIGHTS_HPP_
 #define KOMORING_HEIGHTS_HPP_
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <limits>
+#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

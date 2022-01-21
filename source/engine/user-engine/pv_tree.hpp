@@ -3,6 +3,8 @@
 
 #include <optional>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "node.hpp"
 #include "typedefs.hpp"
