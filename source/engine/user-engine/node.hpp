@@ -27,7 +27,6 @@ class Node {
     node_history_.Visit(n_.state()->board_key(), this->OrHand());
     n_.do_move(m, st_info_.emplace());
     depth_++;
-    move_count_++;
   }
 
   void UndoMove(Move m) {
@@ -73,7 +72,6 @@ class Node {
   Depth GetDepth() const { return depth_; }
   Key GetPathKey() const { return path_key_; }
   Key PathKeyAfter(Move m) const { return ::komori::PathKeyAfter(path_key_, m, depth_); }
-  std::uint64_t GetMoveCount() const { return move_count_; }
   bool IsOrNode() const { return n_.side_to_move() == or_color_; }
 
   Color OrColor() const { return or_color_; }
@@ -86,7 +84,6 @@ class Node {
   NodeHistory node_history_{};       ///< 千日手・優等局面の一覧
   std::stack<StateInfo> st_info_{};  ///< do_move で必要な一時領域
   Key path_key_{};                   ///< 経路ハッシュ値。差分計算により求める。
-  std::uint64_t move_count_{};       ///< DoMove() した回数
 };
 
 /// 局面 n から moves で手を一気に進める。nに対し、moves の前から順に n.DoMove(m) を適用する。

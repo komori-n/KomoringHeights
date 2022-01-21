@@ -131,7 +131,7 @@ void USI::extra_option(USI::OptionsMap& o) {
   o["NodesLimit"] << Option(0, 0, INT64_MAX);
   o["PvInterval"] << Option(1000, 0, 1000000);
 
-  o["YozumeNodeCount"] << Option(300, 0, INT_MAX);
+  o["YozumeNodeCount"] << Option(400, 0, INT_MAX);
   o["YozumePath"] << Option(10000, 0, INT_MAX);
 
   o["RootIsAndNodeIfChecked"] << Option(true);
@@ -159,7 +159,7 @@ void Search::clear() {
   }
 #endif  // defined(USE_DEEP_DFPN)
 
-  g_searcher.Init(Options["USI_Hash"]);
+  g_searcher.Init(Options["USI_Hash"], Threads.main());
 
   if (auto max_search_node = Options["NodesLimit"]) {
     g_searcher.SetMaxSearchNode(max_search_node);

@@ -12,6 +12,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../../thread.h"
 #include "../../types.h"
 #include "children_cache.hpp"
 #include "move_picker.hpp"
@@ -27,19 +28,16 @@ class NodeHistory;
 namespace detail {
 class SearchProgress {
  public:
-  void NewSearch();
-  void Visit(Depth depth, std::uint64_t move_count) {
-    depth_ = std::max(depth_, depth);
-    move_count_ = move_count;
-  }
+  void NewSearch(Thread* thread);
+  void Visit(Depth depth) { depth_ = std::max(depth_, depth); }
 
   void WriteTo(UsiInfo& output) const;
-  auto MoveCount() const { return move_count_; }
+  std::uint64_t MoveCount() const { return thread_->nodes; }
 
  private:
   std::chrono::system_clock::time_point start_time_;
   Depth depth_;
-  std::uint64_t move_count_;
+  Thread* thread_;
 };
 }  // namespace detail
 
@@ -54,7 +52,7 @@ class KomoringHeights {
   ~KomoringHeights() = default;
 
   /// 内部変数（tt 含む）を初期化する
-  void Init(std::uint64_t size_mb);
+  void Init(std::uint64_t size_mb, Thread* thread);
   /// 探索局面数上限を設定する
   void SetMaxSearchNode(std::uint64_t max_search_node) { max_search_node_ = max_search_node; }
   /// 探索深さ上限を設定する
@@ -107,6 +105,7 @@ class KomoringHeights {
   bool IsSearchStop() const;
 
   TranspositionTable tt_;
+  Thread* thread_{nullptr};
   std::stack<ChildrenCache> children_cache_{};
   std::stack<MovePicker> pickers_{};
 

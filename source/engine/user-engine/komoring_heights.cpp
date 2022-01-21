@@ -96,35 +96,37 @@ void ExtendThreshold(PnDn& thpn, PnDn& thdn, PnDn pn, PnDn dn, bool or_node) {
 }  // namespace
 
 namespace detail {
-void SearchProgress::NewSearch() {
+void SearchProgress::NewSearch(Thread* thread) {
   start_time_ = std::chrono::system_clock::now();
   depth_ = 0;
-  move_count_ = 0;
+  thread_ = thread;
 }
 
 void SearchProgress::WriteTo(UsiInfo& output) const {
   auto curr_time = std::chrono::system_clock::now();
   auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
   time_ms = std::max(time_ms, decltype(time_ms){1});
-  auto nps = move_count_ * 1000ULL / time_ms;
+  auto move_count = MoveCount();
+  auto nps = move_count * 1000ULL / time_ms;
 
   output.Set(UsiInfo::KeyKind::kSelDepth, depth_)
       .Set(UsiInfo::KeyKind::kTime, time_ms)
-      .Set(UsiInfo::KeyKind::kNodes, move_count_)
+      .Set(UsiInfo::KeyKind::kNodes, move_count)
       .Set(UsiInfo::KeyKind::kNps, nps);
 }
 }  // namespace detail
 
 KomoringHeights::KomoringHeights() : tt_{kGcHashfullRemoveRatio} {}
 
-void KomoringHeights::Init(std::uint64_t size_mb) {
+void KomoringHeights::Init(std::uint64_t size_mb, Thread* thread) {
   tt_.Resize(size_mb);
+  thread_ = thread;
 }
 
 NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
-  progress_.NewSearch();
+  progress_.NewSearch(thread_);
   pv_tree_.Clear();
   gc_timer_.reset();
   last_gc_ = 0;
@@ -443,7 +445,7 @@ SearchResult KomoringHeights::YozumeSearchEntry(Node& n, Move move) {
   } else {
     n.DoMove(move);
     auto max_search_node_org = max_search_node_;
-    max_search_node_ = std::min(max_search_node_, n.GetMoveCount() + yozume_node_count_);
+    max_search_node_ = std::min(max_search_node_, progress_.MoveCount() + yozume_node_count_);
     auto result = SearchEntry(n);
     max_search_node_ = max_search_node_org;
     n.UndoMove(move);
@@ -454,18 +456,18 @@ SearchResult KomoringHeights::YozumeSearchEntry(Node& n, Move move) {
 
 SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
   ChildrenCache cache{tt_, n, true};
-  auto move_count_org = n.GetMoveCount();
+  auto move_count_org = progress_.MoveCount();
   auto result = SearchImpl(n, thpn, thdn, cache, false);
 
   auto query = tt_.GetQuery(n);
-  result.UpdateSearchedAmount(n.GetMoveCount() - move_count_org);
+  result.UpdateSearchedAmount(progress_.MoveCount() - move_count_org);
   query.SetResult(result);
 
   return result;
 }
 
 SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag) {
-  progress_.Visit(n.GetDepth(), n.GetMoveCount());
+  progress_.Visit(n.GetDepth());
 
   if (print_flag_) {
     PrintProgress(n);
@@ -501,7 +503,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
 
     // 子局面を何局面分探索したのかを見るために探索前に move count を取得しておく
-    auto move_count_org = n.GetMoveCount();
+    auto move_count_org = progress_.MoveCount();
     n.DoMove(best_move);
 
     // ChildrenCache をローカル変数として持つとスタックが枯渇する。v0.4.1時点では
@@ -532,7 +534,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     children_cache_.pop();
     n.UndoMove(best_move);
 
-    cache.UpdateBestChild(child_result, n.GetMoveCount() - move_count_org);
+    cache.UpdateBestChild(child_result, progress_.MoveCount() - move_count_org);
     curr_result = cache.CurrentResult(n);
   }
 
