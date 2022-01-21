@@ -15,6 +15,9 @@ komori::KomoringHeights g_searcher;
 std::once_flag g_path_key_init_flag;
 bool g_root_is_and_node_if_checked{false};
 
+std::atomic_bool g_search_end = false;
+komori::NodeState g_search_result = komori::NodeState::kNullState;
+
 /// 局面が OR node っぽいかどうかを調べる。困ったら OR node として処理する。
 bool IsPosOrNode(const Position& root_pos) {
   Color us = root_pos.side_to_move();
@@ -188,20 +191,29 @@ void MainThread::search() {
   bool is_mate_search = Search::Limits.mate != 0;
   bool is_root_or_node = IsPosOrNode(rootPos);
 
-  std::atomic_bool search_end = false;
-  komori::NodeState search_result = komori::NodeState::kNullState;
   g_searcher.ResetStop();
-  auto thread = std::thread([&]() {
-    search_result = g_searcher.Search(rootPos, is_root_or_node);
-    search_end = true;
-  });
 
-  WaitSearchEnd(search_end);
-  g_searcher.SetStop();
-  thread.join();
+  g_search_end = false;
+  // thread が 2 つ以上使える場合、main thread ではない方をタイマースレッドとして使いたい
+  if (Threads.size() > 1) {
+    Threads[1]->start_searching();
+
+    g_search_result = g_searcher.Search(rootPos, is_root_or_node);
+    g_search_end = true;
+
+    Threads[1]->wait_for_search_finished();
+  } else {
+    // thread が 1 つしか使いない場合、しれっと thread を起動してタイマー役をしてもらう
+    std::thread th{[this]() { Thread::search(); }};
+
+    g_search_result = g_searcher.Search(rootPos, is_root_or_node);
+    g_search_end = true;
+
+    th.join();
+  }
 
   Move best_move = MOVE_NONE;
-  if (search_result == komori::NodeState::kProvenState) {
+  if (g_search_result == komori::NodeState::kProvenState) {
     auto best_moves = g_searcher.BestMoves();
     std::ostringstream oss;
     for (const auto& move : best_moves) {
@@ -213,7 +225,7 @@ void MainThread::search() {
       best_move = best_moves[0];
     }
   } else {
-    if (search_result == komori::NodeState::kDisprovenState) {
+    if (g_search_result == komori::NodeState::kDisprovenState) {
       PrintResult(is_mate_search, LoseKind::kNoMate);
     } else {
       PrintResult(is_mate_search, LoseKind::kTimeout);
@@ -236,6 +248,9 @@ void MainThread::search() {
 }
 
 // 探索本体。並列化している場合、ここがslaveのエントリーポイント。
-void Thread::search() {}
+void Thread::search() {
+  WaitSearchEnd(g_search_end);
+  g_searcher.SetStop();
+}
 
 #endif  // USER_ENGINE
