@@ -96,10 +96,11 @@ void ExtendThreshold(PnDn& thpn, PnDn& thdn, PnDn pn, PnDn dn, bool or_node) {
 }  // namespace
 
 namespace detail {
-void SearchProgress::NewSearch(Thread* thread) {
+void SearchProgress::NewSearch(std::uint64_t max_num_moves, Thread* thread) {
   start_time_ = std::chrono::system_clock::now();
   depth_ = 0;
   thread_ = thread;
+  max_num_moves_ = max_num_moves;
 }
 
 void SearchProgress::WriteTo(UsiInfo& output) const {
@@ -126,7 +127,7 @@ void KomoringHeights::Init(std::uint64_t size_mb, Thread* thread) {
 NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
-  progress_.NewSearch(thread_);
+  progress_.NewSearch(max_search_node_, thread_);
   pv_tree_.Clear();
   gc_timer_.reset();
   last_gc_ = 0;
@@ -444,10 +445,9 @@ SearchResult KomoringHeights::YozumeSearchEntry(Node& n, Move move) {
     return {*entry, n.OrHandAfter(move)};
   } else {
     n.DoMove(move);
-    auto max_search_node_org = max_search_node_;
-    max_search_node_ = std::min(max_search_node_, progress_.MoveCount() + yozume_node_count_);
+    progress_.StartYozumeSearch(yozume_node_count_);
     auto result = SearchEntry(n);
-    max_search_node_ = max_search_node_org;
+    progress_.EndYozumeSearch();
     n.UndoMove(move);
 
     return result;
@@ -553,6 +553,6 @@ void KomoringHeights::PrintProgress(const Node& n) const {
 }
 
 bool KomoringHeights::IsSearchStop() const {
-  return progress_.MoveCount() > max_search_node_ || stop_;
+  return progress_.IsStop() || stop_;
 }
 }  // namespace komori

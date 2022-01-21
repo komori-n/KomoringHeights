@@ -28,15 +28,25 @@ class NodeHistory;
 namespace detail {
 class SearchProgress {
  public:
-  void NewSearch(Thread* thread);
+  void NewSearch(std::uint64_t max_num_moves, Thread* thread);
   void Visit(Depth depth) { depth_ = std::max(depth_, depth); }
 
   void WriteTo(UsiInfo& output) const;
   std::uint64_t MoveCount() const { return thread_->nodes; }
+  bool IsStop() const { return MoveCount() >= max_num_moves_; }
+
+  void StartYozumeSearch(std::uint64_t yozume_count) {
+    max_num_moves_backup_ = max_num_moves_;
+    max_num_moves_ = std::min(max_num_moves_, MoveCount() + yozume_count);
+  }
+
+  void EndYozumeSearch() { max_num_moves_ = max_num_moves_backup_; }
 
  private:
   std::chrono::system_clock::time_point start_time_;
   Depth depth_;
+  std::uint64_t max_num_moves_;
+  std::uint64_t max_num_moves_backup_;
   Thread* thread_;
 };
 }  // namespace detail
