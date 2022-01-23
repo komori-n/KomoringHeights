@@ -91,6 +91,7 @@ class KomoringHeights {
 
  private:
   SearchResult YozumeSearchEntry(Node& n, Move move);
+  SearchResult UselessDropSearchEntry(Node& n, Move move);
   SearchResult SearchEntry(Node& n, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
   /**
    * @brief

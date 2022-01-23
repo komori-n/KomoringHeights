@@ -423,6 +423,12 @@ public:
 	// null move用のundo_move()
 	void undo_null_move();
 
+	// 相手の持ち駒を 1 枚奪う
+	// steal した状態だと undo_move がうまく動かない。そのため、局面を戻すときは give_hand で元の局面に戻しておくこと。
+	void steal_hand(PieceType pr);
+	// 相手の持ち駒を 1 枚プレゼントする。steal_hand の逆操作。
+	void give_hand(PieceType pr);
+
 	// --- legality(指し手の合法性)のチェック
 
 	// 生成した指し手(CAPTUREとかNON_CAPTUREとか)が、合法であるかどうかをテストする。

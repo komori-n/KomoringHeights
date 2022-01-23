@@ -306,12 +306,29 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
 
       auto result = YozumeSearchEntry(n, move);
       if (result.GetNodeState() == NodeState::kProvenState) {
-        // move を選べば詰みなので、PV探索をしてみる
+        // move を選べば詰み
+
         n.DoMove(move.move);
-        auto child_mate_len = PvSearch(n, alpha - 1, beta - 1);
-        n.UndoMove(move.move);
-        update_mate_len(move.move, child_mate_len + 1);
-        update_pv_tree();
+        // 無駄合探索
+        bool need_search = true;
+        if (auto capture_move = n.ImmidiateCapture(); capture_move != MOVE_NONE) {
+          // 現在王手している駒ですぐ取り返して（capture_move）、取った駒を玉方に返しても詰むなら無駄合
+          auto useless_result = UselessDropSearchEntry(n, capture_move);
+          if (useless_result.GetNodeState() == NodeState::kProvenState) {
+            // 無駄合。move を選んではダメ。
+            // move は非合法手と同じ扱いでなかったことにする
+            need_search = false;
+          }
+        }
+
+        if (need_search) {
+          auto child_mate_len = PvSearch(n, alpha - 1, beta - 1);
+          n.UndoMove(move.move);
+          update_mate_len(move.move, child_mate_len + 1);
+          update_pv_tree();
+        } else {
+          n.UndoMove(move.move);
+        }
       }
     }
 
@@ -452,6 +469,28 @@ SearchResult KomoringHeights::YozumeSearchEntry(Node& n, Move move) {
 
     return result;
   }
+}
+
+SearchResult KomoringHeights::UselessDropSearchEntry(Node& n, Move move) {
+  // YozumeSearchEntry とは異なり駒のやり取りがあるので、DoMove を省略することはできない
+  n.DoMove(move);
+  n.StealCapturedPiece();
+
+  auto query = tt_.GetQuery(n);
+  auto entry = query.LookUpWithoutCreation();
+  SearchResult result;
+  if (entry->IsFinal()) {
+    result = {*entry, n.OrHandAfter(move)};
+  } else {
+    progress_.StartYozumeSearch(yozume_node_count_);
+    result = SearchEntry(n);
+    progress_.EndYozumeSearch();
+  }
+
+  n.UnstealCapturedPiece();
+  n.UndoMove(move);
+
+  return result;
 }
 
 SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {

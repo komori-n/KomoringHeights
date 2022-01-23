@@ -1851,6 +1851,44 @@ void Position::undo_null_move()
 	sideToMove = ~sideToMove;
 }
 
+void Position::steal_hand(PieceType pr) {
+	auto us = side_to_move();
+	auto them = ~us;
+	auto& our_hand = hand[us];
+	auto& their_hand = hand[them];
+
+	if (hand_exists(their_hand, pr)) {
+		auto h = st->hand_key_;
+		sub_hand(their_hand, pr);
+		h -= Zobrist::hand[them][pr];
+
+		add_hand(our_hand, pr);
+		h += Zobrist::hand[us][pr];
+
+		st->hand_key_ = h;
+		st->hand = our_hand;
+	}
+}
+
+void Position::give_hand(PieceType pr) {
+	auto us = side_to_move();
+	auto them = ~us;
+	auto& our_hand = hand[us];
+	auto& their_hand = hand[them];
+
+	if (hand_exists(our_hand, pr)) {
+		auto h = state()->hand_key_;
+		sub_hand(our_hand, pr);
+		h -= Zobrist::hand[us][pr];
+
+		add_hand(their_hand, pr);
+		h += Zobrist::hand[them][pr];
+
+		st->hand_key_ = h;
+		st->hand = our_hand;
+	}
+}
+
 
 #if defined (USE_SEE)
 

@@ -81,10 +81,7 @@ std::vector<Move> PvTree::Pv(Node& n) const {
 
   RollBack(n, pv);
 
-  if (success) {
-    return pv;
-  }
-  return {};
+  return pv;
 }
 
 void PvTree::PrintYozume(Node& n) const {

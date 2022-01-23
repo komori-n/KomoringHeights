@@ -5,6 +5,7 @@ HASH_KEY g_move_from[SQ_NB_PLUS1][komori::kMaxNumMateMoves];
 HASH_KEY g_move_to[SQ_NB_PLUS1][komori::kMaxNumMateMoves];
 HASH_KEY g_promote[komori::kMaxNumMateMoves];
 HASH_KEY g_dropped_pr[PIECE_HAND_NB][komori::kMaxNumMateMoves];
+HASH_KEY g_stolen_pr[PIECE_HAND_NB][komori::kMaxNumMateMoves];
 }  // namespace
 
 namespace komori {
@@ -25,6 +26,7 @@ void PathKeyInit() {
   for (PieceType pr = NO_PIECE_TYPE; pr < PIECE_HAND_NB; ++pr) {
     for (std::size_t depth = 0; depth < kMaxNumMateMoves; ++depth) {
       SET_HASH(g_dropped_pr[pr][depth], rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>());
+      SET_HASH(g_stolen_pr[pr][depth], rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>());
     }
   }
 }
@@ -44,5 +46,9 @@ Key PathKeyAfter(Key path_key, Move move, Depth depth) {
   }
 
   return path_key;
+}
+
+Key PathKeyAfterSteal(Key path_key, PieceType stolen_pr, Depth depth) {
+  return path_key ^ g_stolen_pr[stolen_pr][depth];
 }
 }  // namespace komori

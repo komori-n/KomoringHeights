@@ -37,6 +37,18 @@ class Node {
     path_key_ = PathKeyBefore(path_key_, m, depth_);
   }
 
+  void StealCapturedPiece() {
+    auto captured_pr = raw_type_of(n_.state()->capturedPiece);
+    path_key_ = PathKeyAfterSteal(path_key_, captured_pr, depth_);
+    n_.steal_hand(captured_pr);
+  }
+
+  void UnstealCapturedPiece() {
+    auto captured_pr = raw_type_of(n_.state()->capturedPiece);
+    path_key_ = PathKeyAfterGive(path_key_, captured_pr, depth_);
+    n_.give_hand(captured_pr);
+  }
+
   Hand OrHand() const { return n_.hand_of(or_color_); }
   Hand AndHand() const { return n_.hand_of(~or_color_); }
   Hand OrHandAfter(Move move) const {
@@ -45,6 +57,33 @@ class Node {
     } else {
       return OrHand();
     }
+  }
+
+  Move ImmidiateCapture() const {
+    if (!IsOrNode() || GetDepth() < 1) {
+      return MOVE_NONE;
+    }
+
+    // 両王手のときは少しだけ注意が必要。以下のコードで問題ない
+    // - 近接王手駒がchecker_sq: between_bb の結果が空なので次の if 文の中に入る
+    // - 遠隔王手駒がchecker_sq: between_bb へ駒を打ったり移動したりする手は王手回避にならない。
+    //   つまり、必ず次の if 文の中に入る
+
+    auto last_move = n_.state()->lastMove;
+    auto checker_sq = n_.state()->previous->checkersBB.pop_c();
+    auto king_sq = n_.king_square(~n_.side_to_move());
+
+    auto between = between_bb(king_sq, checker_sq);
+    if (!between.test(to_sq(last_move))) {
+      return MOVE_NONE;
+    }
+
+    auto checker = n_.piece_on(checker_sq);
+    auto capture_move = make_move(checker_sq, to_sq(last_move), checker);
+    if (n_.pseudo_legal(capture_move) && n_.legal(capture_move)) {
+      return capture_move;
+    }
+    return MOVE_NONE;
   }
 
   bool IsRepetition() const { return node_history_.Contains(n_.state()->board_key(), this->OrHand()); }
