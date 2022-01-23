@@ -151,12 +151,7 @@ class RepetitionTable {
   void Insert(Key path_key) { keys_[idx_].insert(path_key); }
   /// `path_key` が保存されていれば true
   bool Contains(Key path_key) const {
-    for (auto& tbl : keys_) {
-      if (tbl.find(path_key) != tbl.end()) {
-        return true;
-      }
-    }
-    return false;
+    return std::any_of(begin(keys_), end(keys_), [&](const auto& tbl) { return tbl.find(path_key) != tbl.end(); });
   }
   /// 現在の置換表サイズ
   std::size_t Size() const {

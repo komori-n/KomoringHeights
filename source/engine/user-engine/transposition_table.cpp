@@ -114,7 +114,7 @@ void LookUpQuery::SetResult(const SearchResult& result) {
   }
 }
 
-void LookUpQuery::SetRepetition(SearchedAmount amount) {
+void LookUpQuery::SetRepetition(SearchedAmount /* amount */) {
   LookUpWithCreation();
   if (entry_->GetNodeState() == NodeState::kOtherState) {
     entry_->SetMaybeRepetition();

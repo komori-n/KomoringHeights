@@ -9,6 +9,7 @@ Checks: >
   performance-*,
   portability-*,
   readability-*,
+  -bugprone-easily-swappable-parameters,
   -readability-function-cognitive-complexity,
   -misc-no-recursion,
   -google-readability-braces-around-statements,
@@ -27,8 +28,11 @@ Checks: >
   -readability-qualified-auto,
   -readability-else-after-return,
   -readability-convert-member-functions-to-static,
+  -readability-simplify-boolean-expr,
+  -readability-implicit-bool-conversion,
   -misc-redundant-expression,
-  -modernize-use-nodiscard
+  -modernize-use-nodiscard,
+  -modernize-use-auto
 # Turn all the warnings from the checks above into errors.
 WarningsAsErrors: "*"
 

@@ -68,9 +68,9 @@ class KomoringHeights {
   /// 探索深さ上限を設定する
   void SetMaxDepth(Depth max_depth) { max_depth_ = max_depth; }
   /// 余詰探索で探索する局面数
-  void SetYozumeCount(int yozume_count) { yozume_node_count_ = yozume_count; }
+  void SetYozumeCount(std::uint64_t yozume_count) { yozume_node_count_ = yozume_count; }
   /// 余詰探索で何個まで別解を探索するか
-  void SetYozumePath(int yozume_path) { yozume_search_count_ = yozume_path; }
+  void SetYozumePath(std::uint64_t yozume_path) { yozume_search_count_ = yozume_path; }
   /// 詰将棋探索をやめさせる
   void SetStop() { stop_ = true; }
   /// stopフラグをクリアする

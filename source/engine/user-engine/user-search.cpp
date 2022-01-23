@@ -161,23 +161,30 @@ void Search::clear() {
 
   g_searcher.Init(Options["USI_Hash"], Threads.main());
 
-  if (auto max_search_node = Options["NodesLimit"]) {
+  if (auto max_search_node = Options["NodesLimit"]; max_search_node != 0) {
     g_searcher.SetMaxSearchNode(max_search_node);
   } else {
     g_searcher.SetMaxSearchNode(0xffff'ffff'ffff'ffffULL);
   }
 
-  if (Depth depth_limit = Options["DepthLimit"]) {
+  if (auto depth_limit = Options["DepthLimit"]) {
     // n 手詰めを読むためには depth=n+1 まで読む必要がある
-    g_searcher.SetMaxDepth(depth_limit);
+    auto depth = static_cast<Depth>(depth_limit);
+    g_searcher.SetMaxDepth(depth);
+  } else {
+    g_searcher.SetMaxDepth(komori::kMaxNumMateMoves);
   }
 
   if (auto max_yozume_count = Options["YozumeNodeCount"]) {
     g_searcher.SetYozumeCount(max_yozume_count);
+  } else {
+    g_searcher.SetYozumeCount(std::numeric_limits<std::uint64_t>::max());
   }
 
   if (auto max_yozume_path = Options["YozumePath"]) {
     g_searcher.SetYozumePath(max_yozume_path);
+  } else {
+    g_searcher.SetYozumePath(std::numeric_limits<std::uint64_t>::max());
   }
 
   g_root_is_and_node_if_checked = Options["RootIsAndNodeIfChecked"];
@@ -221,7 +228,7 @@ void MainThread::search() {
     }
     PrintResult(is_mate_search, LoseKind::kMate, oss.str());
 
-    if (best_moves.size() > 0) {
+    if (!best_moves.empty()) {
       best_move = best_moves[0];
     }
   } else {
