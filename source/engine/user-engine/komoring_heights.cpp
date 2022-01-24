@@ -26,6 +26,8 @@ constexpr PnDn kIncreaseDeltaThreshold = 100;
 constexpr int kGcHashfullThreshold = 700;
 constexpr int kGcHashfullRemoveRatio = 200;
 
+constexpr MateLen kRepetitionLen{kMaxNumMateMoves + 1, 0};
+
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
   return {static_cast<std::uint16_t>(depth), static_cast<std::uint16_t>(std::min(15, CountHand(hand)))};
@@ -249,6 +251,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
 MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
   Key key = n.Pos().key();
   PvMoveLen pv_move_len{n, alpha, beta};
+  bool repetition = false;
 
   if (pv_move_len.IsTrivialCut()) {
     return pv_move_len.GetMateLen();
@@ -322,8 +325,16 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
         break;
       }
 
-      if (n.IsRepetitionAfter(move.move) ||                               // 千日手
-          (!n.IsOrNode() && n.IsRepetitionOrSuperiorAfter(move.move))) {  // AND node で優等ループにはまっている
+      if (n.IsRepetitionAfter(move.move)) {
+        repetition = true;
+        if (n.IsOrNode()) {
+          continue;
+        } else {
+          break;
+        }
+      }
+
+      if (!n.IsOrNode() && n.IsRepetitionOrSuperiorAfter(move.move)) {
         continue;
       }
 
@@ -368,9 +379,14 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
   }
 
 PV_END:
-  if (pv_move_len.IsExactBound()) {
+  // 千日手が原因で詰み／不詰の判断が狂った可能性がある場合は置換表に exact を書かない
+  if (!repetition && pv_move_len.IsExactBound()) {
     PvTree::Entry entry{BOUND_EXACT, pv_move_len.GetMateLen(), pv_move_len.GetBestMove()};
     pv_tree_.Insert(n, entry);
+  }
+
+  if (repetition && !n.IsOrNode()) {
+    return kMaxMateLen;
   }
 
   return pv_move_len.GetMateLen();

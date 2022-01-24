@@ -113,12 +113,12 @@ struct MateLen {
   std::uint16_t len : 12;  ///< 詰み／不詰手数。kMaxNumMateLen が収まるギリギリのサイズを指定する
   std::uint16_t final_hand : 4;  ///< 詰み／不詰局面における駒余り枚数
 
-  MateLen(std::uint16_t len, std::uint16_t final_hand) : len(len), final_hand(final_hand) {}
+  constexpr MateLen(std::uint16_t len, std::uint16_t final_hand) : len(len), final_hand(final_hand) {}
   MateLen() = default;
 };
 
-const inline MateLen kZeroMateLen{std::uint16_t{0}, std::uint16_t{15}};
-const inline MateLen kMaxMateLen{std::uint16_t{kMaxNumMateMoves}, std::uint16_t{0}};
+constexpr inline MateLen kZeroMateLen{std::uint16_t{0}, std::uint16_t{15}};
+constexpr inline MateLen kMaxMateLen{std::uint16_t{kMaxNumMateMoves}, std::uint16_t{0}};
 
 inline bool operator==(const MateLen& lhs, const MateLen& rhs) {
   return lhs.len == rhs.len && lhs.final_hand == rhs.final_hand;
