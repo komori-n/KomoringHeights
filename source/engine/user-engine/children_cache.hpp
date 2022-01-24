@@ -71,7 +71,7 @@ class ChildrenCache {
    * @param search_result 置換表へ登録する内容
    * @param move_count   探索局面数
    */
-  void UpdateBestChild(const SearchResult& search_result, std::uint64_t move_count);
+  void UpdateBestChild(const SearchResult& search_result);
 
   /**
    * @brief 現在の pn/dn および証明駒／反証駒を返す。
@@ -118,7 +118,7 @@ class ChildrenCache {
   Child& NthChild(std::size_t i) { return children_[idx_[i]]; }
   const Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
   /// UpdateFront のソートしない版
-  void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result, std::uint64_t move_count);
+  void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
 
   /// 現局面が詰みであることがわかっている時、その SearchResult を計算して返す
   SearchResult GetProvenResult(const Node& n) const;

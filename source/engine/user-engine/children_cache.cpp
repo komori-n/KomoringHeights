@@ -153,7 +153,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
           SearchResult dummy_entry = {
               NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE,
               MakeMateLen(0, hand2)};
-          UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
+          UpdateNthChildWithoutSort(curr_idx, dummy_entry);
         } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
           // best_move を選ぶと1手詰み。
 
@@ -162,7 +162,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
           SearchResult dummy_entry = {
               NodeState::kProvenState,   kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand, best_move,
               MakeMateLen(1, after_hand)};
-          UpdateNthChildWithoutSort(curr_idx, dummy_entry, 0);
+          UpdateNthChildWithoutSort(curr_idx, dummy_entry);
         }
         n.UndoMove(move.move);
       }
@@ -184,8 +184,8 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
   RecalcDelta();
 }
 
-void ChildrenCache::UpdateBestChild(const SearchResult& search_result, std::uint64_t move_count) {
-  UpdateNthChildWithoutSort(0, search_result, move_count);
+void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
+  UpdateNthChildWithoutSort(0, search_result);
 
   auto& old_best_child = NthChild(0);
   bool old_is_sum_delta = old_best_child.is_sum_delta;
@@ -253,14 +253,11 @@ std::pair<PnDn, PnDn> ChildrenCache::ChildThreshold(PnDn thpn, PnDn thdn) const 
   }
 }
 
-void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i,
-                                              const SearchResult& search_result,
-                                              std::uint64_t move_count) {
+void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result) {
   auto& child = NthChild(i);
   // Update したということはもう初探索ではないはず
   child.is_first = false;
   child.search_result = search_result;
-  child.search_result.UpdateSearchedAmount(move_count);
 
   // このタイミングで置換表に登録する
   // なお、デストラクトまで置換表登録を遅延させると普通に性能が悪くなる（一敗）
@@ -285,13 +282,18 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = NthChild(i);
       set.Update(child.search_result.ProperHand());
-      amount += child.search_result.GetSearchedAmount();
+      amount = std::max(amount, child.search_result.GetSearchedAmount());
       if (child.search_result.GetMateLen() > mate_len) {
         best_move = child.move;
         mate_len = child.search_result.GetMateLen() + 1;
       }
     }
     proof_hand = set.Get(n.Pos());
+
+    // amount の総和を取ると値が大きくなりすぎるので、
+    //   amount = max(child_amount) + children_len_ - 1
+    // により計算する
+    amount += children_len_ - 1;
   }
 
   return {NodeState::kProvenState, amount, 0, kInfinitePnDn, proof_hand, best_move, mate_len};
@@ -314,12 +316,13 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = NthChild(i);
       set.Update(BeforeHand(n.Pos(), child.move, child.search_result.ProperHand()));
-      amount += child.search_result.GetSearchedAmount();
+      amount = std::max(amount, child.search_result.GetSearchedAmount());
       if (child.search_result.GetMateLen() > mate_len) {
         best_move = child.move;
         mate_len = child.search_result.GetMateLen() + 1;
       }
     }
+    amount += children_len_ - 1;
     disproof_hand = set.Get(n.Pos());
   } else {
     auto& best_child = NthChild(0);
@@ -347,7 +350,7 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
 
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   auto& child = NthChild(0);
-  auto amount = child.search_result.GetSearchedAmount();
+  SearchedAmount amount = child.search_result.GetSearchedAmount() + children_len_ - 1;
   if (or_node_) {
     return {NodeState::kOtherState, amount, child.Pn(), GetDelta(), n.OrHand()};
   } else {

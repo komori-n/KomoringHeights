@@ -546,7 +546,6 @@ SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
   auto result = SearchImpl(n, thpn, thdn, cache, false);
 
   auto query = tt_.GetQuery(n);
-  result.UpdateSearchedAmount(progress_.MoveCount() - move_count_org);
   query.SetResult(result);
 
   return result;
@@ -588,8 +587,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     bool is_first_search = cache.BestMoveIsFirstVisit();
     auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
 
-    // 子局面を何局面分探索したのかを見るために探索前に move count を取得しておく
-    auto move_count_org = progress_.MoveCount();
     n.DoMove(best_move);
 
     // ChildrenCache をローカル変数として持つとスタックが枯渇する。v0.4.1時点では
@@ -620,7 +617,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     children_cache_.pop();
     n.UndoMove(best_move);
 
-    cache.UpdateBestChild(child_result, progress_.MoveCount() - move_count_org);
+    cache.UpdateBestChild(child_result);
     curr_result = cache.CurrentResult(n);
   }
 

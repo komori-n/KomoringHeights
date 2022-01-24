@@ -54,7 +54,7 @@ using SearchedAmount = std::uint32_t;
 inline constexpr SearchedAmount kMinimumSearchedAmount = 2;
 inline constexpr SearchedAmount kFirstSearchAmount = 2;
 /// 何局面読んだら SearchedCmount を進めるか
-inline constexpr std::uint64_t kNumSearchedPerAmount = 128;
+inline constexpr std::uint64_t kNumSearchedPerAmount = 1024;
 inline constexpr SearchedAmount Update(SearchedAmount amount, std::uint64_t delta_searched) {
   auto update = delta_searched / kNumSearchedPerAmount;
   // 最低でも 1 は増加させる
@@ -228,7 +228,7 @@ class CommonEntry {
   constexpr NodeState GetNodeState() const { return s_amount_.node_state; }
   constexpr SearchedAmount GetSearchedAmount() const { return s_amount_.amount; }
   constexpr StateAmount GetStateAmount() const { return s_amount_; }
-  constexpr void UpdateSearchedAmount(SearchedAmount amount) { s_amount_.amount = std::max(s_amount_.amount, amount); }
+  constexpr void UpdateSearchedAmount(SearchedAmount amount) { s_amount_.amount = s_amount_.amount + amount; }
 
   /// 通常局面かつ千日手の可能性がある場合のみ true。
   constexpr bool IsMaybeRepetition() const { return s_amount_.node_state == NodeState::kMaybeRepetitionState; }
@@ -353,7 +353,7 @@ class SearchResult {
   Move16 BestMove() const { return move_; }
   MateLen GetMateLen() const { return mate_len_; }
 
-  void UpdateSearchedAmount(std::uint64_t move_count) { amount_ = Update(amount_, move_count); }
+  void UpdateSearchedAmount(SearchedAmount amount) { amount_ = amount_ + amount; }
 
   bool Exceeds(PnDn thpn, PnDn thdn) { return pn_ >= thpn || dn_ >= thdn; }
 
