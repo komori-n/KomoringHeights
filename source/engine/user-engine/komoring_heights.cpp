@@ -20,7 +20,6 @@
 namespace komori {
 namespace {
 constexpr std::int64_t kGcInterval = 100'000'000;
-constexpr PnDn kIncreaseDeltaThreshold = 10;
 
 /// TT の使用率が kGcHashfullThreshold を超えたら kGcHashfullRemoveRatio だけ削除する
 constexpr int kGcHashfullThreshold = 700;
@@ -154,20 +153,6 @@ __attribute__((noinline)) Move SelectBestMove(TranspositionTable& tt, const Node
   }
 
   return drop_best_move;
-}
-
-void ExtendThreshold(PnDn& thpn, PnDn& thdn, PnDn pn, PnDn dn, bool or_node) {
-  if (or_node) {
-    thdn = Clamp(thdn, dn + 1);
-    if (kIncreaseDeltaThreshold < pn && pn < kInfinitePnDn) {
-      thpn = Clamp(thpn, pn + 1);
-    }
-  } else {
-    thpn = Clamp(thpn, pn + 1);
-    if (kIncreaseDeltaThreshold < dn && dn < kInfinitePnDn) {
-      thdn = Clamp(thdn, dn + 1);
-    }
-  }
 }
 }  // namespace
 
@@ -569,7 +554,13 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
   inc_flag = inc_flag || cache.DoesHaveOldChild();
   if (inc_flag && !curr_result.IsFinal()) {
-    ExtendThreshold(thpn, thdn, curr_result.Pn(), curr_result.Dn(), n.IsOrNode());
+    if (curr_result.Pn() < kInfinitePnDn) {
+      thpn = Clamp(thpn, curr_result.Pn() + 1);
+    }
+
+    if (curr_result.Dn() < kInfinitePnDn) {
+      thdn = Clamp(thdn, curr_result.Dn() + 1);
+    }
   }
 
   if (progress_.MoveCount() >= next_gc_count_) {
