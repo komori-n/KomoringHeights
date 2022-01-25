@@ -121,8 +121,7 @@ class KomoringHeights {
   std::stack<MovePicker> pickers_{};
 
   std::atomic_bool stop_{false};
-  Timer gc_timer_{};
-  TimePoint last_gc_{};
+  std::uint64_t next_gc_count_{0};
 
   std::atomic_bool print_flag_{false};
   detail::SearchProgress progress_{};

@@ -1,6 +1,8 @@
 #include "transposition_table.hpp"
 
+#include <algorithm>
 #include <limits>
+#include <numeric>
 
 #include "hands.hpp"
 #include "node.hpp"
@@ -12,21 +14,47 @@ namespace {
 constexpr std::size_t kHashfullCalcEntries = 10000;
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合
 constexpr double kNormalRepetitionRatio = 0.95;
+/// エントリを消すしきい値。
+constexpr std::size_t kGcThreshold = BoardCluster::kClusterSize - 1;
+constexpr std::size_t kGcRemoveElementNum = BoardCluster::kClusterSize / 2;
+static_assert(BoardCluster::kClusterSize > kGcRemoveElementNum);
 
 /// state の内容に沿って補正した amount を返す。例えば、ProvenState の Amount を大きくしたりする。
 inline SearchedAmount GetAdjustedAmount(NodeState state, SearchedAmount amount) {
-  // proven state は他のノードと比べて 10 倍探索したことにする（GCで消されづらくする）
-  constexpr SearchedAmount kProvenAmountIncrease = 10;
+  // final state は他のノードと比べて 10 倍探索したことにする（GCで消されづらくする）
+  constexpr SearchedAmount kFinalAmountIncrease = 10;
 
-  if (state == NodeState::kProvenState) {
+  if (IsFinal(state)) {
     // 単純に掛け算をするとオーバーフローする可能性があるので、範囲チェックをする
-    if (amount >= std::numeric_limits<SearchedAmount>::max() / kProvenAmountIncrease) {
+    if (amount >= std::numeric_limits<SearchedAmount>::max() / kFinalAmountIncrease) {
       amount = std::numeric_limits<SearchedAmount>::max();
     } else {
-      amount *= kProvenAmountIncrease;
+      amount *= kFinalAmountIncrease;
     }
   }
   return amount;
+}
+
+/// [begin, end) の中で最もいらなさそうなエントリを削除する
+template <typename Iterator>
+inline void RemoveOne(Iterator begin, Iterator end) {
+  Iterator removed = end;
+  SearchedAmount removed_amount = std::numeric_limits<SearchedAmount>::max();
+  for (auto itr = begin; itr != end; ++itr) {
+    if (itr->IsNull()) {
+      continue;
+    }
+
+    auto amount = GetAdjustedAmount(itr->GetNodeState(), itr->GetSearchedAmount());
+    if (amount < removed_amount) {
+      removed = itr;
+      removed_amount = amount;
+    }
+  }
+
+  if (removed != end) {
+    removed->Clear();
+  }
 }
 }  // namespace
 
@@ -124,8 +152,6 @@ void LookUpQuery::SetRepetition(SearchedAmount /* amount */) {
   entry_ = const_cast<CommonEntry*>(&kRepetitionEntry);
 }
 
-TranspositionTable::TranspositionTable(int gc_hashfull) : gc_hashfull_{gc_hashfull} {};
-
 void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
   std::uint64_t new_bytes = hash_size_mb * 1024 * 1024;
   std::uint64_t normal_bytes = static_cast<std::uint64_t>(static_cast<double>(new_bytes) * kNormalRepetitionRatio);
@@ -158,26 +184,47 @@ std::size_t TranspositionTable::CollectGarbage() {
   rep_table_.CollectGarbage();
 
   std::size_t removed_num = 0;
-  std::size_t obj_value = tt_.size() * gc_hashfull_ / 1000;
 
-  for (;;) {
-    for (auto& entry : tt_) {
-      if (entry.IsNull()) {
-        continue;
-      }
-
-      if (GetAdjustedAmount(entry.GetNodeState(), entry.GetSearchedAmount()) < threshold_) {
-        removed_num++;
-        entry.Clear();
+  // idx から kClusterSize 個の要素のうち使用中であるものの個数を数える
+  auto count_used = [&](std::size_t idx) {
+    std::size_t used = 0;
+    auto end = std::min(tt_.size(), idx + BoardCluster::kClusterSize);
+    for (; idx < end; ++idx) {
+      if (!tt_[idx].IsNull()) {
+        ++used;
       }
     }
 
-    if (removed_num >= obj_value) {
-      break;
-    }
+    return used;
+  };
 
-    threshold_++;
-  }
+  std::size_t i = 0;
+  std::size_t j = i + BoardCluster::kClusterSize;
+  // [i, j) の範囲で使用中のエントリの個数
+  auto used_ij = count_used(0);
+  std::size_t end = tt_.size();
+  do {
+    if (used_ij >= kGcThreshold) {
+      // [i, j) の使用率が高すぎるのでエントリを適当に間引く
+      for (std::size_t k = 0; k < kGcRemoveElementNum; ++k) {
+        RemoveOne(tt_.begin() + i, tt_.begin() + j);
+      }
+      i = j;
+      j = i + BoardCluster::kClusterSize;
+      used_ij = count_used(i);
+    } else {
+      // (i, j) <-- (i + 1, j + 1) に更新する
+      // しゃくとり法で used の更新をしておく
+      if (!tt_[i++].IsNull()) {
+        used_ij--;
+      }
+
+      if (!tt_[j++].IsNull()) {
+        used_ij++;
+      }
+    }
+  } while (j < end);
+
   return removed_num;
 }
 

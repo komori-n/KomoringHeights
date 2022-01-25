@@ -19,8 +19,8 @@
 
 namespace komori {
 namespace {
-constexpr std::int64_t kGcInterval = 3000;
-constexpr PnDn kIncreaseDeltaThreshold = 100;
+constexpr std::int64_t kGcInterval = 100'000'000;
+constexpr PnDn kIncreaseDeltaThreshold = 10;
 
 /// TT の使用率が kGcHashfullThreshold を超えたら kGcHashfullRemoveRatio だけ削除する
 constexpr int kGcHashfullThreshold = 700;
@@ -193,7 +193,7 @@ void SearchProgress::WriteTo(UsiInfo& output) const {
 }
 }  // namespace detail
 
-KomoringHeights::KomoringHeights() : tt_{kGcHashfullRemoveRatio} {}
+KomoringHeights::KomoringHeights() {}
 
 void KomoringHeights::Init(std::uint64_t size_mb, Thread* thread) {
   tt_.Resize(size_mb);
@@ -205,8 +205,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   tt_.NewSearch();
   progress_.NewSearch(max_search_node_, thread_);
   pv_tree_.Clear();
-  gc_timer_.reset();
-  last_gc_ = 0;
+  next_gc_count_ = kGcInterval;
   best_moves_.clear();
   // </初期化>
 
@@ -573,11 +572,9 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     ExtendThreshold(thpn, thdn, curr_result.Pn(), curr_result.Dn(), n.IsOrNode());
   }
 
-  if (gc_timer_.elapsed() > last_gc_ + kGcInterval) {
-    if (tt_.Hashfull() >= kGcHashfullThreshold) {
-      tt_.CollectGarbage();
-    }
-    last_gc_ = gc_timer_.elapsed();
+  if (progress_.MoveCount() >= next_gc_count_) {
+    tt_.CollectGarbage();
+    next_gc_count_ = progress_.MoveCount() + kGcInterval;
   }
 
   while (!IsSearchStop() && !curr_result.Exceeds(thpn, thdn)) {
