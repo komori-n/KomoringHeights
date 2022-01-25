@@ -139,7 +139,7 @@ void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
 
   tt_.resize(new_num_entries);
   tt_.shrink_to_fit();
-  entry_mod_ = new_num_entries - BoardCluster::kClusterSize;
+  cluster_num_ = new_num_entries - BoardCluster::kClusterSize;
 
   std::uint64_t rep_entry_max = rep_bytes / sizeof(Key);
   rep_table_.SetTableSizeMax(rep_entry_max);
@@ -210,7 +210,7 @@ int TranspositionTable::Hashfull() const {
 
   // tt_ の最初と最後はエントリ数が若干少ないので、真ん中から kHashfullCalcEntries 個のエントリを調べる
   std::size_t begin_idx = BoardCluster::kClusterSize;
-  std::size_t end_idx = std::min(begin_idx + kHashfullCalcEntries, static_cast<std::size_t>(entry_mod_));
+  std::size_t end_idx = std::min(begin_idx + kHashfullCalcEntries, static_cast<std::size_t>(cluster_num_));
 
   std::size_t num_entries = end_idx - begin_idx;
   std::size_t idx = begin_idx;

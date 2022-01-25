@@ -263,15 +263,20 @@ class TranspositionTable {
 
  private:
   /// NormalTable の board_key の先頭要素へのポインタを返す
-  CommonEntry* HeadOf(Key board_key) { return &tt_[board_key % entry_mod_]; }
+  CommonEntry* HeadOf(Key board_key) {
+    // Stockfish の置換表と同じアイデア。少し工夫をすることで moe 演算を回避できる。
+    // hash_low が [0, 2^32) の一様分布にしたがうと仮定すると、idx はだいたい [0, cluster_num) の一様分布にしたがう。
+    auto hash_low = board_key & 0xffff'ffffull;
+    auto idx = (hash_low * cluster_num_) >> 32;
+    return &tt_[idx];
+  }
 
   /// NormalTable 本体
   std::vector<CommonEntry> tt_{};
   /// RepetitionTable 本体
   RepetitionTable rep_table_{};
   /// tt_.size() - BoardCluster::kClusterSize。
-  /// (board_key % entry_mod_) により先頭要素の index を求められる
-  std::uint64_t entry_mod_{1};
+  std::uint64_t cluster_num_{1};
   /// GC で削除したい要素数の割合（千分率）
   int gc_hashfull_;
   /// 前回の GC で用いたしきい値
