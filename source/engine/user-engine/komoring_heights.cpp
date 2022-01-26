@@ -259,27 +259,27 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
     // 置換表にそこそこよい手が書かれているはず
     // それを先に読んで alpha/beta を更新しておくことで、探索が少しだけ高速化される
     auto tt_move = MOVE_NONE;
-    if (auto&& proved_entry = pv_tree_.Probe(n)) {
-      if (proved_entry->bound == BOUND_EXACT) {
-        // 探索したことがある局面なら、その結果を再利用する。
-        return proved_entry->mate_len;
-      }
-
-      // OR node かつ upper bound かつ 手数が alpha よりも小さいなら、見込み 0 なので探索を打ち切れる
-      // 3 番目の条件（entry->mate_len < alpha) は等号を入れてはいけない。もしここで等号を入れて
-      // 探索を打ち切ってしまうと、ちょうど alpha 手詰めのときに詰み手順の探索が行われない可能性がある。
-      //
-      // AND node の場合も同様。
-      if ((n.IsOrNode() && proved_entry->bound == BOUND_UPPER && pv_move_len.LessThanAlpha(proved_entry->mate_len)) ||
-          (!n.IsOrNode() && proved_entry->bound == BOUND_LOWER &&
-           pv_move_len.GreaterThanBeta(proved_entry->mate_len))) {
-        pv_move_len.Update(proved_entry->best_move, proved_entry->mate_len);
-        goto PV_END;
-      }
-
-      // このタイミングで探索を打ち切れない場合でも、最善手だけは覚えて置くと後の探索が楽になる
-      tt_move = proved_entry->best_move;
+    auto&& proved_range = pv_tree_.Probe(n);
+    if (proved_range.min_mate_len == proved_range.max_mate_len) {
+      // 探索したことがある局面なら、その結果を再利用する。
+      return proved_range.max_mate_len;
     }
+
+    // OR node かつ upper bound かつ 手数が alpha よりも小さいなら、見込み 0 なので探索を打ち切れる
+    // 3 番目の条件（entry->mate_len < alpha) は等号を入れてはいけない。もしここで等号を入れて
+    // 探索を打ち切ってしまうと、ちょうど alpha 手詰めのときに詰み手順の探索が行われない可能性がある。
+    //
+    // AND node の場合も同様。
+    if (n.IsOrNode() && pv_move_len.LessThanAlpha(proved_range.max_mate_len)) {
+      pv_move_len.Update(proved_range.best_move, proved_range.max_mate_len);
+      goto PV_END;
+    } else if (!n.IsOrNode() && pv_move_len.GreaterThanBeta(proved_range.min_mate_len)) {
+      pv_move_len.Update(proved_range.best_move, proved_range.min_mate_len);
+      goto PV_END;
+    }
+
+    // このタイミングで探索を打ち切れない場合でも、最善手だけは覚えて置くと後の探索が楽になる
+    tt_move = proved_range.best_move;
 
     // pv_tree_ に登録されていなければ、置換表から最善手を読んでくる
     // （n が詰みなので、ほとんどの場合は置換表にエンドが保存されている）
@@ -346,12 +346,10 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
 
           if (n.IsOrNode() && pv_move_len.LessThanOrigBeta()) {
             // mate_len < orig_beta が確定したので、この局面は高々 mate_len 手詰
-            PvTree::Entry entry{BOUND_UPPER, pv_move_len.GetMateLen(), pv_move_len.GetBestMove()};
-            pv_tree_.Insert(n, entry);
+            pv_tree_.Insert(n, BOUND_UPPER, pv_move_len.GetMateLen(), pv_move_len.GetBestMove());
           } else if (!n.IsOrNode() && pv_move_len.GreaterThanOrigAlpha()) {
             // mate_len > orig_alpha が確定したので、この局面は少なくとも mate_len 手詰以上
-            PvTree::Entry entry{BOUND_UPPER, pv_move_len.GetMateLen(), pv_move_len.GetBestMove()};
-            pv_tree_.Insert(n, entry);
+            pv_tree_.Insert(n, BOUND_LOWER, pv_move_len.GetMateLen(), pv_move_len.GetBestMove());
           }
         } else {
           n.UndoMove(move.move);
@@ -365,8 +363,7 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
 PV_END:
   // 千日手が原因で詰み／不詰の判断が狂った可能性がある場合は置換表に exact を書かない
   if (!repetition && pv_move_len.IsExactBound()) {
-    PvTree::Entry entry{BOUND_EXACT, pv_move_len.GetMateLen(), pv_move_len.GetBestMove()};
-    pv_tree_.Insert(n, entry);
+    pv_tree_.Insert(n, BOUND_EXACT, pv_move_len.GetMateLen(), pv_move_len.GetBestMove());
   }
 
   if (repetition && !n.IsOrNode()) {

@@ -21,38 +21,39 @@ void PvTree::Clear() {
   entries_.clear();
 }
 
-void PvTree::Insert(Node& n, const Entry& entry) {
+void PvTree::Insert(Node& n, Bound bound, MateLen mate_len, Move best_move) {
   auto board_key = n.Pos().state()->board_key();
   auto or_hand = n.OrHand();
 
   // メモリ消費量をケチるために、他のエントリで代用できる場合は格納しないようにする
-  bool need_store = true;
+  bool need_store = false;
+  auto probed_range = Probe(n);
+  if (IsUpperBound(bound)) {
+    if (probed_range.max_mate_len != mate_len || probed_range.best_move != best_move) {
+      need_store = true;
+    }
+  }
 
-  // exact bound は必ず格納する。lower bound や upper bound なら他のエントリで表現可能なことがある
-  if (!IsExactBound(entry.bound)) {
-    // いったん probe してみて、同じ情報が取れているなら格納不要と判断する
-    if (auto probed_entry = Probe(n)) {
-      // entry の内容がだいたい一致していれば格納不要
-      if (probed_entry->mate_len == entry.mate_len && probed_entry->best_move == entry.best_move &&
-          (entry.bound & probed_entry->bound) != 0) {
-        need_store = false;
-      }
+  if (IsLowerBound(bound)) {
+    if (probed_range.min_mate_len != mate_len || probed_range.best_move != best_move) {
+      need_store = true;
     }
   }
 
   if (need_store) {
-    entries_.insert({board_key, {or_hand, entry}});
+    Entry entry{bound, mate_len, best_move};
+    entries_.insert({board_key, {n.OrHand(), entry}});
   }
 }
 
-std::optional<PvTree::Entry> PvTree::Probe(Node& n) const {
+PvTree::MateRange PvTree::Probe(Node& n) const {
   auto board_key = n.Pos().state()->board_key();
   auto or_hand = n.OrHand();
 
   return ProbeImpl(board_key, or_hand, n.IsOrNode());
 }
 
-std::optional<PvTree::Entry> PvTree::ProbeAfter(Node& n, Move move) const {
+PvTree::MateRange PvTree::ProbeAfter(Node& n, Move move) const {
   auto board_key = n.Pos().board_key_after(move);
   auto or_hand = n.OrHandAfter(move);
 
@@ -62,48 +63,17 @@ std::optional<PvTree::Entry> PvTree::ProbeAfter(Node& n, Move move) const {
 std::vector<Move> PvTree::Pv(Node& n) const {
   std::vector<Move> pv;
 
-  auto entry = Probe(n);
-  while (entry) {
-    auto best_move = entry->best_move;
-    if (best_move == MOVE_NONE || n.IsRepetitionAfter(best_move)) {
-      break;
-    }
-
+  auto mate_range = Probe(n);
+  auto best_move = mate_range.best_move;
+  while (best_move != MOVE_NONE && !n.IsRepetitionAfter(best_move)) {
     pv.push_back(best_move);
     n.DoMove(best_move);
-    entry = Probe(n);
-  }
-
-  bool success = true;
-  if (n.IsOrNode() || !MovePicker{n}.empty()) {
-    success = false;
+    mate_range = Probe(n);
+    best_move = mate_range.best_move;
   }
 
   RollBack(n, pv);
-
   return pv;
-}
-
-void PvTree::PrintYozume(Node& n) const {
-  std::vector<Move> pv = Pv(n);
-  auto pv_len = static_cast<Depth>(pv.size());
-
-  for (auto&& move : pv) {
-    if (n.IsOrNode()) {
-      for (auto&& m2 : MovePicker{n}) {
-        if (m2.move == move) {
-          continue;
-        }
-
-        auto entry = ProbeAfter(n, m2.move);
-        if (entry && IsExactBound(entry->bound)) {
-          sync_cout << "info string " << n.GetDepth() + 1 << " " << m2.move << " " << entry->mate_len << sync_endl;
-        }
-      }
-    }
-    n.DoMove(move);
-  }
-  RollBack(n, pv);
 }
 
 void PvTree::Verbose(Node& n) const {
@@ -113,26 +83,15 @@ void PvTree::Verbose(Node& n) const {
     std::ostringstream oss;
     for (auto&& move : MovePicker{n}) {
       auto child_key = n.Pos().key_after(move.move);
-      if (auto entry = ProbeAfter(n, move.move)) {
-        oss << " " << move.move << "(" << entry->mate_len;
-        if (entry->bound == BOUND_LOWER) {
-          oss << "L";
-        } else if (entry->bound == BOUND_UPPER) {
-          oss << "U";
-        }
-        oss << ")";
+      if (auto mate_range = ProbeAfter(n, move.move); mate_range.best_move != MOVE_NONE) {
+        oss << " " << move.move << "(" << mate_range.min_mate_len << "/" << mate_range.max_mate_len << ")";
       } else {
         oss << " " << move.move << "(-1)";
       }
     }
 
     sync_cout << "info string [" << n.GetDepth() << "] " << oss.str() << sync_endl;
-    if (auto entry = Probe(n); entry) {
-      auto best_move = entry->best_move;
-      if (best_move == MOVE_NONE || n.IsRepetitionAfter(best_move)) {
-        break;
-      }
-
+    if (auto best_move = Probe(n).best_move; best_move != MOVE_NONE && !n.IsRepetitionAfter(best_move)) {
       pv.push_back(best_move);
       n.DoMove(best_move);
     } else {
@@ -143,12 +102,9 @@ void PvTree::Verbose(Node& n) const {
   RollBack(n, pv);
 }
 
-std::optional<PvTree::Entry> PvTree::ProbeImpl(Key board_key, Hand or_hand, bool or_node) const {
+PvTree::MateRange PvTree::ProbeImpl(Key board_key, Hand or_hand, bool or_node) const {
   // <戻り値候補>
-  Bound bound = BOUND_NONE;
-  auto hand_count = CountHand(or_hand);
-  MateLen mate_len = or_node ? kMaxMateLen : MateLen{0, static_cast<std::uint16_t>(hand_count)};
-  Move best_move = MOVE_NONE;
+  MateRange range{kZeroMateLen, kMaxMateLen, MOVE_NONE};
   // </戻り値候補>
 
   // [begin, end) の中から最も良さそうなエントリを探す
@@ -158,33 +114,18 @@ std::optional<PvTree::Entry> PvTree::ProbeImpl(Key board_key, Hand or_hand, bool
     auto [it_bound, it_mate_len, it_best_move] = it->second.second;
 
     if (or_hand == it_hand && IsExactBound(it_bound)) {
-      // 厳密な探索結果があればそのまま返す
-      return it->second.second;
-    } else if (or_node && IsUpperBound(it_bound) && hand_is_equal_or_superior(or_hand, it_hand)) {
-      // it_hand で高々 it_mate_len 手詰なので、or_hand ならもっと早く詰むはず
-      // -> 現局面の upper bound は it_mate_len
-      if (mate_len > it_mate_len) {
-        mate_len = it_mate_len;
-        // hand で着手可能な手は現局面でも着手可能（持ち駒かより多いので）
-        best_move = it_best_move;
-        bound = BOUND_UPPER;
-      }
-    } else if (!or_node && IsLowerBound(it_bound) && hand_is_equal_or_superior(it_hand, or_hand)) {
-      // it_hand で詰ますのに最低でも it_mate_len 手かかるので、or_hand ならもっとかかるはず
-      // -> 現局面の lower bound は it_mate_len
-      if (mate_len < it_mate_len) {
-        mate_len = it_mate_len;
-        // hand で着手可能な手は現局面でも着手可能（持ち駒かより多いので）
-        best_move = it_best_move;
-        bound = BOUND_LOWER;
-      }
+      return {it_mate_len, it_mate_len, it_best_move};
+    }
+
+    if (hand_is_equal_or_superior(or_hand, it_hand) && IsUpperBound(it_bound)) {
+      range.max_mate_len = std::min(range.max_mate_len, it_mate_len);
+    }
+
+    if (hand_is_equal_or_superior(it_hand, or_hand) && IsLowerBound(it_bound)) {
+      range.min_mate_len = std::max(range.min_mate_len, it_mate_len);
     }
   }
 
-  if (bound != BOUND_NONE) {
-    return Entry{bound, mate_len, best_move};
-  }
-
-  return std::nullopt;
+  return range;
 }
 }  // namespace komori

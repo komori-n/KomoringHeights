@@ -429,20 +429,12 @@ bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
     // - disproven -> どうやっても詰まない
     auto lstate = lhs.search_result.GetNodeState();
     auto rstate = rhs.search_result.GetNodeState();
+
+    // or node -> repetition < disproven になってほしい（repetition なら別経路だと詰むかもしれない）
+    // and node -> disproven < repetition になってほしい（disproven なら経路に関係なく詰まないから）
+    // -> !or_node ^ (int)repetition < (int)disproven
     if (lstate != rstate) {
-      if (or_node_) {
-        if (lstate == NodeState::kRepetitionState) {
-          return true;
-        } else if (rstate == NodeState::kRepetitionState) {
-          return false;
-        }
-      } else {
-        if (lstate == NodeState::kRepetitionState) {
-          return false;
-        } else if (lstate == NodeState::kRepetitionState) {
-          return true;
-        }
-      }
+      return !or_node_ ^ (static_cast<int>(lstate) < static_cast<int>(rstate));
     }
   }
 
