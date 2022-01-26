@@ -31,6 +31,8 @@ class PvTree {
   MateRange ProbeAfter(Node& n, Move move) const;
   std::vector<Move> Pv(Node& n) const;
 
+  void ShowYozume(Node& n) const;
+
   void Verbose(Node& n) const;
 
  private:

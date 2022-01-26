@@ -60,6 +60,30 @@ PvTree::MateRange PvTree::ProbeAfter(Node& n, Move move) const {
   return ProbeImpl(board_key, or_hand, !n.IsOrNode());
 }
 
+void PvTree::ShowYozume(Node& n) const {
+  std::vector<Move> pv = Pv(n);
+
+  // pv を辿りながら支流を見てみる
+  for (const auto& move : pv) {
+    if (n.IsOrNode()) {
+      for (auto&& branch_move : MovePicker{n}) {
+        if (move == branch_move) {
+          continue;
+        }
+
+        auto result = ProbeAfter(n, branch_move);
+        if (result.max_mate_len < kMaxMateLen) {
+          sync_cout << "info string " << n.GetDepth() << " " << result.best_move << sync_endl;
+        }
+      }
+    }
+
+    n.DoMove(move);
+  }
+
+  RollBack(n, pv);
+}
+
 std::vector<Move> PvTree::Pv(Node& n) const {
   std::vector<Move> pv;
 

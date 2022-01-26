@@ -26,6 +26,7 @@ constexpr int kGcHashfullThreshold = 700;
 constexpr int kGcHashfullRemoveRatio = 200;
 
 constexpr MateLen kRepetitionLen{kMaxNumMateMoves + 1, 0};
+constexpr std::size_t kSplittedPrintLen = 12;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
@@ -154,6 +155,33 @@ __attribute__((noinline)) Move SelectBestMove(TranspositionTable& tt, const Node
 
   return drop_best_move;
 }
+
+void SplittedPrint(UsiInfo info, const std::string& header, const std::vector<std::pair<Depth, Move>>& moves) {
+  std::size_t size = 0;
+  std::ostringstream oss;
+
+  for (const auto& [depth, move] : moves) {
+    if (size == 0) {
+      oss << header;
+    }
+
+    oss << (size == 0 ? " " : ", ") << depth << ": " << move;
+    size++;
+
+    if (size == kSplittedPrintLen) {
+      info.Set(UsiInfo::KeyKind::kString, oss.str());
+      sync_cout << info << sync_endl;
+      oss.str("");
+      oss.clear(std::stringstream::goodbit);
+      size = 0;
+    }
+  }
+
+  if (size > 0) {
+    info.Set(UsiInfo::KeyKind::kString, oss.str());
+    sync_cout << info << sync_endl;
+  }
+}
 }  // namespace
 
 namespace detail {
@@ -223,6 +251,8 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
+
+    PrintYozume(node, best_moves_);
     return NodeState::kProvenState;
   } else {
     if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
@@ -371,6 +401,80 @@ PV_END:
   }
 
   return pv_move_len.GetMateLen();
+}
+
+void KomoringHeights::PrintYozume(Node& n, const std::vector<Move>& pv) {
+  std::vector<std::pair<Depth, Move>> yozume;
+  std::vector<std::pair<Depth, Move>> unknown;
+
+  Depth leaf_depth = static_cast<Depth>(pv.size()) - 1;
+  for (const auto& move : pv) {
+    if (n.IsOrNode() && n.GetDepth() < leaf_depth) {
+      std::ostringstream oss;
+
+      oss << n.GetDepth() + 1 << ": ";
+      oss << move << "(proven)";
+      bool should_print = false;
+      for (auto&& branch_move : MovePicker{n}) {
+        if (move == branch_move.move) {
+          continue;
+        }
+
+        auto query = tt_.GetChildQuery(n, branch_move.move);
+        auto entry = query.LookUpWithoutCreation();
+
+        oss << ", " << branch_move.move;
+        switch (entry->GetNodeState()) {
+          case NodeState::kProvenState:
+            oss << "(proven)";
+            yozume.emplace_back(n.GetDepth() + 1, branch_move.move);
+            should_print = true;
+            break;
+          case NodeState::kDisprovenState:
+            oss << "(disproven)";
+            break;
+          case NodeState::kRepetitionState:
+            oss << "(rep)";
+            break;
+          default:
+            oss << "(unknown)";
+            should_print = true;
+            unknown.emplace_back(n.GetDepth() + 1, branch_move.move);
+        }
+      }
+
+      if (should_print && yozume_print_level_ >= 3) {
+        auto info = Info();
+        info.Set(UsiInfo::KeyKind::kDepth, n.GetDepth() + 1);
+        info.Set(UsiInfo::KeyKind::kString, oss.str());
+        sync_cout << info << sync_endl;
+      }
+    }
+
+    n.DoMove(move);
+  }
+
+  if (yozume_print_level_ >= 1) {
+    if (yozume.empty()) {
+      auto info = Info();
+      info.Set(UsiInfo::KeyKind::kString, "no yozume found");
+      sync_cout << info << sync_endl;
+    } else {
+      SplittedPrint(Info(), "yozume:", yozume);
+    }
+  }
+
+  if (yozume_print_level_ >= 2) {
+    if (unknown.empty()) {
+      auto info = Info();
+      info.Set(UsiInfo::KeyKind::kString, "no unknown branch");
+      sync_cout << info << sync_endl;
+    } else {
+      SplittedPrint(Info(), "unknown:", unknown);
+    }
+  }
+
+  RollBack(n, pv);
 }
 
 void KomoringHeights::ShowValues(Position& n, bool is_root_or_node, const std::vector<Move>& moves) {

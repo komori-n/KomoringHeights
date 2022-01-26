@@ -136,6 +136,8 @@ void USI::extra_option(USI::OptionsMap& o) {
 
   o["RootIsAndNodeIfChecked"] << Option(true);
 
+  o["YozumePrintLevel"] << Option(2, 0, 3);
+
 #if defined(USE_DEEP_DFPN)
   o["DeepDfpnPerMile"] << Option(5, 0, 10000);
   o["DeepDfpnMaxVal"] << Option(1000000, 1, INT64_MAX);
@@ -186,6 +188,7 @@ void Search::clear() {
   } else {
     g_searcher.SetYozumePath(std::numeric_limits<std::uint64_t>::max());
   }
+  g_searcher.SetYozumePrintLevel(Options["YozumePrintLevel"]);
 
   g_root_is_and_node_if_checked = Options["RootIsAndNodeIfChecked"];
 }

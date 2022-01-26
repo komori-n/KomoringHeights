@@ -182,6 +182,21 @@ inline std::ostream& operator<<(std::ostream& os, const MateLen& mate_len) {
   return os;
 }
 
+template <typename N>
+inline std::string OrdinalNumeral(N n) {
+  static_assert(std::is_integral_v<N>);
+
+  switch (n) {
+    case N{1}:
+      return "1st";
+    case N{2}:
+      return "2nd";
+    case N{3}:
+      return "3rd";
+    default:
+      return std::to_string(n) + "th";
+  }
+}
 }  // namespace komori
 
 #endif  // TYPEDEFS_HPP_

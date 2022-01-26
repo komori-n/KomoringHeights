@@ -71,6 +71,8 @@ class KomoringHeights {
   void SetYozumeCount(std::uint64_t yozume_count) { yozume_node_count_ = yozume_count; }
   /// 余詰探索で何個まで別解を探索するか
   void SetYozumePath(std::uint64_t yozume_path) { yozume_search_count_ = yozume_path; }
+  /// 余詰を詳しく表示する度合い
+  void SetYozumePrintLevel(int print_level) { yozume_print_level_ = print_level; }
   /// 詰将棋探索をやめさせる
   void SetStop() { stop_ = true; }
   /// stopフラグをクリアする
@@ -107,6 +109,7 @@ class KomoringHeights {
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag);
 
   MateLen PvSearch(Node& n, MateLen alpha, MateLen beta);
+  void PrintYozume(Node& n, const std::vector<Move>& pv);
 
   /// CommonEntry に保存された best_move を元に最善応手列（PV）を復元する
   std::vector<Move> GetPv(Node& n);
@@ -134,6 +137,7 @@ class KomoringHeights {
   PvTree pv_tree_{};
   std::uint64_t yozume_node_count_{};
   std::uint64_t yozume_search_count_{};
+  int yozume_print_level_{0};
 };
 }  // namespace komori
 
