@@ -35,7 +35,7 @@ class SearchProgress {
   std::uint64_t MoveCount() const { return thread_->nodes; }
   bool IsStop() const { return MoveCount() >= max_num_moves_; }
 
-  void StartYozumeSearch(std::uint64_t yozume_count) {
+  void StartExtraSearch(std::uint64_t yozume_count) {
     max_num_moves_backup_ = max_num_moves_;
     max_num_moves_ = std::min(max_num_moves_, MoveCount() + yozume_count);
   }
@@ -90,7 +90,7 @@ class KomoringHeights {
   UsiInfo Info() const;
 
  private:
-  SearchResult YozumeSearchEntry(Node& n, Move move);
+  SearchResult PvSearchEntry(Node& n, Move move);
   SearchResult UselessDropSearchEntry(Node& n, Move move);
   SearchResult SearchEntry(Node& n, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
   /**

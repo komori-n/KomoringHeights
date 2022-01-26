@@ -322,7 +322,7 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
         continue;
       }
 
-      auto result = YozumeSearchEntry(n, move);
+      auto result = PvSearchEntry(n, move);
       if (result.GetNodeState() == NodeState::kProvenState) {
         // move を選べば詰み
 
@@ -483,14 +483,14 @@ UsiInfo KomoringHeights::Info() const {
   return usi_output;
 }
 
-SearchResult KomoringHeights::YozumeSearchEntry(Node& n, Move move) {
+SearchResult KomoringHeights::PvSearchEntry(Node& n, Move move) {
   auto query = tt_.GetChildQuery(n, move);
   auto entry = query.LookUpWithoutCreation();
   if (entry->IsFinal()) {
     return {*entry, n.OrHandAfter(move)};
   } else {
     n.DoMove(move);
-    progress_.StartYozumeSearch(yozume_node_count_);
+    progress_.StartExtraSearch(yozume_node_count_);
     auto result = SearchEntry(n);
     progress_.EndYozumeSearch();
     n.UndoMove(move);
@@ -510,7 +510,7 @@ SearchResult KomoringHeights::UselessDropSearchEntry(Node& n, Move move) {
   if (entry->IsFinal()) {
     result = {*entry, n.OrHandAfter(move)};
   } else {
-    progress_.StartYozumeSearch(yozume_node_count_);
+    progress_.StartExtraSearch(yozume_node_count_);
     result = SearchEntry(n);
     progress_.EndYozumeSearch();
   }
