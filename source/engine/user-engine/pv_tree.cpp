@@ -119,10 +119,16 @@ PvTree::MateRange PvTree::ProbeImpl(Key board_key, Hand or_hand, bool or_node) c
 
     if (hand_is_equal_or_superior(or_hand, it_hand) && IsUpperBound(it_bound)) {
       range.max_mate_len = std::min(range.max_mate_len, it_mate_len);
+      if (or_node || range.best_move == MOVE_NONE) {
+        range.best_move = it_best_move;
+      }
     }
 
     if (hand_is_equal_or_superior(it_hand, or_hand) && IsLowerBound(it_bound)) {
       range.min_mate_len = std::max(range.min_mate_len, it_mate_len);
+      if (!or_node || range.best_move == MOVE_NONE) {
+        range.best_move = it_best_move;
+      }
     }
   }
 
