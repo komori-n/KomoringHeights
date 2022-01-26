@@ -241,7 +241,7 @@ class CommonEntry {
   PnDn Pn() const;
   /// 反証数
   PnDn Dn() const;
-  bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
+  constexpr bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
   /**
    * @brief 置換表に保存されている手のうち、調べたい局面に"ふさわしい"手を返す。
    *        条件に一致する hand がなければ kNullHand を返す。
