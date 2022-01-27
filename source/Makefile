@@ -151,10 +151,10 @@ TARGETDIR = .
 ifeq ($(OS),Windows_NT)
 	CPPFLAGS += $(WCPPFLAGS)
 	LDFLAGS += -static -Wl,--stack,25000000
-	TARGET = $(TARGETDIR)/YaneuraOu-by-gcc.exe
+	TARGET = $(TARGETDIR)/KomoringHeights-by-gcc.exe
 else
 	CPPFLAGS += -D_LINUX
-	TARGET = $(TARGETDIR)/YaneuraOu-by-gcc
+	TARGET = $(TARGETDIR)/KomoringHeights-by-gcc
 endif
 
 # リンク時最適化。
