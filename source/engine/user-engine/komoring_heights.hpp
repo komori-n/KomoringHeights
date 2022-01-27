@@ -83,7 +83,7 @@ class KomoringHeights {
   UsiInfo Info() const;
 
  private:
-  SearchResult PvSearchEntry(Node& n, Move move);
+  SearchResult PostSearchEntry(Node& n, Move move);
   SearchResult UselessDropSearchEntry(Node& n, Move move);
   SearchResult SearchEntry(Node& n, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
   /**
@@ -99,7 +99,7 @@ class KomoringHeights {
    */
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag);
 
-  MateLen PvSearch(Node& n, MateLen alpha, MateLen beta);
+  MateLen PostSearch(Node& n, MateLen alpha, MateLen beta);
   void PrintYozume(Node& n, const std::vector<Move>& pv);
 
   /// CommonEntry に保存された best_move を元に最善応手列（PV）を復元する

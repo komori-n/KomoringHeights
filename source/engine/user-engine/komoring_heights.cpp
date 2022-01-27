@@ -258,7 +258,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
 
   if (result.GetNodeState() == NodeState::kProvenState) {
     // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
-    auto mate_len = PvSearch(node, kZeroMateLen, kMaxMateLen);
+    auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
     sync_cout << "info string mate_len=" << mate_len << sync_endl;
     score_ = Score::Proven(mate_len.len, is_root_or_node);
 
@@ -277,7 +277,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   }
 }
 
-MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
+MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
   Key key = n.Pos().key();
   PvMoveLen pv_move_len{n, alpha, beta};
   bool repetition = false;
@@ -367,7 +367,7 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
         continue;
       }
 
-      auto result = PvSearchEntry(n, move);
+      auto result = PostSearchEntry(n, move);
       if (result.GetNodeState() == NodeState::kProvenState) {
         // move を選べば詰み
 
@@ -385,7 +385,7 @@ MateLen KomoringHeights::PvSearch(Node& n, MateLen alpha, MateLen beta) {
         }
 
         if (need_search) {
-          auto child_mate_len = PvSearch(n, pv_move_len.Alpha() - 1, pv_move_len.Beta() - 1);
+          auto child_mate_len = PostSearch(n, pv_move_len.Alpha() - 1, pv_move_len.Beta() - 1);
           n.UndoMove(move.move);
           pv_move_len.Update(move.move, child_mate_len + 1);
 
@@ -602,7 +602,7 @@ UsiInfo KomoringHeights::Info() const {
   return usi_output;
 }
 
-SearchResult KomoringHeights::PvSearchEntry(Node& n, Move move) {
+SearchResult KomoringHeights::PostSearchEntry(Node& n, Move move) {
   auto query = tt_.GetChildQuery(n, move);
   auto entry = query.LookUpWithoutCreation();
   if (entry->IsFinal()) {
