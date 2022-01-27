@@ -15,6 +15,7 @@
 #include "../../thread.h"
 #include "../../types.h"
 #include "children_cache.hpp"
+#include "engine_option.hpp"
 #include "move_picker.hpp"
 #include "node.hpp"
 #include "pv_tree.hpp"
@@ -62,17 +63,7 @@ class KomoringHeights {
   ~KomoringHeights() = default;
 
   /// 内部変数（tt 含む）を初期化する
-  void Init(std::uint64_t size_mb, Thread* thread);
-  /// 探索局面数上限を設定する
-  void SetMaxSearchNode(std::uint64_t max_search_node) { max_search_node_ = max_search_node; }
-  /// 探索深さ上限を設定する
-  void SetMaxDepth(Depth max_depth) { max_depth_ = max_depth; }
-  /// 余詰探索で探索する局面数
-  void SetYozumeCount(std::uint64_t yozume_count) { yozume_node_count_ = yozume_count; }
-  /// 余詰探索で何個まで別解を探索するか
-  void SetYozumePath(std::uint64_t yozume_path) { yozume_search_count_ = yozume_path; }
-  /// 余詰を詳しく表示する度合い
-  void SetYozumePrintLevel(int print_level) { yozume_print_level_ = print_level; }
+  void Init(EngineOption option, Thread* thread);
   /// 詰将棋探索をやめさせる
   void SetStop() { stop_ = true; }
   /// stopフラグをクリアする
@@ -129,15 +120,11 @@ class KomoringHeights {
   std::atomic_bool print_flag_{false};
   detail::SearchProgress progress_{};
   Score score_{};
-  Depth max_depth_{kMaxNumMateMoves};
-  std::uint64_t max_search_node_{std::numeric_limits<std::uint64_t>::max()};
 
   /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
   std::vector<Move> best_moves_{};
   PvTree pv_tree_{};
-  std::uint64_t yozume_node_count_{};
-  std::uint64_t yozume_search_count_{};
-  int yozume_print_level_{0};
+  EngineOption option_;
 };
 }  // namespace komori
 

@@ -12,8 +12,8 @@
 
 namespace {
 komori::KomoringHeights g_searcher;
+komori::EngineOption g_option;
 std::once_flag g_path_key_init_flag;
-bool g_root_is_and_node_if_checked{false};
 
 std::atomic_bool g_search_end = false;
 komori::NodeState g_search_result = komori::NodeState::kNullState;
@@ -29,7 +29,7 @@ bool IsPosOrNode(const Position& root_pos) {
     return false;
   }
 
-  if (root_pos.in_check() && g_root_is_and_node_if_checked) {
+  if (root_pos.in_check() && g_option.root_is_and_node_if_checked) {
     return false;
   }
   return true;
@@ -93,7 +93,7 @@ void WaitSearchEnd(const std::atomic_bool& search_end) {
 
   bool is_mate_search = Search::Limits.mate != 0;
   auto time_up = [&]() { return is_mate_search && timer.elapsed() >= Search::Limits.mate; };
-  TimePoint pv_interval = Options["PvInterval"];
+  TimePoint pv_interval = g_option.pv_interval;
   TimePoint last_pv_out = 0;
   int sleep_cnt = 0;
   while (!Threads.stop && !time_up() && !search_end) {
@@ -127,21 +127,7 @@ void user_test(Position& pos, std::istringstream& is) {
 // USIに追加オプションを設定したいときは、この関数を定義すること。
 // USI::init()のなかからコールバックされる。
 void USI::extra_option(USI::OptionsMap& o) {
-  o["DepthLimit"] << Option(0, 0, INT_MAX);
-  o["NodesLimit"] << Option(0, 0, INT64_MAX);
-  o["PvInterval"] << Option(1000, 0, 1000000);
-
-  o["YozumeNodeCount"] << Option(400, 0, INT_MAX);
-  o["YozumePath"] << Option(10000, 0, INT_MAX);
-
-  o["RootIsAndNodeIfChecked"] << Option(true);
-
-  o["YozumePrintLevel"] << Option(2, 0, 3);
-
-#if defined(USE_DEEP_DFPN)
-  o["DeepDfpnPerMile"] << Option(5, 0, 10000);
-  o["DeepDfpnMaxVal"] << Option(1000000, 1, INT64_MAX);
-#endif  // defined(USE_DEEP_DFPN)
+  g_option.Init(o);
 }
 
 // 起動時に呼び出される。時間のかからない探索関係の初期化処理はここに書くこと。
@@ -150,47 +136,15 @@ void Search::init() {}
 // isreadyコマンドの応答中に呼び出される。時間のかかる処理はここに書くこと。
 void Search::clear() {
   std::call_once(g_path_key_init_flag, komori::PathKeyInit);
+  g_option.Reload(Options);
 
 #if defined(USE_DEEP_DFPN)
-  if (auto val = Options["DeepDfpnPerMile"]; static_cast<int>(val) == 0) {
-    komori::DeepDfpnInit(0, 1.0);
-  } else {
-    double e = 0.001 * Options["DeepDfpnPerMile"] + 1.0;
-    Depth d = static_cast<Depth>(std::log(static_cast<double>(Options["DeepDfpnMaxVal"])) / std::log(e));
-    komori::DeepDfpnInit(d, e);
-  }
+  auto d = g_option.deep_dfpn_d_;
+  auto e = g_option.deep_dfpn_e_;
+  komori::DeepDfpnInit(d, e);
 #endif  // defined(USE_DEEP_DFPN)
 
-  g_searcher.Init(Options["USI_Hash"], Threads.main());
-
-  if (auto max_search_node = Options["NodesLimit"]; max_search_node != 0) {
-    g_searcher.SetMaxSearchNode(max_search_node);
-  } else {
-    g_searcher.SetMaxSearchNode(0xffff'ffff'ffff'ffffULL);
-  }
-
-  if (auto depth_limit = Options["DepthLimit"]) {
-    // n 手詰めを読むためには depth=n+1 まで読む必要がある
-    auto depth = static_cast<Depth>(depth_limit);
-    g_searcher.SetMaxDepth(depth);
-  } else {
-    g_searcher.SetMaxDepth(komori::kMaxNumMateMoves);
-  }
-
-  if (auto max_yozume_count = Options["YozumeNodeCount"]) {
-    g_searcher.SetYozumeCount(max_yozume_count);
-  } else {
-    g_searcher.SetYozumeCount(std::numeric_limits<std::uint64_t>::max());
-  }
-
-  if (auto max_yozume_path = Options["YozumePath"]) {
-    g_searcher.SetYozumePath(max_yozume_path);
-  } else {
-    g_searcher.SetYozumePath(std::numeric_limits<std::uint64_t>::max());
-  }
-  g_searcher.SetYozumePrintLevel(Options["YozumePrintLevel"]);
-
-  g_root_is_and_node_if_checked = Options["RootIsAndNodeIfChecked"];
+  g_searcher.Init(g_option, Threads.main());
 }
 
 // 探索開始時に呼び出される。

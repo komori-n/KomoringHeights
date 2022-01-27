@@ -208,15 +208,16 @@ void SearchProgress::WriteTo(UsiInfo& output) const {
 
 KomoringHeights::KomoringHeights() {}
 
-void KomoringHeights::Init(std::uint64_t size_mb, Thread* thread) {
-  tt_.Resize(size_mb);
+void KomoringHeights::Init(EngineOption option, Thread* thread) {
+  option_ = option;
+  tt_.Resize(option_.hash_mb);
   thread_ = thread;
 }
 
 NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
-  progress_.NewSearch(max_search_node_, thread_);
+  progress_.NewSearch(option_.nodes_limit, thread_);
   pv_tree_.Clear();
   next_gc_count_ = kGcInterval;
   best_moves_.clear();
@@ -443,7 +444,7 @@ void KomoringHeights::PrintYozume(Node& n, const std::vector<Move>& pv) {
         }
       }
 
-      if (should_print && yozume_print_level_ >= 3) {
+      if (should_print && option_.yozume_print_level >= YozumeVerboseLevel::kAll) {
         auto info = Info();
         info.Set(UsiInfo::KeyKind::kDepth, n.GetDepth() + 1);
         info.Set(UsiInfo::KeyKind::kString, oss.str());
@@ -454,7 +455,7 @@ void KomoringHeights::PrintYozume(Node& n, const std::vector<Move>& pv) {
     n.DoMove(move);
   }
 
-  if (yozume_print_level_ >= 1) {
+  if (option_.yozume_print_level >= YozumeVerboseLevel::kOnlyYozume) {
     if (yozume.empty()) {
       auto info = Info();
       info.Set(UsiInfo::KeyKind::kString, "no yozume found");
@@ -464,7 +465,7 @@ void KomoringHeights::PrintYozume(Node& n, const std::vector<Move>& pv) {
     }
   }
 
-  if (yozume_print_level_ >= 2) {
+  if (option_.yozume_print_level >= YozumeVerboseLevel::kYozumeAndUnknown) {
     if (unknown.empty()) {
       auto info = Info();
       info.Set(UsiInfo::KeyKind::kString, "no unknown branch");
@@ -594,7 +595,7 @@ SearchResult KomoringHeights::PvSearchEntry(Node& n, Move move) {
     return {*entry, n.OrHandAfter(move)};
   } else {
     n.DoMove(move);
-    progress_.StartExtraSearch(yozume_node_count_);
+    progress_.StartExtraSearch(option_.post_search_count);
     auto result = SearchEntry(n);
     progress_.EndYozumeSearch();
     n.UndoMove(move);
@@ -614,7 +615,7 @@ SearchResult KomoringHeights::UselessDropSearchEntry(Node& n, Move move) {
   if (entry->IsFinal()) {
     result = {*entry, n.OrHandAfter(move)};
   } else {
-    progress_.StartExtraSearch(yozume_node_count_);
+    progress_.StartExtraSearch(option_.post_search_count);
     result = SearchEntry(n);
     progress_.EndYozumeSearch();
   }
@@ -645,7 +646,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   }
 
   // 深さ制限。これ以上探索を続けても詰みが見つかる見込みがないのでここで early return する。
-  if (n.IsExceedLimit(max_depth_)) {
+  if (n.IsExceedLimit(option_.depth_limit)) {
     return {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, n.OrHand()};
   }
 
