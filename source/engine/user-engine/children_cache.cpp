@@ -10,6 +10,8 @@
 
 namespace komori {
 namespace {
+constexpr PnDn kSumSwitchThreshold = kInfinitePnDn / 16;
+
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
   return {static_cast<std::uint16_t>(depth), static_cast<std::uint16_t>(CountHand(hand))};
@@ -119,6 +121,10 @@ ChildrenCache::Child ChildrenCache::Child::FromNonRepetitionMove(TranspositionTa
 
   auto hand_after = n.OrHandAfter(move.move);
   cache.search_result = {*entry, hand_after};
+  if (!entry->IsFinal() && cache.Delta(n.IsOrNode()) > kSumSwitchThreshold) {
+    // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、
+    cache.is_sum_delta = false;
+  }
 
   return cache;
 }
@@ -188,6 +194,8 @@ void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
   UpdateNthChildWithoutSort(0, search_result);
 
   auto& old_best_child = NthChild(0);
+  // UpdateNthChildWithoutSort() の内部で is_sum_delta の値が変わる可能性があるが、
+  // sum_delta_except_best_, max_delta_except_best_ の値には関係ないので更新後の値のみ使う
   bool old_is_sum_delta = old_best_child.is_sum_delta;
   PnDn old_delta = old_best_child.Delta(or_node_);
 
@@ -262,6 +270,10 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult&
   // このタイミングで置換表に登録する
   // なお、デストラクトまで置換表登録を遅延させると普通に性能が悪くなる（一敗）
   child.query.SetResult(child.search_result);
+
+  if (!child.search_result.IsFinal() && child.Delta(or_node_) > kSumSwitchThreshold) {
+    child.is_sum_delta = false;
+  }
 }
 
 SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
