@@ -387,6 +387,10 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
         if (need_search) {
           auto child_mate_len = PostSearch(n, pv_move_len.Alpha() - 1, pv_move_len.Beta() - 1);
           n.UndoMove(move.move);
+          if (child_mate_len >= kMaxMateLen) {
+            repetition = true;
+            continue;
+          }
           pv_move_len.Update(move.move, child_mate_len + 1);
 
           if (n.IsOrNode() && pv_move_len.LessThanOrigBeta()) {
