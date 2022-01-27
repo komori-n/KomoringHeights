@@ -24,10 +24,14 @@ KomoringHeightsを動かすには、[将棋所](http://shogidokoro.starfree.jp/)
   * 0固定を推奨。この値を変更すると探索性能が劣化する
 * `NodesLimit`: 探索ノード数（`DoMove()` 回数）制限（0: 無制限）
 * `PvInterval`: PVの出力周期（ミリ秒）
-* `YozumeNodeCount`: 余詰め探索局面数
-* `YozumePath`: 余詰め探索回数制限
+* `PostSearchCount`: PostSearchの探索局面数。この値が大きいほど、双方が最善を尽くした時の手順に近づく
 * `RootIsAndNodeIfChecked`: 開始局面が双玉かつ王手されている場合、手番側を玉方として扱う
   * 開始局面が片玉の場合、このオプションに関係なく玉方を自動的に判断する
+* `YozumePrintLevel`: 見つけた余詰をどれぐらい詳しく出力するか
+  * 0: 出力しない
+  * 1: 発見した余詰を一括出力する
+  * 2: 1に加え、詰み／不詰の結論が出なかった手を出力する
+  * 3: 2に加え、すべての攻め方の手に対し詰み／不詰／不明のいずれであるかを出力する
 * `Threads`: unimplemented
 
 # 技術解説
