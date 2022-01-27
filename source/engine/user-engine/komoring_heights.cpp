@@ -182,6 +182,18 @@ void SplittedPrint(UsiInfo info, const std::string& header, const std::vector<st
     sync_cout << info << sync_endl;
   }
 }
+
+Score MakeScore(const SearchResult& result, bool root_is_or_node) {
+  if (!result.IsFinal()) {
+    return Score::Unknown(result.Pn(), result.Dn());
+  } else if (result.GetNodeState() == NodeState::kProvenState) {
+    auto mate_len = result.GetMateLen();
+    return Score::Proven(mate_len.len, root_is_or_node);
+  } else {
+    auto mate_len = result.GetMateLen();
+    return Score::Disproven(mate_len.len, root_is_or_node);
+  }
+}
 }  // namespace
 
 namespace detail {
@@ -234,11 +246,12 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
-    score_ = Score::Unknown(result.Pn(), result.Dn());
+    score_ = MakeScore(result, is_root_or_node);
 
     result = SearchEntry(node, thpn, thdn);
   }
 
+  score_ = MakeScore(result, is_root_or_node);
   auto info = Info();
   info.Set(UsiInfo::KeyKind::kString, ToString(result));
   sync_cout << info << sync_endl;
@@ -247,6 +260,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
     auto mate_len = PvSearch(node, kZeroMateLen, kMaxMateLen);
     sync_cout << "info string mate_len=" << mate_len << sync_endl;
+    score_ = Score::Proven(mate_len.len, is_root_or_node);
 
     best_moves_ = pv_tree_.Pv(node);
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
