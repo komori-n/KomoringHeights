@@ -189,7 +189,8 @@ void MainThread::search() {
       best_move = best_moves[0];
     }
   } else {
-    if (g_search_result == komori::NodeState::kDisprovenState) {
+    if (g_search_result == komori::NodeState::kDisprovenState ||
+        g_search_result == komori::NodeState::kRepetitionState) {
       PrintResult(is_mate_search, LoseKind::kNoMate);
     } else {
       PrintResult(is_mate_search, LoseKind::kTimeout);
