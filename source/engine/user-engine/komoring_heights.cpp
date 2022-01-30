@@ -530,33 +530,24 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
   for (;;) {
     auto children = ExpandChildren(tt_, node);
     std::sort(children.begin(), children.end(), [&](const auto& lhs, const auto& rhs) {
-      if (node.IsOrNode()) {
-        if (lhs.second.Pn() != rhs.second.Pn()) {
-          return lhs.second.Pn() < rhs.second.Pn();
-        } else if (lhs.second.Pn() == 0 && rhs.second.Pn() == 0) {
-          return lhs.second.GetMateLen() < rhs.second.GetMateLen();
-        }
-
-        if (lhs.second.Dn() != rhs.second.Dn()) {
-          return lhs.second.Dn() > rhs.second.Dn();
-        } else if (lhs.second.Dn() == 0 && rhs.second.Dn() == 0) {
-          return lhs.second.GetMateLen() > rhs.second.GetMateLen();
-        }
-        return false;
-      } else {
-        if (lhs.second.Dn() != rhs.second.Dn()) {
-          return lhs.second.Dn() < rhs.second.Dn();
-        } else if (lhs.second.Dn() == 0 && rhs.second.Dn() == 0) {
-          return lhs.second.GetMateLen() < rhs.second.GetMateLen();
-        }
-
-        if (lhs.second.Pn() != rhs.second.Pn()) {
-          return lhs.second.Pn() > rhs.second.Pn();
-        } else if (lhs.second.Pn() == 0 && rhs.second.Pn() == 0) {
-          return lhs.second.GetMateLen() > rhs.second.GetMateLen();
-        }
-        return false;
+      bool or_node = node.IsOrNode();
+      if (lhs.second.Phi(or_node) != rhs.second.Phi(or_node)) {
+        return lhs.second.Phi(or_node) < rhs.second.Phi(or_node);
       }
+
+      if (lhs.second.Phi(or_node) == 0 && rhs.second.Phi(or_node) == 0) {
+        return lhs.second.GetMateLen() < rhs.second.GetMateLen();
+      }
+
+      if (lhs.second.Delta(or_node) != rhs.second.Delta(or_node)) {
+        return lhs.second.Delta(or_node) > rhs.second.Delta(or_node);
+      }
+
+      if (lhs.second.Delta(or_node) == 0 && rhs.second.Delta(or_node) == 0) {
+        return lhs.second.GetMateLen() > rhs.second.GetMateLen();
+      }
+
+      return false;
     });
 
     std::ostringstream oss;

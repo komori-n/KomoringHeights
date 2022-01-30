@@ -346,6 +346,8 @@ class SearchResult {
 
   PnDn Pn() const { return pn_; }
   PnDn Dn() const { return dn_; }
+  PnDn Phi(bool or_node) const { return or_node ? pn_ : dn_; }
+  PnDn Delta(bool or_node) const { return or_node ? dn_ : pn_; }
   bool IsFinal() const { return Pn() == 0 || Dn() == 0; }
   Hand ProperHand() const { return hand_; }
   NodeState GetNodeState() const { return state_; }
