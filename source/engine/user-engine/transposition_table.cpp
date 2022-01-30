@@ -27,7 +27,7 @@ inline SearchedAmount GetAdjustedAmount(NodeState state, SearchedAmount amount) 
   if (IsFinal(state)) {
     // 単純に掛け算をするとオーバーフローする可能性があるので、範囲チェックをする
     if (amount >= std::numeric_limits<SearchedAmount>::max() / kFinalAmountIncrease) {
-      amount = std::numeric_limits<SearchedAmount>::max();
+      amount = std::numeric_limits<SearchedAmount>::max() - 1;
     } else {
       amount *= kFinalAmountIncrease;
     }
