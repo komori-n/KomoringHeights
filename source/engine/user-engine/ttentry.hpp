@@ -49,23 +49,16 @@ inline constexpr NodeState StripMaybeRepetition(NodeState node_state) {
 }
 // </NodeState>
 
+// <SearchedAmount>
 /// 大まかな探索量。TreeSize のようなもので、GCのときに削除するノードを選ぶ際に用いる。
 using SearchedAmount = std::uint32_t;
-inline constexpr SearchedAmount kMinimumSearchedAmount = 2;
-inline constexpr SearchedAmount kFirstSearchAmount = 2;
-/// 何局面読んだら SearchedCmount を進めるか
-inline constexpr std::uint64_t kNumSearchedPerAmount = 1024;
-inline constexpr SearchedAmount Update(SearchedAmount amount, std::uint64_t delta_searched) {
-  auto update = delta_searched / kNumSearchedPerAmount;
-  // 最低でも 1 は増加させる
-  update = std::max(update, std::uint64_t{1});
-  return amount + static_cast<SearchedAmount>(update);
-}
+/// SearchedAmount の最小値。value=0 は null entry　として用いたいので、1 以上の値にする
+inline constexpr SearchedAmount kMinimumSearchedAmount = 1;
+/// 未探索節点の SearchedAmount の値
+inline constexpr SearchedAmount kFirstSearchAmount = kMinimumSearchedAmount;
+// </SearchedAmount>
 
-inline constexpr SearchedAmount ToAmount(std::uint64_t num_searched) {
-  return std::max(kMinimumSearchedAmount, static_cast<SearchedAmount>(num_searched / kNumSearchedPerAmount));
-}
-
+// <StateAmount>
 /**
  * @brief 局面の探索量（SearchedAmount）と局面状態（NodeState）を1つの整数にまとめたもの。
  */
@@ -82,9 +75,9 @@ inline constexpr bool operator!=(const StateAmount& lhs, const StateAmount& rhs)
   return !(lhs == rhs);
 }
 
-inline constexpr StateAmount kMarkDeleted = {NodeState::kOtherState, 0};
 inline constexpr StateAmount kFirstSearch = {NodeState::kOtherState, kFirstSearchAmount};
 inline constexpr StateAmount kNullEntry = {NodeState::kNullState, 0};
+// </StateAmount>
 
 /**
  * @brief 通常局面のデータ。(pn, dn, hand, min_depth) を格納する。
@@ -354,8 +347,6 @@ class SearchResult {
   SearchedAmount GetSearchedAmount() const { return amount_; }
   Move16 BestMove() const { return move_; }
   MateLen GetMateLen() const { return mate_len_; }
-
-  void UpdateSearchedAmount(SearchedAmount amount) { amount_ = amount_ + amount; }
 
   bool Exceeds(PnDn thpn, PnDn thdn) { return pn_ >= thpn || dn_ >= thdn; }
 
