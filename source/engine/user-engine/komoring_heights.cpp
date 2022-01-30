@@ -242,7 +242,13 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   PnDn thpn = 1;
   PnDn thdn = 1;
   SearchResult result = SearchEntry(node, thpn, thdn);
-  while (!IsFinal(result.GetNodeState()) && !IsSearchStop()) {
+  while (!IsSearchStop()) {
+    if (result.IsFinal() || result.Pn() >= kInfinitePnDn || result.Dn() >= kInfinitePnDn) {
+      // 探索が評価値が確定したら break　する
+      // is_final だけではなく pn/dn の値を見ているのはオーバーフロー対策のため。
+      // pn/dn が kInfinitePnDn を上回たら諦める
+      break;
+    }
     // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
