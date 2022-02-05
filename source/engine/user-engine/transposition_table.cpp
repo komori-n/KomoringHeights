@@ -99,7 +99,7 @@ CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, MateLen mate_len, Se
     return ret;
   }
 
-  return Add({hash_high, amount, HandsData<kProven>{hand, move, mate_len}});
+  return Add({HandsData<kProven>{hand, move, mate_len}, hash_high, amount});
 }
 
 CommonEntry* BoardCluster::Add(CommonEntry&& entry) const {
@@ -137,8 +137,7 @@ void LookUpQuery::SetResult(const SearchResult& result) {
       SetRepetition(amount);
       break;
     default:
-      auto entry = LookUpWithCreation();
-      entry->UpdatePnDn(result.Pn(), result.Dn(), amount);
+      SetUnknown(result.Pn(), result.Dn(), amount);
   }
 }
 
@@ -150,6 +149,14 @@ void LookUpQuery::SetRepetition(SearchedAmount /* amount */) {
 
   rep_table_->Insert(path_key_);
   entry_ = const_cast<CommonEntry*>(&kRepetitionEntry);
+}
+
+void LookUpQuery::SetUnknown(PnDn pn, PnDn dn, SearchedAmount amount) {
+  auto entry = LookUpWithCreation();
+  if (auto unknown = entry->TryGetUnknown()) {
+    unknown->UpdatePnDn(pn, dn);
+    entry->SetSearchedAmount(amount);
+  }
 }
 
 void TranspositionTable::Resize(std::uint64_t hash_size_mb) {

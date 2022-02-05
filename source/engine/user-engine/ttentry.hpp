@@ -183,87 +183,68 @@ std::ostream& operator<<(std::ostream& os, const RepetitionData& data);
 /**
  * @brief 局面の探索結果を保存する構造体。
  *
- * 以下の4種類の局面のいずれかを保持する。メモリ量の節約のために、union を用いている。
- * 各エントリにどの種類のデータが格納されているかは、GetNodeState() によって判別できる。
+ * 以下の4種類の局面のいずれかを保持する。
  *
  * - 通常局面（kOtherState or kMaybeRepetitionState）
- *   - pn, dn 等の df-pn の基本的なデータを保持する。
+ *   - 探索中の局面。pn, dn 等の基本的なデータを保持する
  * - 証明済局面（kProvenState）
- *   - 証明駒を1エントリに複数個保存する。
+ *   - 証明駒を1エントリに複数個保存する
  * - 反証済局面（kDisprovenState）
  *   - 反証駒を1エントリに複数保存する
+ * - 千日手局面（kRepetitionState）
+ *   - 千日手局面を保持する。
+ *
+ * メモリ消費量を切り詰めるために、これらのデータは union に格納する。union の代わりに std::variant を用いると、
+ * インデックスの分だけメモリ消費量が増えてしまうのでダメ。
  */
 class CommonEntry {
  public:
   friend std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
 
-  CommonEntry();
+  CommonEntry() : dummy_{} {};
   /// 通常局面のエントリを作成する。
-  constexpr CommonEntry(std::uint32_t hash_high, UnknownData&& unknown)
-      : hash_high_{hash_high}, s_amount_{kFirstSearch}, unknown_{std::move(unknown)} {}
+  constexpr CommonEntry(UnknownData&& unknown, std::uint32_t hash_high, SearchedAmount amount = kFirstSearchAmount)
+      : hash_high_{hash_high}, s_amount_{NodeState::kOtherState, amount}, unknown_{std::move(unknown)} {}
   /// 証明済局面のエントリを作成する。
-  constexpr CommonEntry(std::uint32_t hash_high, SearchedAmount amount, ProvenData&& proven)
+  constexpr CommonEntry(ProvenData&& proven, std::uint32_t hash_high, SearchedAmount amount = kFirstSearchAmount)
       : hash_high_{hash_high}, s_amount_{NodeState::kProvenState, amount}, proven_{std::move(proven)} {}
   /// 反証済局面のエントリを作成する。
-  constexpr CommonEntry(std::uint32_t hash_high, SearchedAmount amount, DisprovenData&& disproven)
+  constexpr CommonEntry(DisprovenData&& disproven, std::uint32_t hash_high, SearchedAmount amount = kFirstSearchAmount)
       : hash_high_{hash_high}, s_amount_{NodeState::kDisprovenState, amount}, disproven_{std::move(disproven)} {}
+  /// 千日手用のエントリを作成する。
+  constexpr explicit CommonEntry(RepetitionData&& rep,
+                                 std::uint32_t hash_high,
+                                 SearchedAmount amount = kFirstSearchAmount)
+      : hash_high_{hash_high}, s_amount_{NodeState::kRepetitionState, amount}, rep_{std::move(rep)} {}
 
-  /// 千日手用のダミーエントリを作成する。
-  constexpr explicit CommonEntry(RepetitionData&& rep)
-      : hash_high_{0}, s_amount_{NodeState::kRepetitionState, 0}, rep_{std::move(rep)} {}
-
-  /// エントリの中身を空にする
+  /// エントリの中身を空にする。
   constexpr void Clear() { s_amount_ = kNullEntry; }
   /// エントリが空かどうかチェックする
   constexpr bool IsNull() const { return s_amount_ == kNullEntry; }
+
+  // <Getter>
+  // メソッド名の一部に Get がついている理由は、型名との衝突を避けるため。
 
   constexpr std::uint32_t HashHigh() const { return hash_high_; }
   constexpr NodeState GetNodeState() const { return s_amount_.node_state; }
   constexpr SearchedAmount GetSearchedAmount() const { return s_amount_.amount; }
   constexpr StateAmount GetStateAmount() const { return s_amount_; }
-  constexpr void UpdateSearchedAmount(SearchedAmount amount) { s_amount_.amount = s_amount_.amount + amount; }
 
-  /// 通常局面かつ千日手の可能性がある場合のみ true。
+  // 厳密には Getter ではないが、利用者から見ると Getter のようなものたち
+  PnDn Pn() const;
+  PnDn Dn() const;
+
+  // </Getter>
+
+  constexpr bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
   constexpr bool IsMaybeRepetition() const { return s_amount_.node_state == NodeState::kMaybeRepetitionState; }
-  /// 通常局面かつ千日手の可能性があることを報告する。
-  constexpr void SetMaybeRepetition() { s_amount_.node_state = NodeState::kMaybeRepetitionState; }
   /// 通常局面かつまだ初回探索をしていない場合のみ true。
   constexpr bool IsFirstVisit() const { return !IsFinal() && s_amount_.amount == kFirstSearchAmount; }
 
-  /// 証明数
-  PnDn Pn() const;
-  /// 反証数
-  PnDn Dn() const;
-  constexpr bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
-  /**
-   * @brief 置換表に保存されている手のうち、調べたい局面に"ふさわしい"手を返す。
-   *        条件に一致する hand がなければ kNullHand を返す。
-   *
-   * - 通常局面
-   *   - 格納している持ち駒が hand に一致していればそれを返す
-   * - 証明済局面
-   *   - 証明できるならその証明駒を返す
-   * - 反証済局面
-   *   - 反証できるならその反証駒を返す
-   * - 千日手局面
-   *   - 常に kNullHand を返す
-   *
-   * @param hand    調べたい局面の持ち駒
-   * @return Hand   条件に一致する hand があればそれを返す。なければ kNullHand を返す。
-   */
-  Hand ProperHand(Hand hand) const;
-  Move16 BestMove(Hand hand) const;
-  MateLen GetMateLen(Hand hand) const;
-
-  /// 通常局面なら (pn, dn) を更新する。そうでないなら何もしない。
-  void UpdatePnDn(PnDn pn, PnDn dn, SearchedAmount amount);
-  /// 証明駒 proof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
-  bool UpdateWithProofHand(Hand proof_hand);
-  /// 反証駒 disproof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
-  bool UpdateWithDisproofHand(Hand disproof_hand);
-
   // <TryGet>
-  // TryGetXXX: 現在が XXX 状態なら内部データへのポインタを返す。そうでないなら、nullptr を返す。
+  // データ（XxxData）を返すメソッドたち。
+  // 現在が Xxx 状態なら内部データへのポインタを返す。そうでないなら、nullptr を返す。
+
   UnknownData* TryGetUnknown() { return !IsFinal() ? &unknown_ : nullptr; }
   ProvenData* TryGetProven() { return GetNodeState() == NodeState::kProvenState ? &proven_ : nullptr; }
   DisprovenData* TryGetDisproven() { return GetNodeState() == NodeState::kDisprovenState ? &disproven_ : nullptr; }
@@ -278,6 +259,45 @@ class CommonEntry {
     return GetNodeState() == NodeState::kRepetitionState ? &rep_ : nullptr;
   }
   // </TryGet>
+
+  // <GetState>
+  /**
+   * @brief hand に最も"ふさわしい"持ち駒を返す
+   *
+   * いろいろな用途に使える便利関数。以下のようにしてエントリに保存された持ち駒が現局面と関係ありそうかどうかを
+   * 簡単に調べられる。例えば、現局面の攻め方の持ち駒が hand のとき、以下のようにして entry と現局面が関係あるかどうかを
+   * 調べることができる。
+   *
+   * ```
+   * if (auto proper_hand = entry->ProperHand(hand); proper_hand != kNullHand) {
+   *   // entry には現局面に関する情報が書かれている
+   * } else {
+   *   // entry と現局面は関係ない
+   * }
+   * ```
+   *
+   * ProperHand() は、"ふさわしい"持ち駒があればそれを返し、なければ kNullHand を返す。ここで、
+   * "ふさわしい"持ち駒とは以下ような手のことを言う。
+   *
+   * - 通常局面｜エントリに保存された持ち駒と hand が一致している
+   * - 証明済局面｜エントリに保存された持ち駒で hand の詰みを示せる（hand の劣等局面になっている）
+   * - 反証済局面｜エントリに保存された持ち駒で hand の不詰を示せる（hand の優等局面になっている）
+   * - 千日手局面｜（常に hand を返す）
+   */
+  Hand ProperHand(Hand hand) const;
+
+  Move16 BestMove(Hand hand) const;
+  MateLen GetMateLen(Hand hand) const;
+  // </GetState>
+
+  constexpr void SetSearchedAmount(SearchedAmount amount) { s_amount_.amount = amount; }
+  constexpr void UpdateSearchedAmount(SearchedAmount amount) { s_amount_.amount = s_amount_.amount + amount; }
+  constexpr void SetMaybeRepetition() { s_amount_.node_state = NodeState::kMaybeRepetitionState; }
+
+  /// 証明駒 proof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
+  bool UpdateWithProofHand(Hand proof_hand);
+  /// 反証駒 disproof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
+  bool UpdateWithDisproofHand(Hand disproof_hand);
 
  private:
   std::uint32_t hash_high_;  ///< 盤面のハッシュの上位32bit

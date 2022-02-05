@@ -57,7 +57,7 @@ class CommonEntry;
 class Node;
 
 /// 千日手用のダミーエントリ。千日手の場合は CommonEntry が tt の中に保存されていないので、適当に返す
-inline const CommonEntry kRepetitionEntry{RepetitionData{}};
+inline const CommonEntry kRepetitionEntry{RepetitionData{}, 0};
 
 /**
  * @brief 同じ駒配置の局面の探索結果をまとめて管理するクラス
@@ -216,6 +216,8 @@ class LookUpQuery {
   /// 調べていた局面が千日手による不詰であることを報告する
   void SetRepetition(SearchedAmount amount);
 
+  void SetUnknown(PnDn pn, PnDn dn, SearchedAmount amount);
+
  private:
   /// `entry_` が有効（前回呼び出しから移動していない）かどうかをチェックする
   bool IsValid() const;
@@ -314,11 +316,11 @@ inline CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
   }
 
   if constexpr (kCreateIfNotExist) {
-    return Add({hash_high, UnknownData{pn, dn, hand, depth}});
+    return Add({UnknownData{pn, dn, hand, depth}, hash_high});
   } else {
     // エントリを新たに作るのはダメなので、適当な一時領域にデータを詰めて返す
     static CommonEntry dummy_entry;
-    dummy_entry = {hash_high, UnknownData{pn, dn, hand, depth}};
+    dummy_entry = {UnknownData{pn, dn, hand, depth}, hash_high};
     return &dummy_entry;
   }
 }

@@ -87,8 +87,6 @@ std::ostream& operator<<(std::ostream& os, const RepetitionData& /* data */) {
   return os << "RepetitionData{}";
 }
 
-CommonEntry::CommonEntry() : dummy_{} {}
-
 PnDn CommonEntry::Pn() const {
   switch (GetNodeState()) {
     case NodeState::kProvenState:
@@ -134,15 +132,6 @@ MateLen CommonEntry::GetMateLen(Hand hand) const {
       return disproven_.GetMateLen(hand);
     default:
       return {kMaxNumMateMoves, 0};
-  }
-}
-
-void CommonEntry::UpdatePnDn(PnDn pn, PnDn dn, SearchedAmount amount) {
-  if (auto unknown = TryGetUnknown()) {
-    if (amount >= kMinimumSearchedAmount) {
-      s_amount_.amount = amount;
-    }
-    unknown->UpdatePnDn(pn, dn);
   }
 }
 

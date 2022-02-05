@@ -113,10 +113,12 @@ ChildrenCache::Child ChildrenCache::Child::FromNonRepetitionMove(TranspositionTa
 
   cache.is_first = entry->IsFirstVisit();
   if (cache.is_first) {
-    auto [pn, dn] = InitialPnDn(n, move.move);
-    pn = std::max(pn, entry->Pn());
-    dn = std::max(dn, entry->Dn());
-    entry->UpdatePnDn(pn, dn, 0);
+    if (auto unknown = entry->TryGetUnknown()) {
+      auto [pn, dn] = InitialPnDn(n, move.move);
+      pn = std::max(pn, unknown->Pn());
+      dn = std::max(dn, unknown->Dn());
+      unknown->UpdatePnDn(pn, dn);
+    }
   }
 
   auto hand_after = n.OrHandAfter(move.move);
