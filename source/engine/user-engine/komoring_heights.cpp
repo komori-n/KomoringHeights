@@ -112,7 +112,7 @@ std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt
   for (auto&& move : MovePicker{n}) {
     auto query = tt.GetChildQuery(n, move.move);
     auto entry = query.LookUpWithoutCreation();
-    SearchResult result{*entry, n.OrHandAfter(move.move)};
+    SearchResult result = entry->Simplify(n.OrHandAfter(move.move));
     ret.emplace_back(move.move, result);
   }
 
@@ -187,10 +187,10 @@ Score MakeScore(const SearchResult& result, bool root_is_or_node) {
   if (!result.IsFinal()) {
     return Score::Unknown(result.Pn(), result.Dn());
   } else if (result.GetNodeState() == NodeState::kProvenState) {
-    auto mate_len = result.GetMateLen();
+    auto mate_len = result.FrontMateLen();
     return Score::Proven(mate_len.len, root_is_or_node);
   } else {
-    auto mate_len = result.GetMateLen();
+    auto mate_len = result.FrontMateLen();
     return Score::Disproven(mate_len.len, root_is_or_node);
   }
 }
@@ -277,7 +277,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     return NodeState::kProvenState;
   } else {
     if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
-      score_ = Score::Disproven(result.GetMateLen().len, is_root_or_node);
+      score_ = Score::Disproven(result.FrontMateLen().len, is_root_or_node);
     }
     return result.GetNodeState();
   }
@@ -536,7 +536,7 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
       }
 
       if (lhs.second.Phi(or_node) == 0 && rhs.second.Phi(or_node) == 0) {
-        return lhs.second.GetMateLen() < rhs.second.GetMateLen();
+        return lhs.second.FrontMateLen() < rhs.second.FrontMateLen();
       }
 
       if (lhs.second.Delta(or_node) != rhs.second.Delta(or_node)) {
@@ -544,7 +544,7 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
       }
 
       if (lhs.second.Delta(or_node) == 0 && rhs.second.Delta(or_node) == 0) {
-        return lhs.second.GetMateLen() > rhs.second.GetMateLen();
+        return lhs.second.FrontMateLen() > rhs.second.FrontMateLen();
       }
 
       return false;
@@ -554,9 +554,9 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
     oss << "[" << node.GetDepth() << "] ";
     for (const auto& child : children) {
       if (child.second.Pn() == 0) {
-        oss << child.first << "(+" << child.second.GetMateLen() << ") ";
+        oss << child.first << "(+" << child.second.FrontMateLen() << ") ";
       } else if (child.second.Dn() == 0) {
-        oss << child.first << "(-" << child.second.GetMateLen() << ") ";
+        oss << child.first << "(-" << child.second.FrontMateLen() << ") ";
       } else {
         oss << child.first << "(" << ToString(child.second.Pn()) << "/" << ToString(child.second.Dn()) << ") ";
       }
@@ -607,7 +607,7 @@ SearchResult KomoringHeights::PostSearchEntry(Node& n, Move move) {
   auto query = tt_.GetChildQuery(n, move);
   auto entry = query.LookUpWithoutCreation();
   if (entry->IsFinal()) {
-    return {*entry, n.OrHandAfter(move)};
+    return entry->Simplify(n.OrHandAfter(move));
   } else {
     n.DoMove(move);
     progress_.StartExtraSearch(option_.post_search_count);
@@ -628,7 +628,7 @@ SearchResult KomoringHeights::UselessDropSearchEntry(Node& n, Move move) {
   auto entry = query.LookUpWithoutCreation();
   SearchResult result;
   if (entry->IsFinal()) {
-    result = {*entry, n.OrHandAfter(move)};
+    result = entry->Simplify(n.OrHandAfter(move));
   } else {
     progress_.StartExtraSearch(option_.post_search_count);
     result = SearchEntry(n);
@@ -662,7 +662,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
 
   // 深さ制限。これ以上探索を続けても詰みが見つかる見込みがないのでここで early return する。
   if (n.IsExceedLimit(option_.depth_limit)) {
-    return {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, n.OrHand()};
+    return SearchResult{RepetitionData{}};
   }
 
   // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。

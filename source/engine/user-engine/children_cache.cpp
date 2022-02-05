@@ -85,7 +85,7 @@ ChildrenCache::Child ChildrenCache::Child::FromRepetitionMove(ExtMove move, Hand
   Child cache;
 
   cache.move = move;
-  cache.search_result = {NodeState::kRepetitionState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand};
+  cache.search_result = SearchResult{RepetitionData{}};
   cache.is_first = false;
   cache.is_sum_delta = true;
 
@@ -122,7 +122,7 @@ ChildrenCache::Child ChildrenCache::Child::FromNonRepetitionMove(TranspositionTa
   }
 
   auto hand_after = n.OrHandAfter(move.move);
-  cache.search_result = {*entry, hand_after};
+  cache.search_result = entry->Simplify(hand_after);
   if (!entry->IsFinal() && cache.Delta(n.IsOrNode()) > kSumSwitchThreshold) {
     // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、
     cache.is_sum_delta = false;
@@ -158,19 +158,16 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
 
           auto hand2 = HandSet{DisproofHandTag{}}.Get(n.Pos());
           // 置換表に不詰であることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
-          SearchResult dummy_entry = {
-              NodeState::kDisprovenState, kMinimumSearchedAmount, kInfinitePnDn, 0, hand2, MOVE_NONE,
-              MakeMateLen(0, hand2)};
-          UpdateNthChildWithoutSort(curr_idx, dummy_entry);
+          DisprovenData disproven_data = {hand2, MOVE_NONE, MakeMateLen(0, hand2)};
+          SearchResult dummy_result = {std::move(disproven_data), kMinimumSearchedAmount};
+          UpdateNthChildWithoutSort(curr_idx, dummy_result);
         } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
           // best_move を選ぶと1手詰み。
 
           // 置換表に詰みであることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
-          auto after_hand = AfterHand(n.Pos(), best_move, proof_hand);
-          SearchResult dummy_entry = {
-              NodeState::kProvenState,   kMinimumSearchedAmount, 0, kInfinitePnDn, proof_hand, best_move,
-              MakeMateLen(1, after_hand)};
-          UpdateNthChildWithoutSort(curr_idx, dummy_entry);
+          ProvenData proven_data = {proof_hand, best_move, MakeMateLen(1, proof_hand)};
+          SearchResult dummy_result = {std::move(proven_data), kMinimumSearchedAmount};
+          UpdateNthChildWithoutSort(curr_idx, dummy_result);
         }
         n.UndoMove(move.move);
       }
@@ -286,20 +283,20 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
 
   if (or_node_) {
     auto& best_child = NthChild(0);
-    proof_hand = BeforeHand(n.Pos(), best_child.move, best_child.search_result.ProperHand());
+    proof_hand = BeforeHand(n.Pos(), best_child.move, best_child.search_result.FrontHand());
     best_move = best_child.move;
-    mate_len = best_child.search_result.GetMateLen() + 1;
+    mate_len = best_child.search_result.FrontMateLen() + 1;
     amount = best_child.search_result.GetSearchedAmount();
   } else {
     // 子局面の証明駒の極小集合を計算する
     HandSet set{ProofHandTag{}};
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = NthChild(i);
-      set.Update(child.search_result.ProperHand());
+      set.Update(child.search_result.FrontHand());
       amount = std::max(amount, child.search_result.GetSearchedAmount());
-      if (child.search_result.GetMateLen() > mate_len) {
+      if (child.search_result.FrontMateLen() > mate_len) {
         best_move = child.move;
-        mate_len = child.search_result.GetMateLen() + 1;
+        mate_len = child.search_result.FrontMateLen() + 1;
       }
     }
     proof_hand = set.Get(n.Pos());
@@ -310,13 +307,14 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
     amount += children_len_ - 1;
   }
 
-  return {NodeState::kProvenState, amount, 0, kInfinitePnDn, proof_hand, best_move, mate_len};
+  ProvenData proven_data = {proof_hand, best_move, mate_len};
+  return {std::move(proven_data), amount};
 }
 
 SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
   // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
   if (children_len_ > 0 && NthChild(0).search_result.GetNodeState() == NodeState::kRepetitionState) {
-    return {NodeState::kRepetitionState, NthChild(0).search_result.GetSearchedAmount(), kInfinitePnDn, 0, n.OrHand()};
+    return SearchResult{RepetitionData{}};
   }
 
   // フツーの不詰
@@ -329,20 +327,20 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     HandSet set{DisproofHandTag{}};
     for (std::size_t i = 0; i < children_len_; ++i) {
       const auto& child = NthChild(i);
-      set.Update(BeforeHand(n.Pos(), child.move, child.search_result.ProperHand()));
+      set.Update(BeforeHand(n.Pos(), child.move, child.search_result.FrontHand()));
       amount = std::max(amount, child.search_result.GetSearchedAmount());
-      if (child.search_result.GetMateLen() > mate_len) {
+      if (child.search_result.FrontMateLen() > mate_len) {
         best_move = child.move;
-        mate_len = child.search_result.GetMateLen() + 1;
+        mate_len = child.search_result.FrontMateLen() + 1;
       }
     }
     amount += children_len_ - 1;
     disproof_hand = set.Get(n.Pos());
   } else {
     auto& best_child = NthChild(0);
-    disproof_hand = best_child.search_result.ProperHand();
+    disproof_hand = best_child.search_result.FrontHand();
     best_move = best_child.move;
-    mate_len = best_child.search_result.GetMateLen() + 1;
+    mate_len = best_child.search_result.FrontMateLen() + 1;
     amount = best_child.search_result.GetSearchedAmount();
 
     // 駒打ちならその駒を持っていないといけない
@@ -359,16 +357,19 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     }
   }
 
-  return {NodeState::kDisprovenState, amount, kInfinitePnDn, 0, disproof_hand, best_move, mate_len};
+  DisprovenData disproven_data = {disproof_hand, best_move, mate_len};
+  return {std::move(disproven_data), amount};
 }
 
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   auto& child = NthChild(0);
   SearchedAmount amount = child.search_result.GetSearchedAmount() + children_len_ - 1;
   if (or_node_) {
-    return {NodeState::kOtherState, amount, child.Pn(), GetDelta(), n.OrHand()};
+    UnknownData unknown_data = {child.Pn(), GetDelta(), n.OrHand(), n.GetDepth()};
+    return {std::move(unknown_data), amount};
   } else {
-    return {NodeState::kOtherState, amount, GetDelta(), child.Dn(), n.OrHand()};
+    UnknownData unknown_data = {GetDelta(), child.Dn(), n.OrHand(), n.GetDepth()};
+    return {std::move(unknown_data), amount};
   }
 }
 

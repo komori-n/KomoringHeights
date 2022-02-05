@@ -99,7 +99,7 @@ CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, MateLen mate_len, Se
     return ret;
   }
 
-  return Add({HandsData<kProven>{hand, move, mate_len}, hash_high, amount});
+  return Add({hash_high, HandsData<kProven>{hand, move, mate_len}, amount});
 }
 
 CommonEntry* BoardCluster::Add(CommonEntry&& entry) const {
@@ -128,10 +128,10 @@ void LookUpQuery::SetResult(const SearchResult& result) {
   auto amount = result.GetSearchedAmount();
   switch (result.GetNodeState()) {
     case NodeState::kProvenState:
-      SetProven(result.ProperHand(), result.BestMove(), result.GetMateLen(), amount);
+      SetProven(result.FrontHand(), result.FrontBestMove(), result.FrontMateLen(), amount);
       break;
     case NodeState::kDisprovenState:
-      SetDisproven(result.ProperHand(), result.BestMove(), result.GetMateLen(), amount);
+      SetDisproven(result.FrontHand(), result.FrontBestMove(), result.FrontMateLen(), amount);
       break;
     case NodeState::kRepetitionState:
       SetRepetition(amount);

@@ -8,7 +8,44 @@
 
 #include "typedefs.hpp"
 
+/**
+ * 以下では局面の探索結果を表現するためのデータ構造が定義する。
+ *
+ * コードの再利用性を高めるために、少し凝ったデータ構造になっている。全体像を以下に示す。
+ *
+ *                  (union)                inherit               inherit
+ * UnknownData    <--------- SearchResult <------- PackedResult <-------- CommonEntry
+ * ProvenData     <-|
+ * DisprovenData  <-|
+ * RepetitionData <-|
+ *
+ * 以下でデータ構造の概要を簡潔に述べる。
+ *
+ * # SearchResult
+ *
+ * 探索結果を格納するデータ構造のうち最も基本的なもの。単一局面の探索結果を格納することができる。
+ *
+ * SearchResultにはUnknownData, ProvenData, DisprovenData, RepetitionData
+ * の4種類の形のデータを格納することができる。格納するデータの種別は NodeState により区別する。 union
+ * を用いてデータ構造を無理やり統一させることで、メモリ利用効率を高めることができる。
+ *
+ * # PackedResult
+ *
+ * 複数局面の探索結果を格納できるデータ構造。
+ *
+ * SearchResultでは、4つのデータ構造のサイズが異なるのでメモリ使用に無駄が生じる。そのため、1エントリに
+ * 複数個の探索結果を格納することを許容することで、さらにメモリ使用効率を高めることができる。PackedResultはそのための
+ * データ構造である。
+ *
+ * 結果を取り出す際は hand を渡す必要がある。1つのエントリ内に複数個の結果が混在しているため、どのエントリを
+ * 取り出したいかを指定する必要があるためである。
+ *
+ * # CommonEntry
+ *
+ * 置換表に書くエントリのデータ構造。PackedResultに加えて hash_high を格納できるようになっている。
+ */
 namespace komori {
+
 // <NodeState>
 /// 局面の状態（詰み、厳密な不詰、千日手による不詰、それ以外）を表す型
 enum class NodeState : std::uint32_t {
@@ -97,6 +134,8 @@ class UnknownData {
   constexpr void UpdateDepth(Depth depth) { min_depth_ = std::min(min_depth_, depth); }
   /// 格納している持ち駒が引数に一致していればそのまま返す。一致していなければ kNullHand を返す。
   constexpr Hand ProperHand(Hand hand) const { return hand_ == hand ? hand : kNullHand; }
+  /// 格納している持ち駒を返す
+  constexpr Hand GetHand() const { return hand_; }
   /// 格納している持ち駒が引数よりも優等であれば true。
   constexpr bool IsSuperiorThan(Hand hand) const { return hand_is_equal_or_superior(hand_, hand); }
   /// 格納している持ち駒が引数よりも劣等であれば true。
@@ -143,11 +182,17 @@ class HandsData {
   Move16 BestMove(Hand hand) const;
   MateLen GetMateLen(Hand hand) const;
 
+  Hand FrontHand() const { return entries_[0].hand; }
+  Move16 FrontBestMove() const { return entries_[0].move; }
+  MateLen FrontMateLen() const { return entries_[0].mate_len; }
+
   /// 証明駒（反証駒）を追加する。IsFull() の場合、何もしない。
   void Add(Hand hand, Move16 move, MateLen mate_len);
   /// 証明駒（反証駒）の追加を報告する。もう必要ない（下位互換）な局面があればすべて消す。
   /// 削除した結果、エントリ自体が不要になった場合のみ true が返る。
   bool Update(Hand hand);
+
+  void Simplify(Hand hand);
 
  private:
   struct Entry {
@@ -180,6 +225,8 @@ struct RepetitionData {
 
 std::ostream& operator<<(std::ostream& os, const RepetitionData& data);
 
+class PackedResult;
+
 /**
  * @brief 局面の探索結果を保存する構造体。
  *
@@ -197,49 +244,29 @@ std::ostream& operator<<(std::ostream& os, const RepetitionData& data);
  * メモリ消費量を切り詰めるために、これらのデータは union に格納する。union の代わりに std::variant を用いると、
  * インデックスの分だけメモリ消費量が増えてしまうのでダメ。
  */
-class CommonEntry {
+class SearchResult {
  public:
-  friend std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
+  // union のデータ構造を使いまわしたいので friend 指定しておく
+  friend class PackedResult;
+  friend std::ostream& operator<<(std::ostream& os, const SearchResult& entry);
 
-  CommonEntry() : dummy_{} {};
+  SearchResult() : dummy_{} {};
   /// 通常局面のエントリを作成する。
-  constexpr CommonEntry(UnknownData&& unknown, std::uint32_t hash_high, SearchedAmount amount = kFirstSearchAmount)
-      : hash_high_{hash_high}, s_amount_{NodeState::kOtherState, amount}, unknown_{std::move(unknown)} {}
+  constexpr SearchResult(UnknownData&& unknown, SearchedAmount amount = kFirstSearchAmount)
+      : s_amount_{NodeState::kOtherState, amount}, unknown_{std::move(unknown)} {}
   /// 証明済局面のエントリを作成する。
-  constexpr CommonEntry(ProvenData&& proven, std::uint32_t hash_high, SearchedAmount amount = kFirstSearchAmount)
-      : hash_high_{hash_high}, s_amount_{NodeState::kProvenState, amount}, proven_{std::move(proven)} {}
+  constexpr SearchResult(ProvenData&& proven, SearchedAmount amount = kFirstSearchAmount)
+      : s_amount_{NodeState::kProvenState, amount}, proven_{std::move(proven)} {}
   /// 反証済局面のエントリを作成する。
-  constexpr CommonEntry(DisprovenData&& disproven, std::uint32_t hash_high, SearchedAmount amount = kFirstSearchAmount)
-      : hash_high_{hash_high}, s_amount_{NodeState::kDisprovenState, amount}, disproven_{std::move(disproven)} {}
+  constexpr SearchResult(DisprovenData&& disproven, SearchedAmount amount = kFirstSearchAmount)
+      : s_amount_{NodeState::kDisprovenState, amount}, disproven_{std::move(disproven)} {}
   /// 千日手用のエントリを作成する。
-  constexpr explicit CommonEntry(RepetitionData&& rep,
-                                 std::uint32_t hash_high,
-                                 SearchedAmount amount = kFirstSearchAmount)
-      : hash_high_{hash_high}, s_amount_{NodeState::kRepetitionState, amount}, rep_{std::move(rep)} {}
-
-  /// エントリの中身を空にする。
-  constexpr void Clear() { s_amount_ = kNullEntry; }
-  /// エントリが空かどうかチェックする
-  constexpr bool IsNull() const { return s_amount_ == kNullEntry; }
-
-  // <Getter>
-  // メソッド名の一部に Get がついている理由は、型名との衝突を避けるため。
-
-  constexpr std::uint32_t HashHigh() const { return hash_high_; }
-  constexpr NodeState GetNodeState() const { return s_amount_.node_state; }
-  constexpr SearchedAmount GetSearchedAmount() const { return s_amount_.amount; }
-  constexpr StateAmount GetStateAmount() const { return s_amount_; }
-
-  // 厳密には Getter ではないが、利用者から見ると Getter のようなものたち
-  PnDn Pn() const;
-  PnDn Dn() const;
-
-  // </Getter>
-
-  constexpr bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
-  constexpr bool IsMaybeRepetition() const { return s_amount_.node_state == NodeState::kMaybeRepetitionState; }
-  /// 通常局面かつまだ初回探索をしていない場合のみ true。
-  constexpr bool IsFirstVisit() const { return !IsFinal() && s_amount_.amount == kFirstSearchAmount; }
+  constexpr explicit SearchResult(RepetitionData&& rep, SearchedAmount amount = kFirstSearchAmount)
+      : s_amount_{NodeState::kRepetitionState, amount}, rep_{std::move(rep)} {}
+  SearchResult(const SearchResult&) = default;
+  SearchResult(SearchResult&&) noexcept = default;
+  SearchResult& operator=(const SearchResult&) = default;
+  SearchResult& operator=(SearchResult&&) noexcept = default;
 
   // <TryGet>
   // データ（XxxData）を返すメソッドたち。
@@ -259,6 +286,65 @@ class CommonEntry {
     return GetNodeState() == NodeState::kRepetitionState ? &rep_ : nullptr;
   }
   // </TryGet>
+
+  // <Getter>
+  // メソッド名の一部に Get がついている理由は、型名との衝突を避けるため。
+
+  constexpr NodeState GetNodeState() const { return s_amount_.node_state; }
+  constexpr SearchedAmount GetSearchedAmount() const { return s_amount_.amount; }
+  constexpr StateAmount GetStateAmount() const { return s_amount_; }
+
+  // 厳密には Getter ではないが、利用者から見ると Getter のようなものたち
+  PnDn Pn() const;
+  PnDn Dn() const;
+  PnDn Phi(bool or_node) const { return or_node ? Pn() : Dn(); }
+  PnDn Delta(bool or_node) const { return or_node ? Dn() : Pn(); }
+
+  Hand FrontHand() const;
+  Move16 FrontBestMove() const;
+  MateLen FrontMateLen() const;
+  // </Getter>
+
+  /// エントリの中身を空にする。
+  constexpr void Clear() { s_amount_ = kNullEntry; }
+  /// エントリが空かどうかチェックする
+  constexpr bool IsNull() const { return s_amount_ == kNullEntry; }
+
+  constexpr bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
+  constexpr bool IsMaybeRepetition() const { return s_amount_.node_state == NodeState::kMaybeRepetitionState; }
+  /// 通常局面かつまだ初回探索をしていない場合のみ true。
+  constexpr bool IsFirstVisit() const { return !IsFinal() && s_amount_.amount == kFirstSearchAmount; }
+
+  constexpr bool Exceeds(PnDn thpn, PnDn thdn) const { return Pn() >= thpn || Dn() >= thdn; }
+
+  constexpr void SetSearchedAmount(SearchedAmount amount) { s_amount_.amount = amount; }
+  constexpr void UpdateSearchedAmount(SearchedAmount amount) { s_amount_.amount = s_amount_.amount + amount; }
+  constexpr void SetMaybeRepetition() { s_amount_.node_state = NodeState::kMaybeRepetitionState; }
+
+ private:
+  union {
+    std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< ダミーエントリ（サイズ確認用）
+    UnknownData unknown_;                                                           ///< 通常局面
+    ProvenData proven_;                                                             ///< 証明済局面
+    DisprovenData disproven_;                                                       ///< 反証済局面
+    RepetitionData rep_;                                                            ///< 千日手局面
+  };
+  StateAmount s_amount_;  ///< ノード状態とこの局面を何手読んだか
+
+  // サイズチェック
+  static_assert(sizeof(dummy_) == sizeof(unknown_));
+  static_assert(sizeof(dummy_) == sizeof(proven_));
+  static_assert(sizeof(dummy_) == sizeof(disproven_));
+  static_assert(sizeof(dummy_) >= sizeof(rep_));
+};
+
+std::ostream& operator<<(std::ostream& os, const SearchResult& search_result);
+std::string ToString(const SearchResult& search_result);
+
+class PackedResult : public SearchResult {
+ public:
+  template <typename... Args>
+  constexpr PackedResult(Args&&... args) : SearchResult{std::forward<Args>(args)...} {}
 
   // <GetState>
   /**
@@ -290,99 +376,57 @@ class CommonEntry {
   MateLen GetMateLen(Hand hand) const;
   // </GetState>
 
-  constexpr void SetSearchedAmount(SearchedAmount amount) { s_amount_.amount = amount; }
-  constexpr void UpdateSearchedAmount(SearchedAmount amount) { s_amount_.amount = s_amount_.amount + amount; }
-  constexpr void SetMaybeRepetition() { s_amount_.node_state = NodeState::kMaybeRepetitionState; }
-
   /// 証明駒 proof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
   bool UpdateWithProofHand(Hand proof_hand);
   /// 反証駒 disproof_hand をもとにエントリ内容を更新する。エントリ自体が必要なくなった場合、true を返す。
   bool UpdateWithDisproofHand(Hand disproof_hand);
 
- private:
-  std::uint32_t hash_high_;  ///< 盤面のハッシュの上位32bit
-  StateAmount s_amount_;     ///< ノード状態とこの局面を何手読んだか
-  union {
-    std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< ダミーエントリ
-    UnknownData unknown_;                                                           ///< 通常局面
-    ProvenData proven_;                                                             ///< 証明済局面
-    DisprovenData disproven_;                                                       ///< 反証済局面
-    RepetitionData rep_;                                                            ///< 千日手局面
-  };
+  SearchResult Simplify(Hand hand) const;
 
-  // サイズチェック
-  static_assert(sizeof(dummy_) == sizeof(unknown_));
-  static_assert(sizeof(dummy_) == sizeof(proven_));
-  static_assert(sizeof(dummy_) == sizeof(disproven_));
-  static_assert(sizeof(dummy_) >= sizeof(rep_));
+  // FrontXxx を PackedEntry で使用するのは間違った使い方なので、普通には使えないようにしておく
+
+  template <std::nullptr_t Null = nullptr>
+  Hand FrontHand() const {
+    // もし PackedEntry::FrontHand() をコールしたら static_assert で必ずコンパイルエラーになる
+    static_assert(Null == nullptr && false, "PackedEntry::FrontHand() is not supported.");
+  }
+  template <std::nullptr_t Null = nullptr>
+  Move16 FrontBestMove() const {
+    static_assert(Null == nullptr && false, "PackedEntry::FrontBestMove() is not supported.");
+  }
+  template <std::nullptr_t Null = nullptr>
+  MateLen FrontMateLen() const {
+    static_assert(Null == nullptr && false, "PackedEntry::FrontMateLen() is not supported.");
+  }
+};
+
+class CommonEntry : public PackedResult {
+ public:
+  friend std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
+  template <typename... Args>
+  CommonEntry(std::uint32_t hash_high, Args&&... args)
+      : hash_high_{hash_high}, PackedResult{std::forward<Args>(args)...} {}
+  CommonEntry() = default;
+
+  std::uint32_t HashHigh() const { return hash_high_; }
+
+ private:
+  std::uint32_t hash_high_{};  ///< ハッシュの上位32bit。コピーコンストラクト可能にするために const をつけない。
 };
 
 std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
 std::string ToString(const CommonEntry& entry);
 
-// サイズ&アラインチェック
-static_assert(sizeof(CommonEntry) == sizeof(std::uint32_t) + sizeof(StateAmount) + sizeof(UnknownData));
 static_assert(alignof(std::uint64_t) % alignof(CommonEntry) == 0);
 
-/**
- * @brief  局面の探索結果を格納するデータ構造。
- *
- * CommonEntry が置換表に格納するためのデータ構造であるのに対し、SearchResult は純粋に探索結果を表現することが
- * 役割のクラスである。
- *
- * また、SearchResult は探索結果を格納するためのクラスであるため、コンストラクト後に値の書き換えをすることはできない。
- */
-class SearchResult {
- public:
-  friend std::ostream& operator<<(std::ostream& os, const SearchResult& result);
+// =====================================================================================================================
+// implementation
+// =====================================================================================================================
+// このファイルに定義されたデータ構造は全体の実行速度にかなり影響を与えうるので、
+// print 系の関数以外はすべてヘッダにすべて実装する
 
-  /// 初期化なしのコンストラクタも有効にしておく
-  SearchResult() = default;
-  /// CommonEntry からコンストラクトする。これだけだと証明駒／反証駒がわからないので、現在の OrHand も引数で渡す。
-  SearchResult(const CommonEntry& entry, Hand hand)
-      : state_{entry.GetNodeState()},
-        amount_{entry.GetSearchedAmount()},
-        hand_{entry.ProperHand(hand)},
-        pn_{entry.Pn()},
-        dn_{entry.Dn()},
-        move_{entry.BestMove(hand)},
-        mate_len_{entry.GetMateLen(hand)} {}
-  /// 生データからコンストラクトする。
-  SearchResult(NodeState state,
-               SearchedAmount amount,
-               PnDn pn,
-               PnDn dn,
-               Hand hand,
-               Move16 move = MOVE_NONE,
-               MateLen mate_len = {kMaxNumMateMoves, HAND_ZERO})
-      : state_{state}, amount_{amount}, hand_{hand}, pn_{pn}, dn_{dn}, move_{move}, mate_len_{mate_len} {}
-
-  PnDn Pn() const { return pn_; }
-  PnDn Dn() const { return dn_; }
-  PnDn Phi(bool or_node) const { return or_node ? pn_ : dn_; }
-  PnDn Delta(bool or_node) const { return or_node ? dn_ : pn_; }
-  bool IsFinal() const { return Pn() == 0 || Dn() == 0; }
-  Hand ProperHand() const { return hand_; }
-  NodeState GetNodeState() const { return state_; }
-  SearchedAmount GetSearchedAmount() const { return amount_; }
-  Move16 BestMove() const { return move_; }
-  MateLen GetMateLen() const { return mate_len_; }
-
-  bool Exceeds(PnDn thpn, PnDn thdn) { return pn_ >= thpn || dn_ >= thdn; }
-
- private:
-  NodeState state_;        ///< 局面の状態（詰み／不詰／不明　など）
-  SearchedAmount amount_;  ///< 局面に対して探索した局面数
-  Hand hand_;              ///< 局面における ProperHand
-  PnDn pn_;
-  PnDn dn_;
-
-  Move16 move_;
-  MateLen mate_len_;
-};
-
-std::ostream& operator<<(std::ostream& os, const SearchResult& result);
-std::string ToString(const SearchResult& result);
+// --------------------------------------------------------------------------------------------------------------------
+// <HandsData>
 
 template <bool kProven>
 inline Hand HandsData<kProven>::ProperHand(Hand hand) const {
@@ -399,7 +443,155 @@ inline Hand HandsData<kProven>::ProperHand(Hand hand) const {
   return kNullHand;
 }
 
-inline Hand CommonEntry::ProperHand(Hand hand) const {
+template <bool kProven>
+inline Move16 HandsData<kProven>::BestMove(Hand hand) const {
+  for (const auto& e : entries_) {
+    if (e.hand == kNullHand) {
+      break;
+    }
+
+    if ((kProven && hand_is_equal_or_superior(hand, e.hand)) ||   // hand を証明できる
+        (!kProven && hand_is_equal_or_superior(e.hand, hand))) {  // hand を反証できる
+      return e.move;
+    }
+  }
+  return MOVE_NONE;
+}
+
+template <bool kProven>
+inline MateLen HandsData<kProven>::GetMateLen(Hand hand) const {
+  for (const auto& e : entries_) {
+    if (e.hand == kNullHand) {
+      break;
+    }
+
+    if ((kProven && hand_is_equal_or_superior(hand, e.hand)) ||   // hand を証明できる
+        (!kProven && hand_is_equal_or_superior(e.hand, hand))) {  // hand を反証できる
+      return e.mate_len;
+    }
+  }
+  return {kMaxNumMateMoves, 0};
+}
+
+template <bool kProven>
+inline void HandsData<kProven>::Add(Hand hand, Move16 move, MateLen mate_len) {
+  for (auto& e : entries_) {
+    if (e.hand == kNullHand) {
+      e = {hand, move, mate_len};
+      return;
+    }
+  }
+}
+
+template <bool kProven>
+inline bool HandsData<kProven>::Update(Hand hand) {
+  std::size_t i = 0;
+  for (auto& e : entries_) {
+    if (e.hand == kNullHand) {
+      break;
+    }
+
+    if ((kProven && hand_is_equal_or_superior(e.hand, hand)) ||   // hand で証明できる -> h はいらない
+        (!kProven && hand_is_equal_or_superior(hand, e.hand))) {  // hand で反証できる -> h はいらない
+      e.hand = kNullHand;
+      continue;
+    }
+
+    // 手前から詰める
+    std::swap(entries_[i], e);
+    i++;
+  }
+  return i == 0;
+}
+
+template <bool kProven>
+inline void HandsData<kProven>::Simplify(Hand hand) {
+  for (const auto& e : entries_) {
+    if (e.hand == kNullHand) {
+      break;
+    }
+
+    if ((kProven && hand_is_equal_or_superior(hand, e.hand)) ||   // hand を証明できる
+        (!kProven && hand_is_equal_or_superior(e.hand, hand))) {  // hand を反証できる
+      entries_[0] = e;
+      return;
+    }
+  }
+
+  // 見つからなかった
+  entries_[0].hand = kNullHand;
+}
+// </HandsData>
+// --------------------------------------------------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------------------------------------------------
+// <SearchResult>
+inline PnDn SearchResult::Pn() const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.Pn();
+    case NodeState::kDisprovenState:
+      return disproven_.Pn();
+    case NodeState::kRepetitionState:
+      return rep_.Pn();
+    default:
+      return unknown_.Pn();
+  }
+}
+
+inline PnDn SearchResult::Dn() const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.Dn();
+    case NodeState::kDisprovenState:
+      return disproven_.Dn();
+    case NodeState::kRepetitionState:
+      return rep_.Dn();
+    default:
+      return unknown_.Dn();
+  }
+}
+
+inline Hand SearchResult::FrontHand() const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.FrontHand();
+    case NodeState::kDisprovenState:
+      return disproven_.FrontHand();
+    case NodeState::kRepetitionState:
+      return kNullHand;
+    default:
+      return unknown_.GetHand();
+  }
+}
+
+inline Move16 SearchResult::FrontBestMove() const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.FrontBestMove();
+    case NodeState::kDisprovenState:
+      return disproven_.FrontBestMove();
+    default:
+      return MOVE_NONE;
+  }
+}
+
+inline MateLen SearchResult::FrontMateLen() const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.FrontMateLen();
+    case NodeState::kDisprovenState:
+      return disproven_.FrontMateLen();
+    default:
+      return kMaxMateLen;
+  }
+}
+// </SearchResult>
+// --------------------------------------------------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------------------------------------------------
+// <PackedResult>
+inline Hand PackedResult::ProperHand(Hand hand) const {
   switch (GetNodeState()) {
     case NodeState::kProvenState:
       return proven_.ProperHand(hand);
@@ -411,6 +603,70 @@ inline Hand CommonEntry::ProperHand(Hand hand) const {
       return unknown_.ProperHand(hand);
   }
 }
+
+inline Move16 PackedResult::BestMove(Hand hand) const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.BestMove(hand);
+    case NodeState::kDisprovenState:
+      return disproven_.BestMove(hand);
+    default:
+      return MOVE_NONE;
+  }
+}
+
+inline MateLen PackedResult::GetMateLen(Hand hand) const {
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      return proven_.GetMateLen(hand);
+    case NodeState::kDisprovenState:
+      return disproven_.GetMateLen(hand);
+    default:
+      return {kMaxNumMateMoves, 0};
+  }
+}
+
+inline bool PackedResult::UpdateWithProofHand(Hand proof_hand) {
+  switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      // proper_hand よりたくさん持ち駒を持っているなら詰み -> もういらない
+      return unknown_.IsSuperiorThan(proof_hand);
+    case NodeState::kProvenState:
+      return proven_.Update(proof_hand);
+    default:
+      return false;
+  }
+}
+
+inline bool PackedResult::UpdateWithDisproofHand(Hand disproof_hand) {
+  switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      // proper_hand より持ち駒が少ないなら不詰 -> もういらない
+      return unknown_.IsInferiorThan(disproof_hand);
+    case NodeState::kDisprovenState:
+      return disproven_.Update(disproof_hand);
+    default:
+      return false;
+  }
+}
+
+inline SearchResult PackedResult::Simplify(Hand hand) const {
+  auto ret = static_cast<SearchResult>(*this);
+  switch (GetNodeState()) {
+    case NodeState::kProvenState:
+      ret.proven_.Simplify(hand);
+      return ret;
+    case NodeState::kDisprovenState:
+      ret.disproven_.Simplify(hand);
+      return ret;
+    default:
+      return ret;
+  }
+}
+// </PackedResult>
+// --------------------------------------------------------------------------------------------------------------------
 }  // namespace komori
 
 #endif  // TTENTRY_HPP_
