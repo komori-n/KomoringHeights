@@ -23,8 +23,10 @@ N ReadValue(const USI::OptionsMap& o, const std::string& key) {
 
 template <>
 bool ReadValue<bool>(const USI::OptionsMap& o, const std::string& key) {
-  auto val = ReadValue<int>(o, key);
-  return val != 0;
+  if (auto itr = o.find(key); itr != o.end()) {
+    return static_cast<bool>(itr->second);
+  }
+  return false;
 }
 }  // namespace
 
