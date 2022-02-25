@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/schollz/progressbar"
 )
@@ -18,16 +19,18 @@ import (
 type Options struct {
 	HashSize   int
 	DepthLimit int
+	TimeLimit  int
 	Process    int
 }
 
 func parseOptions() Options {
 	hash_size := flag.Int("hash", 64, "the size of hash (MB)")
 	depth_limit := flag.Int("mate-limit", 0, "the maximum mate length")
+	time_limit := flag.Int("time-limit", 0, "the maximum time (msec)")
 	num_process := flag.Int("process", 4, "the number of process")
 	flag.Parse()
 
-	return Options{HashSize: *hash_size, DepthLimit: *depth_limit, Process: *num_process}
+	return Options{HashSize: *hash_size, DepthLimit: *depth_limit, TimeLimit: *time_limit, Process: *num_process}
 }
 
 type EngineProcess struct {
@@ -82,12 +85,13 @@ func (ep *EngineProcess) Ready() error {
 	return fmt.Errorf("got no \"readyok\"")
 }
 
-func (ep *EngineProcess) GoMate(sfen string) (int, error) {
+func (ep *EngineProcess) solveImpl(sfen string) (int, error) {
 	fmt.Fprintf(ep.stdin, "sfen %s\n", sfen)
 	fmt.Fprintln(ep.stdin, "go mate 10000")
 
 	r := regexp.MustCompile(`.*num_searched=(\d+).*`)
 	num_searched := 0
+
 	for ep.scanner.Scan() {
 		text := ep.scanner.Text()
 		switch {
@@ -106,13 +110,40 @@ func (ep *EngineProcess) GoMate(sfen string) (int, error) {
 			}
 		}
 	}
-
 	err := ep.scanner.Err()
 	if err != nil {
 		return num_searched, err
 	}
 
-	return num_searched, fmt.Errorf("got no \"readyok\"")
+	return 0, fmt.Errorf("unexpected EOF")
+}
+
+func (ep *EngineProcess) Solve(sfen string, time_limit_ms int) (int, error) {
+	if time_limit_ms == 0 {
+		return ep.solveImpl(sfen)
+	}
+
+	timer := time.NewTimer(time.Duration(time_limit_ms) * time.Millisecond)
+	result := make(chan struct {
+		int
+		error
+	})
+	go func() {
+		val, err := ep.solveImpl(sfen)
+		result <- struct {
+			int
+			error
+		}{val, err}
+	}()
+
+	select {
+	case <-timer.C:
+		fmt.Fprintln(ep.stdin, "stop")
+		<-result
+		return 0, fmt.Errorf("time limit exceeded")
+	case res := <-result:
+		return res.int, res.error
+	}
 }
 
 func solve(wg *sync.WaitGroup, bar *progressbar.ProgressBar, command string, op Options, sfen_input chan string) {
@@ -131,7 +162,7 @@ func solve(wg *sync.WaitGroup, bar *progressbar.ProgressBar, command string, op 
 	}
 
 	for sfen := range sfen_input {
-		_, err := process.GoMate(sfen)
+		_, err := process.Solve(sfen, op.TimeLimit)
 		if err != nil {
 			fmt.Println("error:", err)
 			fmt.Println("sfen", sfen)
