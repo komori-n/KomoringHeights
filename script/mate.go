@@ -50,7 +50,11 @@ func newEngineProcess(command string) (*EngineProcess, error) {
 	}
 	scanner := bufio.NewScanner(stdout)
 
-	cmd.Start()
+	err = cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+
 	return &EngineProcess{cmd, stdin, stdout, scanner}, nil
 }
 
