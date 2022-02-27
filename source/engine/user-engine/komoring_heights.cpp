@@ -374,6 +374,15 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
       }
 
       auto result = PostSearchEntry(n, move);
+      // 置換表に書いてある手（tt_move）なのに詰みを示せなかった
+      // これを放置すると PV 探索に失敗する可能性があるので、再探索を行い置換表に書き込む
+      if (tt_move == move.move && result.GetNodeState() != NodeState::kProvenState) {
+        n.DoMove(move.move);
+        auto nn = n.HistoryClearedNode();
+        result = SearchEntry(nn);
+        n.UndoMove(move.move);
+      }
+
       if (result.GetNodeState() == NodeState::kProvenState) {
         // move を選べば詰み
 
