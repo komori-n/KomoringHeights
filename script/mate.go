@@ -17,20 +17,31 @@ import (
 )
 
 type Options struct {
-	HashSize   int
-	DepthLimit int
-	TimeLimit  int
-	Process    int
+	HashSize        int
+	PostSearchCount int
+	DepthLimit      int
+	TimeLimit       int
+	OutFile         string
+	Process         int
 }
 
 func parseOptions() Options {
 	hash_size := flag.Int("hash", 64, "the size of hash (MB)")
+	post_search_count := flag.Int("post-search-count", 0, "the number of post-search moves")
 	depth_limit := flag.Int("mate-limit", 0, "the maximum mate length")
 	time_limit := flag.Int("time-limit", 0, "the maximum time (msec)")
+	out_file := flag.String("out", "", "the output file")
 	num_process := flag.Int("process", 4, "the number of process")
 	flag.Parse()
 
-	return Options{HashSize: *hash_size, DepthLimit: *depth_limit, TimeLimit: *time_limit, Process: *num_process}
+	return Options{
+		HashSize:        *hash_size,
+		PostSearchCount: *post_search_count,
+		DepthLimit:      *depth_limit,
+		TimeLimit:       *time_limit,
+		OutFile:         *out_file,
+		Process:         *num_process,
+	}
 }
 
 type EngineProcess struct {
@@ -63,6 +74,7 @@ func newEngineProcess(command string) (*EngineProcess, error) {
 
 func (ep *EngineProcess) SetOption(op Options) {
 	fmt.Fprintf(ep.stdin, "setoption name USI_Hash value %d\n", op.HashSize)
+	fmt.Fprintf(ep.stdin, "setoption name PostSearchCount value %d\n", op.PostSearchCount)
 	fmt.Fprintf(ep.stdin, "setoption name DepthLimit value %d\n", op.DepthLimit)
 	fmt.Fprintf(ep.stdin, "setoption name RootIsAndNodeIfChecked value false\n")
 }
@@ -146,7 +158,12 @@ func (ep *EngineProcess) Solve(sfen string, time_limit_ms int) (int, error) {
 	}
 }
 
-func solve(wg *sync.WaitGroup, bar *progressbar.ProgressBar, command string, op Options, sfen_input chan string) {
+func solve(
+	wg *sync.WaitGroup,
+	bar *progressbar.ProgressBar,
+	command string, op Options,
+	sfen_input chan string,
+	output_ch chan string) {
 	defer wg.Done()
 
 	process, err := newEngineProcess(command)
@@ -164,8 +181,7 @@ func solve(wg *sync.WaitGroup, bar *progressbar.ProgressBar, command string, op 
 	for sfen := range sfen_input {
 		_, err := process.Solve(sfen, op.TimeLimit)
 		if err != nil {
-			fmt.Println("error:", err)
-			fmt.Println("sfen", sfen)
+			output_ch <- fmt.Sprintf("%v: sfen %v", err, sfen)
 		}
 		bar.Add(1)
 	}
@@ -184,11 +200,41 @@ func main() {
 
 	command := flag.Arg(0)
 	sfen_chan := make(chan string)
+	output_chan := make(chan string)
 	var wg sync.WaitGroup
 	for i := 0; i < op.Process; i++ {
 		wg.Add(1)
-		go solve(&wg, bar, command, op, sfen_chan)
+		go solve(&wg, bar, command, op, sfen_chan, output_chan)
 	}
+
+	end := make(chan struct{}, 1)
+	var end_wg sync.WaitGroup
+	go func() {
+		defer end_wg.Done()
+		end_wg.Add(1)
+
+		has_outfile := false
+		var outfile *os.File
+		defer outfile.Close()
+		if op.OutFile != "" {
+			file, err := os.Create(op.OutFile)
+			if err == nil {
+				has_outfile = true
+				outfile = file
+			}
+		}
+		for {
+			select {
+			case out := <-output_chan:
+				fmt.Printf("\r%v\n", out)
+				if has_outfile {
+					fmt.Fprintf(outfile, "\r%v\n", out)
+				}
+			case <-end:
+				return
+			}
+		}
+	}()
 
 	sfen_scanner := bufio.NewScanner(os.Stdin)
 	for sfen_scanner.Scan() {
@@ -198,4 +244,7 @@ func main() {
 	close(sfen_chan)
 
 	wg.Wait()
+
+	end <- struct{}{}
+	end_wg.Wait()
 }
