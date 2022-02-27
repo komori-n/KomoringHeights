@@ -210,6 +210,7 @@ func main() {
 		os.Exit(2)
 	}
 
+	start := time.Now()
 	bar := progressbar.Default(-1)
 
 	command := flag.Arg(0)
@@ -251,9 +252,9 @@ func main() {
 				running -= 1
 				if running <= 0 {
 					fmt.Println()
-					fmt.Printf("solved/total: %v/%v\n", solved, total)
+					fmt.Printf("solved/total: %v/%v  (%.2f sec)\n", solved, total, time.Since(start).Seconds())
 					if has_outfile {
-						fmt.Fprintf(outfile, "\rtotal: %v, solved: %v\n", total, solved)
+						fmt.Fprintf(outfile, "solved/total: %v/%v   (%.2f sec)\n", solved, total, time.Since(start).Seconds())
 					}
 					return
 				}
