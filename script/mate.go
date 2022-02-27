@@ -76,6 +76,8 @@ func (ep *EngineProcess) SetOption(op Options) {
 	fmt.Fprintf(ep.stdin, "setoption name PostSearchCount value %d\n", op.PostSearchCount)
 	fmt.Fprintf(ep.stdin, "setoption name DepthLimit value %d\n", op.DepthLimit)
 	fmt.Fprintf(ep.stdin, "setoption name RootIsAndNodeIfChecked value false\n")
+	fmt.Fprintf(ep.stdin, "setoption name PvInterval value 0\n")
+	fmt.Fprintf(ep.stdin, "setoption name YozumePrintLevel value 0\n")
 }
 
 func (ep *EngineProcess) Ready() error {
