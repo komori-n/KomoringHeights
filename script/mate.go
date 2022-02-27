@@ -98,7 +98,7 @@ func (ep *EngineProcess) Ready() error {
 
 func (ep *EngineProcess) solveImpl(sfen string) (int, error) {
 	fmt.Fprintf(ep.stdin, "sfen %s\n", sfen)
-	fmt.Fprintln(ep.stdin, "go mate 10000")
+	fmt.Fprintln(ep.stdin, "go mate infinite")
 
 	r := regexp.MustCompile(`.*num_searched=(\d+).*`)
 	num_searched := 0
@@ -116,6 +116,8 @@ func (ep *EngineProcess) solveImpl(sfen string) (int, error) {
 		case strings.Contains(text, "checkmate "):
 			if text == "checkmate " {
 				return num_searched, fmt.Errorf("got checkout without mate moves")
+			} else if text == "checkmate timeout" {
+				return num_searched, fmt.Errorf("timeout")
 			} else {
 				return num_searched, nil
 			}
