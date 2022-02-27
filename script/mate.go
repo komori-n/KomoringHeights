@@ -153,6 +153,9 @@ func (ep *EngineProcess) Solve(sfen string, time_limit_ms int) (int, error) {
 		<-result
 		return 0, fmt.Errorf("time limit exceeded")
 	case res := <-result:
+		if !timer.Stop() {
+			<-timer.C
+		}
 		return res.int, res.error
 	}
 }
