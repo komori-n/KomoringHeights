@@ -100,6 +100,7 @@ class KomoringHeights {
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag);
 
   MateLen PostSearch(Node& n, MateLen alpha, MateLen beta);
+  std::vector<Move> TraceBestMove(Node& n);
   void PrintYozume(Node& n, const std::vector<Move>& pv);
 
   /// CommonEntry に保存された best_move を元に最善応手列（PV）を復元する

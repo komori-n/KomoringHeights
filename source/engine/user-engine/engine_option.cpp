@@ -58,6 +58,9 @@ void EngineOption::Reload(const USI::OptionsMap& o) {
     pv_interval = 0;
   }
   post_search_count = ReadValue<std::uint64_t>(o, "PostSearchCount");
+  if (post_search_count == std::numeric_limits<std::uint64_t>::max()) {
+    post_search_count = 0;
+  }
 
   root_is_and_node_if_checked = ReadValue<bool>(o, "RootIsAndNodeIfChecked");
 

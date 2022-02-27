@@ -263,17 +263,25 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   sync_cout << info << sync_endl;
 
   if (result.GetNodeState() == NodeState::kProvenState) {
-    // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
-    auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
-    sync_cout << "info string mate_len=" << mate_len << sync_endl;
-    score_ = Score::Proven(mate_len.len, is_root_or_node);
+    if (option_.post_search_count > 0) {
+      // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
+      auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
+      sync_cout << "info string mate_len=" << mate_len << sync_endl;
+      score_ = Score::Proven(mate_len.len, is_root_or_node);
 
-    best_moves_ = pv_tree_.Pv(node);
-    if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
-      sync_cout << "info string Failed to detect PV" << sync_endl;
+      best_moves_ = pv_tree_.Pv(node);
+      if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
+        sync_cout << "info string Failed to detect PV" << sync_endl;
+      }
+
+      PrintYozume(node, best_moves_);
+    } else {
+      // PostSearch() 関数は処理が重い。1通り PV を得るだけなら置換表から best move を取ってくるだけで良い
+      auto best_moves = TraceBestMove(node);
+      score_ = Score::Proven(static_cast<Depth>(best_moves.size()), is_root_or_node);
+      best_moves_ = std::move(best_moves);
     }
 
-    PrintYozume(node, best_moves_);
     return NodeState::kProvenState;
   } else {
     if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
@@ -435,6 +443,37 @@ PV_END:
   }
 
   return pv_move_len.GetMateLen();
+}
+
+std::vector<Move> KomoringHeights::TraceBestMove(Node& n) {
+  std::vector<Move> moves;
+
+  for (;;) {
+    auto query = tt_.GetQuery(n);
+    auto entry = query.LookUpWithoutCreation();
+    Move best_move = MOVE_NONE;
+    if (entry->GetNodeState() == NodeState::kProvenState) {
+      best_move = n.Pos().to_move(entry->BestMove(n.OrHand()));
+      if (best_move != MOVE_NONE && (!n.Pos().pseudo_legal(best_move) || !n.Pos().legal(best_move))) {
+        best_move = SelectBestMove(tt_, n);
+      }
+    } else {
+      auto result = SearchEntry(n);
+      if (auto proven = result.TryGetProven()) {
+        best_move = n.Pos().to_move(proven->BestMove(n.OrHand()));
+      }
+    }
+
+    if (best_move == MOVE_NONE) {
+      break;
+    }
+
+    moves.push_back(best_move);
+    n.DoMove(best_move);
+  }
+
+  RollBack(n, moves);
+  return moves;
 }
 
 void KomoringHeights::PrintYozume(Node& n, const std::vector<Move>& pv) {
