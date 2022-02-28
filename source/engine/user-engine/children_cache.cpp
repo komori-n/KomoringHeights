@@ -11,6 +11,8 @@
 namespace komori {
 namespace {
 constexpr PnDn kSumSwitchThreshold = kInfinitePnDn / 16;
+/// max で Delta を計算するときの調整項。詳しくは ChildrenCache::GetDelta() のコメントを参照。
+constexpr PnDn kMaxDeltaBias = 2;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
@@ -422,11 +424,31 @@ PnDn ChildrenCache::GetDelta() const {
 
   const auto& best_child = NthChild(0);
   // 差分計算用の値を予め持っているので、高速に計算できる
+  auto sum_delta = sum_delta_except_best_;
+  auto max_delta = max_delta_except_best_;
   if (best_child.is_sum_delta) {
-    return sum_delta_except_best_ + max_delta_except_best_ + best_child.Delta(or_node_);
+    sum_delta += best_child.Delta(or_node_);
   } else {
-    return sum_delta_except_best_ + std::max(max_delta_except_best_, best_child.Delta(or_node_));
+    max_delta = std::max(max_delta, best_child.Delta(or_node_));
   }
+
+  // 定義通りに
+  //    delta = Σ(...) + max(...)
+  // で計算すると、合駒や遠隔王手が続く局面のときに max(...) の値が実態以上に小さくなることがある。
+  //
+  // 例）sfen l3r2kl/6g2/2+Ppppnpp/2p4N1/3Pn1p1P/2P6/L1Ss1PP2/9/1K1S4L w 2BGNPr2gs4p 1
+  //     S*9h から 9 筋で精算するとたくさん遠隔王手がかけられる。玉方の応手はすべて合駒のため pn は小さい値（6ぐらい）
+  //     が続くが、詰みを示すためには膨大な局面を展開する必要がある。
+  //
+  // そのため、
+  //    max(...)
+  // の項が存在するときは delta の値を少し減点（数字を大きく）する。このような処理を追加することで、親局面から見た
+  // 現局面の phi 値が大きくなり、この手順が少しだけ選ばれづらくなる。
+  if (max_delta > 0) {
+    max_delta += kMaxDeltaBias;
+  }
+
+  return sum_delta + max_delta;
 }
 
 bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
