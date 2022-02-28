@@ -12,7 +12,7 @@ namespace komori {
 namespace {
 constexpr PnDn kSumSwitchThreshold = kInfinitePnDn / 16;
 /// max で Delta を計算するときの調整項。詳しくは ChildrenCache::GetDelta() のコメントを参照。
-constexpr PnDn kMaxDeltaBias = 2;
+constexpr PnDn kMaxDeltaBias = 4;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
@@ -146,7 +146,9 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
       // 置換表 LookUp の回数を減らすために別処理に分ける
       child = Child::FromRepetitionMove(move, n.OrHand());
     } else {
-      child = Child::FromNonRepetitionMove(tt, n, move, IsSumDeltaNode(n, move), does_have_old_child_);
+      bool is_sum_node = IsSumDeltaNode(n, move);
+      child = Child::FromNonRepetitionMove(tt, n, move, is_sum_node, does_have_old_child_);
+      max_node_num_ += (is_sum_node ? 0 : 1);
 
       // AND node の first search の場合、1手掘り進めてみる（2手詰ルーチン）
       // OR node の場合、詰みかどうかを高速に判定できないので first_search でも先読みはしない
@@ -445,7 +447,7 @@ PnDn ChildrenCache::GetDelta() const {
   // の項が存在するときは delta の値を少し減点（数字を大きく）する。このような処理を追加することで、親局面から見た
   // 現局面の phi 値が大きくなり、この手順が少しだけ選ばれづらくなる。
   if (max_delta > 0) {
-    max_delta += kMaxDeltaBias;
+    max_delta += max_node_num_ / kMaxDeltaBias;
   }
 
   return sum_delta + max_delta;

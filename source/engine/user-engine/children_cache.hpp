@@ -161,6 +161,8 @@ class ChildrenCache {
   /// maxで計算する子局面のDelta値のうち、最善要素を除いたものの最大値。
   PnDn max_delta_except_best_;
   // </delta>
+
+  int max_node_num_{0};
 };
 }  // namespace komori
 
