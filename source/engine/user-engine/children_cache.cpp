@@ -12,7 +12,7 @@ namespace komori {
 namespace {
 constexpr PnDn kSumSwitchThreshold = kInfinitePnDn / 16;
 /// max で Delta を計算するときの調整項。詳しくは ChildrenCache::GetDelta() のコメントを参照。
-constexpr PnDn kMaxDeltaBias = 4;
+constexpr PnDn kMaxDeltaBias = 2;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
