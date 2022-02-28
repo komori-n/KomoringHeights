@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	"github.com/schollz/progressbar"
+
+	flag "github.com/spf13/pflag"
 )
 
 type Options struct {
@@ -25,12 +26,12 @@ type Options struct {
 }
 
 func parseOptions() Options {
-	hash_size := flag.Int("hash", 64, "the size of hash (MB)")
-	post_search_count := flag.Int("post-search-count", 0, "the number of post-search moves")
-	depth_limit := flag.Int("mate-limit", 0, "the maximum mate length")
-	time_limit := flag.Int("time-limit", 0, "the maximum time (msec)")
-	out_file := flag.String("out", "", "the output file")
-	num_process := flag.Int("process", 4, "the number of process")
+	hash_size := flag.IntP("hash", "h", 64, "the size of hash (MB)")
+	post_search_count := flag.IntP("post-search-count", "c", 0, "the number of post-search moves")
+	depth_limit := flag.IntP("mate-limit", "m", 0, "the maximum mate length")
+	time_limit := flag.IntP("time-limit", "t", 0, "the maximum time (msec)")
+	out_file := flag.StringP("out", "o", "", "the output file")
+	num_process := flag.IntP("process", "p", 4, "the number of process")
 	flag.Parse()
 
 	return Options{
@@ -178,13 +179,13 @@ func solve(
 	process, err := newEngineProcess(command)
 	if err != nil {
 		fmt.Println("error:", err)
-		os.Exit(2)
+		os.Exit(1)
 	}
 	process.SetOption(op)
 	err = process.Ready()
 	if err != nil {
 		fmt.Println("error:", err)
-		os.Exit(2)
+		os.Exit(1)
 	}
 
 	total := 0
@@ -209,7 +210,7 @@ func main() {
 	if flag.NArg() == 0 {
 		fmt.Println("error: solver command was not specified")
 		flag.Usage()
-		os.Exit(2)
+		os.Exit(1)
 	}
 
 	start := time.Now()
