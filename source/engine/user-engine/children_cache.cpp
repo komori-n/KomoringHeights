@@ -457,7 +457,7 @@ bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
   if (lhs.Phi(or_node_) != rhs.Phi(or_node_)) {
     return lhs.Phi(or_node_) < rhs.Phi(or_node_);
   } else if (lhs.Delta(or_node_) != rhs.Delta(or_node_)) {
-    return lhs.Delta(or_node_) < rhs.Delta(or_node_);
+    return lhs.Delta(or_node_) > rhs.Delta(or_node_);
   }
 
   if (lhs.Dn() == 0 && rhs.Dn() == 0) {
