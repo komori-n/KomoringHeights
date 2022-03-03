@@ -197,14 +197,19 @@ Score MakeScore(const SearchResult& result, bool root_is_or_node) {
 }  // namespace
 
 namespace detail {
-void SearchProgress::NewSearch(std::uint64_t max_num_moves, Thread* thread) {
-  start_time_ = std::chrono::system_clock::now();
-  depth_ = 0;
+void SearchMonitor::Init(Thread* thread) {
   thread_ = thread;
-  max_num_moves_ = max_num_moves;
 }
 
-UsiInfo SearchProgress::GetInfo() const {
+void SearchMonitor::NewSearch() {
+  start_time_ = std::chrono::system_clock::now();
+  depth_ = 0;
+
+  move_limit_ = std::numeric_limits<std::uint64_t>::max();
+  limit_stack_ = {};
+}
+
+UsiInfo SearchMonitor::GetInfo() const {
   auto curr_time = std::chrono::system_clock::now();
   auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
   time_ms = std::max(time_ms, decltype(time_ms){1});
@@ -219,6 +224,18 @@ UsiInfo SearchProgress::GetInfo() const {
 
   return output;
 }
+
+void SearchMonitor::PushLimit(std::uint64_t move_limit) {
+  limit_stack_.push(move_limit_);
+  move_limit_ = std::min(move_limit_, move_limit);
+}
+
+void SearchMonitor::PopLimit() {
+  if (!limit_stack_.empty()) {
+    move_limit_ = limit_stack_.top();
+    limit_stack_.pop();
+  }
+}
 }  // namespace detail
 
 KomoringHeights::KomoringHeights() {}
@@ -226,13 +243,14 @@ KomoringHeights::KomoringHeights() {}
 void KomoringHeights::Init(EngineOption option, Thread* thread) {
   option_ = option;
   tt_.Resize(option_.hash_mb);
-  thread_ = thread;
+  monitor_.Init(thread);
 }
 
 NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
-  progress_.NewSearch(option_.nodes_limit, thread_);
+  monitor_.NewSearch();
+  monitor_.PushLimit(option_.nodes_limit);
   pv_tree_.Clear();
   next_gc_count_ = kGcInterval;
   best_moves_.clear();
@@ -284,14 +302,14 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
       score_ = Score::Proven(static_cast<Depth>(best_moves.size()), is_root_or_node);
       best_moves_ = std::move(best_moves);
     }
-
-    return NodeState::kProvenState;
   } else {
     if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
       score_ = Score::Disproven(result.FrontMateLen().len, is_root_or_node);
     }
-    return result.GetNodeState();
   }
+
+  monitor_.PopLimit();
+  return result.GetNodeState();
 }
 
 MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
@@ -647,7 +665,7 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
 }
 
 UsiInfo KomoringHeights::CurrentInfo() const {
-  UsiInfo usi_output = progress_.GetInfo();
+  UsiInfo usi_output = monitor_.GetInfo();
   usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
 
   return usi_output;
@@ -660,9 +678,10 @@ SearchResult KomoringHeights::PostSearchEntry(Node& n, Move move) {
     return entry->Simplify(n.OrHandAfter(move));
   } else {
     n.DoMove(move);
-    progress_.StartExtraSearch(option_.post_search_count);
+    auto move_limit = monitor_.MoveCount() + option_.post_search_count;
+    monitor_.PushLimit(move_limit);
     auto result = SearchEntry(n);
-    progress_.EndYozumeSearch();
+    monitor_.PopLimit();
     n.UndoMove(move);
 
     return result;
@@ -680,9 +699,10 @@ SearchResult KomoringHeights::UselessDropSearchEntry(Node& n, Move move) {
   if (entry->IsFinal()) {
     result = entry->Simplify(n.OrHandAfter(move));
   } else {
-    progress_.StartExtraSearch(option_.post_search_count);
+    auto move_limit = monitor_.MoveCount() + option_.post_search_count;
+    monitor_.PushLimit(move_limit);
     result = SearchEntry(n);
-    progress_.EndYozumeSearch();
+    monitor_.PopLimit();
   }
 
   n.UnstealCapturedPiece();
@@ -693,7 +713,7 @@ SearchResult KomoringHeights::UselessDropSearchEntry(Node& n, Move move) {
 
 SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
   ChildrenCache cache{tt_, n, true};
-  auto move_count_org = progress_.MoveCount();
+  auto move_count_org = monitor_.MoveCount();
   auto result = SearchImpl(n, thpn, thdn, cache, false);
 
   auto query = tt_.GetQuery(n);
@@ -703,7 +723,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
 }
 
 SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag) {
-  progress_.Visit(n.GetDepth());
+  monitor_.Visit(n.GetDepth());
 
   if (print_flag_) {
     PrintProgress(n);
@@ -730,9 +750,9 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     }
   }
 
-  if (progress_.MoveCount() >= next_gc_count_) {
+  if (monitor_.MoveCount() >= next_gc_count_) {
     tt_.CollectGarbage();
-    next_gc_count_ = progress_.MoveCount() + kGcInterval;
+    next_gc_count_ = monitor_.MoveCount() + kGcInterval;
   }
 
   while (!IsSearchStop() && !curr_result.Exceeds(thpn, thdn)) {
@@ -791,6 +811,6 @@ void KomoringHeights::PrintProgress(const Node& n) const {
 }
 
 bool KomoringHeights::IsSearchStop() const {
-  return progress_.IsStop() || stop_;
+  return monitor_.ShouldStop() || stop_;
 }
 }  // namespace komori

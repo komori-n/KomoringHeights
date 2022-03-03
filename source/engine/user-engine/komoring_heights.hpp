@@ -27,27 +27,34 @@ namespace komori {
 class NodeHistory;
 
 namespace detail {
-class SearchProgress {
+/**
+ * @brief 探索の進捗状況をチェックするクラス
+ *
+ * nps の計測や探索局面数上限のチェックを行う。
+ *
+ * 探索局面数上限の設定は PushLimit/PopLimit で行う。名前が示すとおり、stack のように探索局面数の上書きや復元を
+ * 行うことができる。これは、余詰探索のような一時的に探索局面数を制限する使用方法を想定している機能である。
+ */
+class SearchMonitor {
  public:
-  void NewSearch(std::uint64_t max_num_moves, Thread* thread);
-  void Visit(Depth depth) { depth_ = std::max(depth_, depth); }
+  void Init(Thread* thread);
+  void NewSearch();
 
+  void Visit(Depth depth) { depth_ = std::max(depth_, depth); }
   UsiInfo GetInfo() const;
   std::uint64_t MoveCount() const { return thread_->nodes; }
-  bool IsStop() const { return MoveCount() >= max_num_moves_; }
+  bool ShouldStop() const { return MoveCount() >= move_limit_; }
 
-  void StartExtraSearch(std::uint64_t yozume_count) {
-    max_num_moves_backup_ = max_num_moves_;
-    max_num_moves_ = std::min(max_num_moves_, MoveCount() + yozume_count);
-  }
-
-  void EndYozumeSearch() { max_num_moves_ = max_num_moves_backup_; }
+  /// 探索局面数上限を move_limit 以下にする。PushLimit() は探索中に再帰的に複数回呼ぶことができる。
+  void PushLimit(std::uint64_t move_limit);
+  /// Pop されていない最も直近の PushLimit コールを巻き戻し、探索上限を復元する
+  void PopLimit();
 
  private:
   std::chrono::system_clock::time_point start_time_;
   Depth depth_;
-  std::uint64_t max_num_moves_;
-  std::uint64_t max_num_moves_backup_;
+  std::uint64_t move_limit_;
+  std::stack<std::uint64_t> limit_stack_;
   Thread* thread_;
 };
 }  // namespace detail
@@ -119,7 +126,7 @@ class KomoringHeights {
   std::uint64_t next_gc_count_{0};
 
   std::atomic_bool print_flag_{false};
-  detail::SearchProgress progress_{};
+  detail::SearchMonitor monitor_{};
   Score score_{};
 
   /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
