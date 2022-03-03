@@ -37,4 +37,10 @@ std::string UsiInfo::ToString() const {
 std::ostream& operator<<(std::ostream& os, const UsiInfo& usi_output) {
   return os << usi_output.ToString();
 }
+
+UsiInfo operator|(const UsiInfo& lhs, const UsiInfo& rhs) {
+  UsiInfo result = lhs;
+  result |= rhs;
+  return result;
+}
 }  // namespace komori

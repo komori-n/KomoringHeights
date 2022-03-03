@@ -32,7 +32,7 @@ class SearchProgress {
   void NewSearch(std::uint64_t max_num_moves, Thread* thread);
   void Visit(Depth depth) { depth_ = std::max(depth_, depth); }
 
-  void WriteTo(UsiInfo& output) const;
+  UsiInfo GetInfo() const;
   std::uint64_t MoveCount() const { return thread_->nodes; }
   bool IsStop() const { return MoveCount() >= max_num_moves_; }
 

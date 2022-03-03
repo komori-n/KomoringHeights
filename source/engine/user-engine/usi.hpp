@@ -74,6 +74,13 @@ class Score {
  */
 class UsiInfo {
  public:
+  UsiInfo() = default;
+  UsiInfo(const UsiInfo&) = default;
+  UsiInfo(UsiInfo&&) noexcept = default;
+  UsiInfo& operator=(const UsiInfo&) = default;
+  UsiInfo& operator=(UsiInfo&&) noexcept = default;
+  ~UsiInfo() = default;
+
   enum class KeyKind {
     kDepth,
     kSelDepth,
@@ -112,6 +119,21 @@ class UsiInfo {
     return *this;
   }
 
+  /// 探索情報をマージする。同じ key に対し両方に value がある場合は、左辺値の値を採用する。
+  UsiInfo& operator|=(const UsiInfo& rhs) {
+    for (const auto& [key, value] : rhs.options_) {
+      if (options_.find(key) == options_.end()) {
+        options_[key] = value;
+      }
+    }
+    if (pv_ == std::nullopt && string_ == std::nullopt) {
+      pv_ = std::move(rhs.pv_);
+      string_ = std::move(rhs.string_);
+    }
+
+    return *this;
+  }
+
  private:
   std::unordered_map<KeyKind, std::string> options_;
 
@@ -121,5 +143,6 @@ class UsiInfo {
 };
 
 std::ostream& operator<<(std::ostream& os, const UsiInfo& usi_output);
+UsiInfo operator|(const UsiInfo& lhs, const UsiInfo& rhs);
 }  // namespace komori
 #endif  // USI_HPP_

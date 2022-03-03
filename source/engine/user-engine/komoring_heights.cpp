@@ -204,17 +204,20 @@ void SearchProgress::NewSearch(std::uint64_t max_num_moves, Thread* thread) {
   max_num_moves_ = max_num_moves;
 }
 
-void SearchProgress::WriteTo(UsiInfo& output) const {
+UsiInfo SearchProgress::GetInfo() const {
   auto curr_time = std::chrono::system_clock::now();
   auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
   time_ms = std::max(time_ms, decltype(time_ms){1});
   auto move_count = MoveCount();
   auto nps = move_count * 1000ULL / time_ms;
 
+  UsiInfo output;
   output.Set(UsiInfo::KeyKind::kSelDepth, depth_)
       .Set(UsiInfo::KeyKind::kTime, time_ms)
       .Set(UsiInfo::KeyKind::kNodes, move_count)
       .Set(UsiInfo::KeyKind::kNps, nps);
+
+  return output;
 }
 }  // namespace detail
 
@@ -644,8 +647,7 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
 }
 
 UsiInfo KomoringHeights::Info() const {
-  UsiInfo usi_output{};
-  progress_.WriteTo(usi_output);
+  UsiInfo usi_output = progress_.GetInfo();
   usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
 
   return usi_output;
