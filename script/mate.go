@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -99,69 +97,57 @@ func (ep *EngineProcess) Ready() error {
 	return fmt.Errorf("got no \"readyok\"")
 }
 
-func (ep *EngineProcess) solveImpl(sfen string) (int, error) {
+func (ep *EngineProcess) solveImpl(sfen string) error {
 	fmt.Fprintf(ep.stdin, "sfen %s\n", sfen)
 	fmt.Fprintln(ep.stdin, "go mate infinite")
-
-	r := regexp.MustCompile(`.*num_searched=(\d+).*`)
-	num_searched := 0
 
 	for ep.scanner.Scan() {
 		text := ep.scanner.Text()
 		switch {
-		case r.MatchString(text):
-			num, err := strconv.Atoi(r.FindStringSubmatch(text)[1])
-			if err == nil {
-				num_searched = num
-			}
 		case strings.Contains(text, "nomate"):
-			return num_searched, fmt.Errorf("got nomate")
+			return fmt.Errorf("got nomate")
+		case strings.Contains(text, "Failed to detect PV"):
+			return fmt.Errorf("Failed to detect PV")
 		case strings.Contains(text, "checkmate "):
 			if text == "checkmate " {
-				return num_searched, fmt.Errorf("got checkout without mate moves")
+				return fmt.Errorf("got checkout without mate moves")
 			} else if text == "checkmate timeout" {
-				return num_searched, fmt.Errorf("timeout")
+				return fmt.Errorf("timeout")
 			} else {
-				return num_searched, nil
+				return nil
 			}
 		}
 	}
 	err := ep.scanner.Err()
 	if err != nil {
-		return num_searched, err
+		return err
 	}
 
-	return 0, fmt.Errorf("unexpected EOF")
+	return fmt.Errorf("unexpected EOF")
 }
 
-func (ep *EngineProcess) Solve(sfen string, time_limit_ms int) (int, error) {
+func (ep *EngineProcess) Solve(sfen string, time_limit_ms int) error {
 	if time_limit_ms == 0 {
 		return ep.solveImpl(sfen)
 	}
 
 	timer := time.NewTimer(time.Duration(time_limit_ms) * time.Millisecond)
-	result := make(chan struct {
-		int
-		error
-	})
+	result := make(chan error)
 	go func() {
-		val, err := ep.solveImpl(sfen)
-		result <- struct {
-			int
-			error
-		}{val, err}
+		err := ep.solveImpl(sfen)
+		result <- err
 	}()
 
 	select {
 	case <-timer.C:
 		fmt.Fprintln(ep.stdin, "stop")
 		<-result
-		return 0, fmt.Errorf("time limit exceeded")
+		return fmt.Errorf("time limit exceeded")
 	case res := <-result:
 		if !timer.Stop() {
 			<-timer.C
 		}
-		return res.int, res.error
+		return res
 	}
 }
 
@@ -192,7 +178,7 @@ func solve(
 	solved := 0
 	for sfen := range sfen_input {
 		total += 1
-		_, err := process.Solve(sfen, op.TimeLimit)
+		err := process.Solve(sfen, op.TimeLimit)
 		if err != nil {
 			output_ch <- fmt.Sprintf("%v: sfen %v", err, sfen)
 		} else {
