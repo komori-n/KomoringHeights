@@ -21,10 +21,6 @@ namespace komori {
 namespace {
 constexpr std::int64_t kGcInterval = 100'000'000;
 
-/// TT の使用率が kGcHashfullThreshold を超えたら kGcHashfullRemoveRatio だけ削除する
-constexpr int kGcHashfullThreshold = 700;
-constexpr int kGcHashfullRemoveRatio = 200;
-
 constexpr MateLen kRepetitionLen{kMaxNumMateMoves + 1, 0};
 constexpr std::size_t kSplittedPrintLen = 12;
 
@@ -244,6 +240,13 @@ void KomoringHeights::Init(EngineOption option, Thread* thread) {
   monitor_.Init(thread);
 }
 
+UsiInfo KomoringHeights::CurrentInfo() const {
+  UsiInfo usi_output = monitor_.GetInfo();
+  usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
+
+  return usi_output;
+}
+
 NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
@@ -308,6 +311,99 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
 
   monitor_.PopLimit();
   return result.GetNodeState();
+}
+
+void KomoringHeights::ShowValues(Position& n, bool is_root_or_node, const std::vector<Move>& moves) {
+  auto depth_max = static_cast<Depth>(moves.size());
+  Key path_key = 0;
+  Node node{n, is_root_or_node};
+  for (Depth depth = 0; depth < depth_max; ++depth) {
+    path_key = PathKeyAfter(path_key, moves[depth], depth);
+    node.DoMove(moves[depth]);
+  }
+
+  for (auto&& move : MovePicker{node}) {
+    auto query = tt_.GetChildQuery(node, move.move);
+    auto entry = query.LookUpWithoutCreation();
+    sync_cout << move.move << " " << *entry << sync_endl;
+  }
+
+  static_assert(std::is_signed_v<Depth>);
+  for (Depth depth = depth_max - 1; depth >= 0; --depth) {
+    node.UndoMove(moves[depth]);
+  }
+}
+
+void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
+  Node node{n, is_root_or_node};
+  std::vector<Move> moves;
+
+  for (;;) {
+    auto children = ExpandChildren(tt_, node);
+    std::sort(children.begin(), children.end(), [&](const auto& lhs, const auto& rhs) {
+      bool or_node = node.IsOrNode();
+      if (lhs.second.Phi(or_node) != rhs.second.Phi(or_node)) {
+        return lhs.second.Phi(or_node) < rhs.second.Phi(or_node);
+      }
+
+      if (lhs.second.Phi(or_node) == 0 && rhs.second.Phi(or_node) == 0) {
+        return lhs.second.FrontMateLen() < rhs.second.FrontMateLen();
+      }
+
+      if (lhs.second.Delta(or_node) != rhs.second.Delta(or_node)) {
+        return lhs.second.Delta(or_node) > rhs.second.Delta(or_node);
+      }
+
+      if (lhs.second.Delta(or_node) == 0 && rhs.second.Delta(or_node) == 0) {
+        return lhs.second.FrontMateLen() > rhs.second.FrontMateLen();
+      }
+
+      return false;
+    });
+
+    std::ostringstream oss;
+    oss << "[" << node.GetDepth() << "] ";
+    for (const auto& child : children) {
+      if (child.second.Pn() == 0) {
+        oss << child.first << "(+" << child.second.FrontMateLen() << ") ";
+      } else if (child.second.Dn() == 0) {
+        oss << child.first << "(-" << child.second.FrontMateLen() << ") ";
+      } else {
+        oss << child.first << "(" << ToString(child.second.Pn()) << "/" << ToString(child.second.Dn()) << ") ";
+      }
+    }
+    sync_cout << oss.str() << sync_endl;
+
+    if (children.empty() || (children[0].second.Pn() == 1 && children[0].second.Dn() == 1)) {
+      break;
+    }
+    auto best_move = children[0].first;
+    node.DoMove(best_move);
+    moves.emplace_back(best_move);
+    if (node.IsRepetition()) {
+      break;
+    }
+  }
+
+  // 高速 1 手詰めルーチンで解ける局面は置換表に登録されていない可能性がある
+  if (node.IsOrNode()) {
+    if (Move move = Mate::mate_1ply(node.Pos()); move != MOVE_NONE) {
+      node.DoMove(move);
+      moves.emplace_back(move);
+    }
+  }
+
+  sync_cout << sync_endl;
+  std::ostringstream oss;
+  for (const auto& move : moves) {
+    oss << move << " ";
+  }
+  sync_cout << "pv: " << oss.str() << sync_endl;
+
+  sync_cout << node.Pos() << sync_endl;
+  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
+    node.UndoMove(*itr);
+  }
 }
 
 MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
@@ -461,6 +557,130 @@ PV_END:
   return pv_move_len.GetMateLen();
 }
 
+SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
+  ChildrenCache cache{tt_, n, true};
+  auto move_count_org = monitor_.MoveCount();
+  auto result = SearchImpl(n, thpn, thdn, cache, false);
+
+  auto query = tt_.GetQuery(n);
+  query.SetResult(result);
+
+  return result;
+}
+
+SearchResult KomoringHeights::PostSearchEntry(Node& n, Move move) {
+  auto query = tt_.GetChildQuery(n, move);
+  auto entry = query.LookUpWithoutCreation();
+  if (entry->IsFinal()) {
+    return entry->Simplify(n.OrHandAfter(move));
+  } else {
+    n.DoMove(move);
+    auto move_limit = monitor_.MoveCount() + option_.post_search_count;
+    monitor_.PushLimit(move_limit);
+    auto result = SearchEntry(n);
+    monitor_.PopLimit();
+    n.UndoMove(move);
+
+    return result;
+  }
+}
+
+SearchResult KomoringHeights::UselessDropSearchEntry(Node& n, Move move) {
+  // YozumeSearchEntry とは異なり駒のやり取りがあるので、DoMove を省略することはできない
+  n.DoMove(move);
+  n.StealCapturedPiece();
+
+  auto query = tt_.GetQuery(n);
+  auto entry = query.LookUpWithoutCreation();
+  SearchResult result;
+  if (entry->IsFinal()) {
+    result = entry->Simplify(n.OrHandAfter(move));
+  } else {
+    auto move_limit = monitor_.MoveCount() + option_.post_search_count;
+    monitor_.PushLimit(move_limit);
+    result = SearchEntry(n);
+    monitor_.PopLimit();
+  }
+
+  n.UnstealCapturedPiece();
+  n.UndoMove(move);
+
+  return result;
+}
+
+SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag) {
+  monitor_.Visit(n.GetDepth());
+  PrintIfNeeded(n);
+
+  // 深さ制限。これ以上探索を続けても詰みが見つかる見込みがないのでここで early return する。
+  if (n.IsExceedLimit(option_.depth_limit)) {
+    return SearchResult{RepetitionData{}};
+  }
+
+  // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
+  auto curr_result = cache.CurrentResult(n);
+  // Threshold Controlling Algorithm(TCA).
+  // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
+  inc_flag = inc_flag || cache.DoesHaveOldChild();
+  if (inc_flag && !curr_result.IsFinal()) {
+    if (curr_result.Pn() < kInfinitePnDn) {
+      thpn = Clamp(thpn, curr_result.Pn() + 1);
+    }
+
+    if (curr_result.Dn() < kInfinitePnDn) {
+      thdn = Clamp(thdn, curr_result.Dn() + 1);
+    }
+  }
+
+  if (monitor_.MoveCount() >= next_gc_count_) {
+    tt_.CollectGarbage();
+    next_gc_count_ = monitor_.MoveCount() + kGcInterval;
+  }
+
+  while (!monitor_.ShouldStop() && !curr_result.Exceeds(thpn, thdn)) {
+    // cache.BestMove() にしたがい子局面を展開する
+    // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
+    auto best_move = cache.BestMove();
+    bool is_first_search = cache.BestMoveIsFirstVisit();
+    auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
+
+    n.DoMove(best_move);
+
+    // ChildrenCache をローカル変数として持つとスタックが枯渇する。v0.4.1時点では
+    //     sizeof(ChildrenCache) == 10832
+    // なので、ミクロコスモスを解く場合、スタック領域が 16.5 MB 必要になる。スマホや低スペックPCでも動作するように
+    // したいので、ChildrenCache は動的メモリにより確保する。
+    //
+    // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
+    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search);
+
+    SearchResult child_result;
+    if (is_first_search) {
+      child_result = child_cache.CurrentResult(n);
+      // 新規局面を展開したので、TCA による探索延長をこれ以上続ける必要はない
+      inc_flag = false;
+
+      // 子局面を初展開する場合、child_result を計算した時点で threshold を超過する可能性がある
+      // しかし、SearchImpl をコールしてしまうと TCA の探索延長によりすぐに返ってこない可能性がある
+      // ゆえに、この時点で Exceed している場合は SearchImpl を呼ばないようにする。
+      if (child_result.Exceeds(child_thpn, child_thdn)) {
+        goto CHILD_SEARCH_END;
+      }
+    }
+    child_result = SearchImpl(n, child_thpn, child_thdn, child_cache, inc_flag);
+
+  CHILD_SEARCH_END:
+    // 動的に確保した ChildrenCache の領域を忘れずに開放する
+    children_cache_.pop();
+    n.UndoMove(best_move);
+
+    cache.UpdateBestChild(child_result);
+    curr_result = cache.CurrentResult(n);
+  }
+
+  return curr_result;
+}
+
 std::vector<Move> KomoringHeights::TraceBestMove(Node& n) {
   std::vector<Move> moves;
 
@@ -564,230 +784,6 @@ void KomoringHeights::PrintYozume(Node& n, const std::vector<Move>& pv) {
   }
 
   RollBack(n, pv);
-}
-
-void KomoringHeights::ShowValues(Position& n, bool is_root_or_node, const std::vector<Move>& moves) {
-  auto depth_max = static_cast<Depth>(moves.size());
-  Key path_key = 0;
-  Node node{n, is_root_or_node};
-  for (Depth depth = 0; depth < depth_max; ++depth) {
-    path_key = PathKeyAfter(path_key, moves[depth], depth);
-    node.DoMove(moves[depth]);
-  }
-
-  for (auto&& move : MovePicker{node}) {
-    auto query = tt_.GetChildQuery(node, move.move);
-    auto entry = query.LookUpWithoutCreation();
-    sync_cout << move.move << " " << *entry << sync_endl;
-  }
-
-  static_assert(std::is_signed_v<Depth>);
-  for (Depth depth = depth_max - 1; depth >= 0; --depth) {
-    node.UndoMove(moves[depth]);
-  }
-}
-
-void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
-  Node node{n, is_root_or_node};
-  std::vector<Move> moves;
-
-  for (;;) {
-    auto children = ExpandChildren(tt_, node);
-    std::sort(children.begin(), children.end(), [&](const auto& lhs, const auto& rhs) {
-      bool or_node = node.IsOrNode();
-      if (lhs.second.Phi(or_node) != rhs.second.Phi(or_node)) {
-        return lhs.second.Phi(or_node) < rhs.second.Phi(or_node);
-      }
-
-      if (lhs.second.Phi(or_node) == 0 && rhs.second.Phi(or_node) == 0) {
-        return lhs.second.FrontMateLen() < rhs.second.FrontMateLen();
-      }
-
-      if (lhs.second.Delta(or_node) != rhs.second.Delta(or_node)) {
-        return lhs.second.Delta(or_node) > rhs.second.Delta(or_node);
-      }
-
-      if (lhs.second.Delta(or_node) == 0 && rhs.second.Delta(or_node) == 0) {
-        return lhs.second.FrontMateLen() > rhs.second.FrontMateLen();
-      }
-
-      return false;
-    });
-
-    std::ostringstream oss;
-    oss << "[" << node.GetDepth() << "] ";
-    for (const auto& child : children) {
-      if (child.second.Pn() == 0) {
-        oss << child.first << "(+" << child.second.FrontMateLen() << ") ";
-      } else if (child.second.Dn() == 0) {
-        oss << child.first << "(-" << child.second.FrontMateLen() << ") ";
-      } else {
-        oss << child.first << "(" << ToString(child.second.Pn()) << "/" << ToString(child.second.Dn()) << ") ";
-      }
-    }
-    sync_cout << oss.str() << sync_endl;
-
-    if (children.empty() || (children[0].second.Pn() == 1 && children[0].second.Dn() == 1)) {
-      break;
-    }
-    auto best_move = children[0].first;
-    node.DoMove(best_move);
-    moves.emplace_back(best_move);
-    if (node.IsRepetition()) {
-      break;
-    }
-  }
-
-  // 高速 1 手詰めルーチンで解ける局面は置換表に登録されていない可能性がある
-  if (node.IsOrNode()) {
-    if (Move move = Mate::mate_1ply(node.Pos()); move != MOVE_NONE) {
-      node.DoMove(move);
-      moves.emplace_back(move);
-    }
-  }
-
-  sync_cout << sync_endl;
-  std::ostringstream oss;
-  for (const auto& move : moves) {
-    oss << move << " ";
-  }
-  sync_cout << "pv: " << oss.str() << sync_endl;
-
-  sync_cout << node.Pos() << sync_endl;
-  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
-    node.UndoMove(*itr);
-  }
-}
-
-UsiInfo KomoringHeights::CurrentInfo() const {
-  UsiInfo usi_output = monitor_.GetInfo();
-  usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
-
-  return usi_output;
-}
-
-SearchResult KomoringHeights::PostSearchEntry(Node& n, Move move) {
-  auto query = tt_.GetChildQuery(n, move);
-  auto entry = query.LookUpWithoutCreation();
-  if (entry->IsFinal()) {
-    return entry->Simplify(n.OrHandAfter(move));
-  } else {
-    n.DoMove(move);
-    auto move_limit = monitor_.MoveCount() + option_.post_search_count;
-    monitor_.PushLimit(move_limit);
-    auto result = SearchEntry(n);
-    monitor_.PopLimit();
-    n.UndoMove(move);
-
-    return result;
-  }
-}
-
-SearchResult KomoringHeights::UselessDropSearchEntry(Node& n, Move move) {
-  // YozumeSearchEntry とは異なり駒のやり取りがあるので、DoMove を省略することはできない
-  n.DoMove(move);
-  n.StealCapturedPiece();
-
-  auto query = tt_.GetQuery(n);
-  auto entry = query.LookUpWithoutCreation();
-  SearchResult result;
-  if (entry->IsFinal()) {
-    result = entry->Simplify(n.OrHandAfter(move));
-  } else {
-    auto move_limit = monitor_.MoveCount() + option_.post_search_count;
-    monitor_.PushLimit(move_limit);
-    result = SearchEntry(n);
-    monitor_.PopLimit();
-  }
-
-  n.UnstealCapturedPiece();
-  n.UndoMove(move);
-
-  return result;
-}
-
-SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
-  ChildrenCache cache{tt_, n, true};
-  auto move_count_org = monitor_.MoveCount();
-  auto result = SearchImpl(n, thpn, thdn, cache, false);
-
-  auto query = tt_.GetQuery(n);
-  query.SetResult(result);
-
-  return result;
-}
-
-SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag) {
-  monitor_.Visit(n.GetDepth());
-  PrintIfNeeded(n);
-
-  // 深さ制限。これ以上探索を続けても詰みが見つかる見込みがないのでここで early return する。
-  if (n.IsExceedLimit(option_.depth_limit)) {
-    return SearchResult{RepetitionData{}};
-  }
-
-  // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
-  auto curr_result = cache.CurrentResult(n);
-  // Threshold Controlling Algorithm(TCA).
-  // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
-  inc_flag = inc_flag || cache.DoesHaveOldChild();
-  if (inc_flag && !curr_result.IsFinal()) {
-    if (curr_result.Pn() < kInfinitePnDn) {
-      thpn = Clamp(thpn, curr_result.Pn() + 1);
-    }
-
-    if (curr_result.Dn() < kInfinitePnDn) {
-      thdn = Clamp(thdn, curr_result.Dn() + 1);
-    }
-  }
-
-  if (monitor_.MoveCount() >= next_gc_count_) {
-    tt_.CollectGarbage();
-    next_gc_count_ = monitor_.MoveCount() + kGcInterval;
-  }
-
-  while (!monitor_.ShouldStop() && !curr_result.Exceeds(thpn, thdn)) {
-    // cache.BestMove() にしたがい子局面を展開する
-    // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
-    auto best_move = cache.BestMove();
-    bool is_first_search = cache.BestMoveIsFirstVisit();
-    auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
-
-    n.DoMove(best_move);
-
-    // ChildrenCache をローカル変数として持つとスタックが枯渇する。v0.4.1時点では
-    //     sizeof(ChildrenCache) == 10832
-    // なので、ミクロコスモスを解く場合、スタック領域が 16.5 MB 必要になる。スマホや低スペックPCでも動作するように
-    // したいので、ChildrenCache は動的メモリにより確保する。
-    //
-    // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
-    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search);
-
-    SearchResult child_result;
-    if (is_first_search) {
-      child_result = child_cache.CurrentResult(n);
-      // 新規局面を展開したので、TCA による探索延長をこれ以上続ける必要はない
-      inc_flag = false;
-
-      // 子局面を初展開する場合、child_result を計算した時点で threshold を超過する可能性がある
-      // しかし、SearchImpl をコールしてしまうと TCA の探索延長によりすぐに返ってこない可能性がある
-      // ゆえに、この時点で Exceed している場合は SearchImpl を呼ばないようにする。
-      if (child_result.Exceeds(child_thpn, child_thdn)) {
-        goto CHILD_SEARCH_END;
-      }
-    }
-    child_result = SearchImpl(n, child_thpn, child_thdn, child_cache, inc_flag);
-
-  CHILD_SEARCH_END:
-    // 動的に確保した ChildrenCache の領域を忘れずに開放する
-    children_cache_.pop();
-    n.UndoMove(best_move);
-
-    cache.UpdateBestChild(child_result);
-    curr_result = cache.CurrentResult(n);
-  }
-
-  return curr_result;
 }
 
 void KomoringHeights::PrintIfNeeded(const Node& n) {

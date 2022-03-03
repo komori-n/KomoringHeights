@@ -75,48 +75,48 @@ class KomoringHeights {
 
   /// 内部変数（tt 含む）を初期化する
   void Init(EngineOption option, Thread* thread);
+
   /// 詰将棋探索をやめさせる
   void SetStop() { monitor_.SetStop(true); }
   /// stopフラグをクリアする
   void ResetStop() { monitor_.SetStop(false); }
-
   /// 探索情報のPrintを指示する。Printが完了したらフラグはfalseになる
   void RequestPrint() { print_flag_ = true; }
+  /// 見つけた詰み手順を返す
+  const auto& BestMoves() const { return best_moves_; }
+  /// 現在の探索情報（npsやhashfullなど）を返す。hashfull の計算があるので過度に頻繁に呼び出さないこと
+  UsiInfo CurrentInfo() const;
 
   /// df-pn 探索本体。局面 n が詰むかを調べる
   NodeState Search(Position& n, bool is_root_or_node);
-  /// 見つけた詰み手順を返す
-  const auto& BestMoves() const { return best_moves_; }
 
+  // <Debug用>
   void ShowValues(Position& n, bool is_root_or_node, const std::vector<Move>& moves);
   void ShowPv(Position& n, bool is_root_or_node);
-
-  UsiInfo CurrentInfo() const;
+  // </Debug用>
 
  private:
-  SearchResult PostSearchEntry(Node& n, Move move);
-  SearchResult UselessDropSearchEntry(Node& n, Move move);
+  /// 余詰め探索。n が alpha 手以上 beta 手以下で詰むかどうかを調べる
+  MateLen PostSearch(Node& n, MateLen alpha, MateLen beta);
+
+  // <探索エントリポイント>
+  // SearchImpl （再帰関数）の前処理・後処理を担う関数たち。
+  // 探索局面数上限や局面を微調整したいので、エントリポイントが複数存在する。
+
+  /// 通常探索のエントリポイント。n が詰むかどうかを調べる
   SearchResult SearchEntry(Node& n, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
-  /**
-   * @brief
-   *
-   * @param n         現局面
-   * @param thpn      pn のしきい値
-   * @param thdn      dn のしきい値
-   * @param cache     n の子局面の LookUp 結果のキャッシュ
-   * @param inc_flag  探索延長フラグ。true なら thpn/thdn を 1 回だけ無視して子局面を展開する
-   * @return SearchResult  n の探索結果。この時点では tt_ にはに登録されていないので、
-   *                            必要なら呼び出し側が登録する必要がある
-   */
+  /// 余詰め探索のエントリポイント。n.DoMove(move) した局面が詰むかどうかを調べる
+  SearchResult PostSearchEntry(Node& n, Move move);
+  /// 無駄合い探索のエントリポイント。n.DoMove(move) し、取った駒を相手にプレゼントした局面が詰むかどうかを調べる
+  SearchResult UselessDropSearchEntry(Node& n, Move move);
+  // </探索エントリポイント>
+
+  /// 探索本体
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag);
 
-  MateLen PostSearch(Node& n, MateLen alpha, MateLen beta);
   std::vector<Move> TraceBestMove(Node& n);
+
   void PrintYozume(Node& n, const std::vector<Move>& pv);
-
-  /// CommonEntry に保存された best_move を元に最善応手列（PV）を復元する
-  std::vector<Move> GetPv(Node& n);
-
   /// print_flag_ が立っていたら出力してフラグを消す。立っていなかったら何もしない。
   void PrintIfNeeded(const Node& n);
 
