@@ -263,23 +263,24 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // thpn/thdn で反復深化探索を行う
   PnDn thpn = 1;
   PnDn thdn = 1;
-  SearchResult result = SearchEntry(node, thpn, thdn);
-  while (!monitor_.ShouldStop()) {
+
+  SearchResult result;
+  // 既に stop すべき状態でも 1 回は探索を行う（resultに値を入れるため）
+  do {
+    result = SearchEntry(node, thpn, thdn);
     if (result.IsFinal() || result.Pn() >= kInfinitePnDn || result.Dn() >= kInfinitePnDn) {
       // 探索が評価値が確定したら break　する
       // is_final だけではなく pn/dn の値を見ているのはオーバーフロー対策のため。
       // pn/dn が kInfinitePnDn を上回たら諦める
       break;
     }
+
     // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
     score_ = MakeScore(result, is_root_or_node);
+  } while (!monitor_.ShouldStop());
 
-    result = SearchEntry(node, thpn, thdn);
-  }
-
-  score_ = MakeScore(result, is_root_or_node);
   auto info = CurrentInfo();
   info.Set(UsiInfo::KeyKind::kString, ToString(result));
   sync_cout << info << sync_endl;
@@ -289,19 +290,18 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
       // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
       auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
       sync_cout << "info string mate_len=" << mate_len << sync_endl;
-      score_ = Score::Proven(mate_len.len, is_root_or_node);
 
       best_moves_ = pv_tree_.Pv(node);
-      if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
-        sync_cout << "info string Failed to detect PV" << sync_endl;
-      }
-
       PrintYozume(node, best_moves_);
     } else {
       // PostSearch() 関数は処理が重い。1通り PV を得るだけなら置換表から best move を取ってくるだけで良い
       auto best_moves = TraceBestMove(node);
-      score_ = Score::Proven(static_cast<Depth>(best_moves.size()), is_root_or_node);
       best_moves_ = std::move(best_moves);
+    }
+
+    score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
+    if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
+      sync_cout << "info string Failed to detect PV" << sync_endl;
     }
   } else {
     if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
