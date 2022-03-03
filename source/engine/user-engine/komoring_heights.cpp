@@ -203,6 +203,7 @@ void SearchMonitor::NewSearch() {
 
   move_limit_ = std::numeric_limits<std::uint64_t>::max();
   limit_stack_ = {};
+  ResetNextGc();
 }
 
 UsiInfo SearchMonitor::GetInfo() const {
@@ -219,6 +220,10 @@ UsiInfo SearchMonitor::GetInfo() const {
       .Set(UsiInfo::KeyKind::kNps, nps);
 
   return output;
+}
+
+void SearchMonitor::ResetNextGc() {
+  next_gc_count_ = MoveCount() + kGcInterval;
 }
 
 void SearchMonitor::PushLimit(std::uint64_t move_limit) {
@@ -253,7 +258,6 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   monitor_.NewSearch();
   monitor_.PushLimit(option_.nodes_limit);
   pv_tree_.Clear();
-  next_gc_count_ = kGcInterval;
   best_moves_.clear();
   // </初期化>
 
@@ -632,9 +636,9 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     }
   }
 
-  if (monitor_.MoveCount() >= next_gc_count_) {
+  if (monitor_.ShouldGc()) {
     tt_.CollectGarbage();
-    next_gc_count_ = monitor_.MoveCount() + kGcInterval;
+    monitor_.ResetNextGc();
   }
 
   while (!monitor_.ShouldStop() && !curr_result.Exceeds(thpn, thdn)) {

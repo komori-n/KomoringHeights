@@ -45,6 +45,9 @@ class SearchMonitor {
   std::uint64_t MoveCount() const { return thread_->nodes; }
   bool ShouldStop() const { return MoveCount() >= move_limit_ || stop_; }
 
+  bool ShouldGc() const { return MoveCount() >= next_gc_count_; }
+  void ResetNextGc();
+
   /// 探索局面数上限を move_limit 以下にする。PushLimit() は探索中に再帰的に複数回呼ぶことができる。
   void PushLimit(std::uint64_t move_limit);
   /// Pop されていない最も直近の PushLimit コールを巻き戻し、探索上限を復元する
@@ -59,6 +62,7 @@ class SearchMonitor {
   Depth depth_;
   std::uint64_t move_limit_;
   std::stack<std::uint64_t> limit_stack_;
+  std::uint64_t next_gc_count_;
   Thread* thread_;
 };
 }  // namespace detail
@@ -125,7 +129,6 @@ class KomoringHeights {
 
   detail::SearchMonitor monitor_{};
   Score score_{};
-  std::uint64_t next_gc_count_{0};
   std::atomic_bool print_flag_{false};
 
   /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
