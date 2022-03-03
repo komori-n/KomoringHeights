@@ -261,7 +261,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   }
 
   score_ = MakeScore(result, is_root_or_node);
-  auto info = Info();
+  auto info = CurrentInfo();
   info.Set(UsiInfo::KeyKind::kString, ToString(result));
   sync_cout << info << sync_endl;
 
@@ -520,7 +520,7 @@ void KomoringHeights::PrintYozume(Node& n, const std::vector<Move>& pv) {
       }
 
       if (should_print && option_.yozume_print_level >= YozumeVerboseLevel::kAll) {
-        auto info = Info();
+        auto info = CurrentInfo();
         info.Set(UsiInfo::KeyKind::kDepth, n.GetDepth() + 1);
         info.Set(UsiInfo::KeyKind::kString, oss.str());
         sync_cout << info << sync_endl;
@@ -532,21 +532,21 @@ void KomoringHeights::PrintYozume(Node& n, const std::vector<Move>& pv) {
 
   if (option_.yozume_print_level >= YozumeVerboseLevel::kOnlyYozume) {
     if (yozume.empty()) {
-      auto info = Info();
+      auto info = CurrentInfo();
       info.Set(UsiInfo::KeyKind::kString, "no yozume found");
       sync_cout << info << sync_endl;
     } else {
-      SplittedPrint(Info(), "yozume:", yozume);
+      SplittedPrint(CurrentInfo(), "yozume:", yozume);
     }
   }
 
   if (option_.yozume_print_level >= YozumeVerboseLevel::kYozumeAndUnknown) {
     if (unknown.empty()) {
-      auto info = Info();
+      auto info = CurrentInfo();
       info.Set(UsiInfo::KeyKind::kString, "no unknown branch");
       sync_cout << info << sync_endl;
     } else {
-      SplittedPrint(Info(), "unknown:", unknown);
+      SplittedPrint(CurrentInfo(), "unknown:", unknown);
     }
   }
 
@@ -646,7 +646,7 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
   }
 }
 
-UsiInfo KomoringHeights::Info() const {
+UsiInfo KomoringHeights::CurrentInfo() const {
   UsiInfo usi_output = progress_.GetInfo();
   usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
 
@@ -780,7 +780,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
 }
 
 void KomoringHeights::PrintProgress(const Node& n) const {
-  auto usi_output = Info();
+  auto usi_output = CurrentInfo();
 
   usi_output.Set(UsiInfo::KeyKind::kDepth, n.GetDepth());
 #if defined(KEEP_LAST_MOVE)

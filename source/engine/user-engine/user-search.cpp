@@ -54,7 +54,7 @@ void PrintResult(bool is_mate_search, LoseKind kind, const std::string& pv_moves
         sync_cout << "checkmate " << pv_moves << sync_endl;
     }
   } else {
-    auto usi_output = g_searcher.Info();
+    auto usi_output = g_searcher.CurrentInfo();
     usi_output.Set(komori::UsiInfo::KeyKind::kDepth, 0).Set(komori::UsiInfo::KeyKind::kPv, pv_moves);
     sync_cout << usi_output << sync_endl;
   }

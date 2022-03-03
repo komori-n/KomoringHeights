@@ -80,7 +80,7 @@ class KomoringHeights {
   void ShowValues(Position& n, bool is_root_or_node, const std::vector<Move>& moves);
   void ShowPv(Position& n, bool is_root_or_node);
 
-  UsiInfo Info() const;
+  UsiInfo CurrentInfo() const;
 
  private:
   SearchResult PostSearchEntry(Node& n, Move move);
