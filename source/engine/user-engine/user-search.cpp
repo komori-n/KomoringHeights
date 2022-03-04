@@ -106,7 +106,7 @@ void WaitSearchEnd(const std::atomic_bool& search_end) {
     }
 
     if (pv_interval && timer.elapsed() > last_pv_out + pv_interval) {
-      g_searcher.SetPrintFlag();
+      g_searcher.RequestPrint();
       last_pv_out = timer.elapsed();
     }
   }

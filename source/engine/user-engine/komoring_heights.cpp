@@ -238,8 +238,6 @@ void SearchMonitor::PopLimit() {
 }
 }  // namespace detail
 
-KomoringHeights::KomoringHeights() {}
-
 void KomoringHeights::Init(EngineOption option, Thread* thread) {
   option_ = option;
   tt_.Resize(option_.hash_mb);
@@ -263,7 +261,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   PnDn thpn = 1;
   PnDn thdn = 1;
   SearchResult result = SearchEntry(node, thpn, thdn);
-  while (!IsSearchStop()) {
+  while (!monitor_.ShouldStop()) {
     if (result.IsFinal() || result.Pn() >= kInfinitePnDn || result.Dn() >= kInfinitePnDn) {
       // 探索が評価値が確定したら break　する
       // is_final だけではなく pn/dn の値を見ているのはオーバーフロー対策のため。
@@ -321,10 +319,7 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
     return pv_move_len.GetMateLen();
   }
 
-  if (print_flag_) {
-    PrintProgress(n);
-    print_flag_ = false;
-  }
+  PrintIfNeeded(n);
 
   // 1手詰チェック
   if (n.IsOrNode() && !n.Pos().in_check()) {
@@ -385,7 +380,7 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
     });
 
     for (const auto& move : mp) {
-      if (IsSearchStop() || pv_move_len.IsEnd()) {
+      if (monitor_.ShouldStop() || pv_move_len.IsEnd()) {
         break;
       }
 
@@ -724,11 +719,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
 
 SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, ChildrenCache& cache, bool inc_flag) {
   monitor_.Visit(n.GetDepth());
-
-  if (print_flag_) {
-    PrintProgress(n);
-    print_flag_ = false;
-  }
+  PrintIfNeeded(n);
 
   // 深さ制限。これ以上探索を続けても詰みが見つかる見込みがないのでここで early return する。
   if (n.IsExceedLimit(option_.depth_limit)) {
@@ -755,7 +746,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     next_gc_count_ = monitor_.MoveCount() + kGcInterval;
   }
 
-  while (!IsSearchStop() && !curr_result.Exceeds(thpn, thdn)) {
+  while (!monitor_.ShouldStop() && !curr_result.Exceeds(thpn, thdn)) {
     // cache.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     auto best_move = cache.BestMove();
@@ -799,7 +790,12 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   return curr_result;
 }
 
-void KomoringHeights::PrintProgress(const Node& n) const {
+void KomoringHeights::PrintIfNeeded(const Node& n) {
+  if (!print_flag_) {
+    return;
+  }
+  print_flag_ = false;
+
   auto usi_output = CurrentInfo();
 
   usi_output.Set(UsiInfo::KeyKind::kDepth, n.GetDepth());
@@ -808,9 +804,5 @@ void KomoringHeights::PrintProgress(const Node& n) const {
 #endif
 
   sync_cout << usi_output << sync_endl;
-}
-
-bool KomoringHeights::IsSearchStop() const {
-  return monitor_.ShouldStop() || stop_;
 }
 }  // namespace komori

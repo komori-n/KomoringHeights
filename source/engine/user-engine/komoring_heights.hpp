@@ -43,14 +43,18 @@ class SearchMonitor {
   void Visit(Depth depth) { depth_ = std::max(depth_, depth); }
   UsiInfo GetInfo() const;
   std::uint64_t MoveCount() const { return thread_->nodes; }
-  bool ShouldStop() const { return MoveCount() >= move_limit_; }
+  bool ShouldStop() const { return MoveCount() >= move_limit_ || stop_; }
 
   /// 探索局面数上限を move_limit 以下にする。PushLimit() は探索中に再帰的に複数回呼ぶことができる。
   void PushLimit(std::uint64_t move_limit);
   /// Pop されていない最も直近の PushLimit コールを巻き戻し、探索上限を復元する
   void PopLimit();
 
+  void SetStop(bool stop = true) { stop_ = stop; }
+
  private:
+  std::atomic_bool stop_{false};
+
   std::chrono::system_clock::time_point start_time_;
   Depth depth_;
   std::uint64_t move_limit_;
@@ -62,7 +66,7 @@ class SearchMonitor {
 /// df-pn探索の本体
 class KomoringHeights {
  public:
-  KomoringHeights();
+  KomoringHeights() = default;
   KomoringHeights(const KomoringHeights&) = delete;
   KomoringHeights(KomoringHeights&&) = delete;
   KomoringHeights& operator=(const KomoringHeights&) = delete;
@@ -72,12 +76,12 @@ class KomoringHeights {
   /// 内部変数（tt 含む）を初期化する
   void Init(EngineOption option, Thread* thread);
   /// 詰将棋探索をやめさせる
-  void SetStop() { stop_ = true; }
+  void SetStop() { monitor_.SetStop(true); }
   /// stopフラグをクリアする
-  void ResetStop() { stop_ = false; }
+  void ResetStop() { monitor_.SetStop(false); }
 
   /// 探索情報のPrintを指示する。Printが完了したらフラグはfalseになる
-  void SetPrintFlag() { print_flag_ = true; }
+  void RequestPrint() { print_flag_ = true; }
 
   /// df-pn 探索本体。局面 n が詰むかを調べる
   NodeState Search(Position& n, bool is_root_or_node);
@@ -113,26 +117,26 @@ class KomoringHeights {
   /// CommonEntry に保存された best_move を元に最善応手列（PV）を復元する
   std::vector<Move> GetPv(Node& n);
 
-  void PrintProgress(const Node& n) const;
+  /// print_flag_ が立っていたら出力してフラグを消す。立っていなかったら何もしない。
+  void PrintIfNeeded(const Node& n);
 
-  bool IsSearchStop() const;
+  TranspositionTable tt_{};
+  EngineOption option_;
 
-  TranspositionTable tt_;
-  Thread* thread_{nullptr};
-  std::stack<ChildrenCache> children_cache_{};
-  std::stack<MovePicker> pickers_{};
-
-  std::atomic_bool stop_{false};
-  std::uint64_t next_gc_count_{0};
-
-  std::atomic_bool print_flag_{false};
   detail::SearchMonitor monitor_{};
   Score score_{};
+  std::uint64_t next_gc_count_{0};
+  std::atomic_bool print_flag_{false};
 
   /// 最善応手列（PV）の結果。CalcBestMoves() がそこそこ重いので、ここに保存しておく。
   std::vector<Move> best_moves_{};
   PvTree pv_tree_{};
-  EngineOption option_;
+
+  // <一時変数>
+  // 探索中に使用する一時変数。本当はスタック上に置きたいが、スタックオーバーフローしてしまうのでメンバで持つ。
+  std::stack<ChildrenCache> children_cache_{};
+  std::stack<MovePicker> pickers_{};
+  // </一時変数>
 };
 }  // namespace komori
 
