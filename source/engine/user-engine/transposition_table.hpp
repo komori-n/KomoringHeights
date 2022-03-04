@@ -285,35 +285,58 @@ inline CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
   PnDn pn = 1;
   PnDn dn = 1;
 
-  for (auto& entry : *this) {
-    if (entry.IsNull() || entry.HashHigh() != hash_high) {
-      continue;
-    }
+  auto* entry = begin();
+#define UNROLL(i)                                                                                                              \
+  do {                                                                                                                         \
+    if (entry->IsNull() || entry->HashHigh() != hash_high) {                                                                   \
+      entry++;                                                                                                                 \
+      continue;                                                                                                                \
+    }                                                                                                                          \
+                                                                                                                               \
+    if (entry->ProperHand(hand) != kNullHand) {                                                                                \
+      /* 探索中エントリの場合、優等情報からpn/dnを更新しておく */                                      \
+      if (auto unknown = entry->TryGetUnknown()) {                                                                             \
+        pn = std::max(pn, unknown->Pn());                                                                                      \
+        dn = std::max(dn, unknown->Dn());                                                                                      \
+        unknown->UpdatePnDn(pn, dn);                                                                                           \
+                                                                                                                               \
+        /*エントリの更新が可能なら最小距離をこのタイミングで更新しておく */                     \
+        unknown->UpdateDepth(depth);                                                                                           \
+      }                                                                                                                        \
+      return entry;                                                                                                            \
+    }                                                                                                                          \
+                                                                                                                               \
+    /* 優等局面／劣等局面の情報から (pn, dn) の初期値を引き上げる */                                   \
+    if (auto unknown = entry->TryGetUnknown(); unknown != nullptr && unknown->MinDepth() >= depth) {                           \
+      if (unknown->IsSuperiorThan(hand)) {                                                                                     \
+        /* 現局面より itr の方が優等している -> 現局面は itr 以上に詰ますのが難しいはず */      \
+        pn = std::max(pn, unknown->Pn());                                                                                      \
+      } else if (unknown->IsInferiorThan(hand)) {                                                                              \
+        /* itr より現局面の方が優等している -> 現局面は itr 以上に不詰を示すのが難しいはず */ \
+        dn = std::max(dn, unknown->Dn());                                                                                      \
+      }                                                                                                                        \
+    }                                                                                                                          \
+    entry++;                                                                                                                   \
+  } while (false)
 
-    if (entry.ProperHand(hand) != kNullHand) {
-      // 探索中エントリの場合、優等情報からpn/dnを更新しておく
-      if (auto unknown = entry.TryGetUnknown()) {
-        pn = std::max(pn, unknown->Pn());
-        dn = std::max(dn, unknown->Dn());
-        unknown->UpdatePnDn(pn, dn);
-
-        // エントリの更新が可能なら最小距離をこのタイミングで更新しておく
-        unknown->UpdateDepth(depth);
-      }
-      return &entry;
-    }
-
-    // 優等局面／劣等局面の情報から (pn, dn) の初期値を引き上げる
-    if (auto unknown = entry.TryGetUnknown(); unknown != nullptr && unknown->MinDepth() >= depth) {
-      if (unknown->IsSuperiorThan(hand)) {
-        // 現局面より itr の方が優等している -> 現局面は itr 以上に詰ますのが難しいはず
-        pn = std::max(pn, unknown->Pn());
-      } else if (unknown->IsInferiorThan(hand)) {
-        // itr より現局面の方が優等している -> 現局面は itr 以上に不詰を示すのが難しいはず
-        dn = std::max(dn, unknown->Dn());
-      }
-    }
-  }
+  UNROLL(0);
+  UNROLL(1);
+  UNROLL(2);
+  UNROLL(3);
+  UNROLL(4);
+  UNROLL(5);
+  UNROLL(6);
+  UNROLL(7);
+  UNROLL(8);
+  UNROLL(9);
+  UNROLL(10);
+  UNROLL(11);
+  UNROLL(12);
+  UNROLL(13);
+  UNROLL(14);
+  UNROLL(15);
+  static_assert(kClusterSize == 16);
+#undef UNROLL
 
   if constexpr (kCreateIfNotExist) {
     return Add({hash_high, UnknownData{pn, dn, hand, depth}});
