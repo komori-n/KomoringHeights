@@ -81,57 +81,56 @@ inline bool DoesHaveMatePossibility(const Position& n) {
 
   return x | y;
 }
-}  // namespace
 
-ChildrenCache::Child ChildrenCache::Child::FromRepetitionMove(ExtMove move, Hand hand) {
-  Child cache;
+detail::Child MakeRepetitionChild(ExtMove move, Hand hand) {
+  detail::Child child;
 
-  cache.move = move;
-  cache.search_result = SearchResult{RepetitionData{}};
-  cache.is_first = false;
-  cache.is_sum_delta = true;
+  child.move = move;
+  child.search_result = SearchResult{RepetitionData{}};
+  child.is_first = false;
+  child.is_sum_delta = true;
 
-  // 他の変数は時間節約のために未初期化のままにする
-
-  return cache;
+  return child;
 }
 
-ChildrenCache::Child ChildrenCache::Child::FromNonRepetitionMove(TranspositionTable& tt,
-                                                                 Node& n,
-                                                                 ExtMove move,
-                                                                 bool is_sum_delta,
-                                                                 bool& does_have_old_child) {
-  Child cache;
-  cache.move = move;
-  cache.is_sum_delta = is_sum_delta;
-  cache.query = tt.GetChildQuery(n, move.move);
-  auto* entry = cache.query.LookUpWithoutCreation();
+detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
+                                     Node& n,
+                                     ExtMove move,
+                                     bool is_sum_delta,
+                                     bool& does_have_old_child) {
+  detail::Child child;
+  child.move = move;
+  child.is_sum_delta = is_sum_delta;
+  child.query = tt.GetChildQuery(n, move.move);
+  auto* entry = child.query.LookUpWithoutCreation();
 
+  child.is_first = entry->IsFirstVisit();
   if (auto unknown = entry->TryGetUnknown()) {
     if (unknown->MinDepth() < n.GetDepth()) {
       does_have_old_child = true;
     }
-  }
 
-  cache.is_first = entry->IsFirstVisit();
-  if (cache.is_first) {
-    if (auto unknown = entry->TryGetUnknown()) {
+    if (child.is_first) {
       auto [pn, dn] = InitialPnDn(n, move.move);
-      pn = std::max(pn, unknown->Pn());
-      dn = std::max(dn, unknown->Dn());
-      unknown->UpdatePnDn(pn, dn);
+      auto new_pn = std::max(pn, unknown->Pn());
+      auto new_dn = std::max(dn, unknown->Dn());
+      if (new_pn != unknown->Pn() || new_dn != unknown->Dn()) {
+        unknown->UpdatePnDn(new_pn, new_dn);
+      }
     }
   }
 
-  auto hand_after = n.OrHandAfter(move.move);
-  cache.search_result = entry->Simplify(hand_after);
-  if (!entry->IsFinal() && cache.Delta(n.IsOrNode()) > kSumSwitchThreshold) {
-    // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、
-    cache.is_sum_delta = false;
+  if (!entry->IsFinal() && child.Delta(n.IsOrNode()) > kSumSwitchThreshold) {
+    // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、max で計算する
+    child.is_sum_delta = false;
   }
 
-  return cache;
+  auto hand_after = n.OrHandAfter(move.move);
+  child.search_result = entry->Simplify(hand_after);
+
+  return child;
 }
+}  // namespace
 
 ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search) : or_node_{n.IsOrNode()} {
   // 1 手詰めの場合、指し手生成をサボることができる
@@ -144,10 +143,10 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
     if (n.IsRepetitionOrInferiorAfter(move.move)) {
       // どう見ても千日手の局面 or どう見ても詰まない局面は読み進める必要がない
       // 置換表 LookUp の回数を減らすために別処理に分ける
-      child = Child::FromRepetitionMove(move, n.OrHand());
+      child = MakeRepetitionChild(move, n.OrHand());
     } else {
       bool is_sum_node = IsSumDeltaNode(n, move);
-      child = Child::FromNonRepetitionMove(tt, n, move, is_sum_node, does_have_old_child_);
+      child = MakeNonRepetitionChild(tt, n, move, is_sum_node, does_have_old_child_);
       max_node_num_ += (is_sum_node ? 0 : 1);
 
       // AND node の first search の場合、1手掘り進めてみる（2手詰ルーチン）
@@ -229,20 +228,12 @@ void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
 }
 
 SearchResult ChildrenCache::CurrentResult(const Node& n) const {
-  if (children_len_ > 0 && NthChild(0).Phi(or_node_) == 0) {
-    // 手番側の勝ち
-    if (or_node_) {
-      return GetProvenResult(n);
-    } else {
-      return GetDisprovenResult(n);
-    }
-  } else if (GetDelta() == 0) {
-    // 手番側の負け
-    if (or_node_) {
-      return GetDisprovenResult(n);
-    } else {
-      return GetProvenResult(n);
-    }
+  PnDn pn = or_node_ ? GetPhi() : GetDelta();
+  PnDn dn = or_node_ ? GetDelta() : GetPhi();
+  if (pn == 0) {
+    return GetProvenResult(n);
+  } else if (dn == 0) {
+    return GetDisprovenResult(n);
   } else {
     return GetUnknownResult(n);
   }
@@ -254,7 +245,7 @@ std::pair<PnDn, PnDn> ChildrenCache::ChildThreshold(PnDn thpn, PnDn thdn) const 
 
   auto thphi = Phi(thpn, thdn, or_node_);
   auto thdelta = Delta(thpn, thdn, or_node_);
-  auto child_thphi = std::min(thphi, SecondPhi() + 1);
+  auto child_thphi = std::min(thphi, GetSecondPhi() + 1);
   auto child_thdelta = NewThdeltaForBestMove(thdelta);
 
   if (or_node_) {
@@ -377,29 +368,16 @@ SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   }
 }
 
-PnDn ChildrenCache::SecondPhi() const {
-  if (children_len_ <= 1) {
-    return kInfinitePnDn;
-  }
-  auto& second_best_child = NthChild(1);
-  return second_best_child.Phi(or_node_);
-}
-
 PnDn ChildrenCache::NewThdeltaForBestMove(PnDn thdelta) const {
   auto& best_child = NthChild(0);
-  // best_dn := best_child.Dn() のとき、dn が sum_delta かどうかで Delta 値の計算方法が変わる
-  //    dn = best_dn + sum_delta_except_best_ + max_delta_except_best_
-  //    dn = sum_delta_except_best_ + std::max(max_delta_except_best_, best_dn)
+  PnDn delta_except_best = sum_delta_except_best_;
+  if (best_child.is_sum_delta) {
+    delta_except_best += max_delta_except_best_;
+  }
 
   // 計算の際はオーバーフローに注意
-  if (best_child.is_sum_delta) {
-    if (thdelta >= sum_delta_except_best_ + max_delta_except_best_) {
-      return Clamp(thdelta - (sum_delta_except_best_ + max_delta_except_best_));
-    }
-  } else {
-    if (thdelta >= sum_delta_except_best_) {
-      return Clamp(thdelta - sum_delta_except_best_);
-    }
+  if (thdelta >= sum_delta_except_best_) {
+    return Clamp(thdelta - delta_except_best);
   }
 
   return 0;
@@ -417,6 +395,14 @@ void ChildrenCache::RecalcDelta() {
       max_delta_except_best_ = std::max(max_delta_except_best_, child.Delta(or_node_));
     }
   }
+}
+
+PnDn ChildrenCache::GetPhi() const {
+  if (children_len_ == 0) {
+    return kInfinitePnDn;
+  }
+
+  return NthChild(0).Phi(or_node_);
 }
 
 PnDn ChildrenCache::GetDelta() const {
@@ -453,7 +439,15 @@ PnDn ChildrenCache::GetDelta() const {
   return sum_delta + max_delta;
 }
 
-bool ChildrenCache::Compare(const Child& lhs, const Child& rhs) const {
+PnDn ChildrenCache::GetSecondPhi() const {
+  if (children_len_ <= 1) {
+    return kInfinitePnDn;
+  }
+  auto& second_best_child = NthChild(1);
+  return second_best_child.Phi(or_node_);
+}
+
+bool ChildrenCache::Compare(const detail::Child& lhs, const detail::Child& rhs) const {
   // or_node_ と move.value を参照しなければならないので ChildrenCache の内部で定義している
 
   if (lhs.Phi(or_node_) != rhs.Phi(or_node_)) {

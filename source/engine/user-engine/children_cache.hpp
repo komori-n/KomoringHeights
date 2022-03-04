@@ -8,6 +8,26 @@
 #include "typedefs.hpp"
 
 namespace komori {
+namespace detail {
+/**
+ * @brief 子局面の置換表 LookUp のキャッシュを行う構造体。
+ */
+struct Child {
+  ExtMove move;  ///< 子局面への move とその簡易評価値
+
+  LookUpQuery query;  ///< 子局面の置換表エントリを LookUp するためのクエリ
+  SearchResult search_result;  ///< 子局面の現在の pn/dn の値。LookUp はとても時間がかかるので、前回の LookUp
+                               ///< 結果をコピーして持っておく。
+  bool is_first;      ///< この子局面を初めて探索するなら true。
+  bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false
+
+  PnDn Pn() const { return search_result.Pn(); }
+  PnDn Dn() const { return search_result.Dn(); }
+  PnDn Phi(bool or_node) const { return or_node ? search_result.Pn() : search_result.Dn(); }
+  PnDn Delta(bool or_node) const { return or_node ? search_result.Dn() : search_result.Pn(); }
+};
+}  // namespace detail
+
 // Forward Declaration
 class Node;
 
@@ -87,36 +107,9 @@ class ChildrenCache {
   bool DoesHaveOldChild() const { return does_have_old_child_; }
 
  private:
-  /**
-   * @brief 子局面の置換表 LookUp のキャッシュを行う構造体。
-   */
-  struct Child {
-    ExtMove move;  ///< 子局面への move とその簡易評価値
-
-    LookUpQuery query;  ///< 子局面の置換表エントリを LookUp するためのクエリ
-    SearchResult search_result;  ///< 子局面の現在の pn/dn の値。LookUp はとても時間がかかるので、前回の LookUp
-                                 ///< 結果をコピーして持っておく。
-    bool is_first;      ///< この子局面を初めて探索するなら true。
-    bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false
-
-    /// 千日手の子局面の Child を構築する
-    static Child FromRepetitionMove(ExtMove move, Hand hand);
-    /// 千日手ではない子局面の Child を構築する
-    static Child FromNonRepetitionMove(TranspositionTable& tt,
-                                       Node& n,
-                                       ExtMove move,
-                                       bool is_sum_delta,
-                                       bool& does_have_old_child);
-
-    PnDn Pn() const { return search_result.Pn(); }
-    PnDn Dn() const { return search_result.Dn(); }
-    PnDn Phi(bool or_node) const { return or_node ? search_result.Pn() : search_result.Dn(); }
-    PnDn Delta(bool or_node) const { return or_node ? search_result.Dn() : search_result.Pn(); }
-  };
-
   /// i 番目に良い手に対する Child を返す
-  Child& NthChild(std::size_t i) { return children_[idx_[i]]; }
-  const Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
+  detail::Child& NthChild(std::size_t i) { return children_[idx_[i]]; }
+  const detail::Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
   /// UpdateFront のソートしない版
   void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
 
@@ -127,17 +120,19 @@ class ChildrenCache {
   /// 現局面が詰みでも不詰でもないことがわかっている時、その SearchResult を計算して返す
   SearchResult GetUnknownResult(const Node& n) const;
 
-  /// 現在の次良手局面おけるφ値（OrNodeならpn、AndNodeならdn）を返す。合法手が 1 手しかない場合、∞を返す。
-  PnDn SecondPhi() const;
   /// 現局面におけるδ値（OrNodeならdn、AndNodeならpn）から最善手におけるφ値を引いた値を返す。
   PnDn NewThdeltaForBestMove(PnDn thdelta) const;
   /// δ値を計算するために使用する内部変数（XXX_delta_except_best_）を計算し直す
   void RecalcDelta();
+  /// 現在のφ値
+  PnDn GetPhi() const;
   /// 現在のδ値
   PnDn GetDelta() const;
+  /// 現在の次良手局面おけるφ値（OrNodeならpn、AndNodeならdn）を返す。合法手が 1 手しかない場合、∞を返す。
+  PnDn GetSecondPhi() const;
 
   /// NodeCache同士の比較演算子。sortしたときにφ値の昇順かつ千日手の判定がしやすい順番に並び替える。
-  bool Compare(const Child& lhs, const Child& rhs) const;
+  bool Compare(const detail::Child& lhs, const detail::Child& rhs) const;
 
   /// 展開元の局面が OR node なら true
   /// コンストラクト時に渡された node から取得する。node 全部をコピーする必要がないので、これだけ持っておく。
@@ -147,7 +142,7 @@ class ChildrenCache {
   bool does_have_old_child_{false};
 
   /// 子局面とその pn/dn 値等の情報一覧。MovePicker の手と同じ順番で格納されている
-  std::array<Child, kMaxCheckMovesPerNode> children_;
+  std::array<detail::Child, kMaxCheckMovesPerNode> children_;
   /// children_ を良さげ順にソートした時のインデックス。children_ 自体を move(copy) すると時間がかかるので、
   /// ソートの際は idx_ だけ並び替えを行う。
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
