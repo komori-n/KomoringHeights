@@ -185,7 +185,7 @@ for COMPILER in ${COMPILERSARR[@]}; do
                     TGSTR=${FILESTR[$EDITION]}-windows-${CSTR}-${TARGET}-${ARCHCPU}
                     ${MAKE} -f ${MAKEFILE} clean OS=${OS} YANEURAOU_EDITION=${EDITIONSTR[$EDITION]}
                     nice ${MAKE} -f ${MAKEFILE} -j${JOBS} ${TARGET} OS=${OS} TARGET_CPU=${ARCHCPU} YANEURAOU_EDITION=${EDITIONSTR[$EDITION]} COMPILER=${COMPILER} >& >(tee ${BUILDDIR}/${TGSTR}.log) || exit $?
-                    cp YaneuraOu-by-gcc.exe ${BUILDDIR}/${TGSTR}.exe
+                    cp KomoringHeights-by-gcc.exe ${BUILDDIR}/${TGSTR}.exe
                     ${MAKE} -f ${MAKEFILE} clean OS=${OS} YANEURAOU_EDITION=${EDITIONSTR[$EDITION]}
                     break
                   fi
