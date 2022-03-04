@@ -235,24 +235,6 @@ std::size_t TranspositionTable::CollectGarbage() {
   return removed_num;
 }
 
-LookUpQuery TranspositionTable::GetQuery(const Node& n) {
-  Key board_key = n.Pos().state()->board_key();
-  std::uint32_t hash_high = board_key >> 32;
-  CommonEntry* head_entry = HeadOf(board_key);
-  BoardCluster board_cluster{head_entry, hash_high};
-
-  return {rep_table_, std::move(board_cluster), n.OrHand(), n.GetDepth(), n.GetPathKey()};
-}
-
-LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
-  Key board_key = n.Pos().board_key_after(move);
-  std::uint32_t hash_high = board_key >> 32;
-  CommonEntry* head_entry = HeadOf(board_key);
-  BoardCluster board_cluster{head_entry, hash_high};
-
-  return {rep_table_, std::move(board_cluster), n.OrHandAfter(move), n.GetDepth() + 1, n.PathKeyAfter(move)};
-}
-
 Move TranspositionTable::LookUpBestMove(const Node& n) {
   auto query = GetQuery(n);
   auto entry = query.LookUpWithoutCreation();

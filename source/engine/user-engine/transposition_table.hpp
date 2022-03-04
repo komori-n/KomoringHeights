@@ -46,6 +46,7 @@
 #include <utility>
 #include <vector>
 
+#include "node.hpp"
 #include "ttentry.hpp"
 #include "typedefs.hpp"
 
@@ -408,5 +409,24 @@ inline bool LookUpQuery::IsValid() const {
   }
   return false;
 }
+
+inline LookUpQuery TranspositionTable::GetQuery(const Node& n) {
+  Key board_key = n.Pos().state()->board_key();
+  std::uint32_t hash_high = board_key >> 32;
+  CommonEntry* head_entry = HeadOf(board_key);
+  BoardCluster board_cluster{head_entry, hash_high};
+
+  return {rep_table_, std::move(board_cluster), n.OrHand(), n.GetDepth(), n.GetPathKey()};
+}
+
+inline LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
+  Key board_key = n.Pos().board_key_after(move);
+  std::uint32_t hash_high = board_key >> 32;
+  CommonEntry* head_entry = HeadOf(board_key);
+  BoardCluster board_cluster{head_entry, hash_high};
+
+  return {rep_table_, std::move(board_cluster), n.OrHandAfter(move), n.GetDepth() + 1, n.PathKeyAfter(move)};
+}
+
 }  // namespace komori
 #endif  // TRANSPOSITION_TABLE_HPP_
