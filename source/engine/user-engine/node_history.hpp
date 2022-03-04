@@ -32,11 +32,6 @@ namespace komori {
  */
 class NodeHistory {
  public:
-  enum class NodeState {
-    kFirst,                 ///< 置換表に類似局面の登録なし
-    kRepetitionOrInferior,  ///< 置換表に同一局面または優等局面の登録あり
-  };
-
   /**
    * @brief (board_key, hand) の同一／優等局面が履歴に記録されているか調べる
    *
