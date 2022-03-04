@@ -315,7 +315,7 @@ class SearchResult {
   /// 通常局面かつまだ初回探索をしていない場合のみ true。
   constexpr bool IsFirstVisit() const { return !IsFinal() && s_amount_.amount == kFirstSearchAmount; }
 
-  constexpr bool Exceeds(PnDn thpn, PnDn thdn) const { return Pn() >= thpn || Dn() >= thdn; }
+  bool Exceeds(PnDn thpn, PnDn thdn) const { return Pn() >= thpn || Dn() >= thdn; }
 
   constexpr void SetSearchedAmount(SearchedAmount amount) { s_amount_.amount = amount; }
   constexpr void UpdateSearchedAmount(SearchedAmount amount) { s_amount_.amount = s_amount_.amount + amount; }
@@ -389,14 +389,17 @@ class PackedResult : public SearchResult {
   Hand FrontHand() const {
     // もし PackedEntry::FrontHand() をコールしたら static_assert で必ずコンパイルエラーになる
     static_assert(Null == nullptr && false, "PackedEntry::FrontHand() is not supported.");
+    return kNullHand;
   }
   template <std::nullptr_t Null = nullptr>
   Move16 FrontBestMove() const {
     static_assert(Null == nullptr && false, "PackedEntry::FrontBestMove() is not supported.");
+    return MOVE_NONE;
   }
   template <std::nullptr_t Null = nullptr>
   MateLen FrontMateLen() const {
     static_assert(Null == nullptr && false, "PackedEntry::FrontMateLen() is not supported.");
+    return kZeroMateLen;
   }
 };
 
