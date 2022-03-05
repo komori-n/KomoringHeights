@@ -88,7 +88,6 @@ detail::Child MakeRepetitionChild(ExtMove move, Hand hand) {
   child.move = move;
   child.search_result = SearchResult{RepetitionData{}};
   child.is_first = false;
-  child.is_sum_delta = true;
 
   return child;
 }
@@ -96,11 +95,10 @@ detail::Child MakeRepetitionChild(ExtMove move, Hand hand) {
 detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
                                      Node& n,
                                      ExtMove move,
-                                     bool is_sum_delta,
+                                     bool& is_sum_delta,
                                      bool& does_have_old_child) {
   detail::Child child;
   child.move = move;
-  child.is_sum_delta = is_sum_delta;
   child.query = tt.GetChildQuery(n, move.move);
   auto* entry = child.query.LookUpWithoutCreation();
 
@@ -122,7 +120,7 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
 
   if (!entry->IsFinal() && child.Delta(n.IsOrNode()) > kSumSwitchThreshold) {
     // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、max で計算する
-    child.is_sum_delta = false;
+    is_sum_delta = false;
   }
 
   auto hand_after = n.OrHandAfter(move.move);
@@ -147,7 +145,12 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
     } else {
       bool is_sum_node = IsSumDeltaNode(n, move);
       child = MakeNonRepetitionChild(tt, n, move, is_sum_node, does_have_old_child_);
-      max_node_num_ += (is_sum_node ? 0 : 1);
+
+      if (is_sum_node) {
+        sum_mask_.Set(curr_idx);
+      } else {
+        max_node_num_++;
+      }
 
       // AND node の first search の場合、1手掘り進めてみる（2手詰ルーチン）
       // OR node の場合、詰みかどうかを高速に判定できないので first_search でも先読みはしない
@@ -196,9 +199,9 @@ void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
   UpdateNthChildWithoutSort(0, search_result);
 
   auto& old_best_child = NthChild(0);
-  // UpdateNthChildWithoutSort() の内部で is_sum_delta の値が変わる可能性があるが、
+  // UpdateNthChildWithoutSort() の内部で sum_mask_ の値が変わる可能性があるが、
   // sum_delta_except_best_, max_delta_except_best_ の値には関係ないので更新後の値のみ使う
-  bool old_is_sum_delta = old_best_child.is_sum_delta;
+  bool old_is_sum_delta = IsSumChild(0);
   PnDn old_delta = old_best_child.Delta(or_node_);
 
   // idx=0 の更新を受けて子ノードをソートし直す
@@ -217,7 +220,7 @@ void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
     max_delta_except_best_ = std::max(max_delta_except_best_, old_delta);
   }
 
-  if (new_best_child.is_sum_delta) {
+  if (IsSumChild(0)) {
     sum_delta_except_best_ -= new_best_child.Delta(or_node_);
   } else if (new_best_child.Delta(or_node_) < max_delta_except_best_) {
     // new_best_child を抜いても max_delta_except_best_ の値は変わらない
@@ -266,7 +269,7 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult&
   child.query.SetResult(child.search_result);
 
   if (!child.search_result.IsFinal() && child.Delta(or_node_) > kSumSwitchThreshold) {
-    child.is_sum_delta = false;
+    sum_mask_.Reset(idx_[i]);
   }
 }
 
@@ -371,7 +374,7 @@ SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
 PnDn ChildrenCache::NewThdeltaForBestMove(PnDn thdelta) const {
   auto& best_child = NthChild(0);
   PnDn delta_except_best = sum_delta_except_best_;
-  if (best_child.is_sum_delta) {
+  if (IsSumChild(0)) {
     delta_except_best += max_delta_except_best_;
   }
 
@@ -389,7 +392,7 @@ void ChildrenCache::RecalcDelta() {
 
   for (std::size_t i = 1; i < children_len_; ++i) {
     const auto& child = NthChild(i);
-    if (child.is_sum_delta) {
+    if (IsSumChild(i)) {
       sum_delta_except_best_ += child.Delta(or_node_);
     } else {
       max_delta_except_best_ = std::max(max_delta_except_best_, child.Delta(or_node_));
@@ -414,7 +417,7 @@ PnDn ChildrenCache::GetDelta() const {
   // 差分計算用の値を予め持っているので、高速に計算できる
   auto sum_delta = sum_delta_except_best_;
   auto max_delta = max_delta_except_best_;
-  if (best_child.is_sum_delta) {
+  if (IsSumChild(0)) {
     sum_delta += best_child.Delta(or_node_);
   } else {
     max_delta = std::max(max_delta, best_child.Delta(or_node_));

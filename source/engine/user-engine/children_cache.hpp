@@ -4,6 +4,7 @@
 #include <array>
 #include <utility>
 
+#include "bitset.hpp"
 #include "transposition_table.hpp"
 #include "typedefs.hpp"
 
@@ -18,8 +19,7 @@ struct Child {
   LookUpQuery query;  ///< 子局面の置換表エントリを LookUp するためのクエリ
   SearchResult search_result;  ///< 子局面の現在の pn/dn の値。LookUp はとても時間がかかるので、前回の LookUp
                                ///< 結果をコピーして持っておく。
-  bool is_first;      ///< この子局面を初めて探索するなら true。
-  bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false
+  bool is_first;  ///< この子局面を初めて探索するなら true。
 
   PnDn Pn() const { return search_result.Pn(); }
   PnDn Dn() const { return search_result.Dn(); }
@@ -110,6 +110,7 @@ class ChildrenCache {
   /// i 番目に良い手に対する Child を返す
   detail::Child& NthChild(std::size_t i) { return children_[idx_[i]]; }
   const detail::Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
+  bool IsSumChild(std::size_t i) const { return sum_mask_.Test(idx_[i]); }
   /// UpdateFront のソートしない版
   void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
 
@@ -146,6 +147,9 @@ class ChildrenCache {
   /// children_ を良さげ順にソートした時のインデックス。children_ 自体を move(copy) すると時間がかかるので、
   /// ソートの際は idx_ だけ並び替えを行う。
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
+  /// 和で Delta を計上する子局面の一覧
+  /// max でなく sum のマスクを持つ理由は、合法手が 64 個以上の場合、set から溢れた手を max child として扱いたいため。
+  BitSet64 sum_mask_{};
   /// 子局面の数。
   std::size_t children_len_{0};
 
