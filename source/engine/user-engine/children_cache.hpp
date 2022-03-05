@@ -72,7 +72,7 @@ class ChildrenCache {
   /**
    * @brief 子局面一覧を作成し、子局面を pn/dn がよさげな順に並べ替えて初期化する
    */
-  ChildrenCache(TranspositionTable& tt, Node& n, bool first_search);
+  ChildrenCache(TranspositionTable& tt, Node& n, bool first_search, BitSet64 sum_mask = BitSet64{});
 
   ChildrenCache() = delete;
   /// 計算コストがとても大きいので move でも禁止。例えば、v0.4.1 だと ChildrenCache は 16.5MB。
@@ -85,6 +85,7 @@ class ChildrenCache {
   /// 現在の最善手を返す。合法手が 1 つ以上する場合に限り呼び出すことができる
   Move BestMove() const { return NthChild(0).move.move; }
   bool BestMoveIsFirstVisit() const { return NthChild(0).is_first; }
+  BitSet64 BestMoveSumMask() const;
   /**
    * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
    *
@@ -149,7 +150,7 @@ class ChildrenCache {
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
   /// 和で Delta を計上する子局面の一覧
   /// max でなく sum のマスクを持つ理由は、合法手が 64 個以上の場合、set から溢れた手を max child として扱いたいため。
-  BitSet64 sum_mask_{};
+  BitSet64 sum_mask_;
   /// 子局面の数。
   std::size_t children_len_{0};
 

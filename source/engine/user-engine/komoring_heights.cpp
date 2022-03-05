@@ -646,6 +646,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     auto best_move = cache.BestMove();
     bool is_first_search = cache.BestMoveIsFirstVisit();
+    BitSet64 sum_mask = cache.BestMoveSumMask();
     auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
 
     n.DoMove(best_move);
@@ -656,7 +657,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     // したいので、ChildrenCache は動的メモリにより確保する。
     //
     // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
-    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search);
+    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search, sum_mask);
 
     SearchResult child_result;
     if (is_first_search) {

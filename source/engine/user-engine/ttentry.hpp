@@ -127,7 +127,8 @@ inline constexpr StateAmount kNullEntry = {NodeState::kNullState, 0};
 class UnknownData {
  public:
   friend std::ostream& operator<<(std::ostream& os, const UnknownData& data);
-  constexpr UnknownData(PnDn pn, PnDn dn, Hand hand, Depth depth) : pn_(pn), dn_(dn), hand_(hand), min_depth_(depth) {}
+  constexpr UnknownData(PnDn pn, PnDn dn, Hand hand, Depth depth, std::uint64_t secret = 0)
+      : pn_(pn), dn_(dn), hand_(hand), min_depth_(depth), secret_{secret} {}
 
   constexpr PnDn Pn() const { return pn_; }
   constexpr PnDn Dn() const { return dn_; }
@@ -149,10 +150,13 @@ class UnknownData {
   constexpr bool IsOldChild(Depth depth) const { return min_depth_ < depth; }
   constexpr Depth MinDepth() const { return min_depth_; }
 
+  constexpr std::uint64_t Secret() const { return secret_; }
+
  private:
-  PnDn pn_, dn_;     ///< 証明数、反証数
-  Hand hand_;        ///< （OR nodeから見た）持ち駒
-  Depth min_depth_;  ///< 最小距離。infinite loop の検証に用いる
+  PnDn pn_, dn_;          ///< 証明数、反証数
+  Hand hand_;             ///< （OR nodeから見た）持ち駒
+  Depth min_depth_;       ///< 最小距離。infinite loop の検証に用いる
+  std::uint64_t secret_;  ///< 局面に関する情報（中身は意識しない）
 };
 std::ostream& operator<<(std::ostream& os, const UnknownData& data);
 

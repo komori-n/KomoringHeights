@@ -130,7 +130,8 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
 }
 }  // namespace
 
-ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search) : or_node_{n.IsOrNode()} {
+ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search, BitSet64 sum_mask)
+    : or_node_{n.IsOrNode()}, sum_mask_{sum_mask} {
   // 1 手詰めの場合、指し手生成をサボることができる
   // が、AndNode の 2 手詰めルーチンで mate_1ply を呼ぶのでここでやっても意味がない
 
@@ -148,7 +149,9 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
 
       if (is_sum_node) {
         sum_mask_.Set(curr_idx);
-      } else {
+      }
+
+      if (!sum_mask_.Test(curr_idx)) {
         max_node_num_++;
       }
 
@@ -193,6 +196,15 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search)
             [this](const auto& lhs, const auto& rhs) { return Compare(children_[lhs], children_[rhs]); });
 
   RecalcDelta();
+}
+
+BitSet64 ChildrenCache::BestMoveSumMask() const {
+  auto& best_child = NthChild(0);
+  if (auto unknown = best_child.search_result.TryGetUnknown()) {
+    return BitSet64{unknown->Secret()};
+  }
+
+  return BitSet64{};
 }
 
 void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
@@ -363,10 +375,10 @@ SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   auto& child = NthChild(0);
   SearchedAmount amount = child.search_result.GetSearchedAmount() + children_len_ - 1;
   if (or_node_) {
-    UnknownData unknown_data = {child.Pn(), GetDelta(), n.OrHand(), n.GetDepth()};
+    UnknownData unknown_data = {child.Pn(), GetDelta(), n.OrHand(), n.GetDepth(), sum_mask_.Value()};
     return {std::move(unknown_data), amount};
   } else {
-    UnknownData unknown_data = {GetDelta(), child.Dn(), n.OrHand(), n.GetDepth()};
+    UnknownData unknown_data = {GetDelta(), child.Dn(), n.OrHand(), n.GetDepth(), sum_mask_.Value()};
     return {std::move(unknown_data), amount};
   }
 }
