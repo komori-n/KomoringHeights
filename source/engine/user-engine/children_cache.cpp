@@ -130,8 +130,12 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
 }
 }  // namespace
 
-ChildrenCache::ChildrenCache(TranspositionTable& tt, Node& n, bool first_search, BitSet64 sum_mask)
-    : or_node_{n.IsOrNode()}, sum_mask_{sum_mask} {
+ChildrenCache::ChildrenCache(TranspositionTable& tt,
+                             Node& n,
+                             bool first_search,
+                             BitSet64 sum_mask,
+                             ChildrenCache* parent)
+    : or_node_{n.IsOrNode()}, sum_mask_{sum_mask}, parent_{parent} {
   // 1 手詰めの場合、指し手生成をサボることができる
   // が、AndNode の 2 手詰めルーチンで mate_1ply を呼ぶのでここでやっても意味がない
 

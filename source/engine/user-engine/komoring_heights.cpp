@@ -657,7 +657,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     // したいので、ChildrenCache は動的メモリにより確保する。
     //
     // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
-    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search, sum_mask);
+    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search, sum_mask, &cache);
 
     SearchResult child_result;
     if (is_first_search) {

@@ -72,7 +72,11 @@ class ChildrenCache {
   /**
    * @brief 子局面一覧を作成し、子局面を pn/dn がよさげな順に並べ替えて初期化する
    */
-  ChildrenCache(TranspositionTable& tt, Node& n, bool first_search, BitSet64 sum_mask = BitSet64{});
+  ChildrenCache(TranspositionTable& tt,
+                Node& n,
+                bool first_search,
+                BitSet64 sum_mask = BitSet64{},
+                ChildrenCache* parent = nullptr);
 
   ChildrenCache() = delete;
   /// 計算コストがとても大きいので move でも禁止。例えば、v0.4.1 だと ChildrenCache は 16.5MB。
@@ -163,6 +167,7 @@ class ChildrenCache {
   // </delta>
 
   int max_node_num_{0};
+  ChildrenCache* parent_;
 };
 }  // namespace komori
 
