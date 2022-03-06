@@ -64,7 +64,7 @@ CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, MateLen mate_len, Se
   CommonEntry* ret = nullptr;
 
   for (auto& entry : *this) {
-    if (entry.IsNull() || entry.HashHigh() != hash_high) {
+    if (entry.HashHigh() != hash_high || entry.IsNull()) {
       continue;
     }
 

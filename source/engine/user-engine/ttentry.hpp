@@ -531,40 +531,43 @@ inline void HandsData<kProven>::Simplify(Hand hand) {
 // <SearchResult>
 inline PnDn SearchResult::Pn() const {
   switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      return unknown_.Pn();
     case NodeState::kProvenState:
       return proven_.Pn();
     case NodeState::kDisprovenState:
       return disproven_.Pn();
-    case NodeState::kRepetitionState:
-      return rep_.Pn();
     default:
-      return unknown_.Pn();
+      return rep_.Pn();
   }
 }
 
 inline PnDn SearchResult::Dn() const {
   switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      return unknown_.Dn();
     case NodeState::kProvenState:
       return proven_.Dn();
     case NodeState::kDisprovenState:
       return disproven_.Dn();
-    case NodeState::kRepetitionState:
-      return rep_.Dn();
     default:
-      return unknown_.Dn();
+      return rep_.Dn();
   }
 }
 
 inline Hand SearchResult::FrontHand() const {
   switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      return unknown_.GetHand();
     case NodeState::kProvenState:
       return proven_.FrontHand();
     case NodeState::kDisprovenState:
       return disproven_.FrontHand();
-    case NodeState::kRepetitionState:
-      return kNullHand;
     default:
-      return unknown_.GetHand();
+      return kNullHand;
   }
 }
 
@@ -596,14 +599,15 @@ inline MateLen SearchResult::FrontMateLen() const {
 // <PackedResult>
 inline Hand PackedResult::ProperHand(Hand hand) const {
   switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      return unknown_.ProperHand(hand);
     case NodeState::kProvenState:
       return proven_.ProperHand(hand);
     case NodeState::kDisprovenState:
       return disproven_.ProperHand(hand);
-    case NodeState::kRepetitionState:
-      return kNullHand;
     default:
-      return unknown_.ProperHand(hand);
+      return kNullHand;
   }
 }
 

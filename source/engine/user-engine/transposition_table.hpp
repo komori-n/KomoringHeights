@@ -287,37 +287,46 @@ inline CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
   PnDn dn = 1;
 
   auto* entry = begin();
-#define UNROLL(i)                                                                                                              \
-  do {                                                                                                                         \
-    if (entry->IsNull() || entry->HashHigh() != hash_high) {                                                                   \
-      entry++;                                                                                                                 \
-      continue;                                                                                                                \
-    }                                                                                                                          \
-                                                                                                                               \
-    if (entry->ProperHand(hand) != kNullHand) {                                                                                \
-      /* 探索中エントリの場合、優等情報からpn/dnを更新しておく */                                      \
-      if (auto unknown = entry->TryGetUnknown()) {                                                                             \
-        pn = std::max(pn, unknown->Pn());                                                                                      \
-        dn = std::max(dn, unknown->Dn());                                                                                      \
-        unknown->UpdatePnDn(pn, dn);                                                                                           \
-                                                                                                                               \
-        /*エントリの更新が可能なら最小距離をこのタイミングで更新しておく */                     \
-        unknown->UpdateDepth(depth);                                                                                           \
-      }                                                                                                                        \
-      return entry;                                                                                                            \
-    }                                                                                                                          \
-                                                                                                                               \
-    /* 優等局面／劣等局面の情報から (pn, dn) の初期値を引き上げる */                                   \
-    if (auto unknown = entry->TryGetUnknown(); unknown != nullptr && unknown->MinDepth() >= depth) {                           \
-      if (unknown->IsSuperiorThan(hand)) {                                                                                     \
-        /* 現局面より itr の方が優等している -> 現局面は itr 以上に詰ますのが難しいはず */      \
-        pn = std::max(pn, unknown->Pn());                                                                                      \
-      } else if (unknown->IsInferiorThan(hand)) {                                                                              \
-        /* itr より現局面の方が優等している -> 現局面は itr 以上に不詰を示すのが難しいはず */ \
-        dn = std::max(dn, unknown->Dn());                                                                                      \
-      }                                                                                                                        \
-    }                                                                                                                          \
-    entry++;                                                                                                                   \
+#define UNROLL(i)                                                                                                                  \
+  do {                                                                                                                             \
+    do {                                                                                                                           \
+      /* if文の条件で hash_high を先にチェックすることにより、1% ぐらい早くなる */                      \
+      /* （is_null よりも hash_high により break する確率の方が高いため） */                                    \
+      if (entry->HashHigh() != hash_high || entry->IsNull()) {                                                                     \
+        break;                                                                                                                     \
+      }                                                                                                                            \
+                                                                                                                                   \
+      if (auto unknown = entry->TryGetUnknown()) {                                                                                 \
+        if (unknown->GetHand() == hand) {                                                                                          \
+          /* 探索中エントリの場合、優等情報からpn/dnを更新しておく */                                      \
+          pn = std::max(pn, unknown->Pn());                                                                                        \
+          dn = std::max(dn, unknown->Dn());                                                                                        \
+          unknown->UpdatePnDn(pn, dn);                                                                                             \
+                                                                                                                                   \
+          /*エントリの更新が可能なら最小距離をこのタイミングで更新しておく */                       \
+          unknown->UpdateDepth(depth);                                                                                             \
+          return entry;                                                                                                            \
+        }                                                                                                                          \
+        if (unknown->MinDepth() >= depth) {                                                                                        \
+          if (unknown->IsSuperiorThan(hand)) {                                                                                     \
+            /* 現局面より itr の方が優等している -> 現局面は itr 以上に詰ますのが難しいはず */      \
+            pn = std::max(pn, unknown->Pn());                                                                                      \
+          } else if (unknown->IsInferiorThan(hand)) {                                                                              \
+            /* itr より現局面の方が優等している -> 現局面は itr 以上に不詰を示すのが難しいはず */ \
+            dn = std::max(dn, unknown->Dn());                                                                                      \
+          }                                                                                                                        \
+        }                                                                                                                          \
+      } else if (auto proven = entry->TryGetProven()) {                                                                            \
+        if (proven->ProperHand(hand) != kNullHand) {                                                                               \
+          return entry;                                                                                                            \
+        }                                                                                                                          \
+      } else if (auto disproven = entry->TryGetDisproven()) {                                                                      \
+        if (disproven->ProperHand(hand) != kNullHand) {                                                                            \
+          return entry;                                                                                                            \
+        }                                                                                                                          \
+      }                                                                                                                            \
+    } while (false);                                                                                                               \
+    entry++;                                                                                                                       \
   } while (false)
 
   UNROLL(0);
