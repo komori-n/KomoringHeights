@@ -180,7 +180,7 @@ void SplittedPrint(UsiInfo info, const std::string& header, const std::vector<st
 }
 
 Score MakeScore(const SearchResult& result, bool root_is_or_node) {
-  if (!result.IsFinal()) {
+  if (result.IsNotFinal()) {
     return Score::Unknown(result.Pn(), result.Dn());
   } else if (result.GetNodeState() == NodeState::kProvenState) {
     auto mate_len = result.FrontMateLen();
@@ -626,7 +626,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   // Threshold Controlling Algorithm(TCA).
   // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
   inc_flag = inc_flag || cache.DoesHaveOldChild();
-  if (inc_flag && !curr_result.IsFinal()) {
+  if (inc_flag && curr_result.IsNotFinal()) {
     if (curr_result.Pn() < kInfinitePnDn) {
       thpn = Clamp(thpn, curr_result.Pn() + 1);
     }

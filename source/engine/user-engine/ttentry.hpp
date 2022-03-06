@@ -81,6 +81,11 @@ inline constexpr bool IsFinal(NodeState node_state) {
          node_state == NodeState::kRepetitionState;
 }
 
+inline constexpr bool IsNotFinal(NodeState node_state) {
+  // kNullState が存在するため、!IsFinal() とは微妙に結果が異なるので注意
+  return node_state == NodeState::kOtherState || node_state == NodeState::kMaybeRepetitionState;
+}
+
 inline constexpr NodeState StripMaybeRepetition(NodeState node_state) {
   return node_state == NodeState::kMaybeRepetitionState ? NodeState::kOtherState : node_state;
 }
@@ -272,12 +277,12 @@ class SearchResult {
   // データ（XxxData）を返すメソッドたち。
   // 現在が Xxx 状態なら内部データへのポインタを返す。そうでないなら、nullptr を返す。
 
-  UnknownData* TryGetUnknown() { return !IsFinal() ? &unknown_ : nullptr; }
+  UnknownData* TryGetUnknown() { return IsNotFinal() ? &unknown_ : nullptr; }
   ProvenData* TryGetProven() { return GetNodeState() == NodeState::kProvenState ? &proven_ : nullptr; }
   DisprovenData* TryGetDisproven() { return GetNodeState() == NodeState::kDisprovenState ? &disproven_ : nullptr; }
   RepetitionData* TryGetRepetition() { return GetNodeState() == NodeState::kRepetitionState ? &rep_ : nullptr; }
 
-  const UnknownData* TryGetUnknown() const { return !IsFinal() ? &unknown_ : nullptr; }
+  const UnknownData* TryGetUnknown() const { return IsNotFinal() ? &unknown_ : nullptr; }
   const ProvenData* TryGetProven() const { return GetNodeState() == NodeState::kProvenState ? &proven_ : nullptr; }
   const DisprovenData* TryGetDisproven() const {
     return GetNodeState() == NodeState::kDisprovenState ? &disproven_ : nullptr;
@@ -311,9 +316,10 @@ class SearchResult {
   constexpr bool IsNull() const { return s_amount_ == kNullEntry; }
 
   constexpr bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
+  constexpr bool IsNotFinal() const { return ::komori::IsNotFinal(GetNodeState()); }
   constexpr bool IsMaybeRepetition() const { return s_amount_.node_state == NodeState::kMaybeRepetitionState; }
   /// 通常局面かつまだ初回探索をしていない場合のみ true。
-  constexpr bool IsFirstVisit() const { return !IsFinal() && s_amount_.amount == kFirstSearchAmount; }
+  constexpr bool IsFirstVisit() const { return IsNotFinal() && s_amount_.amount == kFirstSearchAmount; }
 
   bool Exceeds(PnDn thpn, PnDn thdn) const { return Pn() >= thpn || Dn() >= thdn; }
 

@@ -118,7 +118,7 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
     }
   }
 
-  if (!entry->IsFinal() && child.Delta(n.IsOrNode()) > kSumSwitchThreshold) {
+  if (entry->IsNotFinal() && child.Delta(n.IsOrNode()) > kSumSwitchThreshold) {
     // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、max で計算する
     is_sum_delta = false;
   }
