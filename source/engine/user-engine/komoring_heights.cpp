@@ -296,14 +296,14 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
       sync_cout << "info string mate_len=" << mate_len << sync_endl;
 
       best_moves_ = pv_tree_.Pv(node);
+      score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
       PrintYozume(node, best_moves_);
     } else {
       // PostSearch() 関数は処理が重い。1通り PV を得るだけなら置換表から best move を取ってくるだけで良い
-      auto best_moves = TraceBestMove(node);
-      best_moves_ = std::move(best_moves);
+      best_moves_ = TraceBestMove(node);
+      score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
     }
 
-    score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
