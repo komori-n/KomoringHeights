@@ -9,6 +9,40 @@
 #include "node.hpp"
 
 namespace komori {
+namespace detail {
+struct Edge {
+  std::uint64_t board_key, child_board_key;
+  Hand hand, child_hand;
+  PnDn child_pn, child_dn;
+
+  static std::optional<Edge> From(const SearchResult& entry, std::uint64_t child_board_key, Hand child_hand) {
+    if (auto unknown = entry.TryGetUnknown()) {
+      if (unknown->ParentBoardKey() != kNullKey) {
+        auto board_key = unknown->ParentBoardKey();
+        auto hand = unknown->ParentHand();
+        auto child_pn = unknown->Pn();
+        auto child_dn = unknown->Dn();
+
+        return {Edge{board_key, child_board_key, hand, child_hand, child_pn, child_dn}};
+      }
+    }
+
+    return std::nullopt;
+  }
+
+  static std::optional<Edge> From(TranspositionTable& tt, std::uint64_t child_board_key, Hand child_hand) {
+    auto query = tt.GetQueryByKey(child_board_key, child_hand);
+    auto* entry = query.LookUpWithoutCreation();
+
+    return From(*entry, child_board_key, child_hand);
+  }
+
+  static std::optional<Edge> FromChild(TranspositionTable& tt, const Edge& child_edge) {
+    return From(tt, child_edge.board_key, child_edge.hand);
+  }
+};
+}  // namespace detail
+
 namespace {
 constexpr PnDn kSumSwitchThreshold = kInfinitePnDn / 16;
 /// max で Delta を計算するときの調整項。詳しくは ChildrenCache::GetDelta() のコメントを参照。
@@ -88,6 +122,8 @@ detail::Child MakeRepetitionChild(ExtMove move, Hand hand) {
   child.move = move;
   child.search_result = SearchResult{RepetitionData{}};
   child.is_first = false;
+  child.board_key = kNullKey;
+  child.hand = kNullHand;
 
   return child;
 }
@@ -100,6 +136,8 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
   detail::Child child;
   child.move = move;
   child.query = tt.GetChildQuery(n, move.move);
+  child.board_key = n.Pos().board_key_after(move.move);
+  child.hand = n.OrHandAfter(move.move);
   auto* entry = child.query.LookUpWithoutCreation();
 
   child.is_first = entry->IsFirstVisit();
@@ -118,7 +156,7 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
     }
   }
 
-  if (entry->IsNotFinal() && child.Delta(n.IsOrNode()) > kSumSwitchThreshold) {
+  if (entry->IsNotFinal() && entry->Delta(n.IsOrNode()) > kSumSwitchThreshold) {
     // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、max で計算する
     is_sum_delta = false;
   }
@@ -128,6 +166,74 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
 
   return child;
 }
+
+/// edge で合流する分岐の合流元局面を求める
+std::optional<std::pair<detail::Edge, bool>> FindKnownAncestor(TranspositionTable& tt,
+                                                               const Node& n,
+                                                               const detail::Edge& root_edge) {
+  bool pn_flag = true;
+  bool dn_flag = true;
+
+  // [best move in TT]     node      [best move in search tree]
+  //                        |
+  //                       node★
+  //                       /  \                                 |
+  //                     |    node
+  //                     |      |
+  //                       ...
+  //         root_edge-> |      |
+  //                     |    node <-current position(n)
+  //                      \   /
+  //                      node <-child (NthChild(i))
+  //
+  // 上図のように、root_edge の親局面がすでに分岐元の可能性がある。
+  if (n.ContainsInPath(root_edge.board_key, root_edge.hand)) {
+    return {std::make_pair(root_edge, n.IsOrNode())};
+  }
+
+  bool or_node = !n.IsOrNode();
+  auto last_edge = root_edge;
+  for (Depth i = 0; i < n.GetDepth(); ++i) {
+    auto next_edge = detail::Edge::FromChild(tt, last_edge);
+    if (next_edge == std::nullopt) {
+      break;
+    }
+
+    if (n.ContainsInPath(next_edge->board_key, next_edge->hand)) {
+      if ((or_node && dn_flag) || (!or_node && pn_flag)) {
+        return {std::make_pair(*next_edge, or_node)};
+      } else {
+        break;
+      }
+    }
+
+    // 合流元局面が OR node だと仮定すると、dn の二重カウントを解消したいことになる。このとき、or_node かつ dn の値が
+    // 大きく離れた edge が存在するなら、二重カウントによる影響はそれほど深刻ではない（二重カウントを解消する
+    // 必要がない）と判断する
+    //
+    // 合流元局面が OR node/AND node のどちらであるかは合流局面を実際に見つけるまでは分からない。そのため、合流局面が
+    // or_node であった時用のフラグを dn_flag、 and_node であった時用のフラグを pn_flag として両方を計算している。
+    if (or_node) {
+      if (next_edge->child_dn > 2 * last_edge.child_dn + 5) {
+        dn_flag = false;
+      }
+    } else {
+      if (next_edge->child_pn > 2 * last_edge.child_pn + 5) {
+        pn_flag = false;
+      }
+    }
+
+    // 合流元局面が or node/and node のいずれであっても二重カウントを解消する必要がない。よって、early exit できる。
+    if (!pn_flag && !dn_flag) {
+      break;
+    }
+
+    last_edge = *next_edge;
+    or_node = !or_node;
+  }
+
+  return std::nullopt;
+}
 }  // namespace
 
 ChildrenCache::ChildrenCache(TranspositionTable& tt,
@@ -135,7 +241,11 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
                              bool first_search,
                              BitSet64 sum_mask,
                              ChildrenCache* parent)
-    : or_node_{n.IsOrNode()}, sum_mask_{sum_mask}, parent_{parent} {
+    : or_node_{n.IsOrNode()},
+      sum_mask_{sum_mask},
+      curr_board_key_{n.Pos().state()->board_key()},
+      or_hand_{n.OrHand()},
+      parent_{parent} {
   // 1 手詰めの場合、指し手生成をサボることができる
   // が、AndNode の 2 手詰めルーチンで mate_1ply を呼ぶのでここでやっても意味がない
 
@@ -198,8 +308,11 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
 
   std::sort(idx_.begin(), idx_.begin() + children_len_,
             [this](const auto& lhs, const auto& rhs) { return Compare(children_[lhs], children_[rhs]); });
-
   RecalcDelta();
+
+  if (children_len_ > 0) {
+    EliminateDoubleCount(tt, n, 0);
+  }
 }
 
 BitSet64 ChildrenCache::BestMoveSumMask() const {
@@ -380,9 +493,15 @@ SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   SearchedAmount amount = child.search_result.GetSearchedAmount() + children_len_ - 1;
   if (or_node_) {
     UnknownData unknown_data = {child.Pn(), GetDelta(), n.OrHand(), n.GetDepth(), sum_mask_.Value()};
+    if (parent_ != nullptr) {
+      unknown_data.SetParent(parent_->curr_board_key_, parent_->or_hand_);
+    }
     return {std::move(unknown_data), amount};
   } else {
     UnknownData unknown_data = {GetDelta(), child.Dn(), n.OrHand(), n.GetDepth(), sum_mask_.Value()};
+    if (parent_ != nullptr) {
+      unknown_data.SetParent(parent_->curr_board_key_, parent_->or_hand_);
+    }
     return {std::move(unknown_data), amount};
   }
 }
@@ -425,18 +544,9 @@ PnDn ChildrenCache::GetPhi() const {
 }
 
 PnDn ChildrenCache::GetDelta() const {
-  if (children_len_ == 0) {
+  auto [sum_delta, max_delta] = GetRawDelta();
+  if (sum_delta == 0 && max_delta == 0) {
     return 0;
-  }
-
-  const auto& best_child = NthChild(0);
-  // 差分計算用の値を予め持っているので、高速に計算できる
-  auto sum_delta = sum_delta_except_best_;
-  auto max_delta = max_delta_except_best_;
-  if (IsSumChild(0)) {
-    sum_delta += best_child.Delta(or_node_);
-  } else {
-    max_delta = std::max(max_delta, best_child.Delta(or_node_));
   }
 
   // 定義通りに
@@ -458,12 +568,112 @@ PnDn ChildrenCache::GetDelta() const {
   return sum_delta + max_delta;
 }
 
+std::pair<PnDn, PnDn> ChildrenCache::GetRawDelta() const {
+  if (children_len_ == 0) {
+    return {0, 0};
+  }
+
+  const auto& best_child = NthChild(0);
+  // 差分計算用の値を予め持っているので、高速に計算できる
+  auto sum_delta = sum_delta_except_best_;
+  auto max_delta = max_delta_except_best_;
+  if (IsSumChild(0)) {
+    sum_delta += best_child.Delta(or_node_);
+  } else {
+    max_delta = std::max(max_delta, best_child.Delta(or_node_));
+  }
+
+  return {sum_delta, max_delta};
+}
+
 PnDn ChildrenCache::GetSecondPhi() const {
   if (children_len_ <= 1) {
     return kInfinitePnDn;
   }
   auto& second_best_child = NthChild(1);
   return second_best_child.Phi(or_node_);
+}
+
+void ChildrenCache::EliminateDoubleCount(TranspositionTable& tt, const Node& n, std::size_t i) {
+  // [best move in TT]     node      [best move in search tree]
+  //                        |
+  //                       node★
+  //          found_edge-> /  \                                 |
+  //                   node   node
+  //                     |      |
+  //                       ...
+  //                     |      |
+  //                   node   node <-current position(n)
+  //               edge-> \   /
+  //                      node <-child (NthChild(i))
+  //
+  // 上記のような探索木の状態を考える。局面★で分岐した探索木の部分木が子孫ノードで合流している。このとき、局面★の
+  // δ値の計算で合流ノード由来の値を二重で加算してしまう可能性がある。
+  // このとき、pn/dn のどちらが二重カウントされるかは★のノード種別（OR node/AND node）にしか依存せず、合流局面の
+  // ノード種別には依存しないことに注意。
+  //
+  // この関数は、上記のような局面の合流を検出し、二重カウント状態を解消する役割である。
+
+  auto& child = NthChild(i);
+  if (auto edge = detail::Edge::From(child.search_result, child.board_key, child.hand)) {
+    if (edge->board_key != curr_board_key_) {
+      // ここまでの条件分岐より、以下の局面グラフになっていることが分かった。
+      //
+      //                   node   node <-current position(n)
+      //               edge-> \   /
+      //                      node <-child (NthChild(i))
+      //
+      // 次に、親局面をたどって合流元局面を特定する。
+      auto res = FindKnownAncestor(tt, n, *edge);
+      if (res) {
+        // found_edge で分岐して child で合流していることが分かったので、それを解消しにいく
+        SetBranchRootMaxFlag(res->first, res->second);
+      }
+    }
+  }
+}
+
+void ChildrenCache::SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_root_is_or_node) {
+  if (curr_board_key_ == edge.board_key && or_hand_ == edge.hand) {
+    // 現局面が edge の分岐元。すなわち、edge と NthChild(0) が子孫局面が合流していることが分かった。
+    // 何もケアしないと二重カウントが発生してしまうので、sum ではなく max でδ値を計算させるようにする。
+
+    for (std::size_t i = 1; i < children_len_; ++i) {
+      auto& child = NthChild(i);
+      if (child.board_key == edge.child_board_key && child.hand == edge.child_hand) {
+        sum_mask_.Reset(idx_[0]);
+        if (sum_mask_.Test(idx_[i])) {
+          sum_mask_.Reset(idx_[i]);
+          RecalcDelta();
+        }
+
+        break;
+      }
+    }
+    return;
+  }
+
+  if (branch_root_is_or_node == or_node_) {
+    const auto& best_child = NthChild(0);
+    // max child でδ値が max_delta よりも小さい場合、NthChild(0) のδ値は上位ノードに伝播していない。
+    // つまり、親局面でδ値の二重カウントは発生しないため、return できる。
+    if (!IsSumChild(0) && best_child.Delta(or_node_) < max_delta_except_best_) {
+      return;
+    }
+
+    // δの定義は以下の式で表せる。
+    //    δ = sum_delta_except_best_ + NthChild(0).Delta(or_node_)   （+α）
+    // いま、2項目の二重カウントを懸念して親局面を遡っている。もし次の条件が成り立つなら、この局面のδ値の支配項は
+    // むしろ1項目であることになる。このような場合、親局面で二重カウントを過度に押される必要ないので return できる。
+    if (best_child.Delta(or_node_) < sum_delta_except_best_) {
+      return;
+    }
+  }
+
+  // 局面を 1 手戻して edge の分岐局面がないかを再帰的に探す
+  if (parent_ != nullptr) {
+    parent_->SetBranchRootMaxFlag(edge, branch_root_is_or_node);
+  }
 }
 
 bool ChildrenCache::Compare(const detail::Child& lhs, const detail::Child& rhs) const {

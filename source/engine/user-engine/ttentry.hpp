@@ -152,11 +152,21 @@ class UnknownData {
 
   constexpr std::uint64_t Secret() const { return secret_; }
 
+  constexpr std::uint64_t ParentBoardKey() const { return parent_board_key_; }
+  constexpr Hand ParentHand() const { return parent_hand_; }
+  constexpr void SetParent(std::uint64_t parent_board_key, Hand parent_hand) {
+    parent_board_key_ = parent_board_key;
+    parent_hand_ = parent_hand;
+  }
+
  private:
-  PnDn pn_, dn_;          ///< 証明数、反証数
-  Hand hand_;             ///< （OR nodeから見た）持ち駒
-  Depth min_depth_;       ///< 最小距離。infinite loop の検証に用いる
-  std::uint64_t secret_;  ///< 局面に関する情報（中身は意識しない）
+  PnDn pn_, dn_;            ///< 証明数、反証数
+  Hand hand_;               ///< （OR nodeから見た）持ち駒
+  Depth min_depth_;         ///< 最小距離。infinite loop の検証に用いる
+  std::uint64_t secret_{};  ///< 局面に関する情報（中身は意識しない）
+
+  std::uint64_t parent_board_key_{kNullKey};  ///< 親局面の盤面ハッシュ値
+  Hand parent_hand_{kNullHand};               ///< 親局面の持ち駒
 };
 std::ostream& operator<<(std::ostream& os, const UnknownData& data);
 
