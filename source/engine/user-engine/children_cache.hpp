@@ -80,7 +80,7 @@ class ChildrenCache {
   ChildrenCache(TranspositionTable& tt,
                 Node& n,
                 bool first_search,
-                BitSet64 sum_mask = BitSet64{},
+                BitSet64 sum_mask = BitSet64::Full(),
                 ChildrenCache* parent = nullptr);
 
   ChildrenCache() = delete;

@@ -151,6 +151,7 @@ class UnknownData {
   constexpr Depth MinDepth() const { return min_depth_; }
 
   constexpr std::uint64_t Secret() const { return secret_; }
+  constexpr void SetSecret(std::uint64_t secret) { secret_ = secret; }
 
   constexpr std::uint64_t ParentBoardKey() const { return parent_board_key_; }
   constexpr Hand ParentHand() const { return parent_hand_; }

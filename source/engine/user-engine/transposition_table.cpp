@@ -15,7 +15,7 @@ constexpr std::size_t kHashfullCalcEntries = 10000;
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合
 constexpr double kNormalRepetitionRatio = 0.95;
 /// エントリを消すしきい値。
-constexpr std::size_t kGcThreshold = BoardCluster::kClusterSize - 1;
+constexpr std::size_t kGcThreshold = BoardCluster::kClusterSize - 2;
 constexpr std::size_t kGcRemoveElementNum = BoardCluster::kClusterSize / 2;
 static_assert(BoardCluster::kClusterSize > kGcRemoveElementNum);
 
@@ -158,6 +158,7 @@ void LookUpQuery::SetUnknown(const UnknownData& result, SearchedAmount amount) {
   if (auto unknown = entry->TryGetUnknown()) {
     unknown->UpdatePnDn(result.Pn(), result.Dn());
     unknown->SetParent(result.ParentBoardKey(), result.ParentHand());
+    unknown->SetSecret(result.Secret());
     entry->SetSearchedAmount(amount);
   }
 }

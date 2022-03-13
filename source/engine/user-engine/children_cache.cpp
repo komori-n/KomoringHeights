@@ -201,11 +201,11 @@ std::optional<std::pair<detail::Edge, bool>> FindKnownAncestor(TranspositionTabl
     // 合流元局面が OR node/AND node のどちらであるかは合流局面を実際に見つけるまでは分からない。そのため、合流局面が
     // or_node であった時用のフラグを dn_flag、 and_node であった時用のフラグを pn_flag として両方を計算している。
     if (or_node) {
-      if (next_edge->child_dn > 2 * last_edge.child_dn + 5) {
+      if (next_edge->child_dn > last_edge.child_dn + 5) {
         dn_flag = false;
       }
     } else {
-      if (next_edge->child_pn > 2 * last_edge.child_pn + 5) {
+      if (next_edge->child_pn > last_edge.child_pn + 5) {
         pn_flag = false;
       }
     }
@@ -285,8 +285,8 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
         }
       }
 
-      if (is_sum_node) {
-        sum_mask_.Set(curr_idx);
+      if (!is_sum_node) {
+        sum_mask_.Reset(curr_idx);
       }
 
       if (!sum_mask_.Test(curr_idx)) {
@@ -347,10 +347,11 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
 BitSet64 ChildrenCache::BestMoveSumMask() const {
   auto& best_child = NthChild(0);
   if (auto unknown = best_child.search_result.TryGetUnknown()) {
-    return BitSet64{unknown->Secret()};
+    // secret には BitSet のビットを反転した値が格納されているので注意
+    return BitSet64{~unknown->Secret()};
   }
 
-  return BitSet64{};
+  return BitSet64::Full();
 }
 
 void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
@@ -520,7 +521,8 @@ SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   auto& child = NthChild(0);
   SearchedAmount amount = child.search_result.GetSearchedAmount() + children_len_ - 1;
 
-  UnknownData unknown_data = {GetPn(), GetDn(), or_hand_, n.GetDepth(), sum_mask_.Value()};
+  // secret には ~sum_mask_ を書いておく。ビット反転している理由は、secret のデフォルト値を 0 にしたいから
+  UnknownData unknown_data = {GetPn(), GetDn(), or_hand_, n.GetDepth(), ~sum_mask_.Value()};
   if (parent_ != nullptr) {
     unknown_data.SetParent(parent_->curr_board_key_, parent_->or_hand_);
   }
@@ -698,11 +700,7 @@ void ChildrenCache::SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_r
       return;
     }
 
-    // δの定義は以下の式で表せる。
-    //    δ = sum_delta_except_best_ + NthChild(0).Delta(or_node_)   （+α）
-    // いま、2項目の二重カウントを懸念して親局面を遡っている。もし次の条件が成り立つなら、この局面のδ値の支配項は
-    // むしろ1項目であることになる。このような場合、親局面で二重カウントを過度に押される必要ないので return できる。
-    if (best_child.Delta(or_node_) < sum_delta_except_best_) {
+    if (sum_delta_except_best_ > 0) {
       return;
     }
   }
