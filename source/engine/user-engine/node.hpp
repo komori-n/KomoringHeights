@@ -104,6 +104,12 @@ class Node {
     return node_history_.IsSuperior(n_.board_key_after(move), this->OrHandAfter(move));
   }
 
+  bool ContainsInPath(Key key, Hand hand) const {
+    return node_history_.Contains(key, hand) || (n_.state()->board_key() == key && OrHand() == hand);
+  }
+
+  bool ContainsInPath(Key key) const { return node_history_.Contains(key) || n_.state()->board_key() == key; }
+
   bool IsExceedLimit(Depth max_depth) const { return depth_ >= max_depth; }
 
   auto& Pos() { return n_; }

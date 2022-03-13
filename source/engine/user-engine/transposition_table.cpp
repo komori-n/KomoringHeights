@@ -137,7 +137,9 @@ void LookUpQuery::SetResult(const SearchResult& result) {
       SetRepetition(amount);
       break;
     default:
-      SetUnknown(result.Pn(), result.Dn(), amount);
+      if (auto unknown = result.TryGetUnknown()) {
+        SetUnknown(*unknown, amount);
+      }
   }
 }
 
@@ -151,10 +153,11 @@ void LookUpQuery::SetRepetition(SearchedAmount /* amount */) {
   entry_ = const_cast<CommonEntry*>(&kRepetitionEntry);
 }
 
-void LookUpQuery::SetUnknown(PnDn pn, PnDn dn, SearchedAmount amount) {
+void LookUpQuery::SetUnknown(const UnknownData& result, SearchedAmount amount) {
   auto entry = LookUpWithCreation();
   if (auto unknown = entry->TryGetUnknown()) {
-    unknown->UpdatePnDn(pn, dn);
+    unknown->UpdatePnDn(result.Pn(), result.Dn());
+    unknown->SetParent(result.ParentBoardKey(), result.ParentHand());
     entry->SetSearchedAmount(amount);
   }
 }

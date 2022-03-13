@@ -11,6 +11,7 @@ class BitSet {
   using ValueType = T;
   static_assert(std::is_integral_v<ValueType> && std::is_unsigned_v<ValueType>);
 
+  constexpr explicit BitSet(ValueType val) : val_(val) {}
   constexpr BitSet() = default;
   constexpr BitSet(const BitSet&) = default;
   constexpr BitSet(BitSet&&) noexcept = default;
@@ -41,10 +42,10 @@ class BitSet {
     return false;
   }
 
+  constexpr ValueType Value() const { return val_; }
+
  private:
   static constexpr inline std::size_t kBitPerByte = 8;
-
-  constexpr explicit BitSet(ValueType val) : val_(val) {}
 
   ValueType val_{};
 };

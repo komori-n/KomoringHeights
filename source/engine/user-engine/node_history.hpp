@@ -85,6 +85,8 @@ class NodeHistory {
     return false;
   }
 
+  bool Contains(Key board_key) const { return visited_.find(board_key) != visited_.end(); }
+
   /**
    * @brief (board_key, hand) を履歴に登録する
    *

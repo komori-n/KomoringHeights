@@ -19,13 +19,18 @@ struct Child {
   LookUpQuery query;  ///< 子局面の置換表エントリを LookUp するためのクエリ
   SearchResult search_result;  ///< 子局面の現在の pn/dn の値。LookUp はとても時間がかかるので、前回の LookUp
                                ///< 結果をコピーして持っておく。
-  bool is_first;  ///< この子局面を初めて探索するなら true。
+  bool is_first;            ///< この子局面を初めて探索するなら true。
+  std::uint64_t board_key;  ///< 子局面の board_key
+  Hand hand;                ///< 子局面の or_hand
 
   PnDn Pn() const { return search_result.Pn(); }
   PnDn Dn() const { return search_result.Dn(); }
   PnDn Phi(bool or_node) const { return or_node ? search_result.Pn() : search_result.Dn(); }
   PnDn Delta(bool or_node) const { return or_node ? search_result.Dn() : search_result.Pn(); }
 };
+
+/// 局面と子局面のハッシュ値および子局面のpn/dnをまとめた構造体
+struct Edge;
 }  // namespace detail
 
 // Forward Declaration
@@ -72,7 +77,11 @@ class ChildrenCache {
   /**
    * @brief 子局面一覧を作成し、子局面を pn/dn がよさげな順に並べ替えて初期化する
    */
-  ChildrenCache(TranspositionTable& tt, Node& n, bool first_search);
+  ChildrenCache(TranspositionTable& tt,
+                Node& n,
+                bool first_search,
+                BitSet64 sum_mask = BitSet64{},
+                ChildrenCache* parent = nullptr);
 
   ChildrenCache() = delete;
   /// 計算コストがとても大きいので move でも禁止。例えば、v0.4.1 だと ChildrenCache は 16.5MB。
@@ -85,6 +94,7 @@ class ChildrenCache {
   /// 現在の最善手を返す。合法手が 1 つ以上する場合に限り呼び出すことができる
   Move BestMove() const { return NthChild(0).move.move; }
   bool BestMoveIsFirstVisit() const { return NthChild(0).is_first; }
+  BitSet64 BestMoveSumMask() const;
   /**
    * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
    *
@@ -129,8 +139,15 @@ class ChildrenCache {
   PnDn GetPhi() const;
   /// 現在のδ値
   PnDn GetDelta() const;
+  /// 現在のδ値を sum_delta, max_delta に分解したもの。GetDelta() ではこの値をもとに現局面のδ値を計算する
+  std::pair<PnDn, PnDn> GetRawDelta() const;
   /// 現在の次良手局面おけるφ値（OrNodeならpn、AndNodeならdn）を返す。合法手が 1 手しかない場合、∞を返す。
   PnDn GetSecondPhi() const;
+
+  /// 子 i を終点とする二重カウントになっていたらそれを解消する。詳しいアルゴリズムは cpp のコメントを参照。
+  void EliminateDoubleCount(TranspositionTable& tt, const Node& n, std::size_t i);
+  /// edge を起点とする二重カウント状態を解消する。詳しくは EliminateDoubleCount() のコメントを参照。
+  void SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_root_is_or_node);
 
   /// NodeCache同士の比較演算子。sortしたときにφ値の昇順かつ千日手の判定がしやすい順番に並び替える。
   bool Compare(const detail::Child& lhs, const detail::Child& rhs) const;
@@ -149,7 +166,7 @@ class ChildrenCache {
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
   /// 和で Delta を計上する子局面の一覧
   /// max でなく sum のマスクを持つ理由は、合法手が 64 個以上の場合、set から溢れた手を max child として扱いたいため。
-  BitSet64 sum_mask_{};
+  BitSet64 sum_mask_;
   /// 子局面の数。
   std::size_t children_len_{0};
 
@@ -162,6 +179,14 @@ class ChildrenCache {
   // </delta>
 
   int max_node_num_{0};
+
+  // <double-count>
+  // 二重カウント対策のために必要な値たち
+
+  std::uint64_t curr_board_key_;
+  Hand or_hand_;
+  ChildrenCache* parent_;
+  // </double-count>
 };
 }  // namespace komori
 

@@ -3,7 +3,9 @@
 namespace komori {
 std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
   return os << "UnknownData{pn=" << ToString(data.pn_) << ", dn=" << ToString(data.dn_) << ", hand=" << data.hand_
-            << ", min_depth=" << data.min_depth_ << "}";
+            << ", min_depth=" << data.min_depth_ << ", secret=" << HexString(data.secret_) << ", parent=("
+            << HexString(data.parent_board_key_) << "," << data.parent_hand_ << ")"
+            << "}";
 }
 
 template <bool kProven>

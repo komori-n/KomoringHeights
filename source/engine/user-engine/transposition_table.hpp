@@ -217,7 +217,7 @@ class LookUpQuery {
   /// 調べていた局面が千日手による不詰であることを報告する
   void SetRepetition(SearchedAmount amount);
 
-  void SetUnknown(PnDn pn, PnDn dn, SearchedAmount amount);
+  void SetUnknown(const UnknownData& result, SearchedAmount amount);
 
  private:
   /// `entry_` が有効（前回呼び出しから移動していない）かどうかをチェックする
@@ -256,6 +256,8 @@ class TranspositionTable {
   LookUpQuery GetQuery(const Node& n);
   /// 局面 `n` から `move` で進めた局面の、LookUp 用の構造体を取得する
   LookUpQuery GetChildQuery(const Node& n, Move move);
+  /// 盤面ハッシュ値および攻め方の持ち駒から LookUp 用の構造体を取得する
+  LookUpQuery GetQueryByKey(Key board_key, Hand or_hand);
   /// 局面 `n` の最善手を取得する。探索中の場合、MOVE_NONE が返る可能性がある
   Move LookUpBestMove(const Node& n);
 
@@ -411,6 +413,10 @@ inline bool LookUpQuery::IsValid() const {
       // 千日手なので再 LookUp が必要
       return false;
     } else {
+      if (auto unknown = entry_->TryGetUnknown()) {
+        // 若干コードが汚くなるが、このタイミングで最小距離を更新しておかないとTCAがうまく働かないことがある。
+        const_cast<UnknownData*>(unknown)->UpdateDepth(depth_);
+      }
       return true;
     }
   }
@@ -434,6 +440,15 @@ inline LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
   BoardCluster board_cluster{head_entry, hash_high};
 
   return {rep_table_, std::move(board_cluster), n.OrHandAfter(move), n.GetDepth() + 1, n.PathKeyAfter(move)};
+}
+
+inline LookUpQuery TranspositionTable::GetQueryByKey(Key board_key, Hand or_hand) {
+  std::uint32_t hash_high = board_key >> 32;
+  CommonEntry* head_entry = HeadOf(board_key);
+  BoardCluster board_cluster{head_entry, hash_high};
+
+  // depth や path_key は適当に当たり障りのない値を埋めておく
+  return {rep_table_, std::move(board_cluster), or_hand, std::numeric_limits<Depth>::max(), kNullKey};
 }
 
 }  // namespace komori
