@@ -272,6 +272,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // 既に stop すべき状態でも 1 回は探索を行う（resultに値を入れるため）
   do {
     result = SearchEntry(node, thpn, thdn);
+    score_ = MakeScore(result, is_root_or_node);
     if (result.IsFinal() || result.Pn() >= kInfinitePnDn || result.Dn() >= kInfinitePnDn) {
       // 探索が評価値が確定したら break　する
       // is_final だけではなく pn/dn の値を見ているのはオーバーフロー対策のため。
@@ -282,7 +283,6 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
-    score_ = MakeScore(result, is_root_or_node);
   } while (!monitor_.ShouldStop());
 
   auto info = CurrentInfo();
