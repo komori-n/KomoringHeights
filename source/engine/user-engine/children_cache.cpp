@@ -128,11 +128,7 @@ detail::Child MakeRepetitionChild(ExtMove move, Hand hand) {
   return child;
 }
 
-detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
-                                     Node& n,
-                                     ExtMove move,
-                                     bool& is_sum_delta,
-                                     bool& does_have_old_child) {
+detail::Child MakeNonRepetitionChild(TranspositionTable& tt, Node& n, ExtMove move) {
   detail::Child child;
   child.move = move;
   child.query = tt.GetChildQuery(n, move.move);
@@ -142,10 +138,6 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
 
   child.is_first = entry->IsFirstVisit();
   if (auto unknown = entry->TryGetUnknown()) {
-    if (unknown->MinDepth() < n.GetDepth()) {
-      does_have_old_child = true;
-    }
-
     if (child.is_first) {
       auto [pn, dn] = InitialPnDn(n, move.move);
       auto new_pn = std::max(pn, unknown->Pn());
@@ -154,11 +146,6 @@ detail::Child MakeNonRepetitionChild(TranspositionTable& tt,
         unknown->UpdatePnDn(new_pn, new_dn);
       }
     }
-  }
-
-  if (entry->IsNotFinal() && entry->Delta(n.IsOrNode()) > kSumSwitchThreshold) {
-    // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、max で計算する
-    is_sum_delta = false;
   }
 
   auto hand_after = n.OrHandAfter(move.move);
@@ -234,6 +221,32 @@ std::optional<std::pair<detail::Edge, bool>> FindKnownAncestor(TranspositionTabl
 
   return std::nullopt;
 }
+
+template <bool kOrNode>
+bool Compare(const detail::Child& lhs, const detail::Child& rhs) {
+  if (lhs.Phi(kOrNode) != rhs.Phi(kOrNode)) {
+    return lhs.Phi(kOrNode) < rhs.Phi(kOrNode);
+  } else if (lhs.Delta(kOrNode) != rhs.Delta(kOrNode)) {
+    return lhs.Delta(kOrNode) > rhs.Delta(kOrNode);
+  }
+
+  if (lhs.Dn() == 0 && rhs.Dn() == 0) {
+    // DisprovenState と RepetitionState はちゃんと順番をつけなければならない
+    // - repetition -> まだ頑張れば詰むかもしれない
+    // - disproven -> どうやっても詰まない
+    auto lstate = lhs.search_result.GetNodeState();
+    auto rstate = rhs.search_result.GetNodeState();
+
+    // or node -> repetition < disproven になってほしい（repetition なら別経路だと詰むかもしれない）
+    // and node -> disproven < repetition になってほしい（disproven なら経路に関係なく詰まないから）
+    // -> !or_node ^ (int)repetition < (int)disproven
+    if (lstate != rstate) {
+      return !kOrNode ^ (static_cast<int>(lstate) < static_cast<int>(rstate));
+    }
+  }
+
+  return lhs.move.value < rhs.move.value;
+}
 }  // namespace
 
 ChildrenCache::ChildrenCache(TranspositionTable& tt,
@@ -258,8 +271,19 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
       // 置換表 LookUp の回数を減らすために別処理に分ける
       child = MakeRepetitionChild(move, n.OrHand());
     } else {
+      child = MakeNonRepetitionChild(tt, n, move);
+
       bool is_sum_node = IsSumDeltaNode(n, move);
-      child = MakeNonRepetitionChild(tt, n, move, is_sum_node, does_have_old_child_);
+      if (auto unknown = child.search_result.TryGetUnknown()) {
+        if (unknown->IsOldChild(n.GetDepth())) {
+          does_have_old_child_ = true;
+        }
+
+        if (Delta(unknown->Pn(), unknown->Dn(), or_node_) > kSumSwitchThreshold) {
+          // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、max で計算する
+          is_sum_node = false;
+        }
+      }
 
       if (is_sum_node) {
         sum_mask_.Set(curr_idx);
@@ -306,8 +330,13 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
     // ここで Delta() >= thdelta を根拠に子局面の展開をやめると、CurrentResult() の結果があまりよくなくなるのでダメ。
   }
 
-  std::sort(idx_.begin(), idx_.begin() + children_len_,
-            [this](const auto& lhs, const auto& rhs) { return Compare(children_[lhs], children_[rhs]); });
+  if (or_node_) {
+    std::sort(idx_.begin(), idx_.begin() + children_len_,
+              [this](const auto& lhs, const auto& rhs) { return Compare<true>(children_[lhs], children_[rhs]); });
+  } else {
+    std::sort(idx_.begin(), idx_.begin() + children_len_,
+              [this](const auto& lhs, const auto& rhs) { return Compare<false>(children_[lhs], children_[rhs]); });
+  }
   RecalcDelta();
 
   if (children_len_ > 0) {
@@ -336,7 +365,8 @@ void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
   // idx=0 の更新を受けて子ノードをソートし直す
   // [1, n) はソート済なので、insertion sort で高速にソートできる
   std::size_t j = 0 + 1;
-  while (j < children_len_ && Compare(NthChild(j), NthChild(0))) {
+  auto comparer = or_node_ ? Compare<true> : Compare<false>;
+  while (j < children_len_ && comparer(NthChild(j), NthChild(0))) {
     ++j;
   }
   std::rotate(idx_.begin(), idx_.begin() + 1, idx_.begin() + j);
@@ -360,11 +390,9 @@ void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
 }
 
 SearchResult ChildrenCache::CurrentResult(const Node& n) const {
-  PnDn pn = or_node_ ? GetPhi() : GetDelta();
-  PnDn dn = or_node_ ? GetDelta() : GetPhi();
-  if (pn == 0) {
+  if (GetPn() == 0) {
     return GetProvenResult(n);
-  } else if (dn == 0) {
+  } else if (GetDn() == 0) {
     return GetDisprovenResult(n);
   } else {
     return GetUnknownResult(n);
@@ -491,19 +519,12 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   auto& child = NthChild(0);
   SearchedAmount amount = child.search_result.GetSearchedAmount() + children_len_ - 1;
-  if (or_node_) {
-    UnknownData unknown_data = {child.Pn(), GetDelta(), n.OrHand(), n.GetDepth(), sum_mask_.Value()};
-    if (parent_ != nullptr) {
-      unknown_data.SetParent(parent_->curr_board_key_, parent_->or_hand_);
-    }
-    return {std::move(unknown_data), amount};
-  } else {
-    UnknownData unknown_data = {GetDelta(), child.Dn(), n.OrHand(), n.GetDepth(), sum_mask_.Value()};
-    if (parent_ != nullptr) {
-      unknown_data.SetParent(parent_->curr_board_key_, parent_->or_hand_);
-    }
-    return {std::move(unknown_data), amount};
+
+  UnknownData unknown_data = {GetPn(), GetDn(), or_hand_, n.GetDepth(), sum_mask_.Value()};
+  if (parent_ != nullptr) {
+    unknown_data.SetParent(parent_->curr_board_key_, parent_->or_hand_);
   }
+  return {std::move(unknown_data), amount};
 }
 
 PnDn ChildrenCache::NewThdeltaForBestMove(PnDn thdelta) const {
@@ -532,6 +553,22 @@ void ChildrenCache::RecalcDelta() {
     } else {
       max_delta_except_best_ = std::max(max_delta_except_best_, child.Delta(or_node_));
     }
+  }
+}
+
+PnDn ChildrenCache::GetPn() const {
+  if (or_node_) {
+    return GetPhi();
+  } else {
+    return GetDelta();
+  }
+}
+
+PnDn ChildrenCache::GetDn() const {
+  if (or_node_) {
+    return GetDelta();
+  } else {
+    return GetPhi();
   }
 }
 
@@ -674,32 +711,5 @@ void ChildrenCache::SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_r
   if (parent_ != nullptr) {
     parent_->SetBranchRootMaxFlag(edge, branch_root_is_or_node);
   }
-}
-
-bool ChildrenCache::Compare(const detail::Child& lhs, const detail::Child& rhs) const {
-  // or_node_ と move.value を参照しなければならないので ChildrenCache の内部で定義している
-
-  if (lhs.Phi(or_node_) != rhs.Phi(or_node_)) {
-    return lhs.Phi(or_node_) < rhs.Phi(or_node_);
-  } else if (lhs.Delta(or_node_) != rhs.Delta(or_node_)) {
-    return lhs.Delta(or_node_) > rhs.Delta(or_node_);
-  }
-
-  if (lhs.Dn() == 0 && rhs.Dn() == 0) {
-    // DisprovenState と RepetitionState はちゃんと順番をつけなければならない
-    // - repetition -> まだ頑張れば詰むかもしれない
-    // - disproven -> どうやっても詰まない
-    auto lstate = lhs.search_result.GetNodeState();
-    auto rstate = rhs.search_result.GetNodeState();
-
-    // or node -> repetition < disproven になってほしい（repetition なら別経路だと詰むかもしれない）
-    // and node -> disproven < repetition になってほしい（disproven なら経路に関係なく詰まないから）
-    // -> !or_node ^ (int)repetition < (int)disproven
-    if (lstate != rstate) {
-      return !or_node_ ^ (static_cast<int>(lstate) < static_cast<int>(rstate));
-    }
-  }
-
-  return lhs.move.value < rhs.move.value;
 }
 }  // namespace komori

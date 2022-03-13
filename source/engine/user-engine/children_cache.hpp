@@ -135,6 +135,10 @@ class ChildrenCache {
   PnDn NewThdeltaForBestMove(PnDn thdelta) const;
   /// δ値を計算するために使用する内部変数（XXX_delta_except_best_）を計算し直す
   void RecalcDelta();
+  /// 現在の pn
+  PnDn GetPn() const;
+  /// 現在の dn
+  PnDn GetDn() const;
   /// 現在のφ値
   PnDn GetPhi() const;
   /// 現在のδ値
@@ -148,9 +152,6 @@ class ChildrenCache {
   void EliminateDoubleCount(TranspositionTable& tt, const Node& n, std::size_t i);
   /// edge を起点とする二重カウント状態を解消する。詳しくは EliminateDoubleCount() のコメントを参照。
   void SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_root_is_or_node);
-
-  /// NodeCache同士の比較演算子。sortしたときにφ値の昇順かつ千日手の判定がしやすい順番に並び替える。
-  bool Compare(const detail::Child& lhs, const detail::Child& rhs) const;
 
   /// 展開元の局面が OR node なら true
   /// コンストラクト時に渡された node から取得する。node 全部をコピーする必要がないので、これだけ持っておく。
