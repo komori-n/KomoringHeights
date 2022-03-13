@@ -206,6 +206,10 @@ class LookUpQuery {
   /// result を置換表に登録する。内部では SetProven, SetDisproven などを呼び分けている
   void SetResult(const SearchResult& result);
 
+ private:
+  /// `entry_` が有効（前回呼び出しから移動していない）かどうかをチェックする
+  bool IsValid() const;
+
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
   void SetProven(Hand proof_hand, Move16 move, MateLen mate_len, SearchedAmount amount) {
     entry_ = board_cluster_.SetProven(proof_hand, move, mate_len, amount);
@@ -216,12 +220,8 @@ class LookUpQuery {
   }
   /// 調べていた局面が千日手による不詰であることを報告する
   void SetRepetition(SearchedAmount amount);
-
+  /// 調べていた局面が NotFinal であることを報告する
   void SetUnknown(const UnknownData& result, SearchedAmount amount);
-
- private:
-  /// `entry_` が有効（前回呼び出しから移動していない）かどうかをチェックする
-  bool IsValid() const;
 
   /// 千日手置換表へのポインタ。デフォルトコンストラクト可能にするために参照ではなくポインタで持つ。
   RepetitionTable* rep_table_;
