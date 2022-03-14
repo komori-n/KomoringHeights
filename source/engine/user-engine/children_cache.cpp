@@ -537,7 +537,7 @@ PnDn ChildrenCache::NewThdeltaForBestMove(PnDn thdelta) const {
   }
 
   // 計算の際はオーバーフローに注意
-  if (thdelta >= sum_delta_except_best_) {
+  if (thdelta >= delta_except_best) {
     return Clamp(thdelta - delta_except_best);
   }
 
