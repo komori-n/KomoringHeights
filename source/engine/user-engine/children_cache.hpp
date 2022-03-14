@@ -169,7 +169,8 @@ class ChildrenCache {
   /// max でなく sum のマスクを持つ理由は、合法手が 64 個以上の場合、set から溢れた手を max child として扱いたいため。
   BitSet64 sum_mask_;
   /// 子局面の数。
-  std::size_t children_len_{0};
+  std::size_t effective_len_{0};
+  std::size_t actual_len_{0};
 
   // <delta>
   // これらの値を事前計算しておくことで、Delta値を O(1) で計算できる。詳しくは GetDelta() を参照。
