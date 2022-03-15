@@ -51,7 +51,9 @@ class MovePicker {
 
   std::size_t size() const { return size_; }
   ExtMove* begin() { return move_list_.data(); }
+  const ExtMove* begin() const { return move_list_.data(); }
   ExtMove* end() { return begin() + size_; }
+  const ExtMove* end() const { return begin() + size_; }
   bool empty() const { return size() == 0; }
 
  private:

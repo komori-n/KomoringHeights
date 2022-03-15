@@ -41,6 +41,23 @@ struct Edge {
     return From(tt, child_edge.board_key, child_edge.hand);
   }
 };
+
+void Child::LookUp(Node& n) {
+  auto* entry = query.LookUpWithoutCreation();
+
+  if (auto unknown = entry->TryGetUnknown()) {
+    if (entry->IsFirstVisit()) {
+      auto [pn, dn] = InitialPnDn(n, move.move);
+      auto new_pn = std::max(pn, unknown->Pn());
+      auto new_dn = std::max(dn, unknown->Dn());
+      if (new_pn != unknown->Pn() || new_dn != unknown->Dn()) {
+        unknown->UpdatePnDn(new_pn, new_dn);
+      }
+    }
+  }
+
+  search_result = entry->Simplify(hand);
+}
 }  // namespace detail
 
 namespace {
@@ -116,12 +133,11 @@ inline bool DoesHaveMatePossibility(const Position& n) {
   return x | y;
 }
 
-detail::Child MakeRepetitionChild(ExtMove move, Hand hand) {
+detail::Child MakeRepetitionChild(ExtMove move) {
   detail::Child child;
 
   child.move = move;
   child.search_result = SearchResult{RepetitionData{}};
-  child.is_first = false;
   child.board_key = kNullKey;
   child.hand = kNullHand;
 
@@ -130,26 +146,13 @@ detail::Child MakeRepetitionChild(ExtMove move, Hand hand) {
 
 detail::Child MakeNonRepetitionChild(TranspositionTable& tt, Node& n, ExtMove move) {
   detail::Child child;
+  auto hand_after = n.OrHandAfter(move.move);
+
   child.move = move;
   child.query = tt.GetChildQuery(n, move.move);
   child.board_key = n.Pos().board_key_after(move.move);
-  child.hand = n.OrHandAfter(move.move);
-  auto* entry = child.query.LookUpWithoutCreation();
-
-  child.is_first = entry->IsFirstVisit();
-  if (auto unknown = entry->TryGetUnknown()) {
-    if (child.is_first) {
-      auto [pn, dn] = InitialPnDn(n, move.move);
-      auto new_pn = std::max(pn, unknown->Pn());
-      auto new_dn = std::max(dn, unknown->Dn());
-      if (new_pn != unknown->Pn() || new_dn != unknown->Dn()) {
-        unknown->UpdatePnDn(new_pn, new_dn);
-      }
-    }
-  }
-
-  auto hand_after = n.OrHandAfter(move.move);
-  child.search_result = entry->Simplify(hand_after);
+  child.hand = hand_after;
+  child.search_result.Clear();
 
   return child;
 }
@@ -259,76 +262,38 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
       curr_board_key_{n.Pos().state()->board_key()},
       or_hand_{n.OrHand()},
       parent_{parent} {
-  // 1 手詰めの場合、指し手生成をサボることができる
-  // が、AndNode の 2 手詰めルーチンで mate_1ply を呼ぶのでここでやっても意味がない
-
   // 後で子局面を良さげ順に並び替えるため、ordering=true で指し手生成を行う
-  for (auto&& move : MovePicker{n, true}) {
-    auto& curr_idx = idx_[actual_len_] = actual_len_;
-    auto& child = children_[actual_len_++];
-    effective_len_ = actual_len_;
+  const auto mp = MovePicker{n, true};
+
+  bool found_rep = false;
+  for (const auto& move : mp) {
+    const auto i_raw = actual_len_++;
+    auto& child = children_[i_raw];
+
+    // どう見ても千日手 or 列島局面になる場合は読み進める必要がない
+    // 置換表 LookUp の回数を減らすために別処理に分ける
     if (n.IsRepetitionOrInferiorAfter(move.move)) {
-      // どう見ても千日手の局面 or どう見ても詰まない局面は読み進める必要がない
-      // 置換表 LookUp の回数を減らすために別処理に分ける
-      child = MakeRepetitionChild(move, n.OrHand());
+      // 千日手は複数あっても意味がないので、2 つ目以降は無視する
+      if (!found_rep) {
+        child = MakeRepetitionChild(move);
+        const auto i = effective_len_++;
+        idx_[i] = i_raw;
+
+        if (!or_node_) {
+          break;
+        }
+      }
+      found_rep = true;
     } else {
       child = MakeNonRepetitionChild(tt, n, move);
+      const auto i = effective_len_++;
+      idx_[i] = i_raw;
+      Expand(n, i, first_search);
 
-      bool is_sum_node = IsSumDeltaNode(n, move);
-      if (auto unknown = child.search_result.TryGetUnknown()) {
-        if (unknown->IsOldChild(n.GetDepth())) {
-          does_have_old_child_ = true;
-        }
-
-        if (Delta(unknown->Pn(), unknown->Dn(), or_node_) > kSumSwitchThreshold) {
-          // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、max で計算する
-          is_sum_node = false;
-        }
-      }
-
-      if (!is_sum_node) {
-        sum_mask_.Reset(curr_idx);
-      }
-
-      if (!sum_mask_.Test(curr_idx)) {
-        max_node_num_++;
-      }
-
-      // AND node の first search の場合、1手掘り進めてみる（2手詰ルーチン）
-      // OR node の場合、詰みかどうかを高速に判定できないので first_search でも先読みはしない
-      if (!or_node_ && first_search && child.is_first) {
-        n.DoMove(move.move);
-        // 1手詰めチェック & 0手不詰チェック
-        // 0手不詰チェックを先にした方が 1% ぐらい高速
-
-        if (!DoesHaveMatePossibility(n.Pos())) {
-          // 明らかに王手がかけられないので不詰
-
-          auto hand2 = HandSet{DisproofHandTag{}}.Get(n.Pos());
-          // 置換表に不詰であることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
-          DisprovenData disproven_data = {hand2, MOVE_NONE, MakeMateLen(0, hand2)};
-          SearchResult dummy_result = {std::move(disproven_data), kMinimumSearchedAmount};
-          UpdateNthChildWithoutSort(curr_idx, dummy_result);
-        } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
-          // best_move を選ぶと1手詰み。
-
-          // 置換表に詰みであることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
-          ProvenData proven_data = {proof_hand, best_move, MakeMateLen(1, proof_hand)};
-          SearchResult dummy_result = {std::move(proven_data), kMinimumSearchedAmount};
-          UpdateNthChildWithoutSort(curr_idx, dummy_result);
-        }
-        n.UndoMove(move.move);
+      if (child.Phi(or_node_) == 0) {
+        break;
       }
     }
-
-    // 1つでも（現在の手番側から見て）勝ちの手があるならそれを選べばOK。これ以上探索しても
-    // CurrentResult() の結果はほとんど変化しない。
-
-    if (child.Phi(or_node_) == 0) {
-      break;
-    }
-
-    // ここで Delta() >= thdelta を根拠に子局面の展開をやめると、CurrentResult() の結果があまりよくなくなるのでダメ。
   }
 
   if (or_node_) {
@@ -419,8 +384,6 @@ std::pair<PnDn, PnDn> ChildrenCache::ChildThreshold(PnDn thpn, PnDn thdn) const 
 
 void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result) {
   auto& child = NthChild(i);
-  // Update したということはもう初探索ではないはず
-  child.is_first = false;
   child.search_result = search_result;
 
   // このタイミングで置換表に登録する
@@ -429,6 +392,60 @@ void ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult&
 
   if (!child.search_result.IsFinal() && child.Delta(or_node_) > kSumSwitchThreshold) {
     sum_mask_.Reset(idx_[i]);
+  }
+}
+
+void ChildrenCache::Expand(Node& n, const std::size_t i, const bool first_search) {
+  const auto i_raw = idx_[i];
+  auto& child = children_[i_raw];
+  const auto move = child.move;
+
+  child.LookUp(n);
+
+  bool is_sum_node = IsSumDeltaNode(n, move);
+  if (auto unknown = child.search_result.TryGetUnknown()) {
+    if (unknown->IsOldChild(n.GetDepth())) {
+      does_have_old_child_ = true;
+    }
+
+    if (Delta(unknown->Pn(), unknown->Dn(), or_node_) > kSumSwitchThreshold) {
+      // Delta の値が大きすぎるとオーバーフローしてしまう恐れがあるので、max で計算する
+      is_sum_node = false;
+    }
+  }
+
+  if (!is_sum_node) {
+    sum_mask_.Reset(i_raw);
+  }
+
+  if (!sum_mask_.Test(i_raw)) {
+    max_node_num_++;
+  }
+
+  // AND node の first search の場合、1手掘り進めてみる（2手詰ルーチン）
+  // OR node の場合、詰みかどうかを高速に判定できないので first_search でも先読みはしない
+  if (!or_node_ && first_search && child.IsFirstVisit()) {
+    n.DoMove(move.move);
+    // 1手詰めチェック & 0手不詰チェック
+    // 0手不詰チェックを先にした方が 1% ぐらい高速
+
+    if (!DoesHaveMatePossibility(n.Pos())) {
+      // 明らかに王手がかけられないので不詰
+
+      auto hand2 = HandSet{DisproofHandTag{}}.Get(n.Pos());
+      // 置換表に不詰であることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
+      DisprovenData disproven_data = {hand2, MOVE_NONE, MakeMateLen(0, hand2)};
+      SearchResult dummy_result = {std::move(disproven_data), kMinimumSearchedAmount};
+      UpdateNthChildWithoutSort(i, dummy_result);
+    } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
+      // best_move を選ぶと1手詰み。
+
+      // 置換表に詰みであることを保存したいので、child.search_result の直接更新ではなく Update 関数をちゃんと呼ぶ
+      ProvenData proven_data = {proof_hand, best_move, MakeMateLen(1, proof_hand)};
+      SearchResult dummy_result = {std::move(proven_data), kMinimumSearchedAmount};
+      UpdateNthChildWithoutSort(i, dummy_result);
+    }
+    n.UndoMove(move.move);
   }
 }
 
@@ -447,8 +464,9 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
   } else {
     // 子局面の証明駒の極小集合を計算する
     HandSet set{ProofHandTag{}};
-    for (std::size_t i = 0; i < actual_len_; ++i) {
+    for (std::size_t i = 0; i < effective_len_; ++i) {
       const auto& child = NthChild(i);
+
       set.Update(child.search_result.FrontHand());
       amount = std::max(amount, child.search_result.GetSearchedAmount());
       if (child.search_result.FrontMateLen() > mate_len) {
@@ -484,6 +502,7 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
     HandSet set{DisproofHandTag{}};
     for (std::size_t i = 0; i < actual_len_; ++i) {
       const auto& child = NthChild(i);
+
       set.Update(BeforeHand(n.Pos(), child.move, child.search_result.FrontHand()));
       amount = std::max(amount, child.search_result.GetSearchedAmount());
       if (child.search_result.FrontMateLen() > mate_len) {

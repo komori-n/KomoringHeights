@@ -19,7 +19,6 @@ struct Child {
   LookUpQuery query;  ///< 子局面の置換表エントリを LookUp するためのクエリ
   SearchResult search_result;  ///< 子局面の現在の pn/dn の値。LookUp はとても時間がかかるので、前回の LookUp
                                ///< 結果をコピーして持っておく。
-  bool is_first;            ///< この子局面を初めて探索するなら true。
   std::uint64_t board_key;  ///< 子局面の board_key
   Hand hand;                ///< 子局面の or_hand
 
@@ -27,6 +26,9 @@ struct Child {
   PnDn Dn() const { return search_result.Dn(); }
   PnDn Phi(bool or_node) const { return or_node ? search_result.Pn() : search_result.Dn(); }
   PnDn Delta(bool or_node) const { return or_node ? search_result.Dn() : search_result.Pn(); }
+  bool IsFirstVisit() const { return search_result.IsFirstVisit(); }
+
+  void LookUp(Node& n);
 };
 
 /// 局面と子局面のハッシュ値および子局面のpn/dnをまとめた構造体
@@ -93,7 +95,7 @@ class ChildrenCache {
 
   /// 現在の最善手を返す。合法手が 1 つ以上する場合に限り呼び出すことができる
   Move BestMove() const { return NthChild(0).move.move; }
-  bool BestMoveIsFirstVisit() const { return NthChild(0).is_first; }
+  bool BestMoveIsFirstVisit() const { return NthChild(0).IsFirstVisit(); }
   BitSet64 BestMoveSumMask() const;
   /**
    * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
@@ -123,6 +125,8 @@ class ChildrenCache {
   bool IsSumChild(std::size_t i) const { return sum_mask_.Test(idx_[i]); }
   /// UpdateFront のソートしない版
   void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
+
+  void Expand(Node& n, std::size_t i, bool first_search);
 
   /// 現局面が詰みであることがわかっている時、その SearchResult を計算して返す
   SearchResult GetProvenResult(const Node& n) const;
