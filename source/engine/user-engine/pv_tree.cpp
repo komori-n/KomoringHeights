@@ -1,5 +1,7 @@
 #include "pv_tree.hpp"
 
+#include <algorithm>
+
 #include "move_picker.hpp"
 
 namespace komori {
