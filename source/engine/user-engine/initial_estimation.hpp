@@ -149,9 +149,6 @@ inline bool IsSumDeltaNode(const Node& n, Move move) {
         // 飛車と角はだいたいどこから打っても同じ
         return false;
       }
-    } else {
-      // 合駒はだいたい何を打っても同じ
-      return false;
     }
   } else {
     // 駒移動（駒打ちではない）

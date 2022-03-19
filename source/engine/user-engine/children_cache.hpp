@@ -21,6 +21,7 @@ struct Child {
                                ///< 結果をコピーして持っておく。
   std::uint64_t board_key;  ///< 子局面の board_key
   Hand hand;                ///< 子局面の or_hand
+  std::size_t next_dep;     ///< 次に展開すべき要素の i_raw + 1。0 は無効値。
 
   PnDn Pn() const { return search_result.Pn(); }
   PnDn Dn() const { return search_result.Dn(); }
@@ -99,9 +100,6 @@ class ChildrenCache {
   BitSet64 BestMoveSumMask() const;
   /**
    * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
-   *
-   * @param search_result 置換表へ登録する内容
-   * @param move_count   探索局面数
    */
   void UpdateBestChild(const SearchResult& search_result);
 
@@ -124,9 +122,12 @@ class ChildrenCache {
   const detail::Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
   bool IsSumChild(std::size_t i) const { return sum_mask_.Test(idx_[i]); }
   /// UpdateFront のソートしない版
-  void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
+  bool UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
 
-  void Expand(Node& n, std::size_t i, bool first_search);
+  /// 子 i_raw を展開する。n が必要なのは、pn/dn の初期値を計算するため
+  void Expand(Node& n, std::size_t i_raw, bool first_search);
+  /// 子 i 以外がソートされていて i だけがソートされていない場合、i を適切な位置に挿入する
+  void Refresh(std::size_t i);
 
   /// 現局面が詰みであることがわかっている時、その SearchResult を計算して返す
   SearchResult GetProvenResult(const Node& n) const;
