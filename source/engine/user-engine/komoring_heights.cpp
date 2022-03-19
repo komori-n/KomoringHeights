@@ -290,7 +290,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   sync_cout << info << sync_endl;
 
   if (result.GetNodeState() == NodeState::kProvenState) {
-    if (option_.post_search_count > 0) {
+    if (true || option_.post_search_count > 0) {
       // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
       auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
       sync_cout << "info string mate_len=" << mate_len << sync_endl;
@@ -298,14 +298,11 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
       best_moves_ = pv_tree_.Pv(node);
       score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
       PrintYozume(node, best_moves_);
-    } else {
-      // PostSearch() 関数は処理が重い。1通り PV を得るだけなら置換表から best move を取ってくるだけで良い
-      best_moves_ = TraceBestMove(node);
-      score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
     }
 
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
+      best_moves_ = TraceBestMove(node);
     }
   } else {
     if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
@@ -697,19 +694,26 @@ std::vector<Move> KomoringHeights::TraceBestMove(Node& n) {
     auto query = tt_.GetQuery(n);
     auto entry = query.LookUpWithoutCreation();
     Move best_move = MOVE_NONE;
+
+    bool should_search = false;
     if (entry->GetNodeState() == NodeState::kProvenState) {
       best_move = n.Pos().to_move(entry->BestMove(n.OrHand()));
       if (best_move != MOVE_NONE && (!n.Pos().pseudo_legal(best_move) || !n.Pos().legal(best_move))) {
-        best_move = SelectBestMove(tt_, n);
+        should_search = true;
       }
     } else {
+      should_search = true;
+    }
+
+    if (should_search) {
+      sync_cout << "info string research " << n.GetDepth() << sync_endl;
       auto result = SearchEntry(n);
       if (auto proven = result.TryGetProven()) {
         best_move = n.Pos().to_move(proven->BestMove(n.OrHand()));
       }
     }
 
-    if (best_move == MOVE_NONE) {
+    if (best_move == MOVE_NONE || n.IsRepetitionAfter(best_move)) {
       break;
     }
 
