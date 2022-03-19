@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <optional>
 
 #include "../../mate/mate.h"
 #include "initial_estimation.hpp"
