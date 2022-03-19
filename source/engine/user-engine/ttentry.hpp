@@ -171,6 +171,8 @@ class UnknownData {
 };
 std::ostream& operator<<(std::ostream& os, const UnknownData& data);
 
+constexpr inline std::size_t kDataSize = (sizeof(UnknownData) + 7) / 8 * 8;
+
 /**
  * @brief 証明駒または反証駒を格納するデータ構造。
  *
@@ -224,7 +226,7 @@ class HandsData {
     Entry(Hand hand, Move16 move, MateLen mate_len) : hand{hand}, move{move}, mate_len{mate_len} {}
   };
 
-  static inline constexpr std::size_t kHandsLen = sizeof(UnknownData) / sizeof(Entry);
+  static inline constexpr std::size_t kHandsLen = kDataSize / sizeof(Entry);
   std::array<Entry, kHandsLen> entries_;  ///< 証明駒（反証駒）
 };
 template <bool kProven>
@@ -344,19 +346,19 @@ class SearchResult {
 
  private:
   union {
-    std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< ダミーエントリ（サイズ確認用）
-    UnknownData unknown_;                                                           ///< 通常局面
-    ProvenData proven_;                                                             ///< 証明済局面
-    DisprovenData disproven_;                                                       ///< 反証済局面
-    RepetitionData rep_;                                                            ///< 千日手局面
+    std::array<std::uint32_t, kDataSize / sizeof(std::uint32_t)> dummy_;  ///< ダミーエントリ（サイズ確認用）
+    UnknownData unknown_;                                                 ///< 通常局面
+    ProvenData proven_;                                                   ///< 証明済局面
+    DisprovenData disproven_;                                             ///< 反証済局面
+    RepetitionData rep_;                                                  ///< 千日手局面
   };
   StateAmount s_amount_;  ///< ノード状態とこの局面を何手読んだか
 
   // サイズチェック
-  static_assert(sizeof(dummy_) == sizeof(unknown_));
-  static_assert(sizeof(dummy_) == sizeof(proven_));
-  static_assert(sizeof(dummy_) == sizeof(disproven_));
-  static_assert(sizeof(dummy_) >= sizeof(rep_));
+  static_assert(kDataSize >= sizeof(unknown_));
+  static_assert(kDataSize >= sizeof(proven_));
+  static_assert(kDataSize >= sizeof(disproven_));
+  static_assert(kDataSize >= sizeof(rep_));
 };
 
 std::ostream& operator<<(std::ostream& os, const SearchResult& search_result);
