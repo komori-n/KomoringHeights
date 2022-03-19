@@ -1,6 +1,7 @@
 #ifndef BITSET_HPP_
 #define BITSET_HPP_
 
+#include <cstdint>
 #include <limits>
 #include <numeric>
 #include <type_traits>
