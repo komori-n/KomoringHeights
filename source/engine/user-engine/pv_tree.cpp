@@ -23,7 +23,6 @@ void PvTree::Clear() {
 
 void PvTree::Insert(Node& n, Bound bound, MateLen mate_len, Move best_move) {
   auto board_key = n.Pos().state()->board_key();
-  auto or_hand = n.OrHand();
 
   // メモリ消費量をケチるために、他のエントリで代用できる場合は格納しないようにする
   bool need_store = false;
@@ -106,7 +105,6 @@ void PvTree::Verbose(Node& n) const {
   for (;;) {
     std::ostringstream oss;
     for (auto&& move : MovePicker{n}) {
-      auto child_key = n.Pos().key_after(move.move);
       if (auto mate_range = ProbeAfter(n, move.move); mate_range.best_move != MOVE_NONE) {
         oss << " " << move.move << "(" << mate_range.min_mate_len << "/" << mate_range.max_mate_len << ")";
       } else {

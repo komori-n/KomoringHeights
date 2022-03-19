@@ -21,7 +21,6 @@ namespace komori {
 namespace {
 constexpr std::int64_t kGcInterval = 100'000'000;
 
-constexpr MateLen kRepetitionLen{kMaxNumMateMoves + 1, 0};
 constexpr std::size_t kSplittedPrintLen = 12;
 
 /// 詰み手数と持ち駒から MateLen を作る
@@ -408,7 +407,6 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
 }
 
 MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
-  Key key = n.Pos().key();
   PvMoveLen pv_move_len{n, alpha, beta};
   bool repetition = false;
 
@@ -560,7 +558,6 @@ PV_END:
 
 SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
   ChildrenCache cache{tt_, n, true};
-  auto move_count_org = monitor_.MoveCount();
   auto result = SearchImpl(n, thpn, thdn, cache, false);
 
   auto query = tt_.GetQuery(n);

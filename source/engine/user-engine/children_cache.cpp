@@ -620,7 +620,6 @@ SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
 }
 
 PnDn ChildrenCache::NewThdeltaForBestMove(PnDn thdelta) const {
-  auto& best_child = NthChild(0);
   PnDn delta_except_best = sum_delta_except_best_;
   if (IsSumChild(0)) {
     delta_except_best += max_delta_except_best_;
