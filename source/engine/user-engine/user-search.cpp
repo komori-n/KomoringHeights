@@ -1,4 +1,5 @@
 ﻿#include <cmath>
+#include <condition_variable>
 #include <mutex>
 
 #include "../../extra/all.h"
@@ -15,7 +16,12 @@ komori::KomoringHeights g_searcher;
 komori::EngineOption g_option;
 std::once_flag g_path_key_init_flag;
 
-std::atomic_bool g_search_end = false;
+// <探索終了同期>
+bool g_search_end = false;
+std::mutex g_end_mtx;
+std::condition_variable g_end_cv;
+// </探索終了同期>
+
 komori::NodeState g_search_result = komori::NodeState::kNullState;
 
 /// 局面が OR node っぽいかどうかを調べる。困ったら OR node として処理する。
@@ -87,27 +93,35 @@ void PvCommand(Position& pos, std::istringstream& /* is */) {
   g_searcher.ShowPv(pos, is_root_or_node);
 }
 
-void WaitSearchEnd(const std::atomic_bool& search_end) {
+void WaitSearchEnd() {
   Timer timer;
   timer.reset();
 
-  bool is_mate_search = Search::Limits.mate != 0;
-  auto time_up = [&]() { return is_mate_search && timer.elapsed() >= Search::Limits.mate; };
-  TimePoint pv_interval = g_option.pv_interval;
-  TimePoint last_pv_out = 0;
-  int sleep_cnt = 0;
-  while (!Threads.stop && !time_up() && !search_end) {
-    ++sleep_cnt;
+  const bool is_mate_search = Search::Limits.mate != 0;
+  const auto is_end = [&]() {
+    return Threads.stop || g_search_end || (is_mate_search && timer.elapsed() >= Search::Limits.mate);
+  };
+  constexpr TimePoint kTimePointMax = std::numeric_limits<TimePoint>::max();
+  const TimePoint pv_interval =
+      g_option.pv_interval > kTimePointMax ? kTimePointMax : static_cast<TimePoint>(g_option.pv_interval);
 
-    if (sleep_cnt < 100) {
-      Tools::sleep(2);  // 100ms 寝ると時間がかかるので、探索開始直後は sleep 時間を短くする
-    } else {
-      Tools::sleep(100);
+  TimePoint next_pv_out = pv_interval;
+  std::unique_lock<std::mutex> lock(g_end_mtx);
+  while (!is_end()) {
+    auto sleep_duration = 100;
+    if (next_pv_out < timer.elapsed() + sleep_duration) {
+      // このまま sleep_duration だけ寝ると予定時刻を過ぎてしまう
+      if (next_pv_out > timer.elapsed()) {
+        sleep_duration = next_pv_out - timer.elapsed();
+      } else {
+        sleep_duration = 1;
+      }
     }
 
-    if (pv_interval && timer.elapsed() > last_pv_out + pv_interval) {
+    g_end_cv.wait_for(lock, std::chrono::milliseconds(sleep_duration), is_end);
+    if (pv_interval > 0 && timer.elapsed() >= next_pv_out) {
       g_searcher.RequestPrint();
-      last_pv_out = timer.elapsed();
+      next_pv_out = timer.elapsed() + pv_interval;
     }
   }
 }
@@ -156,14 +170,17 @@ void MainThread::search() {
   bool is_root_or_node = IsPosOrNode(rootPos);
 
   g_searcher.ResetStop();
-
   g_search_end = false;
   // thread が 2 つ以上使える場合、main thread ではない方をタイマースレッドとして使いたい
   if (Threads.size() > 1) {
     Threads[1]->start_searching();
 
     g_search_result = g_searcher.Search(rootPos, is_root_or_node);
-    g_search_end = true;
+    {
+      std::lock_guard<std::mutex> lock(g_end_mtx);
+      g_search_end = true;
+    }
+    g_end_cv.notify_one();
 
     Threads[1]->wait_for_search_finished();
   } else {
@@ -171,7 +188,11 @@ void MainThread::search() {
     std::thread th{[this]() { Thread::search(); }};
 
     g_search_result = g_searcher.Search(rootPos, is_root_or_node);
-    g_search_end = true;
+    {
+      std::lock_guard<std::mutex> lock(g_end_mtx);
+      g_search_end = true;
+    }
+    g_end_cv.notify_one();
 
     th.join();
   }
@@ -214,7 +235,7 @@ void MainThread::search() {
 
 // 探索本体。並列化している場合、ここがslaveのエントリーポイント。
 void Thread::search() {
-  WaitSearchEnd(g_search_end);
+  WaitSearchEnd();
   g_searcher.SetStop();
 }
 
