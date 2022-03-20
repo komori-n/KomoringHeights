@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "../../mate/mate.h"
 #include "move_picker.hpp"
 
 namespace komori {
@@ -95,6 +96,13 @@ std::vector<Move> PvTree::Pv(Node& n) const {
     n.DoMove(best_move);
     mate_range = Probe(n);
     best_move = mate_range.best_move;
+  }
+
+  if (!n.Pos().in_check()) {
+    if (const auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
+      n.DoMove(move);
+      pv.push_back(move);
+    }
   }
 
   RollBack(n, pv);
