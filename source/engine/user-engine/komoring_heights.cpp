@@ -290,15 +290,13 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   sync_cout << info << sync_endl;
 
   if (result.GetNodeState() == NodeState::kProvenState) {
-    if (true || option_.post_search_count > 0) {
-      // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
-      auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
-      sync_cout << "info string mate_len=" << mate_len << sync_endl;
+    // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
+    auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
+    sync_cout << "info string mate_len=" << mate_len << sync_endl;
 
-      best_moves_ = pv_tree_.Pv(node);
-      score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
-      PrintYozume(node, best_moves_);
-    }
+    best_moves_ = pv_tree_.Pv(node);
+    score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
+    PrintYozume(node, best_moves_);
 
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
