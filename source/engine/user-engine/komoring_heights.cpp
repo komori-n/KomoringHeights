@@ -33,16 +33,20 @@ inline MateLen MakeMateLen(Depth depth, Hand hand) {
 class PvMoveLen {
  public:
   PvMoveLen(Node& n, MateLen alpha, MateLen beta)
-      : or_node_{n.IsOrNode()}, orig_alpha_{alpha}, orig_beta_{beta}, alpha_{alpha}, beta_{beta} {
+      : or_node_{n.IsOrNode()}, orig_alpha_{alpha}, orig_beta_{beta}, alpha_{alpha}, beta_{beta}, trivial_cut_{false} {
+    // mate_len_ の初期化
+    // OR node では+∞、AND node では 0 で初期化する
     if (or_node_) {
-      if (IsTrivialCut()) {
+      mate_len_ = kMaxMateLen;
+      const auto min_mate_len = MakeMateLen(1, n.OrHand());
+      if (orig_beta_ < min_mate_len) {
         // どう見ても fail high のときは（下限値の）1 手詰めということにしておく
-        mate_len_ = MakeMateLen(1, n.OrHand());
-      } else {
-        mate_len_ = kMaxMateLen;
+        Update(MOVE_NONE, min_mate_len);
+        trivial_cut_ = true;
       }
     } else {
       mate_len_ = MakeMateLen(0, n.OrHand());
+      alpha_ = Max(alpha_, mate_len_);
     }
   }
 
@@ -65,20 +69,7 @@ class PvMoveLen {
     }
   }
 
-  bool IsEnd() const { return alpha_ >= beta_; }
-  bool IsTrivialCut() const {
-    // 詰み手数は非負なので、探索するまでもなく fail high と判定できる
-    if (orig_beta_.len == 0) {
-      if (or_node_) {
-        return true;
-      } else {
-        if (orig_beta_ <= mate_len_) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  bool IsEnd() const { return trivial_cut_ || alpha_ >= beta_; }
 
   bool LessThanAlpha(MateLen mate_len) const { return mate_len < alpha_; }
   bool GreaterThanOrigAlpha() const { return mate_len_ > orig_alpha_; }
@@ -101,6 +92,7 @@ class PvMoveLen {
   const MateLen orig_beta_;
   MateLen alpha_;
   MateLen beta_;
+  bool trivial_cut_;
 };
 
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
@@ -409,7 +401,7 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
   PvMoveLen pv_move_len{n, alpha, beta};
   bool repetition = false;
 
-  if (pv_move_len.IsTrivialCut()) {
+  if (pv_move_len.IsEnd()) {
     return pv_move_len.GetMateLen();
   }
 
@@ -428,10 +420,10 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
     // 置換表にそこそこよい手が書かれているはず
     // それを先に読んで alpha/beta を更新しておくことで、探索が少しだけ高速化される
     auto tt_move = MOVE_NONE;
-    auto&& proved_range = pv_tree_.Probe(n);
-    if (proved_range.min_mate_len == proved_range.max_mate_len) {
+    auto&& probed_range = pv_tree_.Probe(n);
+    if (probed_range.min_mate_len == probed_range.max_mate_len) {
       // 探索したことがある局面なら、その結果を再利用する。
-      return proved_range.max_mate_len;
+      return probed_range.max_mate_len;
     }
 
     // OR node かつ upper bound かつ 手数が alpha よりも小さいなら、見込み 0 なので探索を打ち切れる
@@ -439,16 +431,16 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
     // 探索を打ち切ってしまうと、ちょうど alpha 手詰めのときに詰み手順の探索が行われない可能性がある。
     //
     // AND node の場合も同様。
-    if (n.IsOrNode() && pv_move_len.LessThanAlpha(proved_range.max_mate_len)) {
-      pv_move_len.Update(proved_range.best_move, proved_range.max_mate_len);
+    if (n.IsOrNode() && pv_move_len.LessThanAlpha(probed_range.max_mate_len)) {
+      pv_move_len.Update(probed_range.best_move, probed_range.max_mate_len);
       goto PV_END;
-    } else if (!n.IsOrNode() && pv_move_len.GreaterThanBeta(proved_range.min_mate_len)) {
-      pv_move_len.Update(proved_range.best_move, proved_range.min_mate_len);
+    } else if (!n.IsOrNode() && pv_move_len.GreaterThanBeta(probed_range.min_mate_len)) {
+      pv_move_len.Update(probed_range.best_move, probed_range.min_mate_len);
       goto PV_END;
     }
 
     // このタイミングで探索を打ち切れない場合でも、最善手だけは覚えて置くと後の探索が楽になる
-    tt_move = proved_range.best_move;
+    tt_move = probed_range.best_move;
 
     // pv_tree_ に登録されていなければ、置換表から最善手を読んでくる
     // （n が詰みなので、ほとんどの場合は置換表にエンドが保存されている）
