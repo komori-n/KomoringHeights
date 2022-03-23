@@ -62,6 +62,112 @@ void Child::LookUp(Node& n) {
 }  // namespace detail
 
 namespace {
+/**
+ * @brief 探索を後回しにする手の集合を管理するクラス
+ *
+ * 同じ動きの不成と成のように、だいたい同じような手の探索を後回しにするための機構。
+ */
+class DelayableMoves {
+ public:
+  DelayableMoves(const Node& n, bool or_node) : n_{n}, or_node_{or_node} {}
+
+  /// move よりも先に読むべき手がある（move の探索を後回しにすべき）ならその i_raw を返す
+  std::optional<std::size_t> Get(Move move) {
+    if (!IsDelayable(move)) {
+      // そもそも move は後回しすべき手ではない
+      return std::nullopt;
+    }
+
+    for (std::size_t i = 0; i < len_; ++i) {
+      const auto m = moves_[i].first;
+      if (IsSame(m, move)) {
+        // move は m の後に探索したほうが良い
+        return moves_[i].second;
+      }
+    }
+    return std::nullopt;
+  }
+
+  void Add(Move move, std::size_t i_raw) {
+    if (!IsDelayable(move)) {
+      // そもそも move は他の手を後回しするかどうかに関係ない
+      return;
+    }
+
+    for (std::size_t i = 0; i < len_; ++i) {
+      const auto m = moves_[i].first;
+      if (IsSame(m, move)) {
+        // move と同じ手が保存されている場合は上書きする
+        moves_[i] = {move, i_raw};
+        return;
+      }
+    }
+
+    if (len_ < kMaxLen) {
+      // IsSame(m, move) なる手が保存されていないので新規追加する
+      moves_[len_++] = {move, i_raw};
+    }
+  }
+
+ private:
+  static constexpr inline std::size_t kMaxLen = 10;
+
+  bool IsDelayable(Move move) const {
+    const Color us = n_.Pos().side_to_move();
+    const auto to = to_sq(move);
+
+    if (is_drop(move)) {
+      if (or_node_) {
+        return false;
+      } else {
+        // 合駒探索は後回しにできる
+        // （歩合・香合・... を同時並行で探索する必要はない
+        return true;
+      }
+    } else {
+      const Square from = from_sq(move);
+      const Piece moved_piece = n_.Pos().piece_on(from);
+      const PieceType moved_pr = type_of(moved_piece);
+      if (EnemyField[us].test(from) || EnemyField[us].test(to)) {
+        if (moved_pr == PAWN || moved_pr == BISHOP || moved_pr == ROOK) {
+          // 歩、角、飛車の不成は基本的に考える必要がない
+          return true;
+        }
+
+        if (moved_pr == LANCE) {
+          // 香車の 2 段目は基本的に考える必要がない
+          if (us == BLACK) {
+            return rank_of(to) == RANK_2;
+          } else {
+            return rank_of(to) == RANK_8;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  bool IsSame(Move m1, Move m2) const {
+    const auto to1 = to_sq(m1);
+    const auto to2 = to_sq(m2);
+    if (is_drop(m1) && is_drop(m2)) {
+      return to1 == to2;
+    } else if (!is_drop(m1) && !is_drop(m2)) {
+      const auto from1 = from_sq(m1);
+      const auto from2 = from_sq(m2);
+      return from1 == from2 && to1 == to2;
+    } else {
+      return false;
+    }
+  }
+
+  const Node& n_;
+  const bool or_node_;
+  std::array<std::pair<Move, std::size_t>, kMaxLen> moves_;
+  std::size_t len_{0};
+};
+
 constexpr PnDn kSumSwitchThreshold = kInfinitePnDn / 16;
 /// max で Delta を計算するときの調整項。詳しくは ChildrenCache::GetDelta() のコメントを参照。
 constexpr PnDn kMaxDeltaBias = 2;
@@ -270,8 +376,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
 
   bool found_rep = false;
 
-  const auto king_sq = n.Pos().king_square(n.Pos().side_to_move());
-  std::array<std::size_t, 8> skip_tbl{};
+  DelayableMoves delayed_moves{n, or_node_};
   for (const auto& move : mp) {
     const auto i_raw = actual_len_++;
     auto& child = children_[i_raw];
@@ -294,14 +399,9 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
       child = MakeNonRepetitionChild(tt, n, move);
       Expand(n, i_raw, first_search);
 
-      if (!or_node_ && is_drop(move.move) && child.search_result.IsNotFinal()) {
-        // 同じ位置への合駒は後回しにする
-        const auto to = to_sq(move.move);
-        const auto d = dist(king_sq, to);
-
-        if (skip_tbl[d] > 0) {
-          // child_dep が詰んだらこの手を読むようにする
-          auto& child_dep = children_[skip_tbl[d] - 1];
+      if (child.search_result.IsNotFinal()) {
+        if (const auto res = delayed_moves.Get(move.move)) {
+          auto& child_dep = children_[*res];
           child_dep.next_dep = i_raw + 1;
 
           // to への合駒はすでに Expand しているので、この手は後回しにする
@@ -309,7 +409,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
           effective_len_--;
         }
 
-        skip_tbl[d] = i_raw + 1;
+        delayed_moves.Add(move.move, i_raw);
       }
 
       if (child.Phi(or_node_) == 0) {
