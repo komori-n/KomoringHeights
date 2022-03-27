@@ -265,6 +265,9 @@ class TranspositionTable {
   /// ハッシュ使用率を返す（戻り値は千分率）
   int Hashfull() const;
 
+  void Save(std::string filename) const;
+  void Load(std::string filename);
+
  private:
   /// NormalTable の board_key の先頭要素へのポインタを返す
   CommonEntry* HeadOf(Key board_key) {

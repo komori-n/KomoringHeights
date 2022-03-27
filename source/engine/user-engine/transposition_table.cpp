@@ -266,6 +266,27 @@ int TranspositionTable::Hashfull() const {
   return static_cast<int>(used * 1000 / num_entries);
 }
 
+void TranspositionTable::Save(std::string filename) const {
+  std::ofstream ofs(filename, std::ios::binary);
+  if (!ofs) {
+    return;
+  }
+
+  ofs.write(reinterpret_cast<const char*>(&cluster_num_), sizeof(cluster_num_));
+  ofs.write(reinterpret_cast<const char*>(tt_.data()), tt_.size() * sizeof(CommonEntry));
+}
+
+void TranspositionTable::Load(std::string filename) {
+  std::ifstream ifs(filename, std::ios::binary);
+  if (!ifs) {
+    return;
+  }
+
+  ifs.read(reinterpret_cast<char*>(&cluster_num_), sizeof(cluster_num_));
+  tt_.resize(cluster_num_);
+  ifs.read(reinterpret_cast<char*>(tt_.data()), tt_.size() * sizeof(CommonEntry));
+}
+
 template CommonEntry* BoardCluster::SetFinal<false>(Hand hand,
                                                     Move16 move,
                                                     MateLen mate_len,
