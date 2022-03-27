@@ -431,10 +431,10 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
     // 探索を打ち切ってしまうと、ちょうど alpha 手詰めのときに詰み手順の探索が行われない可能性がある。
     //
     // AND node の場合も同様。
-    if (n.IsOrNode() && pv_move_len.LessThanAlpha(probed_range.max_mate_len)) {
+    if (pv_move_len.LessThanAlpha(probed_range.max_mate_len)) {
       pv_move_len.Update(probed_range.best_move, probed_range.max_mate_len);
       goto PV_END;
-    } else if (!n.IsOrNode() && pv_move_len.GreaterThanBeta(probed_range.min_mate_len)) {
+    } else if (pv_move_len.GreaterThanBeta(probed_range.min_mate_len)) {
       pv_move_len.Update(probed_range.best_move, probed_range.min_mate_len);
       goto PV_END;
     }
