@@ -710,7 +710,7 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
 
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
   auto& child = NthChild(0);
-  SearchedAmount amount = child.search_result.GetSearchedAmount() + actual_len_ - 1;
+  SearchedAmount amount = child.search_result.GetSearchedAmount() + actual_len_ / 2;
 
   // secret には ~sum_mask_ を書いておく。ビット反転している理由は、secret のデフォルト値を 0 にしたいから
   UnknownData unknown_data = {GetPn(), GetDn(), or_hand_, n.GetDepth(), ~sum_mask_.Value()};

@@ -15,8 +15,8 @@ constexpr std::size_t kHashfullCalcEntries = 10000;
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合
 constexpr double kNormalRepetitionRatio = 0.95;
 /// エントリを消すしきい値。
-constexpr std::size_t kGcThreshold = BoardCluster::kClusterSize - 2;
-constexpr std::size_t kGcRemoveElementNum = BoardCluster::kClusterSize / 2;
+constexpr std::size_t kGcThreshold = BoardCluster::kClusterSize - 1;
+constexpr std::size_t kGcRemoveElementNum = 6;
 static_assert(BoardCluster::kClusterSize > kGcRemoveElementNum);
 
 /// state の内容に沿って補正した amount を返す。例えば、ProvenState の Amount を大きくしたりする。

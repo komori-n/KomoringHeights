@@ -277,6 +277,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
   } while (!monitor_.ShouldStop());
 
+  monitor_.DisableGc();
   auto info = CurrentInfo();
   info.Set(UsiInfo::KeyKind::kString, ToString(result));
   sync_cout << info << sync_endl;
