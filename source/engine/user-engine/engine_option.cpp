@@ -51,6 +51,9 @@ void EngineOption::Reload(const USI::OptionsMap& o) {
   threads = ReadValue<int>(o, "Threads");
 
   depth_limit = ReadValue<Depth>(o, "DepthLimit");
+  if (depth_limit > kMaxNumMateMoves) {
+    depth_limit = kMaxNumMateMoves;
+  }
   nodes_limit = ReadValue<std::uint64_t>(o, "NodesLimit");
 
   pv_interval = ReadValue<std::uint64_t>(o, "PvInterval");

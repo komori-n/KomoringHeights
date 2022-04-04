@@ -23,6 +23,7 @@ namespace {
 constexpr std::int64_t kGcInterval = 100'000'000;
 
 constexpr std::size_t kSplittedPrintLen = 12;
+constexpr int kPostSearchVisitThreshold = 200;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
@@ -45,7 +46,8 @@ class PvMoveLen {
         trivial_cut_ = true;
       }
     } else {
-      mate_len_ = MakeMateLen(0, n.OrHand());
+      mate_len_ = kZeroMateLen;
+
       alpha_ = Max(alpha_, mate_len_);
     }
   }
@@ -182,6 +184,10 @@ Score MakeScore(const SearchResult& result, bool root_is_or_node) {
     return Score::Disproven(mate_len.len, root_is_or_node);
   }
 }
+
+bool ShouldContinuePostSearchAndNode(const std::uint64_t move_searched, std::uint64_t alpha_len) {
+  return move_searched <= alpha_len * alpha_len * 20000;
+}
 }  // namespace
 
 namespace detail {
@@ -283,11 +289,21 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   sync_cout << info << sync_endl;
 
   if (result.GetNodeState() == NodeState::kProvenState) {
-    // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
-    auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
+    best_moves_.clear();
+    MateLen mate_len;
+    for (int i = 0; i < 50; ++i) {
+      // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
+      auto tree_moves = pv_tree_.Pv(node);
+      std::unordered_map<Key, int> visit_count;
+      mate_len = PostSearch(visit_count, node, kZeroMateLen, kMaxMateLen);
+      if (tree_moves.size() % 2 == (is_root_or_node ? 1 : 0)) {
+        best_moves_ = std::move(tree_moves);
+        break;
+      }
+    }
+
     sync_cout << "info string mate_len=" << mate_len << sync_endl;
 
-    best_moves_ = pv_tree_.Pv(node);
     score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
     PrintYozume(node, best_moves_);
 
@@ -398,9 +414,10 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
   }
 }
 
-MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
+MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, Node& n, MateLen alpha, MateLen beta) {
   PvMoveLen pv_move_len{n, alpha, beta};
   bool repetition = false;
+  const auto orig_move_count = monitor_.MoveCount();
 
   if (pv_move_len.IsEnd()) {
     return pv_move_len.GetMateLen();
@@ -440,6 +457,22 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
       goto PV_END;
     }
 
+    auto key = n.Pos().key();
+    visit_count[key]++;
+    if (visit_count[key] > kPostSearchVisitThreshold) {
+      // 何回もこの局面を通っているのに評価値が確定していないのは様子がおかしい。込み入った千日手が絡んだ局面である
+      // 可能性が高い。これ以上この局面を調べても意味があまりないため、以前に見つけた上界値・下界値を結果として
+      // 返してしまう。
+
+      if (n.IsOrNode() && probed_range.max_mate_len < kMaxMateLen) {
+        pv_move_len.Update(probed_range.best_move, probed_range.max_mate_len);
+        goto PV_END;
+      } else if (!n.IsOrNode() && probed_range.min_mate_len > kZeroMateLen) {
+        pv_move_len.Update(probed_range.best_move, probed_range.min_mate_len);
+        goto PV_END;
+      }
+    }
+
     // このタイミングで探索を打ち切れない場合でも、最善手だけは覚えて置くと後の探索が楽になる
     tt_move = probed_range.best_move;
 
@@ -467,6 +500,16 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
     });
 
     for (const auto& move : mp) {
+      // 『メガロポリス』や『メタ新世界』のように、玉方の応手の組み合わせが指数関数的に増加するような問題の場合、
+      // いつまで経っても探索が終わらなくなることがしばしばある。そのため。alpha の大きさを基準にして
+      // 度を越して大量の手を探索している場合、適当なところで探索を間引く必要がある。
+      if (!n.IsOrNode() && alpha.len > 3 && pv_move_len.GetMateLen().len > 0) {
+        const auto move_count = monitor_.MoveCount();
+        if (!ShouldContinuePostSearchAndNode(move_count - orig_move_count, alpha.len)) {
+          break;
+        }
+      }
+
       if (monitor_.ShouldStop() || pv_move_len.IsEnd()) {
         break;
       }
@@ -511,7 +554,7 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
         }
 
         if (need_search) {
-          auto child_mate_len = PostSearch(n, pv_move_len.Alpha() - 1, pv_move_len.Beta() - 1);
+          auto child_mate_len = PostSearch(visit_count, n, pv_move_len.Alpha() - 1, pv_move_len.Beta() - 1);
           n.UndoMove(move.move);
           if (child_mate_len >= kMaxMateLen) {
             repetition = true;
