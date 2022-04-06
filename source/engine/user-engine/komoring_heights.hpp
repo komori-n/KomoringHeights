@@ -47,7 +47,6 @@ class SearchMonitor {
 
   bool ShouldGc() const { return MoveCount() >= next_gc_count_; }
   void ResetNextGc();
-  void DisableGc() { next_gc_count_ = std::numeric_limits<std::uint64_t>::max(); };
 
   /// 探索局面数上限を move_limit 以下にする。PushLimit() は探索中に再帰的に複数回呼ぶことができる。
   void PushLimit(std::uint64_t move_limit);

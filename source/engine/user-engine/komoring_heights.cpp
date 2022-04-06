@@ -24,6 +24,9 @@ constexpr std::int64_t kGcInterval = 100'000'000;
 
 constexpr std::size_t kSplittedPrintLen = 12;
 constexpr int kPostSearchVisitThreshold = 200;
+/// PostSearch で詰み局面のはずなのに TT から詰み手順を復元できないとき、追加探索する局面数。
+/// この値が大きすぎると一生探索が終わらなくなるので注意。
+constexpr std::uint64_t kGcReconstructSearchCount = 100'000;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
@@ -184,10 +187,6 @@ Score MakeScore(const SearchResult& result, bool root_is_or_node) {
     return Score::Disproven(mate_len.len, root_is_or_node);
   }
 }
-
-bool ShouldContinuePostSearchAndNode(const std::uint64_t move_searched, std::uint64_t alpha_len) {
-  return move_searched <= alpha_len * alpha_len * 20000;
-}
 }  // namespace
 
 namespace detail {
@@ -283,7 +282,8 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
   } while (!monitor_.ShouldStop());
 
-  monitor_.DisableGc();
+  // PostSearch だけテストするときに挙動が変わると困るので、本探索が終わったこのタイミングで一旦 GC のカウンタをクリア
+  monitor_.ResetNextGc();
   auto info = CurrentInfo();
   info.Set(UsiInfo::KeyKind::kString, ToString(result));
   sync_cout << info << sync_endl;
@@ -417,7 +417,6 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
 MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, Node& n, MateLen alpha, MateLen beta) {
   PvMoveLen pv_move_len{n, alpha, beta};
   bool repetition = false;
-  const auto orig_move_count = monitor_.MoveCount();
 
   if (pv_move_len.IsEnd()) {
     return pv_move_len.GetMateLen();
@@ -500,16 +499,6 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
     });
 
     for (const auto& move : mp) {
-      // 『メガロポリス』や『メタ新世界』のように、玉方の応手の組み合わせが指数関数的に増加するような問題の場合、
-      // いつまで経っても探索が終わらなくなることがしばしばある。そのため。alpha の大きさを基準にして
-      // 度を越して大量の手を探索している場合、適当なところで探索を間引く必要がある。
-      if (!n.IsOrNode() && alpha.len > 3 && pv_move_len.GetMateLen().len > 0) {
-        const auto move_count = monitor_.MoveCount();
-        if (!ShouldContinuePostSearchAndNode(move_count - orig_move_count, alpha.len)) {
-          break;
-        }
-      }
-
       if (monitor_.ShouldStop() || pv_move_len.IsEnd()) {
         break;
       }
@@ -533,8 +522,18 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
       if (tt_move == move.move && result.GetNodeState() != NodeState::kProvenState) {
         n.DoMove(move.move);
         auto nn = n.HistoryClearedNode();
+
+        monitor_.PushLimit(monitor_.MoveCount() + kGcReconstructSearchCount);
         result = SearchEntry(nn);
+        monitor_.PopLimit();
+
         n.UndoMove(move.move);
+        if (result.GetNodeState() != NodeState::kProvenState) {
+          repetition = true;
+          if (!n.IsOrNode()) {
+            break;
+          }
+        }
       }
 
       if (result.GetNodeState() == NodeState::kProvenState) {
