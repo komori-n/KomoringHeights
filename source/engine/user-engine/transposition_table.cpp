@@ -16,7 +16,7 @@ constexpr std::size_t kHashfullCalcEntries = 10000;
 constexpr double kNormalRepetitionRatio = 0.95;
 /// エントリを消すしきい値。
 constexpr std::size_t kGcThreshold = BoardCluster::kClusterSize - 1;
-constexpr std::size_t kGcRemoveElementNum = BoardCluster::kClusterSize / 2;
+constexpr std::size_t kGcRemoveElementNum = 6;
 static_assert(BoardCluster::kClusterSize > kGcRemoveElementNum);
 
 /// state の内容に沿って補正した amount を返す。例えば、ProvenState の Amount を大きくしたりする。
@@ -64,7 +64,7 @@ CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, MateLen mate_len, Se
   CommonEntry* ret = nullptr;
 
   for (auto& entry : *this) {
-    if (entry.IsNull() || entry.HashHigh() != hash_high) {
+    if (entry.HashHigh() != hash_high || entry.IsNull()) {
       continue;
     }
 
@@ -137,7 +137,9 @@ void LookUpQuery::SetResult(const SearchResult& result) {
       SetRepetition(amount);
       break;
     default:
-      SetUnknown(result.Pn(), result.Dn(), amount);
+      if (auto unknown = result.TryGetUnknown()) {
+        SetUnknown(*unknown, amount);
+      }
   }
 }
 
@@ -151,10 +153,12 @@ void LookUpQuery::SetRepetition(SearchedAmount /* amount */) {
   entry_ = const_cast<CommonEntry*>(&kRepetitionEntry);
 }
 
-void LookUpQuery::SetUnknown(PnDn pn, PnDn dn, SearchedAmount amount) {
+void LookUpQuery::SetUnknown(const UnknownData& result, SearchedAmount amount) {
   auto entry = LookUpWithCreation();
   if (auto unknown = entry->TryGetUnknown()) {
-    unknown->UpdatePnDn(pn, dn);
+    unknown->UpdatePnDn(result.Pn(), result.Dn());
+    unknown->SetParent(result.ParentBoardKey(), result.ParentHand());
+    unknown->SetSecret(result.Secret());
     entry->SetSearchedAmount(amount);
   }
 }
@@ -260,6 +264,27 @@ int TranspositionTable::Hashfull() const {
     }
   }
   return static_cast<int>(used * 1000 / num_entries);
+}
+
+void TranspositionTable::Save(std::string filename) const {
+  std::ofstream ofs(filename, std::ios::binary);
+  if (!ofs) {
+    return;
+  }
+
+  ofs.write(reinterpret_cast<const char*>(&cluster_num_), sizeof(cluster_num_));
+  ofs.write(reinterpret_cast<const char*>(tt_.data()), tt_.size() * sizeof(CommonEntry));
+}
+
+void TranspositionTable::Load(std::string filename) {
+  std::ifstream ifs(filename, std::ios::binary);
+  if (!ifs) {
+    return;
+  }
+
+  ifs.read(reinterpret_cast<char*>(&cluster_num_), sizeof(cluster_num_));
+  tt_.resize(cluster_num_);
+  ifs.read(reinterpret_cast<char*>(tt_.data()), tt_.size() * sizeof(CommonEntry));
 }
 
 template CommonEntry* BoardCluster::SetFinal<false>(Hand hand,

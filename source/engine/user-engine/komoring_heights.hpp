@@ -101,7 +101,7 @@ class KomoringHeights {
 
  private:
   /// 余詰め探索。n が alpha 手以上 beta 手以下で詰むかどうかを調べる
-  MateLen PostSearch(Node& n, MateLen alpha, MateLen beta);
+  MateLen PostSearch(std::unordered_map<Key, int>& visit_count, Node& n, MateLen alpha, MateLen beta);
 
   // <探索エントリポイント>
   // SearchImpl （再帰関数）の前処理・後処理を担う関数たち。

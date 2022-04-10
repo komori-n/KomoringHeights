@@ -81,6 +81,11 @@ inline constexpr bool IsFinal(NodeState node_state) {
          node_state == NodeState::kRepetitionState;
 }
 
+inline constexpr bool IsNotFinal(NodeState node_state) {
+  // kNullState が存在するため、!IsFinal() とは微妙に結果が異なるので注意
+  return node_state == NodeState::kOtherState || node_state == NodeState::kMaybeRepetitionState;
+}
+
 inline constexpr NodeState StripMaybeRepetition(NodeState node_state) {
   return node_state == NodeState::kMaybeRepetitionState ? NodeState::kOtherState : node_state;
 }
@@ -122,7 +127,8 @@ inline constexpr StateAmount kNullEntry = {NodeState::kNullState, 0};
 class UnknownData {
  public:
   friend std::ostream& operator<<(std::ostream& os, const UnknownData& data);
-  constexpr UnknownData(PnDn pn, PnDn dn, Hand hand, Depth depth) : pn_(pn), dn_(dn), hand_(hand), min_depth_(depth) {}
+  constexpr UnknownData(PnDn pn, PnDn dn, Hand hand, Depth depth, std::uint64_t secret = 0)
+      : pn_(pn), dn_(dn), hand_(hand), min_depth_(depth), secret_{secret} {}
 
   constexpr PnDn Pn() const { return pn_; }
   constexpr PnDn Dn() const { return dn_; }
@@ -144,12 +150,28 @@ class UnknownData {
   constexpr bool IsOldChild(Depth depth) const { return min_depth_ < depth; }
   constexpr Depth MinDepth() const { return min_depth_; }
 
+  constexpr std::uint64_t Secret() const { return secret_; }
+  constexpr void SetSecret(std::uint64_t secret) { secret_ = secret; }
+
+  constexpr std::uint64_t ParentBoardKey() const { return parent_board_key_; }
+  constexpr Hand ParentHand() const { return parent_hand_; }
+  constexpr void SetParent(std::uint64_t parent_board_key, Hand parent_hand) {
+    parent_board_key_ = parent_board_key;
+    parent_hand_ = parent_hand;
+  }
+
  private:
-  PnDn pn_, dn_;     ///< 証明数、反証数
-  Hand hand_;        ///< （OR nodeから見た）持ち駒
-  Depth min_depth_;  ///< 最小距離。infinite loop の検証に用いる
+  PnDn pn_, dn_;            ///< 証明数、反証数
+  Hand hand_;               ///< （OR nodeから見た）持ち駒
+  Depth min_depth_;         ///< 最小距離。infinite loop の検証に用いる
+  std::uint64_t secret_{};  ///< 局面に関する情報（中身は意識しない）
+
+  std::uint64_t parent_board_key_{kNullKey};  ///< 親局面の盤面ハッシュ値
+  Hand parent_hand_{kNullHand};               ///< 親局面の持ち駒
 };
 std::ostream& operator<<(std::ostream& os, const UnknownData& data);
+
+constexpr inline std::size_t kDataSize = (sizeof(UnknownData) + 7) / 8 * 8;
 
 /**
  * @brief 証明駒または反証駒を格納するデータ構造。
@@ -204,7 +226,7 @@ class HandsData {
     Entry(Hand hand, Move16 move, MateLen mate_len) : hand{hand}, move{move}, mate_len{mate_len} {}
   };
 
-  static inline constexpr std::size_t kHandsLen = sizeof(UnknownData) / sizeof(Entry);
+  static inline constexpr std::size_t kHandsLen = kDataSize / sizeof(Entry);
   std::array<Entry, kHandsLen> entries_;  ///< 証明駒（反証駒）
 };
 template <bool kProven>
@@ -272,12 +294,12 @@ class SearchResult {
   // データ（XxxData）を返すメソッドたち。
   // 現在が Xxx 状態なら内部データへのポインタを返す。そうでないなら、nullptr を返す。
 
-  UnknownData* TryGetUnknown() { return !IsFinal() ? &unknown_ : nullptr; }
+  UnknownData* TryGetUnknown() { return IsNotFinal() ? &unknown_ : nullptr; }
   ProvenData* TryGetProven() { return GetNodeState() == NodeState::kProvenState ? &proven_ : nullptr; }
   DisprovenData* TryGetDisproven() { return GetNodeState() == NodeState::kDisprovenState ? &disproven_ : nullptr; }
   RepetitionData* TryGetRepetition() { return GetNodeState() == NodeState::kRepetitionState ? &rep_ : nullptr; }
 
-  const UnknownData* TryGetUnknown() const { return !IsFinal() ? &unknown_ : nullptr; }
+  const UnknownData* TryGetUnknown() const { return IsNotFinal() ? &unknown_ : nullptr; }
   const ProvenData* TryGetProven() const { return GetNodeState() == NodeState::kProvenState ? &proven_ : nullptr; }
   const DisprovenData* TryGetDisproven() const {
     return GetNodeState() == NodeState::kDisprovenState ? &disproven_ : nullptr;
@@ -311,9 +333,10 @@ class SearchResult {
   constexpr bool IsNull() const { return s_amount_ == kNullEntry; }
 
   constexpr bool IsFinal() const { return ::komori::IsFinal(GetNodeState()); }
+  constexpr bool IsNotFinal() const { return ::komori::IsNotFinal(GetNodeState()); }
   constexpr bool IsMaybeRepetition() const { return s_amount_.node_state == NodeState::kMaybeRepetitionState; }
   /// 通常局面かつまだ初回探索をしていない場合のみ true。
-  constexpr bool IsFirstVisit() const { return !IsFinal() && s_amount_.amount == kFirstSearchAmount; }
+  constexpr bool IsFirstVisit() const { return IsNotFinal() && s_amount_.amount == kFirstSearchAmount; }
 
   bool Exceeds(PnDn thpn, PnDn thdn) const { return Pn() >= thpn || Dn() >= thdn; }
 
@@ -323,19 +346,19 @@ class SearchResult {
 
  private:
   union {
-    std::array<std::uint32_t, sizeof(UnknownData) / sizeof(std::uint32_t)> dummy_;  ///< ダミーエントリ（サイズ確認用）
-    UnknownData unknown_;                                                           ///< 通常局面
-    ProvenData proven_;                                                             ///< 証明済局面
-    DisprovenData disproven_;                                                       ///< 反証済局面
-    RepetitionData rep_;                                                            ///< 千日手局面
+    std::array<std::uint32_t, kDataSize / sizeof(std::uint32_t)> dummy_;  ///< ダミーエントリ（サイズ確認用）
+    UnknownData unknown_;                                                 ///< 通常局面
+    ProvenData proven_;                                                   ///< 証明済局面
+    DisprovenData disproven_;                                             ///< 反証済局面
+    RepetitionData rep_;                                                  ///< 千日手局面
   };
   StateAmount s_amount_;  ///< ノード状態とこの局面を何手読んだか
 
   // サイズチェック
-  static_assert(sizeof(dummy_) == sizeof(unknown_));
-  static_assert(sizeof(dummy_) == sizeof(proven_));
-  static_assert(sizeof(dummy_) == sizeof(disproven_));
-  static_assert(sizeof(dummy_) >= sizeof(rep_));
+  static_assert(kDataSize >= sizeof(unknown_));
+  static_assert(kDataSize >= sizeof(proven_));
+  static_assert(kDataSize >= sizeof(disproven_));
+  static_assert(kDataSize >= sizeof(rep_));
 };
 
 std::ostream& operator<<(std::ostream& os, const SearchResult& search_result);
@@ -531,40 +554,43 @@ inline void HandsData<kProven>::Simplify(Hand hand) {
 // <SearchResult>
 inline PnDn SearchResult::Pn() const {
   switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      return unknown_.Pn();
     case NodeState::kProvenState:
       return proven_.Pn();
     case NodeState::kDisprovenState:
       return disproven_.Pn();
-    case NodeState::kRepetitionState:
-      return rep_.Pn();
     default:
-      return unknown_.Pn();
+      return rep_.Pn();
   }
 }
 
 inline PnDn SearchResult::Dn() const {
   switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      return unknown_.Dn();
     case NodeState::kProvenState:
       return proven_.Dn();
     case NodeState::kDisprovenState:
       return disproven_.Dn();
-    case NodeState::kRepetitionState:
-      return rep_.Dn();
     default:
-      return unknown_.Dn();
+      return rep_.Dn();
   }
 }
 
 inline Hand SearchResult::FrontHand() const {
   switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      return unknown_.GetHand();
     case NodeState::kProvenState:
       return proven_.FrontHand();
     case NodeState::kDisprovenState:
       return disproven_.FrontHand();
-    case NodeState::kRepetitionState:
-      return kNullHand;
     default:
-      return unknown_.GetHand();
+      return kNullHand;
   }
 }
 
@@ -596,14 +622,15 @@ inline MateLen SearchResult::FrontMateLen() const {
 // <PackedResult>
 inline Hand PackedResult::ProperHand(Hand hand) const {
   switch (GetNodeState()) {
+    case NodeState::kOtherState:
+    case NodeState::kMaybeRepetitionState:
+      return unknown_.ProperHand(hand);
     case NodeState::kProvenState:
       return proven_.ProperHand(hand);
     case NodeState::kDisprovenState:
       return disproven_.ProperHand(hand);
-    case NodeState::kRepetitionState:
-      return kNullHand;
     default:
-      return unknown_.ProperHand(hand);
+      return kNullHand;
   }
 }
 

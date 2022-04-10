@@ -8,6 +8,7 @@
 #include <cmath>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "../../mate/mate.h"
@@ -21,8 +22,11 @@ namespace komori {
 namespace {
 constexpr std::int64_t kGcInterval = 100'000'000;
 
-constexpr MateLen kRepetitionLen{kMaxNumMateMoves + 1, 0};
 constexpr std::size_t kSplittedPrintLen = 12;
+constexpr int kPostSearchVisitThreshold = 200;
+/// PostSearch で詰み局面のはずなのに TT から詰み手順を復元できないとき、追加探索する局面数。
+/// この値が大きすぎると一生探索が終わらなくなるので注意。
+constexpr std::uint64_t kGcReconstructSearchCount = 100'000;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
@@ -33,16 +37,21 @@ inline MateLen MakeMateLen(Depth depth, Hand hand) {
 class PvMoveLen {
  public:
   PvMoveLen(Node& n, MateLen alpha, MateLen beta)
-      : or_node_{n.IsOrNode()}, orig_alpha_{alpha}, orig_beta_{beta}, alpha_{alpha}, beta_{beta} {
+      : or_node_{n.IsOrNode()}, orig_alpha_{alpha}, orig_beta_{beta}, alpha_{alpha}, beta_{beta}, trivial_cut_{false} {
+    // mate_len_ の初期化
+    // OR node では+∞、AND node では 0 で初期化する
     if (or_node_) {
-      if (IsTrivialCut()) {
+      mate_len_ = kMaxMateLen;
+      const auto min_mate_len = MakeMateLen(1, n.OrHand());
+      if (orig_beta_ < min_mate_len) {
         // どう見ても fail high のときは（下限値の）1 手詰めということにしておく
-        mate_len_ = MakeMateLen(1, n.OrHand());
-      } else {
-        mate_len_ = kMaxMateLen;
+        Update(MOVE_NONE, min_mate_len);
+        trivial_cut_ = true;
       }
     } else {
-      mate_len_ = MakeMateLen(0, n.OrHand());
+      mate_len_ = kZeroMateLen;
+
+      alpha_ = Max(alpha_, mate_len_);
     }
   }
 
@@ -65,20 +74,7 @@ class PvMoveLen {
     }
   }
 
-  bool IsEnd() const { return alpha_ >= beta_; }
-  bool IsTrivialCut() const {
-    // 詰み手数は非負なので、探索するまでもなく fail high と判定できる
-    if (orig_beta_.len == 0) {
-      if (or_node_) {
-        return true;
-      } else {
-        if (orig_beta_ <= mate_len_) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  bool IsEnd() const { return trivial_cut_ || alpha_ >= beta_; }
 
   bool LessThanAlpha(MateLen mate_len) const { return mate_len < alpha_; }
   bool GreaterThanOrigAlpha() const { return mate_len_ > orig_alpha_; }
@@ -101,6 +97,7 @@ class PvMoveLen {
   const MateLen orig_beta_;
   MateLen alpha_;
   MateLen beta_;
+  bool trivial_cut_;
 };
 
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
@@ -180,7 +177,7 @@ void SplittedPrint(UsiInfo info, const std::string& header, const std::vector<st
 }
 
 Score MakeScore(const SearchResult& result, bool root_is_or_node) {
-  if (!result.IsFinal()) {
+  if (result.IsNotFinal()) {
     return Score::Unknown(result.Pn(), result.Dn());
   } else if (result.GetNodeState() == NodeState::kProvenState) {
     auto mate_len = result.FrontMateLen();
@@ -272,6 +269,7 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // 既に stop すべき状態でも 1 回は探索を行う（resultに値を入れるため）
   do {
     result = SearchEntry(node, thpn, thdn);
+    score_ = MakeScore(result, is_root_or_node);
     if (result.IsFinal() || result.Pn() >= kInfinitePnDn || result.Dn() >= kInfinitePnDn) {
       // 探索が評価値が確定したら break　する
       // is_final だけではなく pn/dn の値を見ているのはオーバーフロー対策のため。
@@ -282,30 +280,36 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
-    score_ = MakeScore(result, is_root_or_node);
   } while (!monitor_.ShouldStop());
 
+  // PostSearch だけテストするときに挙動が変わると困るので、本探索が終わったこのタイミングで一旦 GC のカウンタをクリア
+  monitor_.ResetNextGc();
   auto info = CurrentInfo();
   info.Set(UsiInfo::KeyKind::kString, ToString(result));
   sync_cout << info << sync_endl;
 
   if (result.GetNodeState() == NodeState::kProvenState) {
-    if (option_.post_search_count > 0) {
+    best_moves_.clear();
+    MateLen mate_len;
+    for (int i = 0; i < 50; ++i) {
       // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
-      auto mate_len = PostSearch(node, kZeroMateLen, kMaxMateLen);
-      sync_cout << "info string mate_len=" << mate_len << sync_endl;
-
-      best_moves_ = pv_tree_.Pv(node);
-      PrintYozume(node, best_moves_);
-    } else {
-      // PostSearch() 関数は処理が重い。1通り PV を得るだけなら置換表から best move を取ってくるだけで良い
-      auto best_moves = TraceBestMove(node);
-      best_moves_ = std::move(best_moves);
+      auto tree_moves = pv_tree_.Pv(node);
+      std::unordered_map<Key, int> visit_count;
+      mate_len = PostSearch(visit_count, node, kZeroMateLen, kMaxMateLen);
+      if (tree_moves.size() % 2 == (is_root_or_node ? 1 : 0)) {
+        best_moves_ = std::move(tree_moves);
+        break;
+      }
     }
 
+    sync_cout << "info string mate_len=" << mate_len << sync_endl;
+
     score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
+    PrintYozume(node, best_moves_);
+
     if (best_moves_.size() % 2 != (is_root_or_node ? 1 : 0)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
+      best_moves_ = TraceBestMove(node);
     }
   } else {
     if (result.GetNodeState() == NodeState::kDisprovenState || result.GetNodeState() == NodeState::kRepetitionState) {
@@ -410,12 +414,11 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
   }
 }
 
-MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
-  Key key = n.Pos().key();
+MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, Node& n, MateLen alpha, MateLen beta) {
   PvMoveLen pv_move_len{n, alpha, beta};
   bool repetition = false;
 
-  if (pv_move_len.IsTrivialCut()) {
+  if (pv_move_len.IsEnd()) {
     return pv_move_len.GetMateLen();
   }
 
@@ -434,10 +437,10 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
     // 置換表にそこそこよい手が書かれているはず
     // それを先に読んで alpha/beta を更新しておくことで、探索が少しだけ高速化される
     auto tt_move = MOVE_NONE;
-    auto&& proved_range = pv_tree_.Probe(n);
-    if (proved_range.min_mate_len == proved_range.max_mate_len) {
+    auto&& probed_range = pv_tree_.Probe(n);
+    if (probed_range.min_mate_len == probed_range.max_mate_len) {
       // 探索したことがある局面なら、その結果を再利用する。
-      return proved_range.max_mate_len;
+      return probed_range.max_mate_len;
     }
 
     // OR node かつ upper bound かつ 手数が alpha よりも小さいなら、見込み 0 なので探索を打ち切れる
@@ -445,16 +448,32 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
     // 探索を打ち切ってしまうと、ちょうど alpha 手詰めのときに詰み手順の探索が行われない可能性がある。
     //
     // AND node の場合も同様。
-    if (n.IsOrNode() && pv_move_len.LessThanAlpha(proved_range.max_mate_len)) {
-      pv_move_len.Update(proved_range.best_move, proved_range.max_mate_len);
+    if (pv_move_len.LessThanAlpha(probed_range.max_mate_len)) {
+      pv_move_len.Update(probed_range.best_move, probed_range.max_mate_len);
       goto PV_END;
-    } else if (!n.IsOrNode() && pv_move_len.GreaterThanBeta(proved_range.min_mate_len)) {
-      pv_move_len.Update(proved_range.best_move, proved_range.min_mate_len);
+    } else if (pv_move_len.GreaterThanBeta(probed_range.min_mate_len)) {
+      pv_move_len.Update(probed_range.best_move, probed_range.min_mate_len);
       goto PV_END;
     }
 
+    auto key = n.Pos().key();
+    visit_count[key]++;
+    if (visit_count[key] > kPostSearchVisitThreshold) {
+      // 何回もこの局面を通っているのに評価値が確定していないのは様子がおかしい。込み入った千日手が絡んだ局面である
+      // 可能性が高い。これ以上この局面を調べても意味があまりないため、以前に見つけた上界値・下界値を結果として
+      // 返してしまう。
+
+      if (n.IsOrNode() && probed_range.max_mate_len < kMaxMateLen) {
+        pv_move_len.Update(probed_range.best_move, probed_range.max_mate_len);
+        goto PV_END;
+      } else if (!n.IsOrNode() && probed_range.min_mate_len > kZeroMateLen) {
+        pv_move_len.Update(probed_range.best_move, probed_range.min_mate_len);
+        goto PV_END;
+      }
+    }
+
     // このタイミングで探索を打ち切れない場合でも、最善手だけは覚えて置くと後の探索が楽になる
-    tt_move = proved_range.best_move;
+    tt_move = probed_range.best_move;
 
     // pv_tree_ に登録されていなければ、置換表から最善手を読んでくる
     // （n が詰みなので、ほとんどの場合は置換表にエンドが保存されている）
@@ -503,8 +522,18 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
       if (tt_move == move.move && result.GetNodeState() != NodeState::kProvenState) {
         n.DoMove(move.move);
         auto nn = n.HistoryClearedNode();
+
+        monitor_.PushLimit(monitor_.MoveCount() + kGcReconstructSearchCount);
         result = SearchEntry(nn);
+        monitor_.PopLimit();
+
         n.UndoMove(move.move);
+        if (result.GetNodeState() != NodeState::kProvenState) {
+          repetition = true;
+          if (!n.IsOrNode()) {
+            break;
+          }
+        }
       }
 
       if (result.GetNodeState() == NodeState::kProvenState) {
@@ -524,7 +553,7 @@ MateLen KomoringHeights::PostSearch(Node& n, MateLen alpha, MateLen beta) {
         }
 
         if (need_search) {
-          auto child_mate_len = PostSearch(n, pv_move_len.Alpha() - 1, pv_move_len.Beta() - 1);
+          auto child_mate_len = PostSearch(visit_count, n, pv_move_len.Alpha() - 1, pv_move_len.Beta() - 1);
           n.UndoMove(move.move);
           if (child_mate_len >= kMaxMateLen) {
             repetition = true;
@@ -563,7 +592,6 @@ PV_END:
 
 SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
   ChildrenCache cache{tt_, n, true};
-  auto move_count_org = monitor_.MoveCount();
   auto result = SearchImpl(n, thpn, thdn, cache, false);
 
   auto query = tt_.GetQuery(n);
@@ -626,7 +654,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
   // Threshold Controlling Algorithm(TCA).
   // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
   inc_flag = inc_flag || cache.DoesHaveOldChild();
-  if (inc_flag && !curr_result.IsFinal()) {
+  if (inc_flag && curr_result.IsNotFinal()) {
     if (curr_result.Pn() < kInfinitePnDn) {
       thpn = Clamp(thpn, curr_result.Pn() + 1);
     }
@@ -641,11 +669,16 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     monitor_.ResetNextGc();
   }
 
+  if (curr_result.Pn() > 0 && curr_result.Dn() > 10000000) {
+    n.GetDepth();
+  }
+
   while (!monitor_.ShouldStop() && !curr_result.Exceeds(thpn, thdn)) {
     // cache.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     auto best_move = cache.BestMove();
     bool is_first_search = cache.BestMoveIsFirstVisit();
+    BitSet64 sum_mask = cache.BestMoveSumMask();
     auto [child_thpn, child_thdn] = cache.ChildThreshold(thpn, thdn);
 
     n.DoMove(best_move);
@@ -656,7 +689,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     // したいので、ChildrenCache は動的メモリにより確保する。
     //
     // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
-    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search);
+    auto& child_cache = children_cache_.emplace(tt_, n, is_first_search, sum_mask, &cache);
 
     SearchResult child_result;
     if (is_first_search) {
@@ -692,19 +725,26 @@ std::vector<Move> KomoringHeights::TraceBestMove(Node& n) {
     auto query = tt_.GetQuery(n);
     auto entry = query.LookUpWithoutCreation();
     Move best_move = MOVE_NONE;
+
+    bool should_search = false;
     if (entry->GetNodeState() == NodeState::kProvenState) {
       best_move = n.Pos().to_move(entry->BestMove(n.OrHand()));
       if (best_move != MOVE_NONE && (!n.Pos().pseudo_legal(best_move) || !n.Pos().legal(best_move))) {
-        best_move = SelectBestMove(tt_, n);
+        should_search = true;
       }
     } else {
+      should_search = true;
+    }
+
+    if (should_search) {
+      sync_cout << "info string research " << n.GetDepth() << sync_endl;
       auto result = SearchEntry(n);
       if (auto proven = result.TryGetProven()) {
         best_move = n.Pos().to_move(proven->BestMove(n.OrHand()));
       }
     }
 
-    if (best_move == MOVE_NONE) {
+    if (best_move == MOVE_NONE || n.IsRepetitionAfter(best_move)) {
       break;
     }
 

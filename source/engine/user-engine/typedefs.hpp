@@ -14,7 +14,7 @@ namespace komori {
 /// 1局面の最大王手/王手回避の着手数
 inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
-inline constexpr Depth kMaxNumMateMoves = 3000;
+inline constexpr Depth kMaxNumMateMoves = 4000;
 /// 無効な持ち駒
 inline constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
 /// 無効な Key

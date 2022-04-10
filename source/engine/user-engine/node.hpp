@@ -37,6 +37,14 @@ class Node {
     path_key_ = PathKeyBefore(path_key_, m, depth_);
   }
 
+  Square KingSquare() const {
+    const auto side_to_move = n_.side_to_move();
+    const auto or_node = IsOrNode();
+    const auto king_side = or_node ? ~side_to_move : side_to_move;
+
+    return n_.king_square(king_side);
+  }
+
   void StealCapturedPiece() {
     auto captured_pr = raw_type_of(n_.state()->capturedPiece);
     path_key_ = PathKeyAfterSteal(path_key_, captured_pr, depth_);
@@ -103,6 +111,12 @@ class Node {
   bool IsRepetitionOrSuperiorAfter(Move move) const {
     return node_history_.IsSuperior(n_.board_key_after(move), this->OrHandAfter(move));
   }
+
+  bool ContainsInPath(Key key, Hand hand) const {
+    return node_history_.Contains(key, hand) || (n_.state()->board_key() == key && OrHand() == hand);
+  }
+
+  bool ContainsInPath(Key key) const { return node_history_.Contains(key) || n_.state()->board_key() == key; }
 
   bool IsExceedLimit(Depth max_depth) const { return depth_ >= max_depth; }
 

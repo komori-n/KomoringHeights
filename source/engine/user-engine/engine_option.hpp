@@ -1,6 +1,8 @@
 #ifndef ENGINE_OPTION_HPP_
 #define ENGINE_OPTION_HPP_
 
+#include <string>
+
 #include "../../usi.h"
 #include "typedefs.hpp"
 

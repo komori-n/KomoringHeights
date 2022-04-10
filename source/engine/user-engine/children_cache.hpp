@@ -4,6 +4,7 @@
 #include <array>
 #include <utility>
 
+#include "bitset.hpp"
 #include "transposition_table.hpp"
 #include "typedefs.hpp"
 
@@ -18,14 +19,21 @@ struct Child {
   LookUpQuery query;  ///< 子局面の置換表エントリを LookUp するためのクエリ
   SearchResult search_result;  ///< 子局面の現在の pn/dn の値。LookUp はとても時間がかかるので、前回の LookUp
                                ///< 結果をコピーして持っておく。
-  bool is_first;      ///< この子局面を初めて探索するなら true。
-  bool is_sum_delta;  ///< δ値を総和（∑）で計算するなら true、maxで計算するなら false
+  std::uint64_t board_key;  ///< 子局面の board_key
+  Hand hand;                ///< 子局面の or_hand
+  std::size_t next_dep;     ///< 次に展開すべき要素の i_raw + 1。0 は無効値。
 
   PnDn Pn() const { return search_result.Pn(); }
   PnDn Dn() const { return search_result.Dn(); }
   PnDn Phi(bool or_node) const { return or_node ? search_result.Pn() : search_result.Dn(); }
   PnDn Delta(bool or_node) const { return or_node ? search_result.Dn() : search_result.Pn(); }
+  bool IsFirstVisit() const { return search_result.IsFirstVisit(); }
+
+  void LookUp(Node& n);
 };
+
+/// 局面と子局面のハッシュ値および子局面のpn/dnをまとめた構造体
+struct Edge;
 }  // namespace detail
 
 // Forward Declaration
@@ -72,7 +80,11 @@ class ChildrenCache {
   /**
    * @brief 子局面一覧を作成し、子局面を pn/dn がよさげな順に並べ替えて初期化する
    */
-  ChildrenCache(TranspositionTable& tt, Node& n, bool first_search);
+  ChildrenCache(TranspositionTable& tt,
+                Node& n,
+                bool first_search,
+                BitSet64 sum_mask = BitSet64::Full(),
+                ChildrenCache* parent = nullptr);
 
   ChildrenCache() = delete;
   /// 計算コストがとても大きいので move でも禁止。例えば、v0.4.1 だと ChildrenCache は 16.5MB。
@@ -84,12 +96,10 @@ class ChildrenCache {
 
   /// 現在の最善手を返す。合法手が 1 つ以上する場合に限り呼び出すことができる
   Move BestMove() const { return NthChild(0).move.move; }
-  bool BestMoveIsFirstVisit() const { return NthChild(0).is_first; }
+  bool BestMoveIsFirstVisit() const { return NthChild(0).IsFirstVisit(); }
+  BitSet64 BestMoveSumMask() const;
   /**
    * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
-   *
-   * @param search_result 置換表へ登録する内容
-   * @param move_count   探索局面数
    */
   void UpdateBestChild(const SearchResult& search_result);
 
@@ -110,8 +120,14 @@ class ChildrenCache {
   /// i 番目に良い手に対する Child を返す
   detail::Child& NthChild(std::size_t i) { return children_[idx_[i]]; }
   const detail::Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
+  bool IsSumChild(std::size_t i) const { return sum_mask_.Test(idx_[i]); }
   /// UpdateFront のソートしない版
-  void UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
+  bool UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
+
+  /// 子 i_raw を展開する。n が必要なのは、pn/dn の初期値を計算するため
+  void Expand(Node& n, std::size_t i_raw, bool first_search);
+  /// 子 i 以外がソートされていて i だけがソートされていない場合、i を適切な位置に挿入する
+  void Refresh(std::size_t i);
 
   /// 現局面が詰みであることがわかっている時、その SearchResult を計算して返す
   SearchResult GetProvenResult(const Node& n) const;
@@ -124,15 +140,23 @@ class ChildrenCache {
   PnDn NewThdeltaForBestMove(PnDn thdelta) const;
   /// δ値を計算するために使用する内部変数（XXX_delta_except_best_）を計算し直す
   void RecalcDelta();
+  /// 現在の pn
+  PnDn GetPn() const;
+  /// 現在の dn
+  PnDn GetDn() const;
   /// 現在のφ値
   PnDn GetPhi() const;
   /// 現在のδ値
   PnDn GetDelta() const;
+  /// 現在のδ値を sum_delta, max_delta に分解したもの。GetDelta() ではこの値をもとに現局面のδ値を計算する
+  std::pair<PnDn, PnDn> GetRawDelta() const;
   /// 現在の次良手局面おけるφ値（OrNodeならpn、AndNodeならdn）を返す。合法手が 1 手しかない場合、∞を返す。
   PnDn GetSecondPhi() const;
 
-  /// NodeCache同士の比較演算子。sortしたときにφ値の昇順かつ千日手の判定がしやすい順番に並び替える。
-  bool Compare(const detail::Child& lhs, const detail::Child& rhs) const;
+  /// 子 i を終点とする二重カウントになっていたらそれを解消する。詳しいアルゴリズムは cpp のコメントを参照。
+  void EliminateDoubleCount(TranspositionTable& tt, const Node& n, std::size_t i);
+  /// edge を起点とする二重カウント状態を解消する。詳しくは EliminateDoubleCount() のコメントを参照。
+  void SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_root_is_or_node);
 
   /// 展開元の局面が OR node なら true
   /// コンストラクト時に渡された node から取得する。node 全部をコピーする必要がないので、これだけ持っておく。
@@ -146,8 +170,12 @@ class ChildrenCache {
   /// children_ を良さげ順にソートした時のインデックス。children_ 自体を move(copy) すると時間がかかるので、
   /// ソートの際は idx_ だけ並び替えを行う。
   std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
+  /// 和で Delta を計上する子局面の一覧
+  /// max でなく sum のマスクを持つ理由は、合法手が 64 個以上の場合、set から溢れた手を max child として扱いたいため。
+  BitSet64 sum_mask_;
   /// 子局面の数。
-  std::size_t children_len_{0};
+  std::size_t effective_len_{0};
+  std::size_t actual_len_{0};
 
   // <delta>
   // これらの値を事前計算しておくことで、Delta値を O(1) で計算できる。詳しくは GetDelta() を参照。
@@ -158,6 +186,14 @@ class ChildrenCache {
   // </delta>
 
   int max_node_num_{0};
+
+  // <double-count>
+  // 二重カウント対策のために必要な値たち
+
+  std::uint64_t curr_board_key_;
+  Hand or_hand_;
+  ChildrenCache* parent_;
+  // </double-count>
 };
 }  // namespace komori
 

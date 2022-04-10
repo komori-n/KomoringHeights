@@ -142,6 +142,7 @@ func (ep *EngineProcess) Solve(sfen string, time_limit_ms int) error {
 	case <-timer.C:
 		fmt.Fprintln(ep.stdin, "stop")
 		<-result
+		ep.Ready()
 		return fmt.Errorf("time limit exceeded")
 	case res := <-result:
 		if !timer.Stop() {

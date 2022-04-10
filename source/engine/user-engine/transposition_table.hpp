@@ -42,6 +42,7 @@
 #define TRANSPOSITION_TABLE_HPP_
 
 #include <algorithm>
+#include <limits>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -206,6 +207,10 @@ class LookUpQuery {
   /// result を置換表に登録する。内部では SetProven, SetDisproven などを呼び分けている
   void SetResult(const SearchResult& result);
 
+ private:
+  /// `entry_` が有効（前回呼び出しから移動していない）かどうかをチェックする
+  bool IsValid() const;
+
   /// 調べていた局面が証明駒 `proof_hand` で詰みであることを報告する
   void SetProven(Hand proof_hand, Move16 move, MateLen mate_len, SearchedAmount amount) {
     entry_ = board_cluster_.SetProven(proof_hand, move, mate_len, amount);
@@ -216,12 +221,8 @@ class LookUpQuery {
   }
   /// 調べていた局面が千日手による不詰であることを報告する
   void SetRepetition(SearchedAmount amount);
-
-  void SetUnknown(PnDn pn, PnDn dn, SearchedAmount amount);
-
- private:
-  /// `entry_` が有効（前回呼び出しから移動していない）かどうかをチェックする
-  bool IsValid() const;
+  /// 調べていた局面が NotFinal であることを報告する
+  void SetUnknown(const UnknownData& result, SearchedAmount amount);
 
   /// 千日手置換表へのポインタ。デフォルトコンストラクト可能にするために参照ではなくポインタで持つ。
   RepetitionTable* rep_table_;
@@ -256,11 +257,16 @@ class TranspositionTable {
   LookUpQuery GetQuery(const Node& n);
   /// 局面 `n` から `move` で進めた局面の、LookUp 用の構造体を取得する
   LookUpQuery GetChildQuery(const Node& n, Move move);
+  /// 盤面ハッシュ値および攻め方の持ち駒から LookUp 用の構造体を取得する
+  LookUpQuery GetQueryByKey(Key board_key, Hand or_hand);
   /// 局面 `n` の最善手を取得する。探索中の場合、MOVE_NONE が返る可能性がある
   Move LookUpBestMove(const Node& n);
 
   /// ハッシュ使用率を返す（戻り値は千分率）
   int Hashfull() const;
+
+  void Save(std::string filename) const;
+  void Load(std::string filename);
 
  private:
   /// NormalTable の board_key の先頭要素へのポインタを返す
@@ -287,37 +293,48 @@ inline CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
   PnDn dn = 1;
 
   auto* entry = begin();
-#define UNROLL(i)                                                                                                              \
-  do {                                                                                                                         \
-    if (entry->IsNull() || entry->HashHigh() != hash_high) {                                                                   \
-      entry++;                                                                                                                 \
-      continue;                                                                                                                \
-    }                                                                                                                          \
-                                                                                                                               \
-    if (entry->ProperHand(hand) != kNullHand) {                                                                                \
-      /* 探索中エントリの場合、優等情報からpn/dnを更新しておく */                                      \
-      if (auto unknown = entry->TryGetUnknown()) {                                                                             \
-        pn = std::max(pn, unknown->Pn());                                                                                      \
-        dn = std::max(dn, unknown->Dn());                                                                                      \
-        unknown->UpdatePnDn(pn, dn);                                                                                           \
-                                                                                                                               \
-        /*エントリの更新が可能なら最小距離をこのタイミングで更新しておく */                     \
-        unknown->UpdateDepth(depth);                                                                                           \
-      }                                                                                                                        \
-      return entry;                                                                                                            \
-    }                                                                                                                          \
-                                                                                                                               \
-    /* 優等局面／劣等局面の情報から (pn, dn) の初期値を引き上げる */                                   \
-    if (auto unknown = entry->TryGetUnknown(); unknown != nullptr && unknown->MinDepth() >= depth) {                           \
-      if (unknown->IsSuperiorThan(hand)) {                                                                                     \
-        /* 現局面より itr の方が優等している -> 現局面は itr 以上に詰ますのが難しいはず */      \
-        pn = std::max(pn, unknown->Pn());                                                                                      \
-      } else if (unknown->IsInferiorThan(hand)) {                                                                              \
-        /* itr より現局面の方が優等している -> 現局面は itr 以上に不詰を示すのが難しいはず */ \
-        dn = std::max(dn, unknown->Dn());                                                                                      \
-      }                                                                                                                        \
-    }                                                                                                                          \
-    entry++;                                                                                                                   \
+#define UNROLL(i)                                                                                             \
+  do {                                                                                                        \
+    do {                                                                                                      \
+      /* if文の条件で hash_high を先にチェックすることにより、1% ぐらい早くなる */ \
+      /* （is_null よりも hash_high により break する確率の方が高いため） */               \
+      if (entry->HashHigh() != hash_high || entry->IsNull()) {                                                \
+        break;                                                                                                \
+      }                                                                                                       \
+                                                                                                              \
+      if (auto unknown = entry->TryGetUnknown()) {                                                            \
+        if (unknown->GetHand() == hand) {                                                                     \
+          /* 探索中エントリの場合、優等情報からpn/dnを更新しておく */                 \
+          pn = std::max(pn, unknown->Pn());                                                                   \
+          dn = std::max(dn, unknown->Dn());                                                                   \
+          unknown->UpdatePnDn(pn, dn);                                                                        \
+                                                                                                              \
+          /*エントリの更新が可能なら最小距離をこのタイミングで更新しておく */  \
+          unknown->UpdateDepth(depth);                                                                        \
+          return entry;                                                                                       \
+        }                                                                                                     \
+        if (unknown->MinDepth() >= depth) {                                                                   \
+          if (unknown->IsSuperiorThan(hand)) {                                                                \
+            /* 現局面より itr の方が優等している */                                             \
+            /* -> 現局面は itr 以上に詰ますのが難しいはず */                                 \
+            pn = std::max(pn, unknown->Pn());                                                                 \
+          } else if (unknown->IsInferiorThan(hand)) {                                                         \
+            /* itr より現局面の方が優等している */                                              \
+            /* -> 現局面は itr 以上に不詰を示すのが難しいはず */                           \
+            dn = std::max(dn, unknown->Dn());                                                                 \
+          }                                                                                                   \
+        }                                                                                                     \
+      } else if (auto proven = entry->TryGetProven()) {                                                       \
+        if (proven->ProperHand(hand) != kNullHand) {                                                          \
+          return entry;                                                                                       \
+        }                                                                                                     \
+      } else if (auto disproven = entry->TryGetDisproven()) {                                                 \
+        if (disproven->ProperHand(hand) != kNullHand) {                                                       \
+          return entry;                                                                                       \
+        }                                                                                                     \
+      }                                                                                                       \
+    } while (false);                                                                                          \
+    entry++;                                                                                                  \
   } while (false)
 
   UNROLL(0);
@@ -387,26 +404,29 @@ inline CommonEntry* LookUpQuery::LookUpWithoutCreation() {
 }
 
 inline bool LookUpQuery::IsValid() const {
-  if (entry_->IsNull()) {
-    return false;
-  }
-
   if (entry_->GetNodeState() == NodeState::kRepetitionState) {
     // 千日手エントリは結果が変わることがないので必ず真
     return true;
   }
 
-  if (entry_->HashHigh() == board_cluster_.HashHigh()) {
-    if (entry_->ProperHand(hand_) != kNullHand) {
-      // 千日手っぽいときは注意が必要
-      if (entry_->IsMaybeRepetition() && rep_table_->Contains(path_key_)) {
-        // 千日手なので再 LookUp が必要
-        return false;
-      } else {
-        return true;
+  if (entry_->HashHigh() != board_cluster_.HashHigh() || entry_->IsNull()) {
+    return false;
+  }
+
+  if (entry_->ProperHand(hand_) != kNullHand) {
+    // 千日手っぽいときは注意が必要
+    if (entry_->IsMaybeRepetition() && rep_table_->Contains(path_key_)) {
+      // 千日手なので再 LookUp が必要
+      return false;
+    } else {
+      if (auto unknown = entry_->TryGetUnknown()) {
+        // 若干コードが汚くなるが、このタイミングで最小距離を更新しておかないとTCAがうまく働かないことがある。
+        const_cast<UnknownData*>(unknown)->UpdateDepth(depth_);
       }
+      return true;
     }
   }
+
   return false;
 }
 
@@ -426,6 +446,15 @@ inline LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
   BoardCluster board_cluster{head_entry, hash_high};
 
   return {rep_table_, std::move(board_cluster), n.OrHandAfter(move), n.GetDepth() + 1, n.PathKeyAfter(move)};
+}
+
+inline LookUpQuery TranspositionTable::GetQueryByKey(Key board_key, Hand or_hand) {
+  std::uint32_t hash_high = board_key >> 32;
+  CommonEntry* head_entry = HeadOf(board_key);
+  BoardCluster board_cluster{head_entry, hash_high};
+
+  // depth や path_key は適当に当たり障りのない値を埋めておく
+  return {rep_table_, std::move(board_cluster), or_hand, std::numeric_limits<Depth>::max(), kNullKey};
 }
 
 }  // namespace komori
