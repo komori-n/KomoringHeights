@@ -178,7 +178,7 @@ void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
   tt_.shrink_to_fit();
   cluster_num_ = new_num_entries - BoardCluster::kClusterSize;
 
-  std::uint64_t rep_entry_max = rep_bytes / sizeof(Key);
+  std::uint64_t rep_entry_max = rep_bytes / 3 / sizeof(Key);
   rep_table_.SetTableSizeMax(rep_entry_max);
 
   NewSearch();

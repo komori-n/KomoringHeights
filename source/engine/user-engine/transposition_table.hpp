@@ -142,15 +142,16 @@ class RepetitionTable {
   void SetTableSizeMax(std::size_t size_max) { size_max_ = size_max; }
 
   /// 置換表のうち古くなった部分を削除する
-  void CollectGarbage() {
-    if (Size() >= size_max_) {
-      keys_[idx_].clear();
-      idx_ = (idx_ + 1) % kTableLen;
-    }
-  }
+  void CollectGarbage() {}
 
   /// `path_key` を千日手として登録する
-  void Insert(Key path_key) { keys_[idx_].insert(path_key); }
+  void Insert(Key path_key) {
+    keys_[idx_].insert(path_key);
+    if (keys_[idx_].size() >= size_max_ / kTableLen) {
+      idx_ = (idx_ + 1) % kTableLen;
+      keys_[idx_].clear();
+    }
+  }
   /// `path_key` が保存されていれば true
   bool Contains(Key path_key) const {
     return std::any_of(begin(keys_), end(keys_), [&](const auto& tbl) { return tbl.find(path_key) != tbl.end(); });
