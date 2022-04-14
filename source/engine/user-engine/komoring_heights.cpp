@@ -438,6 +438,7 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
     // それを先に読んで alpha/beta を更新しておくことで、探索が少しだけ高速化される
     auto tt_move = MOVE_NONE;
     auto&& probed_range = pv_tree_.Probe(n);
+    bool is_tree_entry_exist = (probed_range.best_move != MOVE_NONE);
     if (probed_range.min_mate_len == probed_range.max_mate_len) {
       // 探索したことがある局面なら、その結果を再利用する。
       return probed_range.max_mate_len;
@@ -564,14 +565,23 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
           if (n.IsOrNode() && pv_move_len.LessThanOrigBeta()) {
             // mate_len < orig_beta が確定したので、この局面は高々 mate_len 手詰
             pv_tree_.Insert(n, BOUND_UPPER, pv_move_len.GetMateLen(), pv_move_len.GetBestMove());
+            is_tree_entry_exist = true;
           } else if (!n.IsOrNode() && pv_move_len.GreaterThanOrigAlpha()) {
             // mate_len > orig_alpha が確定したので、この局面は少なくとも mate_len 手詰以上
             pv_tree_.Insert(n, BOUND_LOWER, pv_move_len.GetMateLen(), pv_move_len.GetBestMove());
+            is_tree_entry_exist = true;
           }
         } else {
           n.UndoMove(move.move);
         }
       }
+    }
+
+    if (!is_tree_entry_exist) {
+      // pv_tree に全くエントリが書かれないまま探索が終わった場合でも、稀に PV になる場合がある。
+      // このとき、pv_tree_[n] が空だと PV の復元に失敗してしまうので、1 つ以上手を保存しておく。
+      is_tree_entry_exist = true;
+      pv_tree_.Insert(n, BOUND_LOWER, kZeroMateLen, pv_move_len.GetBestMove());
     }
 
     pickers_.pop();
