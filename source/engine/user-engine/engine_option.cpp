@@ -31,7 +31,7 @@ bool ReadValue<bool>(const USI::OptionsMap& o, const std::string& key) {
 }  // namespace
 
 void EngineOption::Init(USI::OptionsMap& o) {
-  o["DepthLimit"] << USI::Option(0, 0, INT_MAX);
+  o["DepthLimit"] << USI::Option(0, 0, kMaxNumMateMoves);
   o["NodesLimit"] << USI::Option(0, 0, INT64_MAX);
   o["PvInterval"] << USI::Option(1000, 0, 1000000);
 
