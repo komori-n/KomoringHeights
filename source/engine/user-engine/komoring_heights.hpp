@@ -15,6 +15,7 @@
 #include "../../thread.h"
 #include "../../types.h"
 #include "children_cache.hpp"
+#include "circular_array.hpp"
 #include "engine_option.hpp"
 #include "move_picker.hpp"
 #include "node.hpp"
@@ -41,6 +42,7 @@ class SearchMonitor {
   void NewSearch();
 
   void Visit(Depth depth) { depth_ = std::max(depth_, depth); }
+  void Tick();
   UsiInfo GetInfo() const;
   std::uint64_t MoveCount() const { return thread_->nodes; }
   bool ShouldStop() const { return MoveCount() >= move_limit_ || stop_; }
@@ -56,10 +58,17 @@ class SearchMonitor {
   void SetStop(bool stop = true) { stop_ = stop; }
 
  private:
+  static constexpr inline std::size_t kHistLen = 16;
+
   std::atomic_bool stop_{false};
 
   std::chrono::system_clock::time_point start_time_;
   Depth depth_;
+
+  CircularArray<std::chrono::system_clock::time_point, kHistLen> tp_hist_;
+  CircularArray<std::uint64_t, kHistLen> mc_hist_;
+  std::size_t hist_idx_;
+
   std::uint64_t move_limit_;
   std::stack<std::uint64_t> limit_stack_;
   std::uint64_t next_gc_count_;

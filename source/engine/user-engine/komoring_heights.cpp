@@ -198,17 +198,37 @@ void SearchMonitor::NewSearch() {
   start_time_ = std::chrono::system_clock::now();
   depth_ = 0;
 
+  tp_hist_.Clear();
+  mc_hist_.Clear();
+  hist_idx_ = 0;
+
   move_limit_ = std::numeric_limits<std::uint64_t>::max();
   limit_stack_ = {};
   ResetNextGc();
 }
 
+void SearchMonitor::Tick() {
+  tp_hist_[hist_idx_] = std::chrono::system_clock::now();
+  mc_hist_[hist_idx_] = MoveCount();
+  hist_idx_++;
+}
+
 UsiInfo SearchMonitor::GetInfo() const {
   auto curr_time = std::chrono::system_clock::now();
   auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
-  time_ms = std::max(time_ms, decltype(time_ms){1});
-  auto move_count = MoveCount();
-  auto nps = move_count * 1000ULL / time_ms;
+
+  const auto move_count = MoveCount();
+  std::uint64_t nps = 0;
+  if (hist_idx_ >= kHistLen) {
+    const auto tp = tp_hist_[hist_idx_];
+    const auto mc = mc_hist_[hist_idx_];
+    const auto tp_diff = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - tp).count();
+    nps = (move_count - mc) * 1000ULL / tp_diff;
+  } else {
+    if (time_ms > 0) {
+      nps = move_count * 1000ULL / time_ms;
+    }
+  }
 
   UsiInfo output;
   output.Set(UsiInfo::KeyKind::kSelDepth, depth_)
@@ -854,5 +874,7 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
 #endif
 
   sync_cout << usi_output << sync_endl;
+
+  monitor_.Tick();
 }
 }  // namespace komori
