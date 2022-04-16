@@ -105,8 +105,8 @@ jobs:
       matrix:
         edition:
           - USER_ENGINE
-        compiler: [clang++-12, clang++-11, g++-10]
-        target: ["normal,tournament"]
+        compiler: [clang++-12]
+        target: ["normal"]
         archcpu:
           [
             "AVX512,AVX2,SSE42,SSE2",
