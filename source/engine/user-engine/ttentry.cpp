@@ -1,6 +1,24 @@
 #include "ttentry.hpp"
 
 namespace komori {
+namespace {
+/// operator<<(os, hand) を呼ぶと、pretty_jp に引っ張られて日本語文字列が出力されてしまう。
+/// そのため、USI を出力する関数を用意しておく。
+std::string to_usi_string(Hand hand) {
+  std::stringstream ss;
+  for (PieceType pr = PAWN; pr < PIECE_HAND_NB; ++pr) {
+    const auto c = hand_count(hand, pr);
+    if (c > 0) {
+      ss << pr;
+      if (c > 1) {
+        ss << c;
+      }
+    }
+  }
+  return ss.str();
+}
+}  // namespace
+
 std::ostream& operator<<(std::ostream& os, const UnknownData& data) {
   return os << "UnknownData{pn=" << ToString(data.pn_) << ", dn=" << ToString(data.dn_) << ", hand=" << data.hand_
             << ", min_depth=" << data.min_depth_ << ", secret=" << HexString(data.secret_) << ", parent=("
@@ -16,10 +34,16 @@ std::ostream& operator<<(std::ostream& os, const HandsData<kProven>& data) {
     os << "DisprovenData{";
   }
   for (std::size_t i = 0; i < HandsData<kProven>::kHandsLen; ++i) {
+    const auto& entry = data.entries_[i];
+
+    if (entry.hand == kNullHand) {
+      break;
+    }
+
     if (i != 0) {
       os << ", ";
     }
-    os << data.entries_[i].hand << "/" << data.entries_[i].move << "/" << data.entries_[i].mate_len;
+    os << entry.move << "/" << entry.mate_len << "/" << to_usi_string(entry.hand);
   }
   return os << "}";
 }
