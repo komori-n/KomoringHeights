@@ -95,110 +95,6 @@ jobs:
           name: build-android_${{ github.run_number }}_${{ github.sha }}
           path: ./main/build/**/*
 
-  build-ubuntu:
-    # ubuntu-latest = ubuntu-18.04 => ubuntu-20.04
-    # https://github.com/actions/virtual-environments/issues/1816
-    # https://docs.github.com/ja/free-pro-team@latest/actions/reference/specifications-for-github-hosted-runners
-    runs-on: ubuntu-20.04
-
-    strategy:
-      matrix:
-        edition:
-          - USER_ENGINE
-        compiler: [clang++-12]
-        target: ["normal"]
-        archcpu:
-          [
-            "AVX512,AVX2,SSE42,SSE2",
-            "SSE41,SSSE3,OTHER,ZEN1",
-            "ZEN2,AVX512VNNI",
-            "ZEN3,AVXVNNI",
-            "NO_SSE",
-          ]
-        exclude:
-          # Ubuntu-20.04 g++-10 は archcpu ZEN3,AVXVNNI のサポートを行わない
-          # ubuntu-20.04 g++-10 will not support the archcpu ZEN3,AVXVNNI
-          # `-march=cascadelake`: LLVM8, GCC9 support (AVX512VNNI)
-          # `-march=znver2`: LLVM9, GCC9 support
-          # `-march=alderlake` : LLVM12, GCC11 support (AVX-VNNI)
-          # `-march=znver3`: LLVM12, GCC11? support
-          - compiler: g++-10
-            archcpu: "ZEN3,AVXVNNI"
-          - compiler: clang++-10
-            archcpu: "ZEN3,AVXVNNI"
-          - compiler: clang++-11
-            archcpu: "ZEN3,AVXVNNI"
-          # Linux 32bit archcpu 向けのビルドは通常はしない
-          # don't usually build for Linux 32bit archcpu
-          - archcpu: NO_SSE
-
-    steps:
-      - name: Checkout own repository
-        uses: actions/checkout@v2
-        with:
-          path: main
-
-      - name: install g++-8
-        # Ubuntu 18.04
-        run: |
-          sudo cat /etc/apt/sources.list
-          sudo ls -R /etc/apt/sources.list.d
-          sudo apt update
-          sudo apt install build-essential libopenblas-dev g++-8
-        if: ${{ matrix.compiler == 'g++-8' }}
-      - name: install g++-10
-        # Ubuntu 20.04
-        run: |
-          sudo cat /etc/apt/sources.list
-          sudo ls -R /etc/apt/sources.list.d
-          sudo apt update
-          sudo apt install build-essential libopenblas-dev g++-10
-        if: ${{ matrix.compiler == 'g++-10' }}
-      - name: install clang-10
-        # Ubuntu 18.04, Ubuntu 20.04
-        run: |
-          sudo cat /etc/apt/sources.list
-          sudo ls -R /etc/apt/sources.list.d
-          sudo apt update
-          sudo apt install build-essential libopenblas-dev clang-10 libstdc++-10-dev libomp-10-dev
-        if: ${{ matrix.compiler == 'clang++-10' }}
-      - name: install clang-11
-        # Ubuntu 20.04
-        run: |
-          sudo cat /etc/apt/sources.list
-          sudo ls -R /etc/apt/sources.list.d
-          sudo apt update
-          sudo apt install build-essential libopenblas-dev clang-11 libomp-11-dev
-        if: ${{ matrix.compiler == 'clang++-11' }}
-      - name: install clang-12
-        # Ubuntu 21.04 or LLVM APT
-        run: |
-          wget https://apt.llvm.org/llvm.sh
-          sudo bash ./llvm.sh 12
-          sudo cat /etc/apt/sources.list
-          sudo ls -R /etc/apt/sources.list.d
-          sudo apt update
-          sudo apt install build-essential libopenblas-dev
-        if: ${{ matrix.compiler == 'clang++-12' }}
-      - name: install clang-13
-        # LLVM APT
-        run: |
-          wget https://apt.llvm.org/llvm.sh
-          sudo bash ./llvm.sh 13
-          sudo cat /etc/apt/sources.list
-          sudo ls -R /etc/apt/sources.list.d
-          sudo apt update
-          sudo apt install build-essential libopenblas-dev
-        if: ${{ matrix.compiler == 'clang++-13' }}
-
-      - name: make
-        run: ./main/script/build.sh -e ${{ matrix.edition }} -c ${{ matrix.compiler }} -t ${{ matrix.target }} -a ${{ matrix.archcpu }}
-
-      - uses: actions/upload-artifact@v2
-        with:
-          name: build-ubuntu_${{ github.run_number }}_${{ github.sha }}
-          path: ./main/build/**/**/*
-
   build-mac:
     runs-on: macos-11
     strategy:
@@ -206,7 +102,7 @@ jobs:
         edition:
           - USER_ENGINE
         compiler: [clang++-12]
-        target: ["tournament"]
+        target: ["normal"]
         archcpu:
           [
             "AVX512,AVX2,SSE42,SSE2",
@@ -246,7 +142,6 @@ jobs:
     needs:
       - build-msys2-windows
       - build-android
-      - build-ubuntu
       - build-mac
     # ubuntu-latest = ubuntu-18.04 => ubuntu-20.04
     # https://github.com/actions/virtual-environments/issues/1816
@@ -273,18 +168,13 @@ jobs:
         with:
           name: build-android_${{ github.run_number }}_${{ github.sha }}
           path: release-android
-      - name: Download artifact to get build-ubuntu
-        uses: actions/download-artifact@v2
-        with:
-          name: build-ubuntu_${{ github.run_number }}_${{ github.sha }}
-          path: release-ubuntu
       - name: Download artifact to get build-mac
         uses: actions/download-artifact@v2
         with:
           name: build-mac_${{ github.run_number }}_${{ github.sha }}
           path: release-mac
       - name: Display structure of downloaded files
-        run: ls -R release-windows release-android release-ubuntu release-mac
+        run: ls -R release-windows release-android release-mac
       - name: copy docs
         run: |
           cp main/Copying.txt release-windows/windows
@@ -292,9 +182,6 @@ jobs:
           cp -r main/docs/ release-windows/windows
           cp main/Copying.txt release-android/android/KomoringHeights
           cp -r main/docs/ release-android/android/KomoringHeights
-          cp main/Copying.txt release-ubuntu/linux
-          cp -r main/source/ release-ubuntu/linux
-          cp -r main/docs/ release-ubuntu/linux
           cp main/Copying.txt release-mac/mac
           cp -r main/source/ release-mac/mac
           cp -r main/docs/ release-mac/mac
@@ -309,11 +196,6 @@ jobs:
         run: |
           zip -jr build-android.zip android/KomoringHeights
         working-directory: release-android
-      - name: make build-ubuntu zip/7z
-        run: |
-          7z a -tzip build-ubuntu.zip linux
-          7z a -t7z build-ubuntu.7z linux
-        working-directory: release-ubuntu
       - name: make build-mac zip/7z
         run: |
           7z a -tzip build-mac.zip mac
@@ -325,8 +207,6 @@ jobs:
           echo ::set-output name=windows_zip::$(stat -c%s "release-windows/build-windows.zip" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
           echo ::set-output name=windows_7z::$(stat -c%s "release-windows/build-windows.7z" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
           echo ::set-output name=android_zip::$(stat -c%s "release-android/build-android.zip" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
-          echo ::set-output name=ubuntu_zip::$(stat -c%s "release-ubuntu/build-ubuntu.zip" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
-          echo ::set-output name=ubuntu_7z::$(stat -c%s "release-ubuntu/build-ubuntu.7z" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
           echo ::set-output name=mac_zip::$(stat -c%s "release-mac/build-mac.zip" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
           echo ::set-output name=mac_7z::$(stat -c%s "release-mac/build-mac.7z" | awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }')
       - name: Create release
@@ -341,8 +221,6 @@ jobs:
             - [${{ steps.version.outputs.filename }}-windows.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.zip) (${{ steps.archive_size.outputs.windows_zip }})
             - [${{ steps.version.outputs.filename }}-windows.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.7z) (${{ steps.archive_size.outputs.windows_7z }})
             - [${{ steps.version.outputs.filename }}-android.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-android.zip) (${{ steps.archive_size.outputs.android_zip }})
-            - [${{ steps.version.outputs.filename }}-ubuntu.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-ubuntu.zip) (${{ steps.archive_size.outputs.ubuntu_zip }})
-            - [${{ steps.version.outputs.filename }}-ubuntu.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-ubuntu.7z) (${{ steps.archive_size.outputs.ubuntu_7z }})
             - [${{ steps.version.outputs.filename }}-mac.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-mac.zip) (${{ steps.archive_size.outputs.mac_zip }})
             - [${{ steps.version.outputs.filename }}-mac.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-mac.7z) (${{ steps.archive_size.outputs.mac_7z }})
 
@@ -377,24 +255,6 @@ jobs:
           asset_path: release-android/build-android.zip
           asset_name: ${{ steps.version.outputs.filename }}-android.zip
           asset_content_type: application/zip
-      - name: Upload release asset build-ubuntu.zip
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: release-ubuntu/build-ubuntu.zip
-          asset_name: ${{ steps.version.outputs.filename }}-ubuntu.zip
-          asset_content_type: application/zip
-      - name: Upload release asset build-ubuntu.7z
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: release-ubuntu/build-ubuntu.7z
-          asset_name: ${{ steps.version.outputs.filename }}-ubuntu.7z
-          asset_content_type: application/octet-stream
       - name: Upload release asset build-mac.zip
         uses: actions/upload-release-asset@v1.0.1
         env:
