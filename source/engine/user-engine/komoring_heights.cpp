@@ -699,10 +699,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, Children
     monitor_.ResetNextGc();
   }
 
-  if (curr_result.Pn() > 0 && curr_result.Dn() > 10000000) {
-    n.GetDepth();
-  }
-
   while (!monitor_.ShouldStop() && !curr_result.Exceeds(thpn, thdn)) {
     // cache.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
