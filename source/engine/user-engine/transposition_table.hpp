@@ -361,7 +361,7 @@ inline CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
     return Add({hash_high, UnknownData{pn, dn, hand, depth}});
   } else {
     // エントリを新たに作るのはダメなので、適当な一時領域にデータを詰めて返す
-    static CommonEntry dummy_entry;
+    thread_local CommonEntry dummy_entry;
     dummy_entry = {hash_high, UnknownData{pn, dn, hand, depth}};
     return &dummy_entry;
   }
