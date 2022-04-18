@@ -73,7 +73,7 @@ std::string ToString(const SearchResult& search_result) {
 }
 
 std::ostream& operator<<(std::ostream& os, const CommonEntry& entry) {
-  os << HexString(entry.hash_high_) << " " << static_cast<const SearchResult&>(entry);
+  os << HexString(entry.board_key_) << " " << static_cast<const SearchResult&>(entry);
   return os;
 }
 

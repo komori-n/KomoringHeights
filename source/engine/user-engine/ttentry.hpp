@@ -44,6 +44,20 @@
  *
  * 置換表に書くエントリのデータ構造。PackedResultに加えて hash_high を格納できるようになっている。
  */
+#if defined(__GNUC__)
+#define ATTRIBUTE_PACKED __attribute__((__packed__))
+#define PACK_START
+#define PACK_END
+#elif defined(_MSC_VER)
+#define ATTRIBUTE_PACKED
+#define PACK_START __pragma(pack(push, 1))
+#define PACK_END __pragma(pack(pop))
+#else
+#define ATTRIBUTE_PACKED
+#define PACK_START
+#define PACK_END
+#endif
+
 namespace komori {
 
 // <NodeState>
@@ -124,7 +138,8 @@ inline constexpr StateAmount kNullEntry = {NodeState::kNullState, 0};
 /**
  * @brief 通常局面のデータ。(pn, dn, hand, min_depth) を格納する。
  */
-class UnknownData {
+PACK_START
+class ATTRIBUTE_PACKED UnknownData {
  public:
   friend std::ostream& operator<<(std::ostream& os, const UnknownData& data);
   constexpr UnknownData(PnDn pn, PnDn dn, Hand hand, Depth depth, std::uint64_t secret = 0)
@@ -169,9 +184,10 @@ class UnknownData {
   std::uint64_t parent_board_key_{kNullKey};  ///< 親局面の盤面ハッシュ値
   Hand parent_hand_{kNullHand};               ///< 親局面の持ち駒
 };
+PACK_END
 std::ostream& operator<<(std::ostream& os, const UnknownData& data);
 
-constexpr inline std::size_t kDataSize = (sizeof(UnknownData) + 7) / 8 * 8;
+constexpr inline std::size_t kDataSize = sizeof(UnknownData);
 
 /**
  * @brief 証明駒または反証駒を格納するデータ構造。
@@ -430,20 +446,17 @@ class CommonEntry : public PackedResult {
  public:
   friend std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
   template <typename... Args>
-  CommonEntry(std::uint32_t hash_high, Args&&... args)
-      : hash_high_{hash_high}, PackedResult{std::forward<Args>(args)...} {}
+  CommonEntry(Key board_key, Args&&... args) : board_key_{board_key}, PackedResult{std::forward<Args>(args)...} {}
   CommonEntry() = default;
 
-  std::uint32_t HashHigh() const { return hash_high_; }
+  Key BoardKey() const { return board_key_; }
 
  private:
-  std::uint32_t hash_high_{};  ///< ハッシュの上位32bit。コピーコンストラクト可能にするために const をつけない。
+  Key board_key_{};  ///< ハッシュの上位32bit。コピーコンストラクト可能にするために const をつけない。
 };
 
 std::ostream& operator<<(std::ostream& os, const CommonEntry& entry);
 std::string ToString(const CommonEntry& entry);
-
-static_assert(alignof(std::uint64_t) % alignof(CommonEntry) == 0);
 
 // =====================================================================================================================
 // implementation
@@ -698,5 +711,8 @@ inline SearchResult PackedResult::Simplify(Hand hand) const {
 // </PackedResult>
 // --------------------------------------------------------------------------------------------------------------------
 }  // namespace komori
+#undef ATTRIBUTE_PACKED
+#undef PACK_START
+#undef PACK_END
 
 #endif  // TTENTRY_HPP_

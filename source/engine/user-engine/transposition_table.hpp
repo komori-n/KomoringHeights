@@ -68,8 +68,7 @@ class BoardCluster {
  public:
   static constexpr inline std::size_t kClusterSize = 16;
 
-  constexpr BoardCluster(CommonEntry* head_entry, std::uint32_t hash_high)
-      : head_entry_{head_entry}, hash_high_{hash_high} {}
+  constexpr BoardCluster(CommonEntry* head_entry, Key board_key) : head_entry_{head_entry}, board_key_{board_key} {}
 
   /// 事前に std::veector などで領域を確保できるようにするために、デフォルトコンストラクタを定義しておく
   BoardCluster() = default;
@@ -102,7 +101,7 @@ class BoardCluster {
     return SetFinal<false>(disproof_hand, move, mate_len, amount);
   }
 
-  std::uint32_t HashHigh() const { return hash_high_; }
+  Key BoardKey() const { return board_key_; }
   /// entry　が cluster に含まれるなら true
   bool IsStored(CommonEntry* entry) const { return begin() <= entry && entry < end(); }
 
@@ -122,8 +121,8 @@ class BoardCluster {
 
   /// BoardCluster が管理する NormalTable の先頭要素。ここから kClusterSize 個のエントリが cluster に含まれる
   CommonEntry* head_entry_{nullptr};
-  /// 盤面ハッシュの上位32ビット
-  std::uint32_t hash_high_;
+  /// 盤面ハッシュ
+  Key board_key_;
 };
 
 /**
@@ -289,7 +288,7 @@ class TranspositionTable {
 
 template <bool kCreateIfNotExist>
 inline CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
-  std::uint32_t hash_high = hash_high_;
+  Key board_key = board_key_;
   PnDn pn = 1;
   PnDn dn = 1;
 
@@ -297,9 +296,9 @@ inline CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
 #define UNROLL(i)                                                                                             \
   do {                                                                                                        \
     do {                                                                                                      \
-      /* if文の条件で hash_high を先にチェックすることにより、1% ぐらい早くなる */ \
-      /* （is_null よりも hash_high により break する確率の方が高いため） */               \
-      if (entry->HashHigh() != hash_high || entry->IsNull()) {                                                \
+      /* if文の条件で board_key を先にチェックすることにより、1% ぐらい早くなる */ \
+      /* （is_null よりも board_key により break する確率の方が高いため） */               \
+      if (entry->BoardKey() != board_key || entry->IsNull()) {                                                \
         break;                                                                                                \
       }                                                                                                       \
                                                                                                               \
@@ -358,11 +357,11 @@ inline CommonEntry* BoardCluster::LookUp(Hand hand, Depth depth) const {
 #undef UNROLL
 
   if constexpr (kCreateIfNotExist) {
-    return Add({hash_high, UnknownData{pn, dn, hand, depth}});
+    return Add({board_key, UnknownData{pn, dn, hand, depth}});
   } else {
     // エントリを新たに作るのはダメなので、適当な一時領域にデータを詰めて返す
     thread_local CommonEntry dummy_entry;
-    dummy_entry = {hash_high, UnknownData{pn, dn, hand, depth}};
+    dummy_entry = {board_key, UnknownData{pn, dn, hand, depth}};
     return &dummy_entry;
   }
 }
@@ -410,7 +409,7 @@ inline bool LookUpQuery::IsValid() const {
     return true;
   }
 
-  if (entry_->HashHigh() != board_cluster_.HashHigh() || entry_->IsNull()) {
+  if (entry_->BoardKey() != board_cluster_.BoardKey() || entry_->IsNull()) {
     return false;
   }
 
@@ -433,26 +432,23 @@ inline bool LookUpQuery::IsValid() const {
 
 inline LookUpQuery TranspositionTable::GetQuery(const Node& n) {
   Key board_key = n.Pos().state()->board_key();
-  std::uint32_t hash_high = board_key >> 32;
   CommonEntry* head_entry = HeadOf(board_key);
-  BoardCluster board_cluster{head_entry, hash_high};
+  BoardCluster board_cluster{head_entry, board_key};
 
   return {rep_table_, std::move(board_cluster), n.OrHand(), n.GetDepth(), n.GetPathKey()};
 }
 
 inline LookUpQuery TranspositionTable::GetChildQuery(const Node& n, Move move) {
   Key board_key = n.Pos().board_key_after(move);
-  std::uint32_t hash_high = board_key >> 32;
   CommonEntry* head_entry = HeadOf(board_key);
-  BoardCluster board_cluster{head_entry, hash_high};
+  BoardCluster board_cluster{head_entry, board_key};
 
   return {rep_table_, std::move(board_cluster), n.OrHandAfter(move), n.GetDepth() + 1, n.PathKeyAfter(move)};
 }
 
 inline LookUpQuery TranspositionTable::GetQueryByKey(Key board_key, Hand or_hand) {
-  std::uint32_t hash_high = board_key >> 32;
   CommonEntry* head_entry = HeadOf(board_key);
-  BoardCluster board_cluster{head_entry, hash_high};
+  BoardCluster board_cluster{head_entry, board_key};
 
   // depth や path_key は適当に当たり障りのない値を埋めておく
   return {rep_table_, std::move(board_cluster), or_hand, std::numeric_limits<Depth>::max(), kNullKey};

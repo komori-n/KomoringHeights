@@ -60,11 +60,11 @@ inline void RemoveOne(Iterator begin, Iterator end) {
 
 template <bool kProven>
 CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, MateLen mate_len, SearchedAmount amount) const {
-  std::uint32_t hash_high = hash_high_;
+  Key board_key = board_key_;
   CommonEntry* ret = nullptr;
 
   for (auto& entry : *this) {
-    if (entry.HashHigh() != hash_high || entry.IsNull()) {
+    if (entry.BoardKey() != board_key || entry.IsNull()) {
       continue;
     }
 
@@ -99,7 +99,7 @@ CommonEntry* BoardCluster::SetFinal(Hand hand, Move16 move, MateLen mate_len, Se
     return ret;
   }
 
-  return Add({hash_high, HandsData<kProven>{hand, move, mate_len}, amount});
+  return Add({board_key, HandsData<kProven>{hand, move, mate_len}, amount});
 }
 
 CommonEntry* BoardCluster::Add(CommonEntry&& entry) const {
