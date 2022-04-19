@@ -20,13 +20,17 @@
 
 namespace komori {
 namespace {
-constexpr std::int64_t kGcInterval = 100'000'000;
-
 constexpr std::size_t kSplittedPrintLen = 12;
 constexpr int kPostSearchVisitThreshold = 200;
 /// PostSearch で詰み局面のはずなのに TT から詰み手順を復元できないとき、追加探索する局面数。
 /// この値が大きすぎると一生探索が終わらなくなるので注意。
 constexpr std::uint64_t kGcReconstructSearchCount = 100'000;
+
+inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
+  const std::uint64_t entry_num = hash_mb * 1024 * 1024 / sizeof(CommonEntry);
+
+  return entry_num / 2 * 3;
+}
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
@@ -194,7 +198,7 @@ void SearchMonitor::Init(Thread* thread) {
   thread_ = thread;
 }
 
-void SearchMonitor::NewSearch() {
+void SearchMonitor::NewSearch(std::uint64_t gc_interval) {
   start_time_ = std::chrono::system_clock::now();
   depth_ = 0;
 
@@ -204,6 +208,8 @@ void SearchMonitor::NewSearch() {
 
   move_limit_ = std::numeric_limits<std::uint64_t>::max();
   limit_stack_ = {};
+
+  gc_interval_ = gc_interval;
   ResetNextGc();
 }
 
@@ -240,7 +246,7 @@ UsiInfo SearchMonitor::GetInfo() const {
 }
 
 void SearchMonitor::ResetNextGc() {
-  next_gc_count_ = MoveCount() + kGcInterval;
+  next_gc_count_ = MoveCount() + gc_interval_;
 }
 
 void SearchMonitor::PushLimit(std::uint64_t move_limit) {
@@ -272,7 +278,7 @@ UsiInfo KomoringHeights::CurrentInfo() const {
 NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
-  monitor_.NewSearch();
+  monitor_.NewSearch(GcInterval(option_.hash_mb));
   monitor_.PushLimit(option_.nodes_limit);
   pv_tree_.Clear();
   best_moves_.clear();
