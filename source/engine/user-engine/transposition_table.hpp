@@ -269,6 +269,10 @@ class TranspositionTable {
   void Load(std::string filename);
 
  private:
+  std::size_t RemoveUnusedEntries();
+  /// tt をできるだけ手前に詰める。定期的に Compaction を行うことで、LookUp 速度が向上する
+  void Compact();
+
   /// NormalTable の board_key の先頭要素へのポインタを返す
   CommonEntry* HeadOf(Key board_key) {
     // Stockfish の置換表と同じアイデア。少し工夫をすることで moe 演算を回避できる。

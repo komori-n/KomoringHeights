@@ -194,6 +194,13 @@ void TranspositionTable::NewSearch() {
 std::size_t TranspositionTable::CollectGarbage() {
   rep_table_.CollectGarbage();
 
+  const auto removed_num = RemoveUnusedEntries();
+  Compact();
+
+  return removed_num;
+}
+
+std::size_t TranspositionTable::RemoveUnusedEntries() {
   std::size_t removed_num = 0;
 
   // idx から kClusterSize 個の要素のうち使用中であるものの個数を数える
@@ -237,6 +244,28 @@ std::size_t TranspositionTable::CollectGarbage() {
   } while (j < end);
 
   return removed_num;
+}
+
+void TranspositionTable::Compact() {
+  for (auto& entry : tt_) {
+    if (entry.IsNull()) {
+      continue;
+    }
+
+    const auto board_key = entry.BoardKey();
+    auto* const cluster_head = HeadOf(board_key);
+
+    if (cluster_head == &entry) {
+      continue;
+    }
+
+    if (cluster_head->IsNull()) {
+      // 手前に詰められる
+      std::swap(entry, *cluster_head);
+    } else if ((cluster_head + 1)->IsNull()) {
+      std::swap(entry, *(cluster_head + 1));
+    }
+  }
 }
 
 Move TranspositionTable::LookUpBestMove(const Node& n) {
