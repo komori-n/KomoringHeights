@@ -143,7 +143,7 @@ class ATTRIBUTE_PACKED UnknownData {
  public:
   friend std::ostream& operator<<(std::ostream& os, const UnknownData& data);
   constexpr UnknownData(PnDn pn, PnDn dn, Hand hand, Depth depth, std::uint64_t secret = 0)
-      : pn_(pn), dn_(dn), hand_(hand), min_depth_(depth), secret_{secret} {}
+      : pn_(pn), dn_(dn), hand_(hand), min_depth_(static_cast<std::int32_t>(depth)), secret_{secret} {}
 
   constexpr PnDn Pn() const { return pn_; }
   constexpr PnDn Dn() const { return dn_; }
@@ -152,7 +152,7 @@ class ATTRIBUTE_PACKED UnknownData {
     dn_ = dn;
   }
   /// 最小距離 `min_depth` を更新する
-  constexpr void UpdateDepth(Depth depth) { min_depth_ = std::min(min_depth_, depth); }
+  constexpr void UpdateDepth(Depth depth) { min_depth_ = std::min(min_depth_, static_cast<std::int32_t>(depth)); }
   /// 格納している持ち駒が引数に一致していればそのまま返す。一致していなければ kNullHand を返す。
   constexpr Hand ProperHand(Hand hand) const { return hand_ == hand ? hand : kNullHand; }
   /// 格納している持ち駒を返す
@@ -162,8 +162,8 @@ class ATTRIBUTE_PACKED UnknownData {
   /// 格納している持ち駒が引数よりも劣等であれば true。
   constexpr bool IsInferiorThan(Hand hand) const { return hand_is_equal_or_superior(hand, hand_); }
   /// infinite loop の可能性があるかどうかの判定に用いる。現在の探索深さ depth が min_depth よりも深いなら true。
-  constexpr bool IsOldChild(Depth depth) const { return min_depth_ < depth; }
-  constexpr Depth MinDepth() const { return min_depth_; }
+  constexpr bool IsOldChild(Depth depth) const { return min_depth_ < static_cast<std::int32_t>(depth); }
+  constexpr Depth MinDepth() const { return static_cast<Depth>(min_depth_); }
 
   constexpr std::uint64_t Secret() const { return secret_; }
   constexpr void SetSecret(std::uint64_t secret) { secret_ = secret; }
@@ -178,7 +178,7 @@ class ATTRIBUTE_PACKED UnknownData {
  private:
   PnDn pn_, dn_;            ///< 証明数、反証数
   Hand hand_;               ///< （OR nodeから見た）持ち駒
-  Depth min_depth_;         ///< 最小距離。infinite loop の検証に用いる
+  std::int32_t min_depth_;  ///< 最小距離。infinite loop の検証に用いる
   std::uint64_t secret_{};  ///< 局面に関する情報（中身は意識しない）
 
   std::uint64_t parent_board_key_{kNullKey};  ///< 親局面の盤面ハッシュ値
