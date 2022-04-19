@@ -39,7 +39,7 @@ namespace detail {
 class SearchMonitor {
  public:
   void Init(Thread* thread);
-  void NewSearch();
+  void NewSearch(std::uint64_t gc_interval);
 
   void Visit(Depth depth) { depth_ = std::max(depth_, depth); }
   void Tick();
@@ -71,6 +71,7 @@ class SearchMonitor {
 
   std::uint64_t move_limit_;
   std::stack<std::uint64_t> limit_stack_;
+  std::uint64_t gc_interval_;
   std::uint64_t next_gc_count_;
   Thread* thread_;
 };
