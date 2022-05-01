@@ -169,8 +169,6 @@ class DelayableMoves {
 };
 
 constexpr PnDn kSumSwitchThreshold = kInfinitePnDn / 16;
-/// max で Delta を計算するときの調整項。詳しくは ChildrenCache::GetDelta() のコメントを参照。
-constexpr PnDn kMaxDeltaBias = 2;
 
 /// 詰み手数と持ち駒から MateLen を作る
 inline MateLen MakeMateLen(Depth depth, Hand hand) {
@@ -776,22 +774,6 @@ PnDn ChildrenCache::GetDelta() const {
   auto [sum_delta, max_delta] = GetRawDelta();
   if (sum_delta == 0 && max_delta == 0) {
     return 0;
-  }
-
-  // 定義通りに
-  //    delta = Σ(...) + max(...)
-  // で計算すると、合駒や遠隔王手が続く局面のときに max(...) の値が実態以上に小さくなることがある。
-  //
-  // 例）sfen l3r2kl/6g2/2+Ppppnpp/2p4N1/3Pn1p1P/2P6/L1Ss1PP2/9/1K1S4L w 2BGNPr2gs4p 1
-  //     S*9h から 9 筋で精算するとたくさん遠隔王手がかけられる。玉方の応手はすべて合駒のため pn は小さい値（6ぐらい）
-  //     が続くが、詰みを示すためには膨大な局面を展開する必要がある。
-  //
-  // そのため、
-  //    max(...)
-  // の項が存在するときは delta の値を少し減点（数字を大きく）する。このような処理を追加することで、親局面から見た
-  // 現局面の phi 値が大きくなり、この手順が少しだけ選ばれづらくなる。
-  if (max_delta > 0) {
-    max_delta += max_node_num_ / kMaxDeltaBias;
   }
 
   // 後回しにしている子局面が存在する場合、その値をδ値に加算しないと局面を過大評価してしまう。
