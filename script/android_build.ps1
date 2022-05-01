@@ -1,11 +1,17 @@
 Param(
-  [String[]]$Edition
+  [String[]]$Edition,
+  [String]$Extra
 )
 Push-Location (Join-Path $PSScriptRoot ..);
 @(
   @{
     EDITION = "YANEURAOU_ENGINE_NNUE";
     Dir = ".\build\android\NNUE";
+  };
+  @{
+    EDITION = "YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32";
+    Nnue = "HALFKP_VM";
+    Dir = ".\build\android\NNUE_HALFKP_VM";
   };
   @{
     EDITION = "YANEURAOU_ENGINE_NNUE_HALFKPE9";
@@ -100,11 +106,11 @@ if(-not (Test-Path $Dir)){
 }
 
 "`n* Clean Build"|Out-Host;
-ndk-build.cmd clean YANEURAOU_EDITION=$_Edition;
+ndk-build.cmd clean YANEURAOU_EDITION=$_Edition $Extra;
 
 "`n* Build Binary"|Out-Host;
 $log = $null;
-ndk-build.cmd YANEURAOU_EDITION=$_Edition NNUE_EVAL_ARCH=$($_.Nnue) V=1 -j $Jobs|Tee-Object -Variable log;
+ndk-build.cmd -j $Jobs YANEURAOU_EDITION=$_Edition NNUE_EVAL_ARCH=$($_.Nnue) V=1 $Extra|Tee-Object -Variable log;
 $log|Out-File -Encoding utf8 -Force (Join-Path $Dir "build.log");
 
 "`n* Copy Binary"|Out-Host;
@@ -114,7 +120,7 @@ ForEach-Object{
 };
 
 "`n* Clean Build"|Out-Host;
-ndk-build.cmd clean YANEURAOU_EDITION=$_Edition;
+ndk-build.cmd clean YANEURAOU_EDITION=$_Edition $Extra;
 
 }
 

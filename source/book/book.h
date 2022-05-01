@@ -5,6 +5,7 @@
 #include "../position.h"
 #include "../misc.h"
 #include "../usi.h"
+#include "../testcmd/unit_test.h"
 
 #include <unordered_map>
 
@@ -171,7 +172,7 @@ namespace Book
 		Tools::Result write_apery_book(const std::string& filename);
 
 		// --------------------------------------------------------------------------
-		//     以下のメンバは、普段は外部から普段は直接アクセスすべきではない
+		//   以下のメンバは、普段は外部から普段は直接アクセスすべきではない。
 		//
 		//   定跡を書き換えてwrite_book()で書き出すような作業を行なうときだけアクセスする。
 		// --------------------------------------------------------------------------
@@ -192,6 +193,9 @@ namespace Book
 
 		// [ASYNC] このクラスの持つ定跡DBに対して、それぞれの局面を列挙する時に用いる
 		void foreach(std::function<void(std::string /*sfen*/, BookMovesPtr)> f);
+
+		// 保持している局面数を返す。これは、on the flyではない状態でread_book()した時にのみ有効。
+		size_t size() const { return book_body.size(); }
 
 	protected:
 
@@ -287,6 +291,10 @@ namespace Book
 
 		// probe()の下請け
 		// forceHit == trueのときは、設定オプションの値を無視して強制的に定跡にhitさせる。(BookPvMovesの実装で用いる)
+		// 注意)
+		// bestMoveが合法手であることは保証される。
+		// GenerateAllLegalMovesがfalseの時、歩の不成の指し手を返さないことも保証する。
+		// 但し、ponderMoveが合法手であることは保証しない。
 		bool probe_impl(Position& rootPos, bool silent, Move16& bestMove, Move16& ponderMove , bool forceHit = false);
 
 		// 定跡のpv文字列を生成して返す。
@@ -296,6 +304,32 @@ namespace Book
 
 		AsyncPRNG prng;
 	};
+
+	// 定跡部のUnitTest
+	extern void UnitTest(Test::UnitTester& tester);
+}
+
+// 定跡関係の処理のための補助ツール群
+namespace BookTools
+{
+	// USIの"position"コマンドに設定できる文字列で、局面を初期化する。
+	// 例)
+	// "startpos"
+	// "startpos moves xxx ..."
+	// "sfen xxx"
+	// "sfen xxx moves yyy ..."
+	// また、局面を1つ進めるごとにposition_callback関数が呼び出される。
+	// 辿った局面すべてに対して何かを行いたい場合は、これを利用すると良い。
+	void feed_position_string(Position& pos, const std::string& root_sfen, std::vector<StateInfo>& si, const std::function<void(Position&)>& position_callback = [](Position&) {});
+
+	// 平手、駒落ちの開始局面集
+	// ここで返ってきた配列の、[0]は平手のsfenであることは保証されている。
+	// 先頭に"sfen "とついているので注意。
+	std::vector<std::string> get_start_sfens();
+
+	// "position"コマンドに設定できるsfen文字列を渡して、そこから全合法手で１手進めたsfen文字列を取得する。
+	// 先頭に"sfen "とついているので注意。
+	std::vector<std::string> get_next_sfens(std::string root_sfen);
 
 }
 

@@ -21,6 +21,8 @@ namespace Eval {
 
     namespace NNUE {
 
+		int FV_SCALE = 16; // 水匠5では24がベストらしいのでエンジンオプション"FV_SCALE"で変更可能にした。
+
         // 入力特徴量変換器
         AlignedPtr<FeatureTransformer> feature_transformer;
 
@@ -45,10 +47,8 @@ namespace Eval {
                 void Initialize(AlignedPtr<T>& pointer) {
 
                     // →　メモリはLarge Pageから確保することで高速化する。
-                    void* mem; // 開放すべきポインタ
-                    void* ptr = LargeMemory::static_alloc(sizeof(T), mem , alignof(T), true);
+                    void* ptr = LargeMemory::static_alloc(sizeof(T) , alignof(T), true);
                     pointer.reset(reinterpret_cast<T*>(ptr));
-                    pointer.get_deleter().mem = mem;
 
                     //sync_cout << "nnue.alloc(" << sizeof(T) << "," << alignof(T) << ")" << sync_endl;
                 }
@@ -230,16 +230,36 @@ namespace Eval {
         if (!Options["SkipLoadingEval"])
 #endif
         {
-            auto full_dir_name = Path::Combine(Directory::GetCurrentFolder(), (std::string)Options["EvalDir"]);
-            sync_cout << "info string EvalDirectory = " << full_dir_name << sync_endl;
-
             const std::string dir_name = Options["EvalDir"];
+            const bool result = [&] {
+                if (dir_name != "<internal>") {
+                    auto full_dir_name = Path::Combine(Directory::GetCurrentFolder(), dir_name);
+                    sync_cout << "info string EvalDirectory = " << full_dir_name << sync_endl;
 
-            const std::string file_name = Path::Combine(dir_name, NNUE::kFileName);
-            std::ifstream stream(file_name, std::ios::binary);
-            const bool result = NNUE::ReadParameters(stream);
+                    const std::string file_name = Path::Combine(dir_name, NNUE::kFileName);
+                    std::ifstream stream(file_name, std::ios::binary);
+                    sync_cout << "info string loading eval file : " << file_name << sync_endl;
 
-            sync_cout << "info string loading eval file : " << file_name << sync_endl;
+                    return NNUE::ReadParameters(stream);
+                }
+                else {
+                    // C++ way to prepare a buffer for a memory stream
+                    class MemoryBuffer : public std::basic_streambuf<char> {
+                        public: MemoryBuffer(char* p, size_t n) {
+                            std::streambuf::setg(p, p, p + n);
+                            std::streambuf::setp(p, p + n);
+                        }
+                    };
+
+                    MemoryBuffer buffer(const_cast<char*>(reinterpret_cast<const char*>(gEmbeddedNNUEData)),
+                        size_t(gEmbeddedNNUESize));
+
+                    std::istream stream(&buffer);
+                    sync_cout << "info string loading eval file : <internal>" << sync_endl;
+
+                    return NNUE::ReadParameters(stream);
+                }
+            }();
 
             //      ASSERT(result);
 

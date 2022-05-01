@@ -50,7 +50,12 @@ namespace Book
 		auto original_ignore_book_ply = (bool)Options["IgnoreBookPly"];
 		Options["IgnoreBookPly"] = false;
 
-		SCOPE_EXIT(Options["BookFile"] = original_book_file; Options["IgnoreBookPly"] = original_ignore_book_ply; );
+		Tools::ProgressBar::enable(true);
+		SCOPE_EXIT(
+			Options["BookFile"] = original_book_file;
+			Options["IgnoreBookPly"] = original_ignore_book_ply;
+			Tools::ProgressBar::enable(false);
+			);
 
 		// ↑ SCOPE_EXIT()により、この関数を抜けるときには復旧する。
 
@@ -82,7 +87,6 @@ namespace Book
 		cout << "> makebook sort book_src.db book_sorted.db" << endl;
 		cout << "> makebook convert_from_apery book_src.bin book_converted.db" << endl;
 		cout << "> makebook build_tree book2019.db user_book1.db" << endl;
-		cout << "> makebook mcts filename book2021.db" << endl;
 
 	}
 

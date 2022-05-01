@@ -58,6 +58,9 @@ void USI::extra_option(USI::OptionsMap& o)
 	// ノードを再利用するか。
     o["ReuseSubtree"]                << USI::Option(true);
 
+	// 勝率を評価値に変換する時の定数。
+	o["Eval_Coef"]                   << USI::Option(756, 1, 10000);
+
 	// 投了値 : 1000分率で
 	o["Resign_Threshold"]            << USI::Option(0, 0, 1000);
 
@@ -65,15 +68,14 @@ void USI::extra_option(USI::OptionsMap& o)
 	// 引き分けの局面では、この値とみなす。
 	// root color(探索開始局面の手番)に応じて、2通り。
 	
-	o["DrawValueBlack"]            << USI::Option(500, 0, 1000);
-	o["DrawValueWhite"]            << USI::Option(500, 0, 1000);
+	o["DrawValueBlack"]              << USI::Option(500, 0, 1000);
+	o["DrawValueWhite"]              << USI::Option(500, 0, 1000);
 
 	// --- PUCTの時の定数
 	// これ、探索パラメーターの一種と考えられるから、最適な値を事前にチューニングして設定するように
 	// しておき、ユーザーからは触れない(触らなくても良い)ようにしておく。
 	// →　dlshogiはoptimizerで最適化するために外だししているようだ。
 
-#if 0
 	// fpu_reductionの値を100分率で設定。
 	// c_fpu_reduction_rootは、rootでのfpu_reductionの値。
     o["C_fpu_reduction"]             << USI::Option(27, 0, 100);
@@ -84,14 +86,14 @@ void USI::extra_option(USI::OptionsMap& o)
     o["C_init_root"]                 << USI::Option(116, 0, 500);
     o["C_base_root"]                 << USI::Option(25617, 10000, 100000);
 
-#endif
 	// 探索のSoftmaxの温度
 	o["Softmax_Temperature"]		 << USI::Option( 1740 /* 方策分布を学習させた場合、1400から1500ぐらいが最適値らしいが… */ , 1, 5000);
 
 	// 各GPU用のDNNモデル名と、そのGPU用のUCT探索のスレッド数と、そのGPUに一度に何個の局面をまとめて評価(推論)を行わせるのか。
 	// GPUは最大で8個まで扱える。
 
-    o["UCT_Threads1"]                << USI::Option(4, 0, 256);
+	// RTX 3090で10bなら4、15bなら2で最適。
+    o["UCT_Threads1"]                << USI::Option(2, 0, 256);
     o["UCT_Threads2"]                << USI::Option(0, 0, 256);
     o["UCT_Threads3"]                << USI::Option(0, 0, 256);
     o["UCT_Threads4"]                << USI::Option(0, 0, 256);
@@ -99,6 +101,14 @@ void USI::extra_option(USI::OptionsMap& o)
     o["UCT_Threads6"]                << USI::Option(0, 0, 256);
     o["UCT_Threads7"]                << USI::Option(0, 0, 256);
     o["UCT_Threads8"]                << USI::Option(0, 0, 256);
+    o["UCT_Threads9"]                << USI::Option(0, 0, 256);
+    o["UCT_Threads10"]                << USI::Option(0, 0, 256);
+    o["UCT_Threads11"]                << USI::Option(0, 0, 256);
+    o["UCT_Threads12"]                << USI::Option(0, 0, 256);
+    o["UCT_Threads13"]                << USI::Option(0, 0, 256);
+    o["UCT_Threads14"]                << USI::Option(0, 0, 256);
+    o["UCT_Threads15"]                << USI::Option(0, 0, 256);
+    o["UCT_Threads16"]                << USI::Option(0, 0, 256);
     o["DNN_Model1"]                  << USI::Option(R"(model.onnx)");
     o["DNN_Model2"]                  << USI::Option("");
     o["DNN_Model3"]                  << USI::Option("");
@@ -107,13 +117,21 @@ void USI::extra_option(USI::OptionsMap& o)
     o["DNN_Model6"]                  << USI::Option("");
     o["DNN_Model7"]                  << USI::Option("");
     o["DNN_Model8"]                  << USI::Option("");
+    o["DNN_Model9"]                  << USI::Option("");
+    o["DNN_Model10"]                  << USI::Option("");
+    o["DNN_Model11"]                  << USI::Option("");
+    o["DNN_Model12"]                  << USI::Option("");
+    o["DNN_Model13"]                  << USI::Option("");
+    o["DNN_Model14"]                  << USI::Option("");
+    o["DNN_Model15"]                  << USI::Option("");
+    o["DNN_Model16"]                  << USI::Option("");
 
-#if defined(ONNXRUNTIME)
-	// CPUを使っていることがあるので、default値、ちょっと少なめにしておく。
-	o["DNN_Batch_Size1"]             << USI::Option(32, 1, 1024);
-#elif defined(TENSOR_RT)
+#if defined(TENSOR_RT) || defined(ORT_TRT)
 	// 通常時の推奨128 , 検討の時は推奨256。
 	o["DNN_Batch_Size1"]             << USI::Option(128, 1, 1024);
+#elif defined(ONNXRUNTIME)
+	// CPUを使っていることがあるので、default値、ちょっと少なめにしておく。
+	o["DNN_Batch_Size1"]             << USI::Option(32, 1, 1024);
 #endif
 	o["DNN_Batch_Size2"]             << USI::Option(0, 0, 65536);
     o["DNN_Batch_Size3"]             << USI::Option(0, 0, 65536);
@@ -122,6 +140,14 @@ void USI::extra_option(USI::OptionsMap& o)
     o["DNN_Batch_Size6"]             << USI::Option(0, 0, 65536);
     o["DNN_Batch_Size7"]             << USI::Option(0, 0, 65536);
     o["DNN_Batch_Size8"]             << USI::Option(0, 0, 65536);
+    o["DNN_Batch_Size9"]             << USI::Option(0, 0, 65536);
+    o["DNN_Batch_Size10"]             << USI::Option(0, 0, 65536);
+    o["DNN_Batch_Size11"]             << USI::Option(0, 0, 65536);
+    o["DNN_Batch_Size12"]             << USI::Option(0, 0, 65536);
+    o["DNN_Batch_Size13"]             << USI::Option(0, 0, 65536);
+    o["DNN_Batch_Size14"]             << USI::Option(0, 0, 65536);
+    o["DNN_Batch_Size15"]             << USI::Option(0, 0, 65536);
+    o["DNN_Batch_Size16"]             << USI::Option(0, 0, 65536);
 
 #if defined(ORT_MKL)
 	// nn_onnx_runtime.cpp の NNOnnxRuntime::load() で使用するオプション。 
@@ -170,6 +196,9 @@ void Search::clear()
 	// ノードを再利用するかの設定。
 	searcher.SetReuseSubtree(Options["ReuseSubtree"]);
 
+	// 勝率を評価値に変換する時の定数を設定。
+	searcher.SetEvalCoef((int)Options["Eval_Coef"]);
+
 	// 投了値
 	searcher.SetResignThreshold((int)Options["Resign_Threshold"]);
 
@@ -180,11 +209,15 @@ void Search::clear()
 
 	const int new_thread[max_gpu] = {
 		(int)Options["UCT_Threads1"], (int)Options["UCT_Threads2"], (int)Options["UCT_Threads3"], (int)Options["UCT_Threads4"],
-		(int)Options["UCT_Threads5"], (int)Options["UCT_Threads6"], (int)Options["UCT_Threads7"], (int)Options["UCT_Threads8"]
+		(int)Options["UCT_Threads5"], (int)Options["UCT_Threads6"], (int)Options["UCT_Threads7"], (int)Options["UCT_Threads8"],
+		(int)Options["UCT_Threads9"], (int)Options["UCT_Threads10"], (int)Options["UCT_Threads11"], (int)Options["UCT_Threads12"],
+		(int)Options["UCT_Threads13"], (int)Options["UCT_Threads14"], (int)Options["UCT_Threads15"], (int)Options["UCT_Threads16"]
 	};
 	const int new_policy_value_batch_maxsize[max_gpu] = {
 		(int)Options["DNN_Batch_Size1"], (int)Options["DNN_Batch_Size2"], (int)Options["DNN_Batch_Size3"], (int)Options["DNN_Batch_Size4"],
-		(int)Options["DNN_Batch_Size5"], (int)Options["DNN_Batch_Size6"], (int)Options["DNN_Batch_Size7"], (int)Options["DNN_Batch_Size8"]
+		(int)Options["DNN_Batch_Size5"], (int)Options["DNN_Batch_Size6"], (int)Options["DNN_Batch_Size7"], (int)Options["DNN_Batch_Size8"],
+		(int)Options["DNN_Batch_Size9"], (int)Options["DNN_Batch_Size10"], (int)Options["DNN_Batch_Size11"], (int)Options["DNN_Batch_Size12"],
+		(int)Options["DNN_Batch_Size13"], (int)Options["DNN_Batch_Size14"], (int)Options["DNN_Batch_Size15"], (int)Options["DNN_Batch_Size16"]
 	};
 
 	// 対応デバイス数を取得する
@@ -207,9 +240,7 @@ void Search::clear()
 
 	// EvalDir　　　 →　dlshogiではサポートされていないが、やねうら王は、EvalDirにあるモデルファイルを読み込むようにする。
 
-	// 以下も、探索パラメーターだから、いらない。開発側が最適値にチューニングすべきという考え。
-	// C_fpu_reduction , C_fpu_reduction_root , C_init , C_base , C_init_root , C_base_root
-#if 0
+	auto& search_options = searcher.search_options;
 	search_options.c_fpu_reduction      =                Options["C_fpu_reduction"     ] / 100.0f;
 	search_options.c_fpu_reduction_root =                Options["C_fpu_reduction_root"] / 100.0f;
 
@@ -217,8 +248,6 @@ void Search::clear()
 	search_options.c_base               = (NodeCountType)Options["C_base"              ];
 	search_options.c_init_root          =                Options["C_init_root"         ] / 100.0f;
 	search_options.c_base_root          = (NodeCountType)Options["C_base_root"         ];
-
-#endif
 
 	// softmaxの時のボルツマン温度設定
 	// これは、dlshogiの"Softmax_Temperature"の値。(1740) = 1.740
@@ -324,5 +353,35 @@ void Thread::search()
 //	searcher.FinalizeUctSearch();
 //}
 
+namespace dlshogi
+{
+	// 探索結果を返す。
+	//   Threads.start_thinking(pos, states , limits);
+	//   Threads.main()->wait_for_search_finished(); // 探索の終了を待つ。
+	// のようにUSIのgoコマンド相当で探索したあと、rootの各候補手とそれに対応する評価値を返す。
+	std::vector < std::pair<Move, float>> GetSearchResult()
+	{
+		// root node
+		Node* root_node = searcher.search_limits.current_root;
+
+		// 子ノードの数
+		int num = root_node->child_num;
+
+		// 返し値として返す用のコンテナ
+		std::vector < std::pair<Move, float>> v(num);
+
+		for (int i = 0; i < num; ++i)
+		{
+			auto& child = root_node->child[i];
+			Move m = child.move;
+			// move_count == 0であって欲しくはないのだが…。
+			float win = child.move_count == 0 ? child.nnrate : (float)child.win / child.move_count;
+//			v.emplace_back(std::pair<Move, float>(m, win));
+			v[i] = std::pair<Move, float>(m, win);
+		}
+
+		return v;
+	}
+}
 
 #endif // defined(YANEURAOU_ENGINE_DEEP)

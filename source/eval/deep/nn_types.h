@@ -11,7 +11,7 @@ namespace Eval::dlshogi
 	// === GPU関連の設定 ===
 
 	// GPUの最大数(これ以上のGPUは扱えない)
-	constexpr int max_gpu = 8;
+	constexpr int max_gpu = 16;
 
 	// === 入出力の特徴量の定義 ===
 
@@ -134,15 +134,17 @@ namespace Eval::dlshogi
 	// 評価値から価値(勝率)に変換
 	// スケールパラメータは、elmo_for_learnの勝率から調査した値
 	// 何かの変換の時に必要になる。
-	float cp_to_value(const Value score);
+	float cp_to_value(const Value score , const float eval_coef);
 
 	// 価値(勝率)を評価値[cp]に変換。
 	// USIではcp(centi-pawn)でやりとりするので、そのための変換に必要。
+	// 	 eval_coef : 勝率を評価値に変換する時の定数。default = 756
+	//
 	// 返し値 :
 	//   +29900は、評価値の最大値
 	//   -29900は、評価値の最小値
 	//   +30000,-30000は、(おそらく)詰みのスコア
-	Value value_to_cp(const float score);
+	Value value_to_cp(const float score , const float eval_coef);
 
 	// エンジンオプションで設定されたモデルファイル名。(フォルダ名含む)
 	// このsize() == max_gpuのはず。

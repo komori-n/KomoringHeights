@@ -12,6 +12,7 @@
 # YANEURAOU_ENGINE_NNUE          : NNUE型評価関数(halfKP256),標準NNUE型
 # YANEURAOU_ENGINE_NNUE_KP256    : NNUE型評価関数(KP256)
 # YANEURAOU_ENGINE_NNUE_HALFKPE9 : NNUE型評価関数(halfKPE9)
+# YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32 : NNUE型評価関数(halfkp_vm_256x2-32-32)
 # YANEURAOU_ENGINE_KPPT          : KPPT型評価関数
 # YANEURAOU_ENGINE_KPP_KKPT      : KPP_KKPT型評価関数
 # YANEURAOU_ENGINE_MATERIAL      : 駒得のみの評価関数(複数変種あり。MATERIAL_LEVELで選択できる)
@@ -22,6 +23,7 @@
 YANEURAOU_EDITION = YANEURAOU_ENGINE_NNUE
 #YANEURAOU_EDITION = YANEURAOU_ENGINE_NNUE_KP256
 #YANEURAOU_EDITION = YANEURAOU_ENGINE_NNUE_HALFKPE9
+#YANEURAOU_EDITION = YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32
 #YANEURAOU_EDITION = YANEURAOU_ENGINE_KPPT
 #YANEURAOU_EDITION = YANEURAOU_ENGINE_KPP_KKPT
 #YANEURAOU_EDITION = YANEURAOU_ENGINE_MATERIAL
@@ -35,15 +37,16 @@ YANEURAOU_EDITION = YANEURAOU_ENGINE_NNUE
 # 利用できるCPU拡張命令を指定する。
 #
 # AMDのRyzen(Zen/Zen2)はZEN1/ZEN2を選択するとBMI2命令が使わずに速くなる。(10%程度高速化)
-# Ryzen Zen3シリーズはZEN3を選択。こちらはAVX2用とたぶん変わらない。
+# Ryzen Zen3シリーズはZEN3を選択。(clang/llvm 13.0.0以降、gcc 11.2以降)
 #
 # ARM系はGraviton2ならGRAVITON2、これ以外ならOTHERを指定する。
-# 32bit環境用はNO_SSEを指定する。
+# Windows x86(32bit環境)用はNO_SSEを指定する。
 #
 # AVX-512対応(サーバー向けSkylake以降)ならAVX512を指定する。
 # AVX-512対応でさらにVNNI命令対応(Cascade Lake以降)なら、AVX512VNNIを指定する。
 
 
+# --- Intel/AMD系 (x86/x64 Platform)
 #TARGET_CPU = AVX512VNNI
 #TARGET_CPU = AVX512
 TARGET_CPU = AVX2
@@ -53,9 +56,13 @@ TARGET_CPU = AVX2
 #TARGET_CPU = SSSE3
 #TARGET_CPU = SSE2
 #TARGET_CPU = NO_SSE
-#TARGET_CPU = OTHER
+# --- AMD Ryzen
 #TARGET_CPU = ZEN1
 #TARGET_CPU = ZEN2
+#TARGET_CPU = ZEN3
+# -- ARMとか
+#TARGET_CPU = OTHER
+#TARGET_CPU = GRAVITON2
 
 
 # デバッガーを使用するか (debugger)
@@ -96,6 +103,13 @@ EXTRA_CPPFLAGS =
 # cf.【連載】評価関数を作ってみよう！その1 : http://yaneuraou.yaneu.com/2020/11/17/make-evaluate-function/
 MATERIAL_LEVEL = 1
 
+# evallearnで使用するBLASの種類を指定する。
+BLAS = OPENBLAS
+# BLAS = BLIS
+
+# NNUE評価関数を実行ファイルに内蔵する。 `eval/nnue/embedded_nnue.cpp` が別途必要。
+EVAL_EMBEDDING = OFF
+# EVAL_EMBEDDING = ON
 
 # === implementations ===
 
@@ -162,6 +176,13 @@ endif
 # cf. https://gcc.gnu.org/onlinedocs/gcc-6.3.0/gcc/Optimize-Options.html#Optimize-Options
 LTOFLAGS = -flto
 
+# MSYS2 clang++ で -flto 指定時にリンクを行えない問題の回避
+ifneq (,$(findstring clang++,$(COMPILER)))
+	ifeq ($(OS),Windows_NT)
+		LDFLAGS += -fuse-ld=lld
+	endif
+endif
+
 # wstringを使うためにこのシンボル定義が必要。
 CPPFLAGS  += -DUNICODE
 
@@ -207,10 +228,19 @@ endif
 
 # NNUE評価関数 学習バイナリ用 OpenBLAS
 ifneq (,$(findstring YANEURAOU_ENGINE_NNUE,$(YANEURAOU_EDITION)))
-	BLAS = -DUSE_BLAS
-	BLAS_LDFLAGS = -lopenblas
-	ifeq ($(MSYSTEM),MINGW64)
-		BLAS += -I$(shell cygpath -aw /mingw64/include/OpenBLAS)
+	ifeq ($(BLAS),OPENBLAS)
+		BLAS_CPPFLAGS = -DUSE_BLAS
+		BLAS_LDFLAGS = -lopenblas
+		ifeq ($(MSYSTEM),MINGW64)
+			BLAS_CPPFLAGS += -I$(shell cygpath -aw /mingw64/include/OpenBLAS)
+		endif
+	endif
+
+	ifeq ($(BLAS),BLIS)
+		BLAS_CPPFLAGS = -DUSE_BLAS
+		BLAS_CPPFLAGS += -I$(shell cygpath -aw /usr/local/include/blis)
+		BLAS_LDFLAGS = -lblis.dll
+		BLAS_LDFLAGS += -L$(shell cygpath -aw /usr/local/lib)
 	endif
 endif
 
@@ -252,6 +282,7 @@ SOURCES  = \
 	eval/evaluate_io.cpp                                                       \
 	eval/evaluate_mir_inv_tools.cpp                                            \
 	eval/material/evaluate_material.cpp                                        \
+	testcmd/unit_test.cpp                                                      \
 	testcmd/mate_test_cmd.cpp                                                  \
 	testcmd/normal_test_cmd.cpp                                                \
 	testcmd/benchmark.cpp
@@ -312,14 +343,14 @@ ifneq (,$(findstring YANEURAOU_ENGINE_DEEP,$(YANEURAOU_EDITION)))
 		else ifeq ($(YANEURAOU_EDITION),YANEURAOU_ENGINE_DEEP_ORT_CPU)
 			CPPFLAGS += -DORT_CPU
 
-		else ifeq ($(YANEURAOU_EDITION),YANEURAOU_ENGINE_DEEP_ORT_CUDA)
-			CPPFLAGS += -DORT_CUDA
-
 		else ifeq ($(YANEURAOU_EDITION),YANEURAOU_ENGINE_DEEP_ORT_DML)
 			CPPFLAGS += -DORT_DML
 
 		else ifeq ($(YANEURAOU_EDITION),YANEURAOU_ENGINE_DEEP_ORT_MKL)
 			CPPFLAGS += -DORT_MKL
+
+		else ifeq ($(YANEURAOU_EDITION),YANEURAOU_ENGINE_DEEP_ORT_TRT)
+			CPPFLAGS += -DORT_TRT
 
 		endif
 	endif
@@ -334,7 +365,8 @@ ifneq (,$(findstring YANEURAOU_ENGINE_DEEP,$(YANEURAOU_EDITION)))
 		engine/dlshogi-engine/PrintInfo.cpp                             \
 		engine/dlshogi-engine/UctSearch.cpp                             \
 		engine/dlshogi-engine/Node.cpp                                  \
-		engine/dlshogi-engine/YaneuraOu_dlshogi_bridge.cpp
+		engine/dlshogi-engine/YaneuraOu_dlshogi_bridge.cpp              \
+		engine/dlshogi-engine/yo_cluster.cpp
 endif
 
 ifneq (,$(findstring YANEURAOU_ENGINE_NNUE,$(YANEURAOU_EDITION)))
@@ -350,6 +382,9 @@ ifneq (,$(findstring YANEURAOU_ENGINE_NNUE,$(YANEURAOU_EDITION)))
 		else ifeq ($(YANEURAOU_EDITION),YANEURAOU_ENGINE_NNUE_HALFKPE9)
 			CPPFLAGS += -DEVAL_NNUE_HALFKPE9
 
+		else ifeq ($(YANEURAOU_EDITION),YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32)
+			CPPFLAGS += -DEVAL_NNUE_HALFKP_VM_256X2_32_32
+
 		endif
 	endif
 
@@ -361,10 +396,17 @@ ifneq (,$(findstring YANEURAOU_ENGINE_NNUE,$(YANEURAOU_EDITION)))
 		eval/nnue/features/k.cpp                                        \
 		eval/nnue/features/p.cpp                                        \
 		eval/nnue/features/half_kp.cpp                                  \
+		eval/nnue/features/half_kp_vm.cpp                               \
 		eval/nnue/features/half_relative_kp.cpp                         \
 		eval/nnue/features/half_kpe9.cpp                                \
 		eval/nnue/features/pe9.cpp                                      \
 		engine/yaneuraou-engine/yaneuraou-search.cpp
+
+	ifeq ($(EVAL_EMBEDDING),ON)
+		SOURCES += \
+			eval/nnue/embedded_nnue.cpp
+		CPPFLAGS += -DEVAL_EMBEDDING
+	endif
 endif
 
 
@@ -512,19 +554,19 @@ $(OBJDIR)/%.o: %.cpp
 
 # 通常使用。
 normal:
-	$(MAKE) CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS) $(LTOFLAGS)' $(TARGET)
+	$(MAKE) CPPFLAGS='$(CPPFLAGS) $(LTOFLAGS)' LDFLAGS='$(LDFLAGS) $(LTOFLAGS)' $(TARGET)
 
 # 学習用。openmp , openblasなどを有効にする。
 evallearn:
-	$(MAKE) CPPFLAGS='$(CPPFLAGS) $(OPENMP) $(BLAS) -DEVAL_LEARN' LDFLAGS='$(LDFLAGS) $(OPENMP_LDFLAGS) $(BLAS_LDFLAGS) $(LTOFLAGS)' $(TARGET)
+	$(MAKE) CPPFLAGS='$(CPPFLAGS) $(LTOFLAGS) $(OPENMP) $(BLAS_CPPFLAGS) -DEVAL_LEARN' LDFLAGS='$(LDFLAGS) $(OPENMP_LDFLAGS) $(BLAS_LDFLAGS) $(LTOFLAGS)' $(TARGET)
 
 # トーナメント用
 tournament:
-	$(MAKE) CPPFLAGS='$(CPPFLAGS) -DFOR_TOURNAMENT' LDFLAGS='$(LDFLAGS) $(LTOFLAGS)' $(TARGET)
+	$(MAKE) CPPFLAGS='$(CPPFLAGS) $(LTOFLAGS) -DFOR_TOURNAMENT' LDFLAGS='$(LDFLAGS) $(LTOFLAGS)' $(TARGET)
 
 # 教師棋譜生成用(開発用なので非公開) // currently private
 gensfen:
-	$(MAKE) CPPFLAGS='$(CPPFLAGS) $(OPENMP) $(BLAS) -DEVAL_LEARN -DGENSFEN2019' LDFLAGS='$(LDFLAGS) $(OPENMP_LDFLAGS) $(BLAS_LDFLAGS) $(LTOFLAGS)' $(TARGET)
+	$(MAKE) CPPFLAGS='$(CPPFLAGS) $(LTOFLAGS) $(OPENMP) $(BLAS_CPPFLAGS) -DEVAL_LEARN -DGENSFEN2019' LDFLAGS='$(LDFLAGS) $(OPENMP_LDFLAGS) $(BLAS_LDFLAGS) $(LTOFLAGS)' $(TARGET)
 
 
 #　とりあえずPGOはAVX2とSSE4.2専用
@@ -535,7 +577,7 @@ profgen:
 	$(MAKE) CPPFLAGS='$(CPPFLAGS) -fprofile-generate -lgcov' LDFLAGS='$(LDFLAGS) -fprofile-generate -lgcov'
 
 profuse:
-	$(MAKE) CPPFLAGS='$(CPPFLAGS) -fprofile-use -lgcov' LDFLAGS='$(LDFLAGS) -fprofile-use -lgcov $(LTOFLAGS)'
+	$(MAKE) CPPFLAGS='$(CPPFLAGS) $(LTOFLAGS) -fprofile-use -lgcov' LDFLAGS='$(LDFLAGS) -fprofile-use -lgcov $(LTOFLAGS)'
 
 pgo:
 	$(MAKE) profgen

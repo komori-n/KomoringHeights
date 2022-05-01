@@ -19,7 +19,7 @@ extern void position_cmd(Position & pos, istringstream & is, StateListPtr & stat
 const vector<string> BenchSfen =
 {
 	// 初期局面に近い曲面。
-	//"sfen lnsgkgsnl/1r7/p1ppp1bpp/1p3pp2/7P1/2P6/PP1PPPP1P/1B3S1R1/LNSGKG1NL b - 9",
+	"sfen lnsgkgsnl/1r7/p1ppp1bpp/1p3pp2/7P1/2P6/PP1PPPP1P/1B3S1R1/LNSGKG1NL b - 9",
 
 	// 読めば読むほど後手悪いような局面
 	"sfen l4S2l/4g1gs1/5p1p1/pr2N1pkp/4Gn3/PP3PPPP/2GPP4/1K7/L3r+s2L w BS2N5Pb 1",
@@ -43,7 +43,10 @@ void bench_cmd(Position& current, istringstream& is)
 	vector<std::string> fens;
 
 	// hashはデフォルト1024にしておかないと置換表あふれるな。
-	std::string ttSize = "1024", threads  ="1", limit ="17" , fenFile ="default", limitType = "depth";
+//	std::string ttSize = "1024", threads  ="1", limit ="17" , fenFile ="default", limitType = "depth";
+	// →　固定depthにすると探索部の改良に左右されすぎる。固定timeの方がいいと思う。1局面15秒設定。
+	std::string ttSize = "1024", threads  ="1", limit ="15" , fenFile ="default", limitType = "time";
+
 	string* positional_args[] = { &ttSize, &threads, &limit, &fenFile, &limitType };
 
 #if defined(YANEURAOU_ENGINE_DEEP)
@@ -117,6 +120,9 @@ void bench_cmd(Position& current, istringstream& is)
 
 	// ベンチマークモードにしておかないとPVの出力のときに置換表を漁られて探索に影響がある。
 	limits.bench = true;
+
+	// すべての合法手を生成するのか
+	limits.generate_all_legal_moves = Options["GenerateAllLegalMoves"];
 
 	// Optionsの影響を受けると嫌なので、その他の条件を固定しておく。
 	limits.enteringKingRule = EKR_NONE;

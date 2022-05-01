@@ -137,6 +137,10 @@ namespace dlshogi
 		// エンジンオプションの"PV_Interval"の値。
 		TimePoint pv_interval = 0;
 
+		// 勝率を評価値に変換する時の定数値。
+		// dlsearcher::SetEvalCoef()で設定する。
+		float eval_coef;
+
 		// 決着つかずで引き分けとなる手数
 		// エンジンオプションの"MaxMovesToDraw"の値。
 		// ※　"MaxMovesToDraw"が0(手数による引き分けなし)のときは、この変数には
@@ -199,7 +203,7 @@ namespace dlshogi
 	private:
 		// ある局面のHASH_KEY(Position::key()にて取得できる)に対応するmutexを返す。
 		// →　これ外から呼び出して使わなくていいっぽいのでとりまprivateにしておく。
-		std::mutex& get_mutex(const HASH_KEY key)
+		std::mutex& get_mutex(const Key key)
 		{
 			return mutexes[key & (MUTEX_NUM - 1)];
 		}
@@ -307,6 +311,12 @@ namespace dlshogi
 		//  ノード再利用の設定
 		//    flag : 探索したノードの再利用をするのか
 		void SetReuseSubtree(bool flag);
+
+		// 勝率から評価値に変換する際の係数を設定する。
+		// ここで設定した値は、そのままsearch_options.eval_coefに反映する。
+		// 変換部の内部的には、ここで設定した値が1/1000倍されて計算時に使用される。
+		// デフォルトは 756。
+		void SetEvalCoef(const int eval_coef);
 
 		// PV表示間隔設定[ms]
 		void SetPvInterval(const TimePoint interval);
@@ -468,7 +478,6 @@ namespace dlshogi
 	private:
 		DlshogiSearcher* ds;
 	};
-
 
 } // namespace dlshogi
 

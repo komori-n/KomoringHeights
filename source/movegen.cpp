@@ -5,6 +5,37 @@
 
 #include <iostream>
 using namespace std;
+using namespace BB_Table;
+
+// mlist_startからmlist_endまで(mlist_endは含まない)の指し手がpseudo_legalであるかを
+// 調べて、すべてpseudo_legalならばtrueを返す。
+bool pseudo_legal_check(const Position& pos, ExtMove* mlist_start, ExtMove* mlist_end)
+{
+	bool all_ok = true;
+
+	for (auto it = mlist_start; it != mlist_end; ++it)
+		all_ok = pos.pseudo_legal(it->move);
+
+	// Debug用に、非合法手があった時に局面とその指し手を出力する。
+#if 0
+	if (!all_ok)
+	{
+		sync_cout << "Error! : A non-pseudo legal move was generated." << endl
+			      << pos << sync_endl;
+
+		for (auto it = mlist_start; it != mlist_end; ++it)
+		{
+			if (!pos.pseudo_legal(it->move))
+				sync_cout << "move = " << it->move << sync_endl;
+		}
+
+		// ここ↓にbreak pointを仕掛けておくと便利
+		sync_cout << "stopped." << sync_endl;
+	}
+#endif
+
+	return all_ok;
+}
 
 // ----------------------------------
 //      移動による指し手
@@ -44,8 +75,8 @@ template <PieceType Pt, Color Us, bool All> struct make_move_target {
 			target2.foreach([&](Square to) { mlist++->move = make_move_promote(from, to , Us , Pt); });
 
 			// 不成で移動する升
-			target &= All ? (Us == BLACK ? ForwardRanksBB[WHITE][RANK_1] : ForwardRanksBB[BLACK][RANK_9]) :
-							(Us == BLACK ? ForwardRanksBB[WHITE][RANK_2] : ForwardRanksBB[BLACK][RANK_8]);
+			target &= All ? (Us == BLACK ? BB_Table::ForwardRanksBB[WHITE][RANK_1] : BB_Table::ForwardRanksBB[BLACK][RANK_9]) :
+							(Us == BLACK ? BB_Table::ForwardRanksBB[WHITE][RANK_2] : BB_Table::ForwardRanksBB[BLACK][RANK_8]);
 
 			target.foreach([&](Square to) { mlist++->move = make_move(from,to , Us , Pt); });
 		}
@@ -163,10 +194,10 @@ template <MOVE_GEN_TYPE GenType, PieceType Pt, Color Us, bool All> struct Genera
 
 			// 移動できる場所 = 利きのある場所
 			auto target2 =
-				Pt == LANCE  ? lanceEffect(Us, from, occ) :
+				Pt == LANCE  ? lanceEffect (Us, from, occ) :
 				Pt == KNIGHT ? knightEffect(Us, from) :
 				Pt == SILVER ? silverEffect(Us, from) :
-				ALL_BB; // error
+				Bitboard(1); // error
 
 			target2 &= target;
 			mlist = make_move_target<Pt, Us, All>()(pos, from, target2, mlist);
@@ -184,7 +215,7 @@ template <MOVE_GEN_TYPE GenType, Color Us, bool All> struct GeneratePieceMoves<G
 		auto pieces = pos.pieces(Us, PAWN);
 
 		// 歩の利き
-		auto target2 = pawnEffect(Us,pieces) & target;
+		auto target2 = pawnBbEffect<Us>(pieces) & target;
 
 		// 先手に対する1段目(後手ならば9段目)を表す定数
 		const Rank T_RANK1 = (Us == BLACK) ? RANK_1 : RANK_9;
@@ -280,6 +311,10 @@ template <MOVE_GEN_TYPE GenType, Color Us, bool All> struct GeneratePieceMoves<G
 template <Color Us> struct GenerateDropMoves {
 	ExtMove* operator()(const Position&pos, ExtMove*mlist, const Bitboard& target) {
 
+		// 相手の手番
+		constexpr Color Them = ~Us;
+
+		// 手駒
 		const Hand hand = pos.hand_of(Us);
 		// 手駒を持っていないならば終了
 		if (hand == 0)
@@ -297,19 +332,14 @@ template <Color Us> struct GenerateDropMoves {
 			// cf. http://yaneuraou.yaneu.com/2015/10/15/%E7%B8%A6%E5%9E%8Bbitboard%E3%81%AE%E5%94%AF%E4%B8%80%E3%81%AE%E5%BC%B1%E7%82%B9%E3%82%92%E5%85%8B%E6%9C%8D%E3%81%99%E3%82%8B/
 			// このときにテーブルを引くので、用意するテーブルのほうで先に1)の処理をしておく。
 			// →　この方法はPEXTが必要なので愚直な方法に変更する。
+			// →　pawn_drop_mask()はQugiyのアルゴリズムを用いるように変更する。[2021/12/01]
 
 			// 歩の打てる場所
-			Bitboard target2 = rank1_n_bb(~Us, RANK_8) & target;
-
-			// 歩が二歩のために打てない筋を消していく(Aperyの手法)
-			Bitboard pawnBB = pos.pieces(Us, PAWN);
-			pawnBB.foreach_part([&](Square pawnSq,int part) {
-				target2.p[part] &= PAWN_DROP_MASKS[pawnSq];
-			});
+			Bitboard target2 = target & pawn_drop_mask<Us>(pos.pieces<Us>(PAWN));
 
 			// 打ち歩詰めチェック
 			// 敵玉に敵の歩を置いた位置に打つ予定だったのなら、打ち歩詰めチェックして、打ち歩詰めならそこは除外する。
-			Bitboard pe = pawnEffect(~Us, pos.king_square(~Us));
+			Bitboard pe = pawnEffect<Them>(pos.king_square<Them>());
 			if (pe & target2)
 			{
 				Square to = pe.pop_c();
@@ -377,7 +407,7 @@ template <Color Us> struct GenerateDropMoves {
 
 				Bitboard target1 = target & rank1_n_bb(Us, RANK_1); // 1段目
 				Bitboard target2 = target & (Us == BLACK ? RANK2_BB : RANK8_BB); // 2段目
-				Bitboard target3 = target & rank1_n_bb(~Us, RANK_7); // 3～9段目( == 後手から見たときの1～7段目)
+				Bitboard target3 = target & rank1_n_bb(Them, RANK_7); // 3～9段目( == 後手から見たときの1～7段目)
 
 				switch (num - nextToLance) // 1段目に対する香・桂以外の駒打ちの指し手生成(最大で4種の駒)
 				{
@@ -423,6 +453,8 @@ template <Color Us> struct GenerateDropMoves {
 template<Color Us, bool All>
 ExtMove* generate_evasions(const Position& pos, ExtMove* mlist)
 {
+	ExtMove* mlist_org = mlist;
+
 	// この実装において引数のtargetは無視する。
 
 	// この関数を呼び出しているということは、王手がかかっているはずであり、
@@ -430,7 +462,7 @@ ExtMove* generate_evasions(const Position& pos, ExtMove* mlist)
 	ASSERT_LV2(pos.in_check());
 
 	// 自玉に王手をかけている敵の駒の利き(そこには玉は移動できないので)
-	Bitboard sliderAttacks = ZERO_BB;
+	Bitboard sliderAttacks = Bitboard(ZERO);
 
 	// 王手している駒
 	Bitboard checkers = pos.checkers();
@@ -468,35 +500,37 @@ ExtMove* generate_evasions(const Position& pos, ExtMove* mlist)
 	Bitboard bb = kingEffect(ksq) & ~(pos.pieces(Us) | sliderAttacks);
 	while (bb) { Square to = bb.pop(); mlist++->move = make_move(ksq, to , Us, KING); }
 
-	// 両王手であるなら、王の移動のみが回避手となる。ゆえにこれで指し手生成は終了。
-	if (checkersCnt > 1)
-		return mlist;
+	// 両王手(checkersCnt == 2)であるなら、王の移動のみが回避手となる。ゆえにこれで指し手生成は終了。
+	// 1以下なら、両王手ではないので..
+	if (checkersCnt <= 1)
+	{
+		// 両王手でないことは確定した
 
-	// 両王手でないことは確定した
+		// このあと生成すべきは
+		// 1) 王手している駒を王以外で取る指し手
+		// 2) 王手している駒と王の間に駒を移動させる指し手(移動合い)
+		// 3) 王手している駒との間に駒を打つ指し手(合駒打ち)
 
-	// このあと生成すべきは
-	// 1) 王手している駒を王以外で取る指し手
-	// 2) 王手している駒と王の間に駒を移動させる指し手(移動合い)
-	// 3) 王手している駒との間に駒を打つ指し手(合駒打ち)
+		// target1 == 王手している駒と王との間の升 == 3)の駒打ちの場所
+		// target2 == 移動による指し手は1)+2) = 王手している駒と王との間の升 + 王手している駒　の升
 
-	// target1 == 王手している駒と王との間の升 == 3)の駒打ちの場所
-	// target2 == 移動による指し手は1)+2) = 王手している駒と王との間の升 + 王手している駒　の升
+		const Bitboard target1 = between_bb(checksq, ksq);
+		const Bitboard target2 = target1 | checksq;
 
-	const Bitboard target1 = between_bb(checksq, ksq);
-	const Bitboard target2 = target1 | checksq;
+		// あとはNON_EVASIONS扱いで普通に指し手生成。
+		mlist = GeneratePieceMoves<NON_EVASIONS, PAWN   , Us, All>()(pos, mlist, target2);
+		mlist = GeneratePieceMoves<NON_EVASIONS, LANCE  , Us, All>()(pos, mlist, target2);
+		mlist = GeneratePieceMoves<NON_EVASIONS, KNIGHT , Us, All>()(pos, mlist, target2);
+		mlist = GeneratePieceMoves<NON_EVASIONS, SILVER , Us, All>()(pos, mlist, target2);
+		mlist = GeneratePieceMoves<NON_EVASIONS, GPM_BR , Us, All>()(pos, mlist, target2);
+		mlist = GeneratePieceMoves<NON_EVASIONS, GPM_GHD, Us, All>()(pos, mlist, target2); // 玉は除かないといけない
+		mlist = GenerateDropMoves<Us>()(pos, mlist, target1);
+	}
 
-	// あとはNON_EVASIONS扱いで普通に指し手生成。
-	mlist = GeneratePieceMoves<NON_EVASIONS, PAWN   , Us, All>()(pos, mlist, target2);
-	mlist = GeneratePieceMoves<NON_EVASIONS, LANCE  , Us, All>()(pos, mlist, target2);
-	mlist = GeneratePieceMoves<NON_EVASIONS, KNIGHT , Us, All>()(pos, mlist, target2);
-	mlist = GeneratePieceMoves<NON_EVASIONS, SILVER , Us, All>()(pos, mlist, target2);
-	mlist = GeneratePieceMoves<NON_EVASIONS, GPM_BR , Us, All>()(pos, mlist, target2);
-	mlist = GeneratePieceMoves<NON_EVASIONS, GPM_GHD, Us, All>()(pos, mlist, target2); // 玉は除かないといけない
-	mlist = GenerateDropMoves<Us>()(pos, mlist, target1);
+	ASSERT_LV5(pseudo_legal_check(pos, mlist_org, mlist));
 
 	return mlist;
 }
-
 
 // ----------------------------------
 //      指し手生成器本体
@@ -521,20 +555,23 @@ ExtMove* generate_general(const Position& pos, ExtMove* mlist, Square recapSq = 
 
 	static_assert(GenType != EVASIONS_ALL && GenType != NON_EVASIONS_ALL && GenType != RECAPTURES_ALL, "*_ALL is not allowed.");
 
+	ExtMove* mlist_org = mlist;
+	constexpr Color Them = ~Us;
+	
 	// 歩以外の駒の移動先
 	const Bitboard target =
-		(GenType == NON_CAPTURES)      ? pos.empties()      : // 捕獲しない指し手 = 移動先の升は駒のない升
-		(GenType == CAPTURES)          ? pos.pieces(~Us)    : // 捕獲する指し手 = 移動先の升は敵駒のある升
-		(GenType == NON_CAPTURES_PRO_MINUS) ? pos.empties() : // 捕獲しない指し手 - 歩の成る指し手 = 移動先の升は駒のない升 - 敵陣(歩のときのみ)
-		(GenType == CAPTURES_PRO_PLUS) ? pos.pieces(~Us)    : // 捕獲 + 歩の成る指し手 = 移動先の升は敵駒のある升 + 敵陣(歩のときのみ)
-		(GenType == NON_EVASIONS)      ? ~pos.pieces(Us)    : // すべて = 移動先の升は自駒のない升
-		(GenType == RECAPTURES)        ? Bitboard(recapSq)  : // リキャプチャー用の升(直前で相手の駒が移動したわけだからここには移動できるはず)
-		ALL_BB; // error
+		(GenType == NON_CAPTURES)           ?  pos.empties()      : // 捕獲しない指し手 = 移動先の升は駒のない升
+		(GenType == CAPTURES)               ?  pos.pieces(Them)   : // 捕獲する指し手 = 移動先の升は敵駒のある升
+		(GenType == NON_CAPTURES_PRO_MINUS) ?  pos.empties()      : // 捕獲しない指し手 - 歩の成る指し手 = 移動先の升は駒のない升 - 敵陣(歩のときのみ)
+		(GenType == CAPTURES_PRO_PLUS)      ?  pos.pieces(Them)   : // 捕獲 + 歩の成る指し手 = 移動先の升は敵駒のある升 + 敵陣(歩のときのみ)
+		(GenType == NON_EVASIONS)           ? ~pos.pieces(Us)     : // すべて = 移動先の升は自駒のない升
+		(GenType == RECAPTURES)             ?  Bitboard(recapSq)  : // リキャプチャー用の升(直前で相手の駒が移動したわけだからここには移動できるはず)
+		Bitboard(1); // error
 
 	// 歩の移動先(↑のtargetと違う部分のみをオーバーライド)
 	const Bitboard targetPawn =
-		(GenType == NON_CAPTURES_PRO_MINUS) ? (pos.empties() & ~enemy_field(Us)) : // 駒を取らない指し手 かつ、歩の成る指し手を引いたもの
-		(GenType == CAPTURES_PRO_PLUS)      ? (pos.pieces(~Us) | (~pos.pieces(Us) & enemy_field(Us))) : // 歩の場合は敵陣での成りもこれに含める
+		(GenType == NON_CAPTURES_PRO_MINUS) ?  enemy_field(Us).andnot(pos.empties())                          : // 駒を取らない指し手 かつ、歩の成る指し手を引いたもの
+		(GenType == CAPTURES_PRO_PLUS)      ? (pos.pieces<Us>().andnot(enemy_field(Us)) | pos.pieces<Them>()) : // 歩の場合は敵陣での成りもこれに含める
 		target;
 
 	// 各駒による移動の指し手の生成
@@ -556,6 +593,8 @@ ExtMove* generate_general(const Position& pos, ExtMove* mlist, Square recapSq = 
 	// →　オーダリング性能改善のためにDropをもう少し細分化できるといいのだが、なかなか簡単ではなさげ。
 	if (GenType == NON_CAPTURES || GenType == NON_CAPTURES_PRO_MINUS || GenType == NON_EVASIONS)
 		mlist = GenerateDropMoves<Us>()(pos, mlist, pos.empties());
+
+	ASSERT_LV5(pseudo_legal_check(pos,mlist_org, mlist));
 
 	return mlist;
 }
@@ -605,14 +644,14 @@ ExtMove* make_move_target_pro(Square from, const Bitboard& target, ExtMove* mlis
 			mlist++->move = make_move_promote(from, to , Us, Pt);
 		else
 		{
-			if (((Pt == PAWN) &&
-				((!All && !canPromote(Us, to)) ||
-				(All && rank_of(to) != (Us == BLACK ? RANK_1 : RANK_9))))
+			if (   ((Pt == PAWN) &&
+					((!All && !canPromote(Us, to)) ||
+					(  All && rank_of(to) != (Us == BLACK ? RANK_1 : RANK_9))))
 				|| ((Pt == LANCE) &&
-				((!All && ((Us == BLACK && rank_of(to) >= RANK_3) || (Us == WHITE && rank_of(to) <= RANK_7))) ||
-					(All && rank_of(to) != (Us == BLACK ? RANK_1 : RANK_9))))
-				|| (Pt == KNIGHT && ((Us == BLACK && rank_of(to) >= RANK_3) || (Us == WHITE && rank_of(to) <= RANK_7)))
-				|| (Pt == SILVER)
+					((!All && ((Us == BLACK && rank_of(to) >= RANK_3) || (Us == WHITE && rank_of(to) <= RANK_7))) ||
+					 ( All && rank_of(to) != (Us == BLACK ? RANK_1 : RANK_9))))
+				|| ( Pt == KNIGHT && ((Us == BLACK && rank_of(to) >= RANK_3) || (Us == WHITE && rank_of(to) <= RANK_7)))
+				|| ( Pt == SILVER)
 				|| ((Pt == BISHOP || Pt == ROOK) && (!(canPromote(Us, from) || canPromote(Us, to)) || All))
 				)
 
@@ -645,7 +684,7 @@ ExtMove* make_move_check(const Position& pos, Piece pc, Square from, Square ksq,
     if (!(enemy_field(Us) & from))                                     \
       dst &= enemy_field(Us);                                          \
     mlist = make_move_target_pro<X, Us, All, true>(from, dst, mlist);  \
-    if (file_of(from) == file_of(ksq) && !more_than_one(between_bb(from, ksq) & occ)){ \
+    if (file_of(from) == file_of(ksq) && !(between_bb(from, ksq) & occ).more_than_one()){ \
       dst = pos.pieces(~Us) & between_bb(from, ksq) & target;            \
       mlist = make_move_target_pro<X, Us, All, false>(from, dst, mlist); \
     }}
@@ -749,7 +788,8 @@ ExtMove* generate_checks(const Position& pos, ExtMove* mlist)
 	// yと、yを含まないxとに分けて処理する。
 	// すなわち、y と (x | y)^y
 
-	const Square themKing = pos.king_square(~Us);
+	constexpr Color Them = ~Us;
+	const Square themKing = pos.king_square(Them);
 
 	// 以下の方法だとxとして飛(龍)は100%含まれる。角・馬は60%ぐらいの確率で含まれる。事前条件でもう少し省ければ良いのだが…。
 	const Bitboard x =
@@ -761,19 +801,19 @@ ExtMove* generate_checks(const Position& pos, ExtMove* mlist)
 			(pos.pieces(GOLDS)  & check_candidate_bb(Us, GOLD  , themKing)) |
 			(pos.pieces(BISHOP) & check_candidate_bb(Us, BISHOP, themKing)) |
 			(pos.pieces(ROOK_DRAGON)) | // ROOK,DRAGONは無条件全域
-			(pos.pieces(HORSE)  & check_candidate_bb(Us, ROOK  , themKing)) // check_candidate_bbにはROOKと書いてるけど、HORSE
+			(pos.pieces(HORSE)  & check_candidate_bb(Us, ROOK  , themKing)) // check_candidate_bbにはROOKと書いてるけど、HORSEの意味。
 		) & pos.pieces(Us);
 
 	// ここには王を敵玉の8近傍に移動させる指し手も含まれるが、王が近接する形はレアケースなので
 	// 指し手生成の段階では除外しなくても良いと思う。
 
 	// 移動させると(相手側＝非手番側)の玉に対して空き王手となる候補の(手番側)駒のbitboard。
-	const Bitboard y = pos.blockers_for_king(~Us) & pos.pieces(Us);
+	const Bitboard y = pos.blockers_for_king(Them) & pos.pieces(Us);
 
 	const Bitboard target =
-		(GenType == CHECKS || GenType == CHECKS_ALL) ? ~pos.pieces(Us) :                     // 自駒がない場所が移動対象升
-		(GenType == QUIET_CHECKS || GenType == QUIET_CHECKS_ALL) ? pos.empties() :           // 捕獲の指し手を除外するため駒がない場所が移動対象升
-		ALL_BB; // Error!
+		(GenType == CHECKS       || GenType == CHECKS_ALL      ) ? ~pos.pieces<Us>() :           // 自駒がない場所が移動対象升
+		(GenType == QUIET_CHECKS || GenType == QUIET_CHECKS_ALL) ?  pos.empties()    :           // 捕獲の指し手を除外するため駒がない場所が移動対象升
+		Bitboard(1); // Error!
 
 	// yのみ。ただしxかつyである可能性もある。
 	auto src = y;
@@ -786,11 +826,11 @@ ExtMove* generate_checks(const Position& pos, ExtMove* mlist)
 		// いまの敵玉とfromを通る直線上の升と違うところに移動させれば開き王手が確定する。その直線を求める。
 		auto pin_line = line_bb(themKing, from);
 		
-		mlist = make_move_target_general<Us, All>()(pos, pos.piece_on(from), from, target & ~pin_line, mlist);
+		mlist = make_move_target_general<Us, All>()(pos, pos.piece_on(from), from, pin_line.andnot(target) , mlist);
 
 		if (x & from)
 			// 直接王手にもなるので↑で生成した~line_bb以外の升への指し手を生成。
-			mlist = make_move_check<Us, All>(pos, pos.piece_on(from), from, themKing, target & pin_line, mlist);
+			mlist = make_move_check<Us, All>(pos, pos.piece_on(from), from, themKing, pin_line & target, mlist);
 	}
 
 	// yに被覆しないx

@@ -213,17 +213,32 @@ namespace Eval::dlshogi
 		profile->setDimensions("input2", nvinfer1::OptProfileSelector::kMAX, nvinfer1::Dims4(max_batch_size, dims2[1], dims2[2], dims2[3]));
 		config->addOptimizationProfile(profile);
 
-		// TensorRT 8 より IBuilder::buildSerializedNetwork() が追加され、 nvinfer1::IBuilder::buildEngineWithConfig() は非推奨となった。
+		// TensorRT 8 より nvinfer1::IBuilder::buildSerializedNetwork() が追加され、 nvinfer1::IBuilder::buildEngineWithConfig() は非推奨となった。
 		// nvinfer1::IBuilder::buildEngineWithConfig() は TensorRT 10.0 にて削除される見込み。
-		// TensorRT 8 GA (General Availability: 正規版、一般公開版) リリース後に対応するのが望ましいか。
-		//
 		// https://docs.nvidia.com/deeplearning/tensorrt/api/c_api/deprecated.html
 		// https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-800-ea/release-notes/tensorrt-8.html#rel_8-0-0-EA
+#if NV_TENSORRT_MAJOR >= 8
+		auto serializedEngine = InferUniquePtr<nvinfer1::IHostMemory>(builder->buildSerializedNetwork(*network, *config));
+		if (!serializedEngine)
+		{
+			FatalError("buildSerializedNetwork");
+		}
+		auto runtime = InferUniquePtr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(gLogger));
+		engine.reset(runtime->deserializeCudaEngine(serializedEngine->data(), serializedEngine->size()));
+		if (!engine)
+		{
+			FatalError("deserializeCudaEngine");
+		}
+		// 一旦シリアライズ化されたエンジンはデシリアライズを行った上で捨てているが、
+		// この後またすぐにファイル書き出し用にシリアライズを行っているので、手順改善の余地あり。
+		// // auto serializedEngine = InferUniquePtr<nvinfer1::IHostMemory>(engine->serialize());
+#else
 		engine.reset(builder->buildEngineWithConfig(*network, *config));
 		if (!engine)
 		{
 			FatalError("buildEngineWithConfig");
 		}
+#endif
 	}
 
 	Tools::Result NNTensorRT::load_model(const string& filename)
@@ -234,9 +249,7 @@ namespace Eval::dlshogi
 		// シリアライズされたファイルがあるなら、それを代わりに読み込む。
 
 		// デバイス情報の取得
-		const int  cBufLen = 256;
-		const auto re  = std::regex("[^A-Za-z0-9._-]");
-		const auto fmt = std::string("_");
+		//const int  cBufLen = 256;
 		cudaDeviceProp device_prop;
 		//char pciBusId[cBufLen];
 		checkCudaErrors(cudaGetDeviceProperties(&device_prop, gpu_id));
@@ -251,10 +264,11 @@ namespace Eval::dlshogi
 		std::string serialized_filename =
 			filename + "." +
 			// std::to_string(gpu_id) + "." +
-			std::regex_replace(std::string(device_prop.name), re, fmt) + "." +
-			// std::regex_replace(std::string(pciBusId), re, fmt) + "." +
+			std::regex_replace(std::string(device_prop.name), std::regex("[^A-Za-z0-9._-]"), std::string("_")) + "." +
+			// std::regex_replace(std::string(pciBusId), std::regex("[^A-Za-z0-9._-]"), std::string("_")) + "." +
 			std::to_string(max_batch_size) + "." +
-			"TRT" + std::to_string(NV_TENSORRT_VERSION) + ".serialized";
+			"TRT" + std::to_string(getInferLibVersion()) + "." +
+			"serialized";
 
 		sync_cout << "info string serialized filename = " << serialized_filename << sync_endl;
 
@@ -270,13 +284,7 @@ namespace Eval::dlshogi
 		if (result.is_ok())
 		{
 			auto runtime = InferUniquePtr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(gLogger));
-			// TensorRT 8 より nvinfer1::IRuntime::deserializeCudaEngine() は非推奨。
-			// nvinfer1::IRuntime::deserializeCudaEngine() は TensorRT 10.0 にて削除される見込み。
-			// TensorRT 8 GA (General Availability: 正規版、一般公開版) リリース後に対応するのが望ましいか。
-			//
-			// https://docs.nvidia.com/deeplearning/tensorrt/api/c_api/deprecated.html
-			// https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-800-ea/release-notes/tensorrt-8.html#rel_8-0-0-EA
-			engine = InferUniquePtr<nvinfer1::ICudaEngine>(runtime->deserializeCudaEngine(modelPtr.get() , modelSize, nullptr));
+			engine = InferUniquePtr<nvinfer1::ICudaEngine>(runtime->deserializeCudaEngine(modelPtr.get(), modelSize));
 
 			// ドライバのバージョンが異なるなどが原因で、デシリアライズに失敗することがある。その場合はやりなおす。
 			if (!engine)
@@ -333,12 +341,22 @@ namespace Eval::dlshogi
 		context->setBindingDimensions(0, inputDims1);
 		context->setBindingDimensions(1, inputDims2);
 
+#if 1
+		checkCudaErrors(cudaMemcpyAsync(x1_dev, x1, sizeof(NN_Input1) * batch_size, cudaMemcpyHostToDevice, cudaStreamPerThread));
+		checkCudaErrors(cudaMemcpyAsync(x2_dev, x2, sizeof(NN_Input2) * batch_size, cudaMemcpyHostToDevice, cudaStreamPerThread));
+		const bool status = context->enqueue(batch_size, inputBindings.data(), cudaStreamPerThread, nullptr);
+		ASSERT_LV3(status);
+		checkCudaErrors(cudaMemcpyAsync(y1, y1_dev, sizeof(NN_Output_Policy) * batch_size, cudaMemcpyDeviceToHost, cudaStreamPerThread));
+		checkCudaErrors(cudaMemcpyAsync(y2, y2_dev, sizeof(NN_Output_Value ) * batch_size, cudaMemcpyDeviceToHost, cudaStreamPerThread));
+		checkCudaErrors(cudaStreamSynchronize(cudaStreamPerThread));
+#else
 		checkCudaErrors(cudaMemcpy(x1_dev, x1, sizeof(NN_Input1) * batch_size, cudaMemcpyHostToDevice));
 		checkCudaErrors(cudaMemcpy(x2_dev, x2, sizeof(NN_Input2) * batch_size, cudaMemcpyHostToDevice));
 		const bool status = context->executeV2(inputBindings.data());
 		ASSERT_LV3(status);
 		checkCudaErrors(cudaMemcpy(y1, y1_dev, sizeof(NN_Output_Policy) * batch_size, cudaMemcpyDeviceToHost));
 		checkCudaErrors(cudaMemcpy(y2, y2_dev, sizeof(NN_Output_Value ) * batch_size, cudaMemcpyDeviceToHost));
+#endif
 	}
 
 } // namespace Eval::dlshogi

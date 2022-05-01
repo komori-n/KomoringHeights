@@ -302,9 +302,12 @@ namespace Book
 			// (これがtrueならばsfenから手数を除去しておく)
 			bool ignoreBookPly = Options["IgnoreBookPly"];
 
+			Tools::ProgressBar progress(reader.GetSize());
+
 			std::string line;
 			while(reader.ReadLine(line).is_ok())
 			{
+				progress.check(reader.GetFilePos());
 
 				// バージョン識別文字列(とりあえず読み飛ばす)
 				if (line.length() >= 1 && line[0] == '#')
@@ -371,7 +374,7 @@ namespace Book
 		this->book_name = filename;
 		this->pure_book_name = pure_filename;
 
-		sync_cout << "info string read book done." << sync_endl;
+		sync_cout << "info string read book done. number of positions = " << size() << sync_endl;
 
 		return Tools::Result::Ok();
 	}
@@ -387,19 +390,17 @@ namespace Book
 		// →　この関数はbookコマンドからしか呼び出さず、bookコマンドの処理の先頭付近でis_ready()を
 		// 呼び出しているため、この関数のなかでのis_ready()は呼び出さないことにする。
 
-		fstream fs;
-		fs.open(filename, ios::out);
-
-		if (fs.fail())
+		SystemIO::TextWriter writer;
+		if (writer.Open(filename).is_not_ok())
 			return Tools::Result(Tools::ResultCode::FileOpenError);
 
-		cout << endl << "write " + filename;
+		cout << endl << "write " + filename << endl;
 
 		// バージョン識別用文字列
-		fs << "#YANEURAOU-DB2016 1.00" << endl;
+		writer.WriteLine("#YANEURAOU-DB2016 1.00");
 
 		vector<pair<string, BookMovesPtr> > vectored_book;
-
+		
 		// 重複局面の手数違いを除去するのに用いる。
 		// 手数違いの重複局面はOptions["IgnoreBookPly"]==trueのときに有害であるため、plyが最小のもの以外を削除する必要がある。
 		// (Options["BookOnTheFly"]==true かつ Options["IgnoreBookPly"] == true のときに、手数違いのものがヒットするだとか、そういう問題と、
@@ -423,16 +424,7 @@ namespace Book
 
 		// 進捗の出力
 		u64 counter = 0;
-		auto output_progress = [&]()
-		{
-			if ((counter % 1000) == 0)
-			{
-				if ((counter % 80000) == 0) // 80文字ごとに改行
-					cout << endl;
-				cout << ".";
-			}
-			counter++;
-		};
+		Tools::ProgressBar progress(vectored_book.size() * 2);
 
 		{
 			Position pos;
@@ -440,8 +432,6 @@ namespace Book
 			// std::vectorにしてあるのでit.firstを書き換えてもitは無効にならないはず。
 			for (auto& it : vectored_book)
 			{
-				output_progress();
-
 				StateInfo si;
 				pos.set(it.first,&si,Threads.main());
 				auto sfen = pos.sfen();
@@ -455,6 +445,8 @@ namespace Book
 					book_ply[sfen_left] = ply; // エントリーが見つからなかったので何も考えずに追加
 				else
 					it2->second = std::min(it2->second, ply); // 手数の短いほうを代入しておく。
+
+				progress.check(++counter);
 			}
 		}
 
@@ -467,8 +459,6 @@ namespace Book
 
 		for (auto& it : vectored_book)
 		{
-			output_progress();
-
 			// -- 重複局面の手数違いの局面はスキップする(ファイルに書き出さない)
 
 			auto sfen = it.first;
@@ -479,24 +469,23 @@ namespace Book
 
 			// -- このentryを書き出す
 
-			fs << "sfen " << it.first /* is sfen string */ << endl; // sfen
+			writer.WriteLine("sfen " + it.first /* is sfen string */); // sfen
 
 			auto& move_list = *it.second;
 
 			// 何らかsortしておく。
 			move_list.sort_moves();
 
+			// 指し手、相手の応手、そのときの評価値、探索深さ、採択回数
 			for (auto& bp : move_list)
-				fs << bp.move << ' ' << bp.ponder << ' ' << bp.value << " " << bp.depth << " " << bp.move_count << endl;
-			// 指し手、相手の応手、そのときの評価値、探索深さ、採択回数、win、draw
+				if (writer.WriteLine(to_usi_string(bp.move) + ' ' + to_usi_string(bp.ponder) + ' '
+					+ std::to_string(bp.value) + " " + std::to_string(bp.depth) + " " + std::to_string(bp.move_count)).is_not_ok())
+					return Tools::Result(Tools::ResultCode::FileWriteError);
 
-			if (fs.fail())
-				return Tools::Result(Tools::ResultCode::FileWriteError);
+			progress.check(++counter);
 		}
 
-		fs.close();
-
-		cout << endl << "done!" << endl;
+		writer.Close();
 
 		return Tools::Result::Ok();
 	}
@@ -528,7 +517,7 @@ namespace Book
 		// "no_book"は定跡なしという意味なので定跡の指し手が見つからなかったことにする。
 		if (pure_book_name == "no_book")
 			return BookMovesPtr();
-
+		 
 		if (pure_book_name == kAperyBookName) {
 
 			BookMovesPtr pml_entry(new BookMoves());
@@ -604,20 +593,22 @@ namespace Book
 				fs.seekg(0, std::ios::beg);
 				auto file_start = fs.tellg();
 
-				// 現在のファイルのシーク位置を返す関数(ファイルの先頭位置を0とする)
-				auto current_pos = [&]() { return s64(fs.tellg() - file_start); };
-
 				fs.clear();
 				fs.seekg(0, std::ios::end);
 
-				// ファイルサイズ(現在、ファイルの末尾を指しているはずなので..)
-				auto file_size = current_pos();
+				// ファイルサイズ
+				auto file_size = s64(fs.tellg() - file_start);
 
 				// 与えられたseek位置から"sfen"文字列を探し、それを返す。どこまでもなければ""が返る。
 				// hackとして、seek位置は-2しておく。(1行読み捨てるので、seek_fromぴったりのところに
 				// "sfen"から始まる文字列があるとそこを読み捨ててしまうため。-2してあれば、そこに
 				// CR+LFがあるはずだから、ここを読み捨てても大丈夫。)
-				auto next_sfen = [&](s64 seek_from)
+
+				// last_posには、現在のファイルポジションが返ってくる。
+				// ※　実際の位置より改行コードのせいで少し手前である可能性はある。
+				// ftell()を用いると、MSYS2 + g++ 環境でtellgが嘘を返す(getlineを呼び出した時に内部的に
+				// bufferingしているため(?)、かなり先のファイルポジションを返す)ので自前で計算する。
+				auto next_sfen = [&](s64 seek_from , s64& last_pos)
 				{
 					string line;
 
@@ -629,10 +620,14 @@ namespace Book
 					// seek_from == 0の場合も、ここで1行読み捨てられるが、1行目は
 					// ヘッダ行であり、問題ない。
 					getline(fs, line);
+					last_pos = seek_from + (s64)line.size() + 1;
+					// 改行コードが1文字はあるはずだから、+1しておく。
 
 					// getlineはeof()を正しく反映させないのでgetline()の返し値を用いる必要がある。
 					while (getline(fs, line))
 					{
+						last_pos += s64(line.size()) + 1;
+
 						if (!line.compare(0, 4, "sfen"))
 						{
 							// ios::binaryつけているので末尾に'\r'が付与されている。禿げそう。
@@ -646,9 +641,13 @@ namespace Book
 				};
 
 				// バイナリサーチ
-				// [s,e) の範囲で求める。
+				//
+				// 区間 [s,e) で解を求める。現時点での中間地点がm。
+				// 解とは、探しているsfen文字列が書いてある行の先頭のファイルポジションのことである。
+				// 
+				// next_sfen()でm以降にある"sfen"で始まる行を読み込んだ時、そのあとのファイルポジションがlast_pos。
 
-				s64 s = 0, e = file_size, m;
+				s64 s = 0, e = file_size, m , last_pos;
 				// s,eは無符号型だと、s - 2のような式が負にならないことを保証するのが面倒くさい。
 				// こういうのを無符号型で扱うのは筋が悪い。
 
@@ -656,16 +655,21 @@ namespace Book
 				{
 					m = (s + e) / 2;
 
-					auto sfen2 = next_sfen(m);
-					if (sfen2 == "" || sfen < sfen2)
-					{ // 左(それより小さいところ)を探す
+					auto sfen2 = next_sfen(m, last_pos);
+					if (sfen2 == "" || sfen < sfen2) {
+
+						// 左(それより小さいところ)を探す
 						e = m;
-					}
-					else if (sfen > sfen2)
-					{ // 右(それより大きいところ)を探す
-						s = current_pos();
-					}
-					else {
+
+					} else if (sfen > sfen2) {
+
+						// 右(それより大きいところ)を探す
+
+						// next_sfen()のなかでgetline()し終わった時の位置より後ろに解がある。
+						// ここでftell()を使いたいが、上に書いた理由で嘘が返ってくるようだ。
+						s = last_pos;
+
+					} else {
 						// 見つかった！
 						break;
 					}
@@ -675,7 +679,7 @@ namespace Book
 					// ゆえに、探索範囲がこれより小さいなら先頭から調べて("sfen"と書かれている文字列を探して)終了。
 					if (s + 40 > e)
 					{
-						if ( next_sfen(s) == sfen)
+						if ( next_sfen(s, last_pos) == sfen)
 							// 見つかった！
 							break;
 
@@ -803,7 +807,6 @@ namespace Book
 			}
 
 			if (entries.empty()) return;
-
 			for (const auto& entry : entries) {
 				const Move16 move = convert_move_from_apery(entry.fromToPro);
 				BookMove bp(move, MOVE_NONE , entry.score, 256, entry.count);
@@ -954,7 +957,7 @@ namespace Book
 			, "user_book1.db", "user_book2.db", "user_book3.db", "book.bin" };
 
 		o["BookFile"] << Option(book_list, book_list[1]);
-
+		
 		o["BookDir"] << Option("book");
 
 		//  BookEvalDiff: 定跡の指し手で1番目の候補の指し手と、2番目以降の候補の指し手との評価値の差が、
@@ -998,7 +1001,7 @@ namespace Book
 
 		Move m = pos.to_move(m16);
 
-		if (pos.pseudo_legal(m) && pos.legal(m))
+		if (pos.pseudo_legal_s<true>(m) && pos.legal(m))
 		{
 			StateInfo si;
 			pos.do_move(m, si);
@@ -1042,7 +1045,7 @@ namespace Book
 		// 定跡にhitした。逆順で出力しないと将棋所だと逆順にならないという問題があるので逆順で出力する。
 		// →　将棋所、updateでMultiPVに対応して改良された
 		// 　ShogiGUIでの表示も問題ないようなので正順に変更する。
-
+		
 		// また、it->size()!=0をチェックしておかないと指し手のない定跡が登録されていたときに困る。
 
 		// 1) やねうら標準定跡のように評価値なしの定跡DBにおいては
@@ -1056,6 +1059,36 @@ namespace Book
 		// 定跡にhitしたときに発生するオーバーヘッドなので通常は無視できるはず。
 
 		auto move_list = *it;
+
+		// 非合法手の排除(歩の不成を生成しないモードなら、それも排除)
+		{
+			auto it_end = std::remove_if(move_list.begin(), move_list.end(), [&](Book::BookMove& m) {
+				Move move = rootPos.to_move(m.move);
+				bool legal =  rootPos.pseudo_legal_s<true>(move) && rootPos.legal(move);
+
+				// moveが非合法手ならば、エラーメッセージを出力しておいてやる。
+				if (!silent && !legal)
+				{
+					sync_cout << "info string Error! : Illegal Move In Book DB : move = " << move
+							  << " , sfen = " << rootPos.sfen() << sync_endl;
+
+					// Position::legal()を用いて合法手判定をする時、これが連続王手の千日手を弾かないが、
+					// 定跡で連続王手の千日手の指し手があると指してしまう。
+					// これは回避が難しいので、仕様であるものとする。
+					// 
+					// "position"コマンドでも千日手局面は弾かないし、この仕様は仕方ない意味はある。
+				}
+				else {
+					// GenerateAllLegalMovesがfalseの時は歩の不成での移動は非合法手扱いで、この時点で除去してこのあとの抽選を行う。
+					// 不成の指し手が選択されて、このあとrootMovesに登録されていないので定跡にhitしなかった扱いになってしまうのはもったいない。
+					legal &= rootPos.pseudo_legal(move);
+				}
+
+				// 非合法手の排除
+				return !legal;
+				});
+			move_list.erase(it_end, move_list.end());
+		}
 
 		// 出現回数のトータル(このあと出現頻度を求めるのに使う)
 		u64 move_count_total = std::accumulate(move_list.begin(), move_list.end(), (u64)0, [](u64 acc, BookMove& b) { return acc + b.move_count; });
@@ -1090,7 +1123,7 @@ namespace Book
 				sync_cout << "info"
 #if !defined(NICONICO)
 					<< " multipv " << (i + 1)
-#endif
+#endif					
 					<< " score cp " << it.value << " depth " << it.depth
 					<< " pv " << pv_string
 					<< " (" << fixed << std::setprecision(2) << (100 * it.move_count / double(move_count_total)) << "%" << ")" // 採択確率
@@ -1252,15 +1285,8 @@ namespace Book
 
 		Move bestMove = pos.to_move(bestMove16);
 
-		// bestMoveが合法かチェックしておく。
-		if (!pos.pseudo_legal(bestMove) || !pos.legal(bestMove))
-		{
-			// gensfenすると定跡のチェックになって面白いかも知れない…。
-			cout << "Error : illigal move in book" << endl
-				<< pos.sfen() << endl
-				<< "Move = " << bestMove << endl;
-			return MOVE_NONE;
-		}
+		// bestMoveが合法であることは保証されている。(非合法手は除外してから選択を行うので)
+		// なので、ここではそのチェックは行わない。
 
 		return bestMove;
 	}
@@ -1282,7 +1308,11 @@ namespace Book
 			Move bestMove = pos.to_move(bestMove16);
 
 			// RootMovesに含まれているかどうかをチェックしておく。
-			// RootMovesをUSIプロトコル経由で指定されることがあるので、必ずこれはチェックしないといけない。
+			// RootMovesをgoコマンドで指定されることがあるので、必ずこれはチェックしないといけない。
+			// 注意)
+			// 定跡で歩の不成の指し手がある場合、
+			// "GenerateAllLegalMoves"がfalseだとrootMovesにはそれが生成されておらず、find()に失敗する。
+			// この時、定跡にhitしなかった扱いとする。
 			auto it_move = std::find(rootMoves.begin(), rootMoves.end(), bestMove);
 			if (it_move != rootMoves.end())
 			{
@@ -1311,5 +1341,180 @@ namespace Book
 		return false;
 	}
 
+	// 定跡部のUnitTest
+	void UnitTest(Test::UnitTester& tester)
+	{
+		// 少し書こうとしたが、ファイルから読み込むテストでないと大したテストにならないので考え中。
+#if 0
+		auto s1 = tester.section("Book");
 
+		// Search::Limitsのalias
+		auto& limits = Search::Limits;
+
+		Position pos;
+		StateInfo si;
+
+		// 平手初期化
+		auto hirate_init = [&] { pos.set_hirate(&si, Threads.main()); };
+
+		{
+			// Bookのprobeのテスト
+			auto s2 = tester.section("probe");
+			MemoryBook book;
+
+			limits.generate_all_legal_moves = true;
+
+			tester.test("pawn's unpromoted move", true);
+		}
+#endif
+	}
+}
+
+// ===================================================
+//                  BookTools
+// ===================================================
+
+// 定跡関係の処理のための補助ツール群
+namespace BookTools
+{
+	// USIの"position"コマンドに設定できる文字列で、局面を初期化する。
+	// 例)
+	// "startpos"
+	// "startpos moves xxx ..."
+	// "sfen xxx"
+	// "sfen xxx moves yyy ..."
+	// また、局面を1つ進めるごとにposition_callback関数が呼び出される。
+	// 辿った局面すべてに対して何かを行いたい場合は、これを利用すると良い。
+	// 注意) siは、vector<StateInfo> si; si.reserve(MAX_PLY);のようにして事前に十分確保しておくこと。
+	//  (そうでないとsi.emplace_back()で配列の要素のメモリ移動が起きると previous等のポインタが無効になってしまう)
+	void feed_position_string(Position& pos, const std::string& root_sfen, std::vector<StateInfo>& si, const std::function<void(Position&)>& position_callback)
+	{
+		// issから次のtokenを取得する
+		auto feed_next = [](istringstream& iss)
+		{
+			string token = "";
+			iss >> token;
+			return token;
+		};
+
+		// "sfen"に後続するsfen文字列をissからfeedする
+		auto feed_sfen = [&feed_next](istringstream& iss)
+		{
+			stringstream sfen;
+
+			// ループではないが条件外であるときにbreakでreturnのところに行くためのhack
+			while(true)
+			{
+				string token;
+
+				// 盤面を表すsfen文字列
+				sfen << feed_next(iss);
+
+				// 手番
+				token = feed_next(iss);
+				if (token != "w" && token != "b")
+					break;
+				sfen << " " << token;
+
+				// 手駒
+				sfen << " " << feed_next(iss);
+
+				// 初期局面からの手数
+				sfen <<  " " << feed_next(iss);
+
+				break;
+			}
+			return sfen.str();
+		};
+
+		si.clear();
+		si.emplace_back(StateInfo()); // このあとPosition::set()かset_hirate()を呼び出すので一つは必要。
+
+		istringstream iss(root_sfen);
+		string token;
+		do {
+			token = feed_next(iss);
+			if (token == "sfen")
+			{
+				// 駒落ちなどではsfen xxx movesとなるのでこれをfeedしなければならない。
+				auto sfen = feed_sfen(iss);
+				pos.set(sfen,&si[0],Threads.main());
+			}
+			else if (token == "startpos")
+			{
+				// 平手初期化
+				pos.set_hirate(&si[0], Threads.main());
+			}
+		} while (token == "startpos" || token == "sfen" || token == "moves"/* movesは無視してループを回る*/ );
+
+		// callbackを呼び出してやる。
+		position_callback(pos);
+
+		// moves以降は1手ずつ進める
+		while (token != "")
+		{
+			// 非合法手ならUSI::to_moveはMOVE_NONEを返すはず…。
+			Move move = USI::to_move(pos, token);
+			if (move == MOVE_NONE)
+				break;
+
+			// MOVE_NULL,MOVE_WINでは局面を進められないのでここで終了。
+			if (!is_ok(move))
+				break;
+
+			si.emplace_back(StateInfo());
+			pos.do_move(move, si.back());
+
+			// callbackを呼び出してやる。
+			position_callback(pos);
+
+			token = feed_next(iss);
+		}
+	}
+
+	// 平手、駒落ちの開始局面集
+	// ここで返ってきた配列の、[0]は平手のsfenであることは保証されている。
+	std::vector<std::string> get_start_sfens()
+	{
+		std::vector<std::string> start_sfens = {
+			/*public static readonly string HIRATE = */       "sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1" ,
+			/*public static readonly string HANDICAP_KYO = */ "sfen lnsgkgsn1/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1" ,
+			/*public static readonly string HANDICAP_RIGHT_KYO = */ "sfen 1nsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_KAKU = */ "sfen lnsgkgsnl/1r7/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_HISYA = */ "sfen lnsgkgsnl/7b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_HISYA_KYO = */ "sfen lnsgkgsn1/7b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_2 =      */ "sfen lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_3 =      */ "sfen lnsgkgsn1/9/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_4 =      */ "sfen 1nsgkgsn1/9/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_5 =      */ "sfen 2sgkgsn1/9/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_LEFT_5 = */ "sfen 1nsgkgs2/9/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_6 =      */ "sfen 2sgkgs2/9/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_8 =      */ "sfen 3gkg3/9/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_10 =     */ "sfen 4k4/9/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1",
+			/*public static readonly string HANDICAP_PAWN3 =  */ "sfen 4k4/9/9/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w 3p 1",
+		};
+
+		return start_sfens;
+	}
+
+	// "position"コマンドに設定できるsfen文字列を渡して、そこから全合法手で１手進めたsfen文字列を取得する。
+	std::vector<std::string> get_next_sfens(std::string root_sfen)
+	{
+		Position pos;
+		std::vector<StateInfo> si;
+		si.reserve(MAX_PLY);
+		feed_position_string(pos, root_sfen, si);
+		StateInfo si2;
+		vector<string> sfens;
+
+		for (auto ml : MoveList<LEGAL_ALL>(pos))
+		{
+			auto m = ml.move;
+			pos.do_move(m, si2);
+			sfens.emplace_back("sfen " + pos.sfen());
+			pos.undo_move(m);
+		}
+
+		return sfens;
+	}
 }

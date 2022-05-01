@@ -8,8 +8,8 @@
 <#
 # MSYS2をインストールしたディレクトリで（もしくはPATH環境変数を設定して）以下を実行:
 
-msys2_shell.cmd -msys2 -defterm -no-start -lc 'pacman --needed --noconfirm -Syuu pactoys-git';
-msys2_shell.cmd -msys2 -defterm -no-start -lc 'pacboy --needed --noconfirm -Syuu clang:m openblas:x openmp:x toolchain:m base-devel:';
+msys2_shell.cmd -msys2 -defterm -no-start -lc 'pacman --needed --noconfirm -Syuu pactoys';
+msys2_shell.cmd -msys2 -defterm -no-start -lc 'pacboy --needed --noconfirm -Syuu clang:m lld:m openblas:x openmp:x toolchain:m base-devel:';
 
 # MSYS2パッケージの更新、更新出来る項目が無くなるまで繰り返し実行、場合によってはMSYS2の再起動が必要
 #>
@@ -26,7 +26,13 @@ $TGCOMPILERS = @('clang++';'g++';);
   @{
     BUILDDIR = 'NNUE_KPE9';
     EDITION = 'YANEURAOU_ENGINE_NNUE_HALFKPE9';
-    BUILDNAME = 'YaneuraOu_NNUE_KPE9';
+    BUILDNAME = 'YaneuraOu_NNUE_HalfKPE9';
+    TARGET = @('evallearn';'normal';'tournament';'gensfen';);
+  };
+  @{
+    BUILDDIR = 'NNUE_KPE9';
+    EDITION = 'YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32';
+    BUILDNAME = 'YaneuraOu_NNUE_HalfKP_VM';
     TARGET = @('evallearn';'normal';'tournament';'gensfen';);
   };
   @{
@@ -173,7 +179,7 @@ function MakeExec($o) {
   msys2_shell.cmd -here -defterm -no-start $MinGW -lc "nice $($o.Make) -f $($o.Makefile) -j$($o.Jobs) $($o.Target) YANEURAOU_EDITION=$($o.Edition) COMPILER=$($o.Compiler) OS=$($o.Os) TARGET_CPU=$($o.Cpu) OBJDIR=$TempDirCyg TARGETDIR=$TempDirCyg $($o.Extra) 2>&1"|Tee-Object -Variable log;
   $log|Out-File -Encoding utf8 -Force (Join-Path $o.BuildDir "$($o.BuildName)-$($o.Target)-$($o.Compiler)-$($o.Cpu.ToLower()).log");
   Copy-Item (Join-Path $TempDir KomoringHeights-by-gcc.exe) (Join-Path $o.BuildDir "$($o.BuildName)-$($o.Target)-$($o.Compiler)-$($o.Cpu.ToLower()).exe") -Force;
-  msys2_shell.cmd -here -defterm -no-start $MinGW -lc "$($o.Make) -f $($o.Makefile) clean YANEURAOU_EDITION=$($o.Edition) OBJDIR=$TempDirCyg TARGETDIR=$TempDirCyg";
+  msys2_shell.cmd -here -defterm -no-start $MinGW -lc "$($o.Make) -f $($o.Makefile) $($o.Extra) clean YANEURAOU_EDITION=$($o.Edition) OBJDIR=$TempDirCyg TARGETDIR=$TempDirCyg";
   $TempDir|Where-Object{ Test-Path $_ }|Remove-Item -Recurse;
   Pop-Location;
 }

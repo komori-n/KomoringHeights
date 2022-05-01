@@ -9,29 +9,30 @@ on:
       - "kh-V*"
 
 jobs:
-  build-msys2-windows:
-    # ubuntu-latest = windows-2019
-    # https://docs.github.com/ja/free-pro-team@latest/actions/reference/specifications-for-github-hosted-runners
+  build-msys2-general:
+    # windows-latest = windows-2019
+    # https://docs.github.com/ja/actions/using-github-hosted-runners/about-github-hosted-runners
+    # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
     runs-on: windows-latest
 
     strategy:
       matrix:
         target: [normal]
         archcpu:
-          [
-            "ZEN2,ZEN1,AVX512VNNI,AVX512,AVX2,SSE42",
-            "SSE41,SSSE3,SSE2,NO_SSE",
-            "ZEN3,AVXVNNI,OTHER",
-          ]
+          - "ZEN3,ZEN2,ZEN1,AVX512VNNI,AVXVNNI,AVX512,AVX2,SSE42"
+          - "SSE41,SSSE3,SSE2,NO_SSE"
+          - "OTHER"
         edition:
           - USER_ENGINE
-        compiler: [clang++, g++]
+        compiler:
+          - clang++
+          - g++
         exclude:
           # Release target exclude: archcpu ZEN3,AVXVNNI,OTHER
           # `-march=cascadelake`: LLVM8, GCC9 support (AVX512VNNI)
           # `-march=alderlake` : LLVM12, GCC11 support (AVX-VNNI)
-          # `-march=znver3`: LLVM12 support
-          - archcpu: "ZEN3,AVXVNNI,OTHER"
+          # `-march=znver3`: LLVM12, GCC11 support
+          - archcpu: "OTHER"
           # Release target exclude: archcpu 'SSE41,SSSE3,SSE2,NO_SSE' and target 'tournament,evallearn'
           - target: tournament
             archcpu: "SSE41,SSSE3,SSE2,NO_SSE"
@@ -51,7 +52,7 @@ jobs:
           C:\msys64\usr\bin\bash.exe -lc 'pacman --needed --noconfirm -Syuu'
           C:\msys64\usr\bin\bash.exe -lc 'pacman --needed --noconfirm -Syuu'
           C:\msys64\usr\bin\bash.exe -lc 'pacman --needed --noconfirm -Syuu pactoys'
-          C:\msys64\usr\bin\bash.exe -lc 'pacboy --needed --noconfirm -Sy clang:m openblas:x openmp:x toolchain:m base-devel:'
+          C:\msys64\usr\bin\bash.exe -lc 'pacboy --needed --noconfirm -Sy clang:m lld:m openblas:x openmp:x toolchain:m base-devel:'
           $ErrorActionPreference = 'Stop'
 
       - name: make
@@ -77,10 +78,10 @@ jobs:
           - USER_ENGINE
 
     steps:
-      - name: Setup Android NDK r21e
+      - name: Setup Android NDK r23b
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r21e
+          ndk-version: r23b
 
       - name: Checkout own repository
         uses: actions/checkout@v2

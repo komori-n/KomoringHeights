@@ -12,6 +12,10 @@
 #include "../thread.h"
 #include "../search.h"
 
+#if defined(EVAL_LEARN)
+#include "../eval/evaluate_common.h"
+#endif
+
 namespace {
 
 	// "test genmoves" : 指し手生成テストコマンド
@@ -107,10 +111,10 @@ namespace {
 		// ふかうら王の場合、root mate searchが回っていると探索を打ち切らないので、ここで
 		// 同じ思考時間になってしまう可能性がある。
 		if (Options.count("RootMateSearchNodesLimit"))
-			Options["RootMateSearchNodesLimit"] = std::string("100"); // 100ノードに減らしておく。
+			Options["RootMateSearchNodesLimit"] = std::to_string(100); // 100ノードに減らしておく。
 
 		//if (Options.count("DNN_Batch_Size1"))
-		//	Options["DNN_Batch_Size1"] = "32";			 // これも減らしておかないとbatchsizeまでで時間がきてしまう。
+		//	Options["DNN_Batch_Size1"] = std::to_string(32); // これも減らしておかないとbatchsizeまでで時間がきてしまう。
 		// →　このタイミングでやるとmodelのrebuildが起きるのか…。
 
 		// isreadyが呼び出されたものとする。
@@ -181,7 +185,6 @@ namespace {
 				std::cout << ".";
 		}
 	}
-
 }
 
 // ----------------------------------
@@ -195,6 +198,9 @@ namespace Test
 	{
 		if (token == "genmoves")         gen_moves(pos, is);       // 現在の局面に対して指し手生成のテストを行う。
 		else if (token == "autoplay")    auto_play(pos, is);       // 連続自己対局を行う。
+#if defined (EVAL_LEARN)
+		else if (token == "evalsave")    Eval::save_eval("");      // 現在の評価関数のパラメーターをファイルに保存
+#endif
 		else return false;									       // どのコマンドも処理することがなかった
 			
 		// いずれかのコマンドを処理した。
