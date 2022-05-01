@@ -38,7 +38,7 @@ void EngineOption::Init(USI::OptionsMap& o) {
   o["PostSearchCount"] << USI::Option(400, 0, INT64_MAX);
 
   o["RootIsAndNodeIfChecked"] << USI::Option(true);
-  o["YozumePrintLevel"] << USI::Option(2, 0, 3);
+  o["YozumePrintLevel"] << USI::Option(0, 0, 3);
 
 #if defined(USE_DEEP_DFPN)
   o["DeepDfpnPerMile"] << USI::Option(5, 0, 10000);
