@@ -382,20 +382,17 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
     // どう見ても千日手 or 列島局面になる場合は読み進める必要がない
     // 置換表 LookUp の回数を減らすために別処理に分ける
     if (n.IsRepetitionOrInferiorAfter(move.move)) {
-      // 千日手は複数あっても意味がないので、2 つ目以降は無視する
       if (!found_rep) {
-        child = MakeRepetitionChild(move);
-        const auto i = effective_len_++;
-        idx_[i] = i_raw;
+        // 千日手は複数あっても意味がないので、2 つ目以降は無視する
+        found_rep = true;
 
-        if (!or_node_) {
-          break;
-        }
+        child = MakeRepetitionChild(move);
+        PushEffectiveChild(i_raw);
       }
-      found_rep = true;
     } else {
       child = MakeNonRepetitionChild(tt, n, move);
-      Expand(n, i_raw, first_search);
+      const auto i = PushEffectiveChild(i_raw);
+      Expand(n, i, first_search);
 
       if (child.search_result.IsNotFinal()) {
         if (const auto res = delayed_moves.Get(move.move)) {
@@ -404,7 +401,7 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
 
           // to への合駒はすでに Expand しているので、この手は後回しにする
           // effective_len_ をいじれば展開した子をいないとみなすことができる
-          effective_len_--;
+          PopEffectiveChild();
         }
 
         delayed_moves.Add(move.move, i_raw);
@@ -428,16 +425,6 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
   if (effective_len_ > 0) {
     EliminateDoubleCount(tt, n, 0);
   }
-}
-
-BitSet64 ChildrenCache::BestMoveSumMask() const {
-  auto& best_child = NthChild(0);
-  if (auto unknown = best_child.search_result.TryGetUnknown()) {
-    // secret には BitSet のビットを反転した値が格納されているので注意
-    return BitSet64{~unknown->Secret()};
-  }
-
-  return BitSet64::Full();
 }
 
 void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
@@ -529,7 +516,7 @@ bool ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult&
       children_[i_raw].next_dep = 0;
       i_raw = next_dep - 1;
 
-      idx_[effective_len_++] = i_raw;
+      PushEffectiveChild(i_raw);
       if (children_[i_raw].Delta(or_node_) > 0) {
         // まだ結論の出ていない子がいた
         break;
@@ -545,9 +532,10 @@ bool ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult&
   return false;
 }
 
-void ChildrenCache::Expand(Node& n, const std::size_t i_raw, const bool first_search) {
-  const auto i = effective_len_++;
-  idx_[i] = i_raw;
+void ChildrenCache::Expand(Node& n, const std::size_t i, const bool first_search) {
+  KOMORI_PRECONDITION(i < effective_len_);
+
+  const auto i_raw = idx_[i];
   auto& child = children_[i_raw];
   const auto move = child.move;
 

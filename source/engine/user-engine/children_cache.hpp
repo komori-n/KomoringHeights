@@ -40,46 +40,10 @@ struct Edge;
 class Node;
 
 /**
- * @brief 子ノードの置換表索引結果をキャッシュして、次に展開すべきノードを選択するためのクラス
- *
- * 本クラスには大きく4つの役割がある。
- *
- * 1. n における合法手の一覧を記憶する
- * 2. 子局面に対する LookUp と置換表登録を行う
- * 3. LookUp 結果をよさげ順に並べる
- * 4. 現局面の pn/dn および証明駒／反証駒を計算する
- *
- * @note
- *
- * 以下に実装上の工夫、注意点を挙げる。
- *
- * # n における合法手の一覧を記憶する
- *
- * 明らかな千日手や子局面の中で証明済みノードを見つけた時など、pn/dn に影響を与えない範囲で合法手生成を
- * 省略することがある。
- *
- * # 子局面に対する LookUp と置換表登録を行う
- *
- * プログラム全体で最も処理負荷が高いのが置換表の LookUp 処理である。そのため、LookUp ができるだけ高速に動作するように
- * いろんな変数をキャッシュしている。なお、本クラスの責務はあくまで「子局面のキャッシュ」であるため、
- * 自局面の置換表登録は行わない。もし必要な場合、CurrentResult() の結果をもとに ChildrenCache の使用者が登録する
- * 必要がある。
- *
- * 細かい工夫点については、ChildrenCache::Child のコメントも参照。
- *
- * # LookUp 結果をよさげ順に並べる
- *
- * Child の並び順は UpdateFront() の呼び出し前後で変化する可能性があるので注意。
- *
- * # 現局面の pn/dn および証明駒／反証駒を計算する
- *
- * 特になし。
+ * @brief 子局面の展開を制御するクラス
  */
 class ChildrenCache {
  public:
-  /**
-   * @brief 子局面一覧を作成し、子局面を pn/dn がよさげな順に並べ替えて初期化する
-   */
   ChildrenCache(TranspositionTable& tt,
                 Node& n,
                 bool first_search,
@@ -94,10 +58,29 @@ class ChildrenCache {
   ChildrenCache& operator=(ChildrenCache&&) = delete;
   ~ChildrenCache() = default;
 
-  /// 現在の最善手を返す。合法手が 1 つ以上する場合に限り呼び出すことができる
-  Move BestMove() const { return NthChild(0).move.move; }
-  bool BestMoveIsFirstVisit() const { return NthChild(0).IsFirstVisit(); }
-  BitSet64 BestMoveSumMask() const;
+  /// 現在の最善手
+  Move BestMove() const {
+    KOMORI_PRECONDITION(effective_len_ > 0);
+    return NthChild(0).move.move;
+  }
+
+  /// 現在の最善手が初探索かどうか
+  bool BestMoveIsFirstVisit() const {
+    KOMORI_PRECONDITION(effective_len_ > 0);
+    return NthChild(0).IsFirstVisit();
+  }
+
+  BitSet64 BestMoveSumMask() const {
+    auto& best_child = NthChild(0);
+    KOMORI_PRECONDITION(IsNotFinal(best_child.search_result.GetNodeState()));
+
+    if (auto unknown = best_child.search_result.TryGetUnknown()) {
+      // secret には BitSet のビットを反転した値が格納されているので注意
+      return BitSet64{~unknown->Secret()};
+    }
+
+    UNREACHABLE
+  }
   /**
    * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
    */
@@ -118,14 +101,39 @@ class ChildrenCache {
 
  private:
   /// i 番目に良い手に対する Child を返す
-  detail::Child& NthChild(std::size_t i) { return children_[idx_[i]]; }
-  const detail::Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
-  bool IsSumChild(std::size_t i) const { return sum_mask_.Test(idx_[i]); }
+  detail::Child& NthChild(std::size_t i) {
+    KOMORI_PRECONDITION(i < effective_len_);
+    return children_[idx_[i]];
+  }
+
+  const detail::Child& NthChild(std::size_t i) const {
+    KOMORI_PRECONDITION(i < effective_len_);
+    return children_[idx_[i]];
+  }
+
+  bool IsSumChild(std::size_t i) const {
+    KOMORI_PRECONDITION(i < effective_len_);
+    return sum_mask_.Test(idx_[i]);
+  }
+
+  auto PushEffectiveChild(std::size_t i_raw) {
+    KOMORI_PRECONDITION(i_raw < actual_len_);
+    const auto i = effective_len_++;
+    idx_[i] = i_raw;
+
+    return i;
+  }
+
+  void PopEffectiveChild() {
+    KOMORI_PRECONDITION(effective_len_ > 0);
+    effective_len_--;
+  }
+
   /// UpdateFront のソートしない版
   bool UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
 
-  /// 子 i_raw を展開する。n が必要なのは、pn/dn の初期値を計算するため
-  void Expand(Node& n, std::size_t i_raw, bool first_search);
+  /// 子 i を展開する。n が必要なのは、pn/dn の初期値を計算するため
+  void Expand(Node& n, std::size_t i, bool first_search);
   /// 子 i 以外がソートされていて i だけがソートされていない場合、i を適切な位置に挿入する
   void Refresh(std::size_t i);
 

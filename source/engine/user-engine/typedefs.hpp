@@ -1,14 +1,35 @@
 #ifndef TYPEDEFS_HPP_
 #define TYPEDEFS_HPP_
 
+#include <cassert>
+#include <chrono>
 #include <cinttypes>
 #include <iomanip>
 #include <limits>
 #include <string>
+#include <thread>
 
 #include "../../bitboard.h"
 #include "../../position.h"
 #include "../../types.h"
+
+#if defined(KOMORI_DEBUG)
+#define KOMORI_PRECONDITION(cond)                                                                        \
+  do {                                                                                                   \
+    if (!(cond)) {                                                                                       \
+      /* デバッグを楽にするために info コマンドでエラーログを出す */            \
+      sync_cout << "info string assertion \"" << #cond << "\" failed in " << __FILE__ << "(" << __LINE__ \
+                << "): " << __FUNCTION__ << sync_endl;                                                   \
+      std::cout.flush();                                                                                 \
+                                                                                                         \
+      /* GUI 側でエラーログを表示してもらうまで待ってから terminate する */      \
+      std::this_thread::sleep_for(std::chrono::seconds(1));                                              \
+      std::terminate();                                                                                  \
+    }                                                                                                    \
+  } while (false)
+#else
+#define KOMORI_PRECONDITION(...)
+#endif
 
 namespace komori {
 /// 1局面の最大王手/王手回避の着手数
