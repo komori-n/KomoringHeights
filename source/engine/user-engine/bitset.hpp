@@ -13,38 +13,38 @@ class BitSet {
   using ValueType = T;
   static_assert(std::is_integral_v<ValueType> && std::is_unsigned_v<ValueType>);
 
-  constexpr explicit BitSet(ValueType val) : val_(val) {}
-  constexpr BitSet() = default;
-  constexpr BitSet(const BitSet&) = default;
+  constexpr explicit BitSet(ValueType val) noexcept : val_(val) {}
+  constexpr BitSet() noexcept = default;
+  constexpr BitSet(const BitSet&) noexcept = default;
   constexpr BitSet(BitSet&&) noexcept = default;
-  constexpr BitSet& operator=(const BitSet&) = default;
+  constexpr BitSet& operator=(const BitSet&) noexcept = default;
   constexpr BitSet& operator=(BitSet&&) noexcept = default;
   ~BitSet() = default;
 
-  static constexpr BitSet Full() { return BitSet{std::numeric_limits<ValueType>::max()}; }
+  static constexpr BitSet Full() noexcept { return BitSet{std::numeric_limits<ValueType>::max()}; }
 
-  constexpr BitSet& Set(std::size_t i) {
+  constexpr BitSet& Set(std::size_t i) noexcept {
     if (i < sizeof(ValueType) * kBitPerByte) {
       val_ |= ValueType{1} << i;
     }
     return *this;
   }
 
-  constexpr BitSet& Reset(std::size_t i) {
+  constexpr BitSet& Reset(std::size_t i) noexcept {
     if (i < sizeof(ValueType) * kBitPerByte) {
       val_ &= ~(ValueType{1} << i);
     }
     return *this;
   }
 
-  constexpr bool Test(std::size_t i) const {
+  constexpr bool Test(std::size_t i) const noexcept {
     if (i < sizeof(ValueType) * kBitPerByte) {
       return (val_ & (ValueType{1} << i)) != ValueType{0};
     }
     return false;
   }
 
-  constexpr ValueType Value() const { return val_; }
+  constexpr ValueType Value() const noexcept { return val_; }
 
  private:
   static constexpr inline std::size_t kBitPerByte = 8;
