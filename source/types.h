@@ -250,10 +250,11 @@ enum SquareWithWall: int32_t {
 // 型変換。下位8bit == Square
 constexpr Square sqww_to_sq(SquareWithWall sqww) { return Square(sqww & 0xff); }
 
-extern SquareWithWall sqww_table[SQ_NB_PLUS1];
+// to_sqww()で使うテーブル。直接アクセスしないようにnamespaceに入れてある。
+namespace BB_Table { extern SquareWithWall sqww_table[SQ_NB_PLUS1]; }
 
 // 型変換。Square型から。
-static SquareWithWall to_sqww(Square sq) { return sqww_table[sq]; }
+static SquareWithWall to_sqww(Square sq) { return BB_Table::sqww_table[sq]; }
 
 // 盤内か。壁(盤外)だとfalseになる。
 constexpr bool is_ok(SquareWithWall sqww) { return (sqww & SQWW_BORROW_MASK) == 0; }
@@ -295,6 +296,15 @@ namespace Effect8
 
 	// Directionsに相当するものを引数に渡して1つ方角を取り出す。
 	static Direct pop_directions(Directions& d) { return (Direct)pop_lsb(d); }
+
+	// sq1にとってsq2がどの方角であるかを返す。
+	// sq1がsq2に対して八方向のいずれかであることがわかっている時に用いる。
+	static Direct direct_of(Square sq1, Square sq2)
+	{
+		auto d = directions_of(sq1, sq2);
+		ASSERT_LV3(d != DIRECTIONS_ZERO);
+		return pop_directions(d);
+	}
 
 	// ある方角の反対の方角(180度回転させた方角)を得る。
 	constexpr Direct operator~(Direct d) {
@@ -369,6 +379,16 @@ enum Bound {
 };
 
 // --------------------
+//    探索用のフラグ
+// --------------------
+
+// 探索で組合せ爆発が起きていないかの状態
+enum ExplosionState {
+	EXPLOSION_NONE, // 平常運転
+	MUST_CALM_DOWN  // 組合せ爆発が起きているのでいったん冷静になれ
+};
+
+// --------------------
 //        評価値
 // --------------------
 
@@ -376,6 +396,9 @@ enum Bound {
 enum Value: int32_t
 {
 	VALUE_ZERO = 0,
+
+	// 引き分け時のスコア(千日手のスコアリングなどで用いる)
+	VALUE_DRAW = 0,
 
 	// 0手詰めのスコア(rootで詰んでいるときのscore)
 	// 例えば、3手詰めならこの値より3少ない。
@@ -663,6 +686,10 @@ static Move16 make_move_drop16(PieceType pt, Square to) { return (Move16)(to + (
 constexpr Move make_move_drop(PieceType pt, Square to , Color us ) { return (Move)(to + (pt << 7) + MOVE_DROP + (((us ? u32(PIECE_WHITE) : 0) + (pt)) << 16)); }
 
 // 移動元の升と移動先の升を逆転させた指し手を生成する。探索部で用いる。
+// ※　最新のStockfishでは使っていないのでもはや不要なのだが一応残しておく。
+// 将棋はチェスと違って元の場所に戻れない駒が多いのでreverse_move()を用いるhistory updateは
+// 大抵、悪影響しかない。
+// また、reverse_move()を用いるならば、ifの条件式に " && !is_drop(move)"が要ると思う。
 static Move16 reverse_move(Move m) { return make_move16(to_sq(m), from_sq(m)); }
 
 // 指し手がおかしくないかをテストする
@@ -908,6 +935,9 @@ struct MoveList {
 	// 局面をコンストラクタの引数に渡して使う。すると指し手が生成され、lastが初期化されるので、
 	// このclassのbegin(),end()が正常な値を返すようになる。
 	// lastは内部のバッファを指しているので、このクラスのコピーは不可。
+	//
+	// for(auto extmove : MoveList<LEGAL_ALL>(pos)) ...
+	// のような書き方ができる。
 
 	explicit MoveList(const Position& pos) : last(generateMoves<GenType>(pos, mlist)) {}
 
@@ -964,7 +994,9 @@ enum EnteringKingRule
 {
 	EKR_NONE,            // 入玉ルールなし
 	EKR_24_POINT,        // 24点法(31点以上で宣言勝ち)
-	EKR_27_POINT,        // 27点法 = CSAルール
+	EKR_24_POINT_H,      // 24点法 , 駒落ち対応
+	EKR_27_POINT,        // 27点法 = CSAルール(先手28点、後手27点)
+	EKR_27_POINT_H,      // 27点法 , 駒落ち対応
 	EKR_TRY_RULE,        // トライルール
 };
 
@@ -1011,6 +1043,19 @@ namespace Eval
 	//  abs(value) < VALUE_MAX_EVAL
 	// を満たす。
 	Value evaluate(const Position& pos);
+}
+
+// --------------------
+//      UnitTest
+// --------------------
+
+// 前方宣言だけ。
+// 実際に使う時は、"testcmd/unit_test.h"をincludeせよ。
+// 使い方については、Position::UnitTest()などを参考にすること。
+namespace Test
+{
+	class UnitTester;
+	void UnitTest(Position& pos,std::istringstream& is);
 }
 
 // --------------------

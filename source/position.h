@@ -253,8 +253,19 @@ public:
 	// c側の手駒を返す。
 	Hand hand_of(Color c) const { ASSERT_LV3(is_ok(c));  return hand[c]; }
 
+	// ↑のtemplate版
+	template <Color C>
+	Hand hand_of() const { ASSERT_LV3(is_ok(C));  return hand[C]; }
+
 	// c側の玉の位置を返す。
+	// Stockfishには
+	//   template<PieceType Pt> Square square(Color c) const
+	// というmethodがあるが、PtにはKINGしか渡せないので要らないと思う。
 	FORCE_INLINE Square king_square(Color c) const { ASSERT_LV3(is_ok(c)); return kingSquare[c]; }
+
+	// ↑のtemplate版
+	template <Color C>
+	Square king_square() const { ASSERT_LV3(is_ok(C)); return kingSquare[C]; }
 
 	// 保持しているデータに矛盾がないかテストする。
 	bool pos_is_ok() const;
@@ -292,22 +303,20 @@ public:
 	}
 
 	// 定跡DBや置換表から取り出したMove16(16bit型の指し手)を32bit化する。
+	// is_ok(m) == false ならば、mをそのまま返す。
+	// 例 : MOVE_WINやMOVE_NULLに対してはそれがそのまま返ってくる。つまり、この時、上位16bitは0(NO_PIECE)である。
+	// 	  
+	// 注意 : mの移動元の駒が現在の手番の駒であることはこの関数ではチェックしないものとする。
 	Move to_move(Move16 m) const;
 
 	// 普通の千日手、連続王手の千日手等を判定する。
 	// そこまでの局面と同一局面であるかを、局面を遡って調べる。
-	// plies_from_root : rootからの手数。ss->plyを渡すこと。
-	// 　※　rootとは、探索開始局面であり、そこまでの経路(手順)がある場合、そこよりさらに遡って調べる。
-	// →　これ無駄なのでやめた。(V4.87)[2019/06/09]
 	// rep_ply         : 遡る手数。デフォルトでは16手。あまり大きくすると速度低下を招く。
 	RepetitionState is_repetition(int rep_ply = 16) const;
 
-#if defined(CUCKOO)
-	// この局面から以前と同一局面に到達する指し手があるか。
-	// plies_from_root : rootからの手数。ss->plyを渡すこと。
-	// rep_ply         : 遡る手数。デフォルトでは16手。あまり大きくすると速度低下を招く。
-	bool has_game_cycle(int plies_from_root , int rep_ply = 16) const;
-#endif
+	// is_repetition()の、千日手が見つかった時に、原局面から何手遡ったかを返すバージョン。
+	// REPETITION_NONEではない時は、found_plyにその値が返ってくる。	// ※　定跡生成の時にしか使わない。
+	RepetitionState is_repetition(int rep_ply , int& found_ply) const;
 
 	// --- Bitboard
 
@@ -318,8 +327,12 @@ public:
 	// c == WHITE : 後手の駒があるBitboardが返る
 	Bitboard pieces(Color c) const { ASSERT_LV3(is_ok(c)); return byColorBB[c]; }
 
+	// ↑のtemplate版
+	template<Color C>
+	Bitboard pieces() const { ASSERT_LV3(is_ok(C)); return byColorBB[C]; }
+
 	// 駒がない升が1になっているBitboardが返る
-	Bitboard empties() const { return pieces() ^ ALL_BB; }
+	Bitboard empties() const { return pieces() ^ Bitboard(1); }
 
 	// 駒に対応するBitboardを得る。
 	// ・引数でcの指定がないものは先後両方の駒が返る。
@@ -333,23 +346,21 @@ public:
 	Bitboard pieces(PieceType pr1, PieceType pr2, PieceType pr3, PieceType pr4) const { return pieces(pr1) | pieces(pr2) | pieces(pr3) | pieces(pr4); }
 	Bitboard pieces(PieceType pr1, PieceType pr2, PieceType pr3, PieceType pr4, PieceType pr5) const { return pieces(pr1) | pieces(pr2) | pieces(pr3) | pieces(pr4) | pieces(pr5); }
 
+	// ↑のtemplate版
+	template <PieceType PR>
+	Bitboard pieces() const { ASSERT_LV3(PR < PIECE_BB_NB); return byTypeBB[PR]; }
+
 	Bitboard pieces(Color c, PieceType pr) const { return pieces(pr) & pieces(c); }
 	Bitboard pieces(Color c, PieceType pr1, PieceType pr2) const { return pieces(pr1, pr2) & pieces(c); }
 	Bitboard pieces(Color c, PieceType pr1, PieceType pr2, PieceType pr3) const { return pieces(pr1, pr2, pr3) & pieces(c); }
 	Bitboard pieces(Color c, PieceType pr1, PieceType pr2, PieceType pr3, PieceType pr4) const { return pieces(pr1, pr2, pr3, pr4) & pieces(c); }
 	Bitboard pieces(Color c, PieceType pr1, PieceType pr2, PieceType pr3, PieceType pr4, PieceType pr5) const { return pieces(pr1, pr2, pr3, pr4, pr5) & pieces(c); }
 
-
-	// --- 升
-
-	// ある駒の存在する升を返す
-	// 現状、Pt==KINGしか渡せない。Stockfishとの互換用。
-	template<PieceType Pt> Square square(Color c) const
-	{
-		static_assert(Pt == KING,"Pt must be a KING in Position::square().");
-		ASSERT_LV3(is_ok(c));
-		return king_square(c);
-	}
+	// ↑のtemplate版
+	template<Color C>
+	Bitboard pieces(PieceType pr) const { return pieces(pr) & pieces(C); }
+	template<Color C,PieceType PR>
+	Bitboard pieces() const { return pieces(PR) & pieces(C); }
 
 	// --- 王手
 
@@ -358,6 +369,10 @@ public:
 
 	// c側の玉に対してpinしている駒(その駒をc側の玉との直線上から動かしたときにc側の玉に王手となる)
 	Bitboard blockers_for_king(Color c) const { return st->blockersForKing[c]; }
+
+	// ↑のtemplate版
+	template <Color C>
+	Bitboard blockers_for_king() const { return st->blockersForKing[C]; }
 
 	// 現局面で駒Ptを動かしたときに王手となる升を表現するBitboard
 	Bitboard check_squares(PieceType pt) const { ASSERT_LV3(pt!= NO_PIECE_TYPE && pt < PIECE_TYPE_NB); return st->checkSquares[pt]; }
@@ -372,11 +387,17 @@ public:
 
 	// sqに利きのあるc側の駒を列挙する。cの指定がないものは先後両方の駒が返る。
 	// occが指定されていなければ現在の盤面において。occが指定されていればそれをoccupied bitboardとして。
-	// sq == SQ_NBでの呼び出しは合法。ZERO_BBが返る。
+	// sq == SQ_NBでの呼び出しは合法。Bitboard(ZERO)が返る。
 
-	Bitboard attackers_to(Color c, Square sq) const { return attackers_to(c, sq, pieces()); }
-	Bitboard attackers_to(Color c, Square sq, const Bitboard& occ) const;
+	Bitboard attackers_to(Color c, Square sq) const { return c==BLACK ? attackers_to<BLACK>(sq, pieces()): attackers_to<WHITE>(sq, pieces()); }
+	Bitboard attackers_to(Color c, Square sq, const Bitboard& occ) const { return c==BLACK ? attackers_to<BLACK>(sq, occ): attackers_to<WHITE>(sq, occ); }
 	Bitboard attackers_to(Square sq) const { return attackers_to(sq, pieces()); }
+	Bitboard attackers_to(Square sq, const Bitboard& occ) const;
+
+	template <Color C>
+	Bitboard attackers_to(Square sq) const { return attackers_to<C>(sq, pieces()); }
+
+	template <Color C>
 	Bitboard attackers_to(Square sq, const Bitboard& occ) const;
 
 	// 打ち歩詰め判定に使う。王に打ち歩された歩の升をpawn_sqとして、c側(王側)のpawn_sqへ利いている駒を列挙する。香が利いていないことは自明。
@@ -452,7 +473,18 @@ public:
 	// killerのような兄弟局面の指し手がこの局面において合法かどうかにも使う。
 	// ※　置換表の検査だが、pseudo_legal()で擬似合法手かどうかを判定したあとlegal()で自殺手でないことを
 	// 確認しなくてはならない。このためpseudo_legal()とlegal()とで重複する自殺手チェックはしていない。
-	bool pseudo_legal(const Move m) const { return pseudo_legal_s<true>(m); }
+	//
+	// is_ok(m)==falseの時、すなわち、m == MOVE_WINやMOVE_NONEのような時に
+	// Position::to_move(m) == mは保証されており、この時、本関数pseudo_legal(m)がfalseを返すことは保証する。
+	// 
+	// また、
+	// Options["GenerateAllLegalMoves"]を反映させる。
+	// ↑これがtrueならば、歩の不成も合法手扱い。
+	// 
+	// 注意)
+	// ↑のオプションに依らず、常に歩の不成の指し手も合法手として扱いたいならば、
+	// この関数ではなく、pseudo_legal_s<true>()を用いること。
+	bool pseudo_legal(const Move m) const;
 
 	// All == false        : 歩や大駒の不成に対してはfalseを返すpseudo_legal()
 	template <bool All> bool pseudo_legal_s(const Move m) const;
@@ -463,11 +495,7 @@ public:
 	bool legal_drop(const Square to) const;
 
 	// 二歩でなく、かつ打ち歩詰めでないならtrueを返す。
-	bool legal_pawn_drop(const Color us, const Square to) const
-	{
-		return !((pieces(us, PAWN) & FILE_BB[file_of(to)])                             // 二歩
-			|| ((pawnEffect(us, to) == Bitboard(king_square(~us)) && !legal_drop(to)))); // 打ち歩詰め
-	}
+	bool legal_pawn_drop(const Color us, const Square to) const;
 
 	// --- StateInfo
 
@@ -494,14 +522,14 @@ public:
 
 	// StateInfo::key()への簡易アクセス。
 	Key key() const { return st->key(); }
+	HASH_KEY long_key() const { return st->long_key(); }
 
-#if defined(USE_KEY_AFTER)
 	// ある指し手を指した後のhash keyを返す。
 	// 将棋だとこの計算にそこそこ時間がかかるので、通常の探索部でprefetch用に
 	// これを計算するのはあまり得策ではないが、詰将棋ルーチンでは置換表を投機的に
 	// prefetchできるとずいぶん速くなるのでこの関数を用意しておく。
 	Key key_after(Move m) const;
-#endif
+	HASH_KEY long_key_after(Move m) const;
 
 #if defined(USE_BOARD_KEY_AFTER)
   Key board_key_after(Move m) const;
@@ -517,13 +545,27 @@ public:
 	// LONG_EFFECT_LIBRARYを使うときのmateルーチンで使用しているので消さないで！
 	Bitboard pinned_pieces(Color c) const { ASSERT_LV3(is_ok(c)); return st->blockersForKing[c] & pieces(c); }
 
+	// ↑のtemplate版
+	template<Color C>
+	Bitboard pinned_pieces() const { ASSERT_LV3(is_ok(C)); return st->blockersForKing[C] & pieces<C>(); }
+
 	// avoidで指定されている遠方駒は除外して、pinされている駒のbitboardを得る。
 	// ※利きのない1手詰め判定のときに必要。
-	Bitboard pinned_pieces(Color c, Square avoid) const;
+	Bitboard pinned_pieces(Color c, Square avoid) const { return c == BLACK ? pinned_pieces<BLACK>(avoid) : pinned_pieces<WHITE>(avoid); }
+
+	template<Color C>
+	Bitboard pinned_pieces(Square avoid) const;
 
 	// fromからtoに駒が移動したものと仮定して、pinを得る
 	// ※利きのない1手詰め判定のときに必要。
-	Bitboard pinned_pieces(Color c, Square from, Square to) const;
+	Bitboard pinned_pieces(Color c, Square from, Square to) const
+	{
+		return c == BLACK ? pinned_pieces<BLACK>(from,to) : pinned_pieces<WHITE>(from,to);
+	}
+
+	// ↑のtemplate版
+	template<Color C>
+	Bitboard pinned_pieces(Square from, Square to) const;
 
 
 	// 指し手mで王手になるかを判定する。
@@ -575,14 +617,12 @@ public:
 	// 捕獲する指し手であるか。
 	bool capture(Move m) const { return !is_drop(m) && piece_on(to_sq(m)) != NO_PIECE; }
 
-#if defined(USE_ENTERING_KING_WIN)
 	// 入玉時の宣言勝ち
 	// Search::Limits.enteringKingRuleに基いて、宣言勝ちを行なう。
 	// 条件を満たしているとき、MOVE_WINや、玉を移動する指し手(トライルール時)が返る。さもなくば、MOVE_NONEが返る。
 	// mate1ply()から内部的に呼び出す。(そうするとついでに処理出来て良い)
 	// 32bit Moveが返る。
 	Move DeclarationWin() const;
-#endif
 
 	// -- sfen化ヘルパ
 #if defined(USE_SFEN_PACKER)
@@ -642,20 +682,32 @@ public:
 	template <MOVE_GEN_TYPE gen_type, bool gen_all>
 	friend struct MoveGenerator;
 
+	// UnitTest
+	static void UnitTest(Test::UnitTester&);
+
 private:
 	// StateInfoの初期化(初期化するときに内部的に用いる)
 	void set_state(StateInfo* si) const;
 
 	// 王手になるbitboard等を更新する。set_state()とdo_move()のときに自動的に行われる。
 	// null moveのときは利きの更新を少し端折れるのでフラグを渡すことに。
-	template <bool doNullMove>
+	template <bool doNullMove,Color Us>
 	void set_check_info(StateInfo* si) const;
+
+	template <bool doNullMove>
+	void set_check_info(StateInfo* si) const
+	{
+		sideToMove == BLACK ? set_check_info<doNullMove, BLACK>(si) : set_check_info<doNullMove, WHITE>(si);
+	}
 
 	// do_move()の先後分けたもの。内部的に呼び出される。
 	template <Color Us> void do_move_impl(Move m, StateInfo& st, bool givesCheck);
 
 	// undo_move()の先後分けたもの。内部的に呼び出される。
 	template <Color Us> void undo_move_impl(Move m);
+
+	// 現在の盤面から、入玉に必要な駒点を計算し、Search::Limits::enteringKingPointに設定する。
+	void update_entering_point();
 
 	// --- Bitboards
 	// alignas(16)を要求するものを先に宣言。
@@ -755,6 +807,83 @@ private:
 	Eval::EvalList evalList;
 #endif
 };
+
+// sに利きのあるc側の駒を列挙する。
+// (occが指定されていなければ現在の盤面において。occが指定されていればそれをoccupied bitboardとして)
+template <Color C>
+inline Bitboard Position::attackers_to(Square sq, const Bitboard& occ) const
+{
+	ASSERT_LV3(is_ok(C) && sq <= SQ_NB);
+
+	constexpr Color Them = ~C;
+
+	// sの地点に敵駒ptをおいて、その利きに自駒のptがあればsに利いているということだ。
+	// 香の利きを求めるコストが惜しいのでrookEffect()を利用する。
+	return
+		(     (pawnEffect  <Them>(sq)	&  pieces(PAWN)        )
+			| (knightEffect<Them>(sq)	&  pieces(KNIGHT)      )
+			| (silverEffect<Them>(sq)	&  pieces(SILVER_HDK)  )
+			| (goldEffect  <Them>(sq)	&  pieces(GOLDS_HDK)   )
+			| (bishopEffect(sq, occ)	&  pieces(BISHOP_HORSE))
+			| (rookEffect(sq, occ)		& (pieces(ROOK_DRAGON) | (lanceStepEffect<Them>(sq) & pieces(LANCE))))
+			//  | (kingEffect(sq) & pieces(c, HDK));
+			// →　HDKは、銀と金のところに含めることによって、参照するテーブルを一個減らして高速化しようというAperyのアイデア。
+			) & pieces<C>(); // 先後混在しているのでc側の駒だけ最後にマスクする。
+	;
+}
+
+// ピンされているc側の駒。下手な方向に移動させるとc側の玉が素抜かれる。
+// avoidで指定されている遠方駒は除外して、pinされている駒のbitboardを得る。
+template <Color C>
+Bitboard Position::pinned_pieces(Square avoid) const
+{
+	Bitboard b, pinners, result = Bitboard(ZERO);
+	Square ksq = king_square(C);
+
+	// avoidを除外して考える。
+	Bitboard avoid_bb = ~Bitboard(avoid);
+
+	pinners = (
+		(  pieces(ROOK_DRAGON)   & rookStepEffect    (ksq))
+		| (pieces(BISHOP_HORSE)  & bishopStepEffect  (ksq))
+		| (pieces(LANCE)         & lanceStepEffect<C>(ksq))
+		) & avoid_bb & pieces<~C>();
+
+	while (pinners)
+	{
+		b = between_bb(ksq, pinners.pop()) & pieces() & avoid_bb;
+		if (!b.more_than_one())
+			result |= b & pieces<C>();
+	}
+	return result;
+}
+
+// ピンされているc側の駒。下手な方向に移動させるとc側の玉が素抜かれる。
+// fromからtoに駒が移動したものと仮定して、pinを得る
+template <Color C>
+Bitboard Position::pinned_pieces(Square from, Square to) const {
+	Bitboard b, pinners, result = Bitboard(ZERO);
+	Square ksq = king_square(C);
+
+	// avoidを除外して考える。
+	Bitboard avoid_bb = ~Bitboard(from);
+
+	pinners = (
+		(  pieces(ROOK_DRAGON)  & rookStepEffect    (ksq))
+		| (pieces(BISHOP_HORSE) & bishopStepEffect  (ksq))
+		| (pieces(LANCE)        & lanceStepEffect<C>(ksq))
+		) & avoid_bb & pieces<~C>();
+
+	// fromからは消えて、toの地点に駒が現れているものとして
+	Bitboard new_pieces = (pieces() & avoid_bb) | to;
+	while (pinners)
+	{
+		b = between_bb(ksq, pinners.pop()) & new_pieces;
+		if (!b.more_than_one())
+			result |= b & pieces(C);
+	}
+	return result;
+}
 
 inline void Position::xor_piece(Piece pc, Square sq)
 {

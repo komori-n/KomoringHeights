@@ -104,17 +104,6 @@ void partial_insertion_sort(ExtMove* begin, ExtMove* end, int limit) {
 		}
 }
 
-
-// 合法手か判定する
-// ※　やねうら王独自追加。
-// 歩の不成を生成するモードが必要なのでこの部分をwrapしておく必要があった。
-bool pseudo_legal(const Position& pos, Move ttm)
-{
-	// 歩の不成を生成するかは、Options["GenerateAllLegalMoves"]に依存する。
-	return Search::Limits.generate_all_legal_moves ? pos.pseudo_legal_s<true>(ttm) : pos.pseudo_legal_s<false>(ttm);
-}
-
-
 } // end of namespace
 
 // 指し手オーダリング器
@@ -131,7 +120,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
 	// 次の指し手生成の段階
 	// 王手がかかっているなら回避手、かかっていないなら通常探索用の指し手生成
 	stage = (pos.in_check() ? EVASION_TT : MAIN_TT) +
-		!(ttm && pseudo_legal(pos,ttm));
+		!(ttm && pos.pseudo_legal(ttm));
 
 	// 置換表の指し手があるならそれを最初に試す。ただしpseudo_legalでなければならない。
 	// 置換表の指し手がないなら、次のstageから開始する。
@@ -152,7 +141,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
 	stage = (pos.in_check() ? EVASION_TT : QSEARCH_TT) +
 		!(ttm
 			&& (pos.in_check() || depth > DEPTH_QS_RECAPTURES || to_sq(ttm) == recaptureSquare)
-			&& pseudo_legal(pos,ttm));
+			&& pos.pseudo_legal(ttm));
 
 }
 
@@ -167,7 +156,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Value th , const CapturePiec
 	// (置換表の指しても、この条件を満たさなければならない)
 	// 置換表の指し手がないなら、次のstageから開始する。
 	stage = PROBCUT_TT + !(ttm && pos.capture(ttm)
-		&& pseudo_legal(pos,ttm)
+		&& pos.pseudo_legal(ttm)
 		&& pos.see_ge(ttm, threshold));
 
 }
@@ -180,7 +169,7 @@ void MovePicker::score()
 
 	for (auto& m : *this)
 	{
-		if (Type == CAPTURES)
+		if constexpr (Type == CAPTURES)
 		{
 			// Position::see()を用いると遅い。単に取る駒の価値順に調べたほうがパフォーマンス的にもいい。
 			// 歩が成る指し手もあるのでこれはある程度優先されないといけない。
@@ -195,7 +184,7 @@ void MovePicker::score()
 			m.value = int(Eval::CapturePieceValue[pos.piece_on(to_sq(m))])*6
 					+ (*captureHistory)[to_sq(m)][pos.moved_piece_after(m)][type_of(pos.piece_on(to_sq(m)))];
 		}
-		else if (Type == QUIETS)
+		else if constexpr (Type == QUIETS)
 		{
 			// 駒を取らない指し手をオーダリングする。
 			// ここ、歩以外の成りも含まれているのだが…。
@@ -205,14 +194,14 @@ void MovePicker::score()
 			Piece movedPiece = pos.moved_piece_after(m);
 			Square movedSq = to_sq(m);
 
-#if 0
+#if 1
 			m.value =     (*mainHistory)[from_to(m)][pos.side_to_move()]
 					+ 2 * (*continuationHistory[0])[movedSq][movedPiece]
-					+ 2 * (*continuationHistory[1])[movedSq][movedPiece]
-					+ 2 * (*continuationHistory[3])[movedSq][movedPiece]
+					+     (*continuationHistory[1])[movedSq][movedPiece]
+					+     (*continuationHistory[3])[movedSq][movedPiece]
 					+     (*continuationHistory[5])[movedSq][movedPiece]
-					+ (ply < MAX_LPH ? std::min(4, depth / 3) * (*lowPlyHistory)[ply][from_to(m)] : 0);
-#endif
+					+ (ply < MAX_LPH ? 6 * (*lowPlyHistory)[ply][from_to(m)] : 0);
+#else
 
 			// パラメーターの調整フレームワークを利用するために、値を16倍して最適値を探す。
 			m.value = 16 * (*mainHistory)[from_to(m)][pos.side_to_move()]
@@ -221,7 +210,7 @@ void MovePicker::score()
 				+ MOVE_PICKER_Q_PARAM3 * (*continuationHistory[3])[movedSq][movedPiece]
 				+ MOVE_PICKER_Q_PARAM4 * (*continuationHistory[5])[movedSq][movedPiece]
 				+ MOVE_PICKER_Q_PARAM5 * (ply < MAX_LPH ? std::min(4, depth / 3) * (*lowPlyHistory)[ply][from_to(m)] : 0);
-
+#endif
 		}
 		else // Type == EVASIONS
 		{
@@ -253,8 +242,8 @@ void MovePicker::score()
 				        - (Value)(LVA(type_of(pos.moved_piece_before(m))));
 			else
 				// 捕獲しない指し手に関してはhistoryの値の順番
-				m.value = (*mainHistory)[from_to(m)][pos.side_to_move()]
-						+ (*continuationHistory[0])[to_sq(m)][pos.moved_piece_after(m)]
+				m.value =     (*mainHistory)[from_to(m)][pos.side_to_move()]
+						+ 2 * (*continuationHistory[0])[to_sq(m)][pos.moved_piece_after(m)]
 						- (1 << 28);
 
 		}
@@ -347,7 +336,7 @@ top:
 		// pseudo_legalでない指し手以外に歩や大駒の不成なども除外
 		if (select<Next>([&]() { return    *cur != MOVE_NONE
 										&& !pos.capture_or_pawn_promotion(*cur)
-										&&  pseudo_legal(pos,*cur); }))
+										&&  pos.pseudo_legal(*cur); }))
 			return *(cur - 1);
 
 		++stage;

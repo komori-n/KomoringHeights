@@ -30,21 +30,21 @@
 //
 
 // 深さに比例したfutility pruning
-// 元の値 = 224 , step = 20
-// [PARAM] min:100,max:300,step:3,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_FUTILITY_MARGIN_ALPHA1 = 186;
+// 元の値 = 214 , step = 20
+// [PARAM] min:100,max:300,step:10,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_FUTILITY_MARGIN_ALPHA1 = 199;
 
 // 
 
-// 元の値 = 159 , step = 20
-// [PARAM] min:100,max:240,step:2,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_FUTILITY_MARGIN_BETA = 159;
+// 元の値 = 145 , step = 20
+// [PARAM] min:100,max:240,step:5,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_FUTILITY_MARGIN_BETA = 170;
 
 
 // 静止探索でのfutility pruning
-// 元の値 = 155 , step = 10
-// [PARAM] min:50,max:200,step:2,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_FUTILITY_MARGIN_QUIET = 132;
+// 元の値 = 155 , step = 20
+// [PARAM] min:50,max:200,step:10,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_FUTILITY_MARGIN_QUIET = 125;
 
 // futility pruningの適用depth。
 // この制限自体が要らない可能性がある。→　そうでもなかった。
@@ -54,40 +54,39 @@ PARAM_DEFINE PARAM_FUTILITY_RETURN_DEPTH = 9;
 
 // 親nodeでのfutilityの適用depth。
 // この枝刈り、depthの制限自体が要らないような気がする。→　そうでもなかった。
-// 元の値 = 7
+// 元の値 = 8
 // [PARAM] min:5,max:20,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_FUTILITY_AT_PARENT_NODE_DEPTH = 7;
+PARAM_DEFINE PARAM_FUTILITY_AT_PARENT_NODE_DEPTH = 8;
 
 // 親nodeでのfutility margin
-// 元の値 = 254 , step = 20
-// [PARAM] min:100,max:400,step:3,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_FUTILITY_AT_PARENT_NODE_MARGIN1 = 254;
+// 元の値 = 172 , step = 30
+// [PARAM] min:100,max:400,step:20,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_FUTILITY_AT_PARENT_NODE_MARGIN1 = 172;
 
-// 元の値 = 30
-// [PARAM] min:20,max:50,step:2,interval:2,time_rate:1,fixed
-PARAM_DEFINE PARAM_FUTILITY_AT_PARENT_NODE_GAMMA1 = 30;
+// 元の値 = 21 , step = 4
+// [PARAM] min:15,max:50,step:2,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_FUTILITY_AT_PARENT_NODE_GAMMA1 = 21;
 
-// lmrのときのdepthの上限値。(これを超えるdepthは、↓この値とみなす)
-// 元の値 = 18 , step = 1
-// [PARAM] min:10,max:30,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_FUTILITY_AT_PARENT_NODE_GAMMA2 = 19;
+// 元の値 = 21 , step = 4
+// [PARAM] min:10,max:30,step:2,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_FUTILITY_AT_PARENT_NODE_GAMMA2 = 21;
 
 // lmrのときのseeの値。
 // 元の値 = 218 ,step = 40
-// [PARAM] min:0,max:300,step:3,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_LMR_SEE_MARGIN1 = 218;
+// [PARAM] min:0,max:300,step:20,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_LMR_SEE_MARGIN1 = 238;
 
 
 // Reductionの計算式に出てくる定数
-// 元の値 = 503 ,step = 16
-// [PARAM] min:0,max:1024,step:3,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_REDUCTION_ALPHA = 477;
+// 元の値 = 534 ,step = 32
+// [PARAM] min:0,max:1024,step:16,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_REDUCTION_ALPHA = 534;
 
 // Reductionの計算式に出てくる定数
 // このパラメーター怖くて調整できない。
-// 元の値 = 915 , step = 128
+// 元の値 = 904 , step = 128
 // [PARAM] min:600,max:1500,step:128,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_REDUCTION_BETA = 915;
+PARAM_DEFINE PARAM_REDUCTION_BETA = 904;
 
 //
 // null move dynamic pruning
@@ -96,38 +95,40 @@ PARAM_DEFINE PARAM_REDUCTION_BETA = 915;
 // null move dynamic pruningのときの
 //  Reduction = (α + β * depth ) / 256 + ...みたいなαとβ
 
-// 元の値 = 1015 , step = 50
-// [PARAM] min:500,max:1500,step:5,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_NULL_MOVE_DYNAMIC_ALPHA = 1015;
+// 256倍されていることに注意。
+// 元の値 = 1024 , step = 128
+// [PARAM] min:500,max:1500,step:64,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_NULL_MOVE_DYNAMIC_ALPHA = 1024;
 
-// 元の値 = 85 , step = 15
+// 256倍されていることに注意。85なら85/256 = 1/3とほぼ等価。
+// 元の値 = 85 , step = 24
 // [PARAM] min:50,max:120,step:3,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_NULL_MOVE_DYNAMIC_BETA = 97;
+PARAM_DEFINE PARAM_NULL_MOVE_DYNAMIC_BETA = 82;
 
-// 元の値 = 191 , step = 40
-// [PARAM] min:50,max:400,step:5,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_NULL_MOVE_DYNAMIC_GAMMA = 191;
+// 元の値 = 205 , step = 40
+// [PARAM] min:50,max:400,step:10,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_NULL_MOVE_DYNAMIC_GAMMA = 225;
 
 
-// 元の値 = 22977 , step = 8000
+// 元の値 = 23767 , step = 8000
 // [PARAM] min:0,max:50000,step:500,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_NULL_MOVE_MARGIN0 = 24477;
+PARAM_DEFINE PARAM_NULL_MOVE_MARGIN0 = 23767;
 
-// 元の値 = 30
+// 元の値 = 20 , step 2
 // [PARAM] min:10,max:60,step:2,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_NULL_MOVE_MARGIN1 = 28;
+PARAM_DEFINE PARAM_NULL_MOVE_MARGIN1 = 20;
 
-// 元の値 = 28 , step = 2
-// [PARAM] min:10,max:60,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_NULL_MOVE_MARGIN2 = 29;
+// 元の値 = 22 , step = 2
+// [PARAM] min:10,max:60,step:2,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_NULL_MOVE_MARGIN2 = 22;
 
-// 元の値 = 84 , step = 4
-// [PARAM] min:10,max:100,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_NULL_MOVE_MARGIN3 = 84;
+// 元の値 = 15 , step = 4
+// [PARAM] min:5,max:40,step:2,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_NULL_MOVE_MARGIN3 = 15;
 
-// 元の値 = 168 , step = 50
-// [PARAM] min:0,max:400,step:5,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_NULL_MOVE_MARGIN4 = 168;
+// 元の値 = 204 , step = 50
+// [PARAM] min:0,max:400,step:30,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_NULL_MOVE_MARGIN4 = 204;
 
 
 
@@ -144,20 +145,20 @@ PARAM_DEFINE PARAM_NULL_MOVE_RETURN_DEPTH = 13;
 //
 
 // probcutの前提depth
-// 元の値 = 4
+// 元の値 = 4 , step = 1
 // [PARAM] min:3,max:10,step:1,interval:1,time_rate:1,fixed
 PARAM_DEFINE PARAM_PROBCUT_DEPTH = 4;
 
 // probcutのmargin
 //    式 = beta + PARAM_PROBCUT_MARGIN1 - improving * PARAM_PROBCUT_MARGIN2
 //   improvingの効果怪しいので抑え気味にしておく。
-// 元の値 = 194
-// [PARAM] min:100,max:300,step:3,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_PROBCUT_MARGIN1 = 194;
+// 元の値 = 209 , step = 20
+// [PARAM] min:100,max:300,step:10,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_PROBCUT_MARGIN1 = 209;
 
-// 元の値 = 49 , step = 5
-// [PARAM] min:20,max:80,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_PROBCUT_MARGIN2 = 49;
+// 元の値 = 44 , step = 10
+// [PARAM] min:20,max:80,step:10,interval:1,time_rate:1,fixed
+PARAM_DEFINE PARAM_PROBCUT_MARGIN2 = 44;
 
 
 //
@@ -171,10 +172,11 @@ PARAM_DEFINE PARAM_PROBCUT_MARGIN2 = 49;
 // [PARAM] min:4,max:13,step:1,interval:2,time_rate:1,fixed
 PARAM_DEFINE PARAM_SINGULAR_EXTENSION_DEPTH = 7;
 
-// singular extensionのmarginを計算するときの係数
-// 元の値 = 4 , step = 1
-// [PARAM] min:0,max:10,step:1,interval:2,time_rate:1,fixed
-PARAM_DEFINE PARAM_SINGULAR_MARGIN = 4;
+// singular extensionのmarginを計算するときの係数(Stockfishのコードから256倍にscalingしてある)
+// +64すると自己対局だとすごく強くなって見えるかもしれないが、まやかしである。
+// 元の値 = 768 , step = 64
+// [PARAM] min:0,max:1024,step:64,interval:2,time_rate:1,fixed
+PARAM_DEFINE PARAM_SINGULAR_MARGIN = 768;
 
 
 //
@@ -183,15 +185,15 @@ PARAM_DEFINE PARAM_SINGULAR_MARGIN = 4;
 
 // historyによる枝刈りをする深さ。適用depth。
 // Stockfish10からこの値を大きくしすぎると良くないようだ。
-// 元の値 = 4 , step = 1
+// 元の値 = 5 , step = 1
 // [PARAM] min:2,max:16,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_PRUNING_BY_HISTORY_DEPTH = 4;
+PARAM_DEFINE PARAM_PRUNING_BY_HISTORY_DEPTH = 5;
 
 
 // historyの値によってreductionするときの係数
-// 元の値 = 5278 , step = 500
+// 元の値 = 4923 , step = 500
 // [PARAM] min:2000,max:8000,step:250,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_REDUCTION_BY_HISTORY = 4828;
+PARAM_DEFINE PARAM_REDUCTION_BY_HISTORY = 4923;
 
 
 //
@@ -238,34 +240,32 @@ PARAM_DEFINE PARAM_QSEARCH_FORCE_EVAL = 0;
 PARAM_DEFINE PARAM_ASPIRATION_SEARCH_DELTA = 17;
 
 
-
-// 評価関数での手番の価値
-// 元の値 = 20 , step = 2
-// [PARAM] min:10,max:50,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE PARAM_EVAL_TEMPO = 20;
-
 // MovePickerの quietのvalue計算用の係数
+// 注意 : この調整をONにするためには movepick.cpp の
+// 　以下の変数を使ってあるところの #if を有効化("#if 1"を"#if 0"に変更)
+// 　する必要がある。
 
+// 元の値 = 32 , step = 8
+// これだけ " 2 * " と係数が掛かっているので倍にして考える必要がある。
+// 32は大きすぎるのではないかと…。
+// [PARAM] min:10,max:50,step:4,interval:1,time_rate:1,fixed
+PARAM_DEFINE MOVE_PICKER_Q_PARAM1 = 32;
 
-// 元の値 = 32 , step = 4
-// [PARAM] min:10,max:50,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE MOVE_PICKER_Q_PARAM1 = 34;
+// 元の値 = 32 , step = 8
+// [PARAM] min:10,max:50,step:8,interval:1,time_rate:1,fixed
+PARAM_DEFINE MOVE_PICKER_Q_PARAM2 = 32;
 
-// 元の値 = 32 , step = 4
-// [PARAM] min:10,max:50,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE MOVE_PICKER_Q_PARAM2 = 37;
-
-// 元の値 = 32 , step = 4
-// [PARAM] min:10,max:50,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE MOVE_PICKER_Q_PARAM3 = 33;
+// 元の値 = 32 , step = 8
+// [PARAM] min:10,max:50,step:4,interval:1,time_rate:1,fixed
+PARAM_DEFINE MOVE_PICKER_Q_PARAM3 = 32;
 
 // 元の値 = 16 , step = 4
-// [PARAM] min:10,max:50,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE MOVE_PICKER_Q_PARAM4 = 12;
+// [PARAM] min:10,max:50,step:4,interval:1,time_rate:1,fixed
+PARAM_DEFINE MOVE_PICKER_Q_PARAM4 = 16;
 
 // 元の値 = 16 , step = 4
-// [PARAM] min:10,max:50,step:1,interval:1,time_rate:1,fixed
-PARAM_DEFINE MOVE_PICKER_Q_PARAM5 = 18;
+// [PARAM] min:10,max:50,step:2,interval:1,time_rate:1,fixed
+PARAM_DEFINE MOVE_PICKER_Q_PARAM5 = 16;
 
 
 // ABテスト用

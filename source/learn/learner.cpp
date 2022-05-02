@@ -1326,9 +1326,6 @@ struct SfenReader
 	{
 		auto open_next_file = [&]()
 		{
-			if (fs.is_open())
-				fs.close();
-
 			// もう無い
 			if (filenames.size() == 0)
 				return false;
@@ -1337,12 +1334,14 @@ struct SfenReader
 			string filename = *filenames.rbegin();
 			filenames.pop_back();
 
-			fs.open(filename, ios::in | ios::binary);
+			auto result = binary_reader.Open(filename);
 			cout << "open filename = " << filename << endl;
-			ASSERT(fs);
+			ASSERT(result.is_ok());
 
 			return true;
 		};
+
+		open_next_file();
 
 		while (true)
 		{
@@ -1353,19 +1352,26 @@ struct SfenReader
 			if (stop_flag)
 				return;
 
-			PSVector sfens;
-			sfens.reserve(SFEN_READ_SIZE);
+			PSVector sfens(SFEN_READ_SIZE);
+			// 次にこの位置から読み込む。
+			size_t sfens_read_offset = 0;
 
 			// ファイルバッファにファイルから読み込む。
-			while (sfens.size() < SFEN_READ_SIZE)
+			while (sfens_read_offset < SFEN_READ_SIZE)
 			{
-				PackedSfenValue p;
-				if (fs.read((char*)&p, sizeof(PackedSfenValue)))
-				{
-					sfens.push_back(p);
-				} else
-				{
-					// 読み込み失敗
+				size_t expected_size_of_read_bytes = (SFEN_READ_SIZE - sfens_read_offset) * sizeof(PackedSfenValue);
+				size_t actual_size_of_read_bytes = 0;
+				auto result = binary_reader.Read(&sfens[sfens_read_offset], expected_size_of_read_bytes, &actual_size_of_read_bytes);
+				if (!(result.is_ok() || result.is_eof())) {
+					cout << endl << "Failed to read a file." << endl;
+					end_of_files = true;
+					return;
+				}
+
+				sfens_read_offset += actual_size_of_read_bytes / sizeof(PackedSfenValue);
+				if (sfens_read_offset < SFEN_READ_SIZE) {
+					// ファイルの終端に達した等、必要な量を読み込むことができなかった。
+					// 次のファイルを読み込む。
 					if (!open_next_file())
 					{
 						// 次のファイルもなかった。あぼーん。
@@ -1468,7 +1474,7 @@ protected:
 
 
 	// sfenファイルのハンドル
-	std::fstream fs;
+	SystemIO::BinaryReader binary_reader;
 
 	// 各スレッド用のsfen
 	// (使いきったときにスレッドが自らdeleteを呼び出して開放すべし。)
@@ -1627,99 +1633,130 @@ void LearnerThink::calc_loss(size_t thread_id, u64 done)
 	// ここ、並列化したほうが良いのだがslaveの前の探索が終わってなかったりしてちょっと面倒。
 	// taskを呼び出すための仕組みを作ったのでそれを用いる。
 
-	// こなすべきtaskの数。
-	atomic<int> task_count;
-	task_count = (int)sr.sfen_for_mse.size();
-	task_dispatcher.task_reserve(task_count);
+	// Apery式並列タスク実行
+	std::atomic_int64_t global_position_index;
+	global_position_index = 0;
 
-	// 局面の探索をするtaskを生成して各スレッドに振ってやる。
-	for (const auto& ps : sr.sfen_for_mse)
-	{
+	// スレッド一つにつき一つのタスクを作る。
+	int num_tasks = (int)Options["Threads"];
+	task_dispatcher.task_reserve(num_tasks);
+
+	atomic<int> num_finished_tasks;
+	num_finished_tasks = 0;
+
+	for (int task_index = 0; task_index < num_tasks; ++task_index) {
 		// TaskDispatcherを用いて各スレッドに作業を振る。
 		// そのためのタスクの定義。
 		// ↑で使っているposをcaptureされるとたまらんのでcaptureしたい変数は一つずつ指定しておく。
-		auto task = [&ps,&test_sum_cross_entropy_eval,&test_sum_cross_entropy_win,&test_sum_cross_entropy,&test_sum_entropy_eval,&test_sum_entropy_win,&test_sum_entropy, &sum_norm,&task_count ,&move_accord_count](size_t thread_id)
+		auto task = [&test_sum_cross_entropy_eval, &test_sum_cross_entropy_win, &test_sum_cross_entropy,
+			&test_sum_entropy_eval, &test_sum_entropy_win, &test_sum_entropy,
+			&sum_norm, &num_finished_tasks, &move_accord_count,
+			&global_position_index, this](size_t thread_id)
 		{
 			// 複数のプロセスでlearnコマンドを実行した場合、NUMAノード0しか使われなくなる問題への対処
 			WinProcGroup::bindThisThread(thread_id);
 
-			// これ、C++ではループごとに新たなpsのインスタンスをちゃんとcaptureするのだろうか.. →　するようだ。
-			auto th = Threads[thread_id];
-			auto& pos = th->rootPos;
-			StateInfo si;
-			if (pos.set_from_packed_sfen(ps.sfen ,&si, th).is_not_ok())
-			{
-				// 運悪くrmse計算用のsfenとして、不正なsfenを引いてしまっていた。
-				cout << "Error! : illegal packed sfen " << pos.sfen() << endl;
-			}
+			// 各タスク内のローカルな総和
+			double local_test_sum_cross_entropy_eval = 0.0;
+			double local_test_sum_cross_entropy_win = 0.0;
+			double local_test_sum_cross_entropy = 0.0;
+			double local_test_sum_entropy_eval = 0.0;
+			double local_test_sum_entropy_win = 0.0;
+			double local_test_sum_entropy = 0.0;
+			double local_sum_norm = 0.0;
+			int local_move_accord_count = 0;
 
-			// 浅い探索の評価値
-			// evaluate()の値を用いても良いのだが、ロスを計算するときにlearn_cross_entropyと
-			// 値が比較しにくくて困るのでqsearch()を用いる。
-			// EvalHashは事前に無効化してある。(そうしないと毎回同じ値が返ってしまう)
-			auto r = qsearch(pos);
-
-			auto shallow_value = r.first;
-			{
-				const auto rootColor = pos.side_to_move();
-				const auto pv = r.second;
-				std::vector<StateInfo> states(pv.size());
-				for (size_t i = 0; i < pv.size(); ++i)
+			size_t num_sfens = sr.sfen_for_mse.size();
+			for (size_t position_index = global_position_index++; position_index < num_sfens;
+				position_index = global_position_index++) {
+				auto th = Threads[thread_id];
+				auto& pos = th->rootPos;
+				StateInfo si;
+				auto& ps = sr.sfen_for_mse[position_index];
+				if (pos.set_from_packed_sfen(ps.sfen, &si, th).is_not_ok())
 				{
-					pos.do_move(pv[i], states[i]);
-					Eval::evaluate_with_no_return(pos);
+					// 運悪くrmse計算用のsfenとして、不正なsfenを引いてしまっていた。
+					cout << "Error! : illegal packed sfen " << pos.sfen() << endl;
 				}
-				shallow_value = (rootColor == pos.side_to_move()) ? Eval::evaluate(pos) : -Eval::evaluate(pos);
-				for (auto it = pv.rbegin(); it != pv.rend(); ++it)
-					pos.undo_move(*it);
-			}
 
-			// 深い探索の評価値
-			auto deep_value = (Value)ps.score;
+				// 浅い探索の評価値
+				// evaluate()の値を用いても良いのだが、ロスを計算するときにlearn_cross_entropyと
+				// 値が比較しにくくて困るのでqsearch()を用いる。
+				// EvalHashは事前に無効化してある。(そうしないと毎回同じ値が返ってしまう)
+				auto r = qsearch(pos);
 
-			// 注) このコードは、learnコマンドでeval_limitを指定しているときのことを考慮してない。
+				auto shallow_value = r.first;
+				{
+					const auto rootColor = pos.side_to_move();
+					const auto pv = r.second;
+					std::vector<StateInfo> states(pv.size());
+					for (size_t i = 0; i < pv.size(); ++i)
+					{
+						pos.do_move(pv[i], states[i]);
+						Eval::evaluate_with_no_return(pos);
+					}
+					shallow_value = (rootColor == pos.side_to_move()) ? Eval::evaluate(pos) : -Eval::evaluate(pos);
+					for (auto it = pv.rbegin(); it != pv.rend(); ++it)
+						pos.undo_move(*it);
+				}
 
-			// --- 誤差の計算
+				// 深い探索の評価値
+				auto deep_value = (Value)ps.score;
+
+				// 注) このコードは、learnコマンドでeval_limitを指定しているときのことを考慮してない。
+
+				// --- 誤差の計算
 
 #if !defined(LOSS_FUNCTION_IS_ELMO_METHOD)
-			auto grad = calc_grad(deep_value, shallow_value, ps);
+				auto grad = calc_grad(deep_value, shallow_value, ps);
 
-			// rmse的なもの
-			sum_error += grad*grad;
-			// 勾配の絶対値を足したもの
-			sum_error2 += abs(grad);
-			// 評価値の差の絶対値を足したもの
-			sum_error3 += abs(shallow_value - deep_value);
+				// rmse的なもの
+				sum_error += grad * grad;
+				// 勾配の絶対値を足したもの
+				sum_error2 += abs(grad);
+				// 評価値の差の絶対値を足したもの
+				sum_error3 += abs(shallow_value - deep_value);
 #endif
 
-			// --- 交差エントロピーの計算
+				// --- 交差エントロピーの計算
 
-			// とりあえずelmo methodの時だけ勝率項と勝敗項に関して
-			// 交差エントロピーを計算して表示させる。
+				// とりあえずelmo methodの時だけ勝率項と勝敗項に関して
+				// 交差エントロピーを計算して表示させる。
 
 #if defined ( LOSS_FUNCTION_IS_ELMO_METHOD )
-			double test_cross_entropy_eval, test_cross_entropy_win, test_cross_entropy;
-			double test_entropy_eval, test_entropy_win, test_entropy;
-			calc_cross_entropy(deep_value, shallow_value, ps, test_cross_entropy_eval, test_cross_entropy_win, test_cross_entropy, test_entropy_eval, test_entropy_win, test_entropy);
-			// 交差エントロピーの合計は定義的にabs()をとる必要がない。
-			test_sum_cross_entropy_eval += test_cross_entropy_eval;
-			test_sum_cross_entropy_win += test_cross_entropy_win;
-			test_sum_cross_entropy += test_cross_entropy;
-			test_sum_entropy_eval += test_entropy_eval;
-			test_sum_entropy_win += test_entropy_win;
-			test_sum_entropy += test_entropy;
-			sum_norm += (double)abs(shallow_value);
+				double test_cross_entropy_eval, test_cross_entropy_win, test_cross_entropy;
+				double test_entropy_eval, test_entropy_win, test_entropy;
+				calc_cross_entropy(deep_value, shallow_value, ps, test_cross_entropy_eval, test_cross_entropy_win, test_cross_entropy, test_entropy_eval, test_entropy_win, test_entropy);
+				// 交差エントロピーの合計は定義的にabs()をとる必要がない。
+				local_test_sum_cross_entropy_eval += test_cross_entropy_eval;
+				local_test_sum_cross_entropy_win += test_cross_entropy_win;
+				local_test_sum_cross_entropy += test_cross_entropy;
+				local_test_sum_entropy_eval += test_entropy_eval;
+				local_test_sum_entropy_win += test_entropy_win;
+				local_test_sum_entropy += test_entropy;
+				local_sum_norm += (double)abs(shallow_value);
 #endif
 
-			// 教師の指し手と浅い探索のスコアが一致するかの判定
-			{
-				auto r = search(pos,1);
-				if ((u16)r.second[0] == ps.move)
-					move_accord_count.fetch_add(1, std::memory_order_relaxed);
+				// 教師の指し手と浅い探索のスコアが一致するかの判定
+				{
+					auto r = search(pos, 1);
+					if ((u16)r.second[0] == ps.move)
+						++local_move_accord_count;
+				}
 			}
 
-			// こなしたのでタスク一つ減る
-			--task_count;
+			// グローバルな総和にまとめて足し合わせる。
+			test_sum_cross_entropy_eval += local_test_sum_cross_entropy_eval;
+			test_sum_cross_entropy_win += local_test_sum_cross_entropy_win;
+			test_sum_cross_entropy += local_test_sum_cross_entropy;
+			test_sum_entropy_eval += local_test_sum_entropy_eval;
+			test_sum_entropy_win += local_test_sum_entropy_win;
+			test_sum_entropy += local_test_sum_entropy;
+			sum_norm += local_sum_norm;
+			move_accord_count += local_move_accord_count;
+
+			// タスクが一つ終了した。
+			++num_finished_tasks;
 		};
 
 		// 定義したタスクをslaveに投げる。
@@ -1730,7 +1767,7 @@ void LearnerThink::calc_loss(size_t thread_id, u64 done)
 	task_dispatcher.on_idle(thread_id);
 
 	// すべてのtaskの完了を待つ
-	while (task_count)
+	while (num_finished_tasks < num_tasks)
 		Tools::sleep(1);
 
 #if !defined(LOSS_FUNCTION_IS_ELMO_METHOD)
@@ -1946,7 +1983,7 @@ void LearnerThink::thread_worker(size_t thread_id)
 		{
 			// 変なsfenを掴かまされた。デバッグすべき！
 			// 不正なsfenなのでpos.sfen()で表示できるとは限らないが、しないよりマシ。
-			cout << "Error! : illigal packed sfen = " << pos.sfen() << endl;
+			cout << "Error! : illegal packed sfen = " << pos.sfen() << endl;
 			goto RetryRead;
 		}
 #if !defined(EVAL_NNUE)

@@ -25,6 +25,8 @@ extern "C" {
 		PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX, PDWORD);
 	typedef bool(*fun2_t)(USHORT, PGROUP_AFFINITY);
 	typedef bool(*fun3_t)(HANDLE, CONST GROUP_AFFINITY*, PGROUP_AFFINITY);
+	typedef bool(*fun4_t)(USHORT, PGROUP_AFFINITY, USHORT, PUSHORT);
+	typedef WORD(*fun5_t)();
 }
 
 #endif
@@ -34,20 +36,29 @@ extern "C" {
 //#include <iostream>
 #include <sstream>
 //#include <vector>
-
-#include <ctime>	// std::ctime()
-#include <cstring>	// std::memset()
-#include <cmath>	// std::exp()
-#include <cstdio>	// fopen(),fread()
+//#include <cstdlib>
 
 #if defined(__linux__) && !defined(__ANDROID__)
 #include <stdlib.h>
 #include <sys/mman.h> // madvise()
 #endif
 
+#if defined(__APPLE__) || defined(__ANDROID__) || defined(__OpenBSD__) || (defined(__GLIBCXX__) && !defined(_GLIBCXX_HAVE_ALIGNED_ALLOC) && !defined(_WIN32)) || defined(__e2k__)
+#define POSIXALIGNEDALLOC
+#include <stdlib.h>
+#endif
+
 #include "misc.h"
 #include "thread.h"
-#include "usi.h"
+
+// === やねうら王独自追加
+
+#include <ctime>				// std::ctime()
+#include <cstring>				// std::memset()
+#include <cstdio>				// fopen(),fread()
+#include <cmath>				// std::exp()
+#include "usi.h"				// Options
+#include "testcmd/unit_test.h"	// UnitTester
 
 using namespace std;
 
@@ -79,30 +90,7 @@ namespace {
 		streambuf *buf, *log; // 標準入出力 , ログファイル
 	};
 
-	struct Logger {
-		static void start(bool b)
-		{
-			static Logger log;
-
-			if (b && !log.file.is_open())
-			{
-				log.file.open("io_log.txt", ifstream::out);
-				cin.rdbuf(&log.in);
-				cout.rdbuf(&log.out);
-				cout << "start logger" << endl;
-			}
-			else if (!b && log.file.is_open())
-			{
-				cout << "end logger" << endl;
-				cout.rdbuf(log.out.buf);
-				cin.rdbuf(log.in.buf);
-				log.file.close();
-			}
-		}
-
-	private:
-		Tie in, out;   // 標準入力とファイル、標準出力とファイルのひも付け
-		ofstream file; // ログを書き出すファイル
+	class Logger {
 
 		// clangだとここ警告が出るので一時的に警告を抑制する。
 #pragma warning (disable : 4068) // MSVC用の不明なpragmaの抑制
@@ -111,13 +99,55 @@ namespace {
 		Logger() : in(cin.rdbuf(), file.rdbuf()), out(cout.rdbuf(), file.rdbuf()) {}
 #pragma clang diagnostic pop
 
-		~Logger() { start(false); }
+		~Logger() { start(""); }
+
+	public:
+		// ログ記録の開始。
+		// fname : ログを書き出すファイル名
+		static void start(const std::string& name) {
+
+			string fname = name;
+			string upper_fname = StringExtension::ToUpper(fname);
+			// 以前、"WriteDebugLog"オプションはチェックボックスになっていたので
+			// GUIがTrue/Falseを渡してくることがある。
+			if (upper_fname == "FALSE")
+				fname = ""; // なかったことにする。
+			else if (upper_fname == "TRUE")
+				fname = "io_log.txt";
+
+			static Logger l;
+
+			if (l.file.is_open())
+			{
+				cout.rdbuf(l.out.buf);
+				cin.rdbuf(l.in.buf);
+				l.file.close();
+			}
+
+			if (!fname.empty())
+			{
+				l.file.open(fname, ifstream::out);
+
+				if (!l.file.is_open())
+				{
+					cerr << "Unable to open debug log file " << fname << endl;
+					exit(EXIT_FAILURE);
+				}
+
+				cin.rdbuf(&l.in);
+				cout.rdbuf(&l.out);
+			}
+		}
+
+	private:
+		Tie in, out;   // 標準入力とファイル、標準出力とファイルのひも付け
+		ofstream file; // ログを書き出すファイル
 	};
 
 } // 無名namespace
 
-// Trampoline helper to avoid moving Logger to misc.h
-void start_logger(bool b) { Logger::start(b); }
+/// Trampoline helper to avoid moving Logger to misc.h
+void start_logger(const std::string& fname) { Logger::start(fname); }
 
 // --------------------
 //  engine info
@@ -341,33 +371,46 @@ namespace {
 	bool largeMemoryAllocFirstCall = true;
 }
 
-/// aligned_ttmem_alloc will return suitably aligned memory, and if possible use large pages.
-/// The returned pointer is the aligned one, while the mem argument is the one that needs to be passed to free.
-/// With c++17 some of this functionality can be simplified.
-#if defined(__linux__) && !defined(__ANDROID__)
+/// std_aligned_alloc() is our wrapper for systems where the c++17 implementation
+/// does not guarantee the availability of aligned_alloc(). Memory allocated with
+/// std_aligned_alloc() must be freed with std_aligned_free().
 
-void* aligned_ttmem_alloc(size_t allocSize, void*& mem , size_t align /* ignore */ ) {
+void* std_aligned_alloc(size_t alignment, size_t size) {
 
-	constexpr size_t alignment = 2 * 1024 * 1024; // assumed 2MB page sizes
-	size_t size = ((allocSize + alignment - 1) / alignment) * alignment; // multiple of alignment
-	if (posix_memalign(&mem, alignment, size))
-		mem = nullptr;
-	madvise(mem, allocSize, MADV_HUGEPAGE);
-
-	// Linux環境で、Hash TableのためにLarge Pageを確保したことを出力する。
-	if (largeMemoryAllocFirstCall)
-	{
-		sync_cout << "info string Hash table allocation: Linux Large Pages used." << sync_endl;
-		largeMemoryAllocFirstCall = false;
-	}
-
-	return mem;
+#if defined(POSIXALIGNEDALLOC)
+	void* mem;
+	return posix_memalign(&mem, alignment, size) ? nullptr : mem;
+#elif defined(_WIN32)
+	return _mm_malloc(size, alignment);
+#else
+	return std::aligned_alloc(alignment, size);
+#endif
 }
 
-#elif defined(_WIN64)
+void std_aligned_free(void* ptr) {
 
-static void* aligned_ttmem_alloc_large_pages(size_t allocSize) {
+#if defined(POSIXALIGNEDALLOC)
+	free(ptr);
+#elif defined(_WIN32)
+	_mm_free(ptr);
+#else
+	free(ptr);
+#endif
+}
 
+// Windows
+#if defined(_WIN32)
+
+static void* aligned_large_pages_alloc_windows(size_t allocSize) {
+
+	// Windows 64bit用専用。
+	// Windows 32bit用ならこの機能は利用できない。
+	#if !defined(_WIN64)
+		(void)allocSize; // suppress unused-parameter compiler warning
+		return nullptr;
+	#else
+
+	// ※ やねうら王独自拡張
 	// LargePageはエンジンオプションにより無効化されているなら何もせずに返る。
 	if (!Options["LargePageEnable"])
 		return nullptr;
@@ -420,14 +463,19 @@ static void* aligned_ttmem_alloc_large_pages(size_t allocSize) {
 	CloseHandle(hProcessToken);
 
 	return mem;
+
+	#endif
 }
 
-void* aligned_ttmem_alloc(size_t allocSize , void*& mem , size_t align /* ignore */) {
+void* aligned_large_pages_alloc(size_t allocSize) {
+
+	// ※　ここでは4KB単位でalignされたメモリが返ることは保証されているので
+	//     引数でalignを指定できる必要はない。(それを超えた大きなalignを行いたいケースがない)
 
 	//static bool firstCall = true;
 
 	// try to allocate large pages
-	mem = aligned_ttmem_alloc_large_pages(allocSize);
+	void* ptr = aligned_large_pages_alloc_windows(allocSize);
 
 	// Suppress info strings on the first call. The first call occurs before 'uci'
 	// is received and in that case this output confuses some GUIs.
@@ -442,7 +490,7 @@ void* aligned_ttmem_alloc(size_t allocSize , void*& mem , size_t align /* ignore
 //	if (!firstCall)
 	if (largeMemoryAllocFirstCall)
 	{
-		if (mem)
+		if (ptr)
 			sync_cout << "info string Hash table allocation: Windows Large Pages used." << sync_endl;
 		else
 			sync_cout << "info string Hash table allocation: Windows Large Pages not used." << sync_endl;
@@ -452,61 +500,67 @@ void* aligned_ttmem_alloc(size_t allocSize , void*& mem , size_t align /* ignore
 
 	// fall back to regular, page aligned, allocation if necessary
 	// 4KB単位であることは保証されているはず..
-	if (!mem)
-		mem = VirtualAlloc(NULL, allocSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	if (!ptr)
+		ptr = VirtualAlloc(NULL, allocSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	// VirtualAlloc()はpage size(4KB)でalignされていること自体は保証されているはず。
 
 	//cout << (u64)mem << "," << allocSize << endl;
 
-	return mem;
+	return ptr;
 }
 
 #else
+// LargePage非対応の環境であれば、std::aligned_alloc()を用いて確保しておく。
+// 最低でも4KBでalignされたメモリが返るので、引数でalignを指定できるようにする必要はない。
 
-void* aligned_ttmem_alloc(size_t allocSize, void*& mem , size_t align) {
+void* aligned_large_pages_alloc(size_t allocSize) {
 
-	//constexpr size_t alignment = 64; // assumed cache line size
+#if defined(__linux__)
+	constexpr size_t alignment = 2 * 1024 * 1024; // assumed 2MB page size
+#else
+	constexpr size_t alignment = 4096; // assumed small page size
+#endif
 
-	// 引数で指定された値でalignmentされていて欲しい。
-	const size_t alignment = align;
+	// round up to multiples of alignment
+	size_t size = ((allocSize + alignment - 1) / alignment) * alignment;
+	void* mem = std_aligned_alloc(alignment, size);
+#if defined(MADV_HUGEPAGE)
+	madvise(mem, size, MADV_HUGEPAGE);
+#endif
 
-	size_t size = allocSize + alignment - 1; // allocate some extra space
-	mem = malloc(size);
-
-	if (largeMemoryAllocFirstCall)
-	{
-		sync_cout << "info string Hash table allocation: Large Pages not used." << sync_endl;
-		largeMemoryAllocFirstCall = false;
-	}
-
-	void* ret = reinterpret_cast<void*>((uintptr_t(mem) + alignment - 1) & ~uintptr_t(alignment - 1));
-	return ret;
+	return mem;
 }
 
 #endif
 
-/// aligned_ttmem_free will free the previously allocated ttmem
-#if defined(_WIN64)
+/// aligned_large_pages_free() will free the previously allocated ttmem
 
-void aligned_ttmem_free(void* mem) {
+#if defined(_WIN32)
+
+void aligned_large_pages_free(void* mem) {
 
 	if (mem && !VirtualFree(mem, 0, MEM_RELEASE))
 	{
 		DWORD err = GetLastError();
-		std::cerr << "Failed to free transposition table. Error code: 0x" <<
-			std::hex << err << std::dec << std::endl;
-		Tools::exit();
+		std::cerr << "Failed to free large page memory. Error code: 0x"
+			<< std::hex << err
+			<< std::dec << std::endl;
+		exit(EXIT_FAILURE);
 	}
 }
 
 #else
 
-void aligned_ttmem_free(void* mem) {
-	free(mem);
+void aligned_large_pages_free(void* mem) {
+	std_aligned_free(mem);
 }
 
 #endif
+
+// --------------------
+//  LargeMemory class
+// --------------------
 
 // メモリを確保する。Large Pageに確保できるなら、そこにする。
 // aligned_ttmem_alloc()を内部的に呼び出すので、アドレスは少なくとも2MBでalignされていることは保証されるが、
@@ -516,21 +570,21 @@ void aligned_ttmem_free(void* mem) {
 void* LargeMemory::alloc(size_t size, size_t align , bool zero_clear)
 {
 	free();
-	return static_alloc(size, this->mem, align, zero_clear);
+	return static_alloc(size, align, zero_clear);
 }
 
 // alloc()で確保したメモリを開放する。
 // このクラスのデストラクタからも自動でこの関数が呼び出されるので明示的に呼び出す必要はない(かも)
 void LargeMemory::free()
 {
-	static_free(mem);
-	mem = nullptr;
+	static_free(ptr);
+	ptr = nullptr;
 }
 
 // alloc()のstatic関数版。memには、static_free()に渡すべきポインタが得られる。
-void* LargeMemory::static_alloc(size_t size, void*& mem, size_t align, bool zero_clear)
+void* LargeMemory::static_alloc(size_t size, size_t align, bool zero_clear)
 {
-	void* ptr = aligned_ttmem_alloc(size, mem, align);
+	void* mem = aligned_large_pages_alloc(size);
 
 	auto error_exit = [&](std::string mes) {
 		sync_cout << "info string Error! : " << mes << " in LargeMemory::alloc(" << size << "," << align << ")" << sync_endl;
@@ -538,11 +592,11 @@ void* LargeMemory::static_alloc(size_t size, void*& mem, size_t align, bool zero
 	};
 
 	// メモリが正常に確保されていることを保証する
-	if (ptr == nullptr)
+	if (mem == nullptr)
 		error_exit("can't alloc enough memory.");
 
 	// ptrがalignmentされていることを保証する
-	if ((reinterpret_cast<size_t>(ptr) % align) != 0)
+	if ((reinterpret_cast<size_t>(mem) % align) != 0)
 		error_exit("can't alloc algined memory.");
 
 	// ゼロクリアが必要なのか？
@@ -551,19 +605,19 @@ void* LargeMemory::static_alloc(size_t size, void*& mem, size_t align, bool zero
 		// 確保したのが256MB以上なら並列化してゼロクリアする。
 		if (size < 256 * 1024 * 1024)
 			// そんなに大きな領域ではないから、普通にmemset()でやっとく。
-			memset(ptr, 0, size);
+			std::memset(mem, 0, size);
 		else
 			// 並列版ゼロクリア
-			Tools::memclear(nullptr, ptr, size);
+			Tools::memclear(nullptr, mem, size);
 	}
 
-	return ptr;
+	return mem;
 }
 
 // static_alloc()で確保したメモリを開放する。
 void LargeMemory::static_free(void* mem)
 {
-	aligned_ttmem_free(mem);
+	aligned_large_pages_free(mem);
 }
 
 
@@ -581,11 +635,11 @@ namespace WinProcGroup {
 #else
 
 
-	/// best_group() retrieves logical processor information using Windows specific
-	/// API and returns the best group id for the thread with index idx. Original
+	/// best_node() retrieves logical processor information using Windows specific
+	/// API and returns the best node id for the thread with index idx. Original
 	/// code from Texel by Peter Österlund.
 
-	int best_group(size_t idx) {
+	int best_node(size_t idx) {
 
 		// スレッド番号idx(0 ～ 論理コア数-1)に対して
 		// 適切なNUMA NODEとCPU番号を設定する。
@@ -609,7 +663,8 @@ namespace WinProcGroup {
 		if (!fun1)
 			return -1;
 
-		// First call to get returnLength. We expect it to fail due to null buffer
+		// First call to GetLogicalProcessorInformationEx() to get returnLength.
+		// We expect the call to fail due to null buffer.
 		if (fun1(RelationAll, nullptr, &returnLength))
 			return -1;
 
@@ -684,22 +739,35 @@ namespace WinProcGroup {
 		// Use only local variables to be thread-safe
 
 		// 使うべきプロセッサグループ番号が返ってくる。
-		int group = best_group(idx);
+		int node = best_node(idx);
 
-		if (group == -1)
+		if (node == -1)
 			return;
 
 		// Early exit if the needed API are not available at runtime
 		HMODULE k32 = GetModuleHandle(L"Kernel32.dll");
 		auto fun2 = (fun2_t)(void(*)())GetProcAddress(k32, "GetNumaNodeProcessorMaskEx");
 		auto fun3 = (fun3_t)(void(*)())GetProcAddress(k32, "SetThreadGroupAffinity");
+		auto fun4 = (fun4_t)(void(*)())GetProcAddress(k32, "GetNumaNodeProcessorMask2");
 
 		if (!fun2 || !fun3)
 			return;
 
-		GROUP_AFFINITY affinity;
-		if (fun2(group, &affinity))
-			fun3(GetCurrentThread(), &affinity, nullptr);
+		if (!fun4) {
+			GROUP_AFFINITY affinity;
+			if (fun2(node, &affinity))
+				fun3(GetCurrentThread(), &affinity, nullptr);
+		} else {
+			// If a numa node has more than one processor group, we assume they are
+			// sized equal and we spread threads evenly across the groups.
+			USHORT elements, returnedElements;
+			elements = GetMaximumProcessorGroupCount();
+			GROUP_AFFINITY *affinity = (GROUP_AFFINITY*)malloc(
+				elements * sizeof(GROUP_AFFINITY));
+			if (fun4(node, affinity, elements, &returnedElements))
+				fun3(GetCurrentThread(), &affinity[idx % returnedElements], nullptr);
+			free(affinity);
+		}
 	}
 
 #endif
@@ -896,6 +964,39 @@ namespace Tools
 #endif
 	}
 
+	// size_ : 全件でいくらあるかを設定する。
+	ProgressBar::ProgressBar(u64 size_) : size(size_)
+	{
+		if (enable_)
+			cout << "0% [";
+		dots = 0;
+	}
+
+	// 進捗を出力する。
+	// current : 現在までに完了している件数
+	void ProgressBar::check(u64 current)
+	{
+		if (!enable_)
+			return;
+
+		// 何個dotを打つべきか。
+		const size_t all_dots = 70; // 100%になった時に70個打つ。
+
+		// 何dot塗りつぶすのか。
+		size_t d = (size == 0) ? all_dots : std::min((size_t)(all_dots * current / size), all_dots);
+
+		for (; dots < d ; ++dots)
+			cout << ".";
+
+		if (dots == all_dots)
+		{
+			cout << "] 100%" << endl;
+			dots++; // 1加算しておけば完了したことがわかる。
+		}
+	}
+	bool ProgressBar::enable_ = false;
+
+
 	// ResultCodeを文字列化する。
 	std::string to_string(ResultCode code)
 	{
@@ -917,7 +1018,7 @@ namespace Tools
 }
 
 // --------------------
-//  ファイルの読み書き
+//  ファイル操作
 // --------------------
 
 namespace SystemIO
@@ -1035,6 +1136,31 @@ namespace SystemIO
 		return Tools::Result::Ok();
 	}
 
+	// 通常のftell/fseekは2GBまでしか対応していないので特別なバージョンが必要である。
+	// 64bit環境でないと対応していない。まあいいや…。
+
+	size_t ftell64(FILE* f)
+	{
+#if defined(_MSC_VER)
+		return _ftelli64(f);
+#elif defined(__GNUC__) && defined(IS_64BIT) && !(defined(__ANDROID__) && defined(__ANDROID_API__) && __ANDROID_API__ < 24) && !defined(__MACH__)
+		return ftello64(f);
+#else
+		return ftell(f);
+#endif
+	}
+
+	int fseek64(FILE* f, size_t offset, int origin)
+	{
+#if defined(_MSC_VER)
+		return _fseeki64(f, offset, origin);
+#elif defined(__GNUC__) && defined(IS_64BIT) && !(defined(__ANDROID__) && defined(__ANDROID_API__) && __ANDROID_API__ < 24) && !defined(__MACH__)
+		return fseeko64(f, offset, origin);
+#else
+		return fseek(f, offset, origin);
+#endif
+	}
+
 	// --- TextFileReader
 
 	// C++のifstreamが遅すぎるので、高速化されたテキストファイル読み込み器
@@ -1064,6 +1190,7 @@ namespace SystemIO
 		cursor = 0;
 		read_size = 0;
 		is_prev_cr = false;
+		line_number = 0;
 	}
 
 	// ファイルをopenする。
@@ -1102,6 +1229,7 @@ namespace SystemIO
 
 	// ReadLineの下請け。何も考えずに1行読み込む。行のtrim、空行のskipなどなし。
 	// line_bufferに読み込まれた行が代入される。
+	// 先頭のUTF-8のBOM(EF BB BF)は無視する。
 	Tools::Result TextReader::read_line_simple()
 	{
 		// buffer[cursor]から読み込んでいく。
@@ -1166,6 +1294,7 @@ namespace SystemIO
 
 
 	// 1行読み込む(改行まで)
+	// 先頭のUTF-8のBOM(EF BB BF)は無視する。
 	Tools::Result TextReader::ReadLine(std::string& line)
 	{
 		while (true)
@@ -1184,11 +1313,25 @@ namespace SystemIO
 					line_buffer.resize(line_buffer.size() - 1);
 				}
 
-			// 空行をスキップするモートであるなら、line_bufferが結果的に空になった場合は繰り返すようにする。
-			if (skipEmptyLine && line_buffer.size() == 0)
+			// ファイル先頭のBOMは読み飛ばす
+			size_t skip_byte = 0;
+			if (line_number == 0)
+				// UTF-8 BOM (EF BB BF)
+				if (line_buffer.size() >= 3 && line_buffer[0] == 0xef && line_buffer[1] == 0xbb && line_buffer[2] == 0xbf)
+					skip_byte = 3;
+			// 他のBOMも読み飛ばしても良いが、まあいいや…。
+
+			// この1行のbyte数(BOMは含まず)
+			size_t line_size = line_buffer.size() - skip_byte;
+
+			// この時点で1行読み込んだことになるので(行をskipしても1行とカウントするので)行番号をインクリメントしておく。
+			line_number++;
+
+			// 空行をスキップするモートであるなら、line_sizeが結果的に空になった場合は次の行を調べる。
+			if (skipEmptyLine && line_size == 0)
 				continue;
 
-			line = std::string((const char*)line_buffer.data(), line_buffer.size());
+			line = std::string((const char*)line_buffer.data() + skip_byte, line_size );
 			return Tools::ResultCode::Ok;
 		}
 	}
@@ -1208,10 +1351,119 @@ namespace SystemIO
 		is_eof = read_size == 0;
 	}
 
+	// ファイルサイズの取得
+	// ファイルポジションは先頭に移動する。
+	size_t TextReader::GetSize()
+	{
+		ASSERT_LV3(fp != nullptr);
+
+		fseek64(fp, 0, SEEK_END);
+		// ftell()は失敗した時に-1を返すらしいのだが…。ここでは失敗を想定していない。
+		size_t endPos = ftell64(fp);
+		fseek64(fp, 0, SEEK_SET);
+		size_t beginPos = ftell64(fp);
+		size_t file_size = endPos - beginPos;
+
+		return file_size;
+	}
+
+	// === TextWriter ===
+
+	Tools::Result TextWriter::Open(const std::string& filename)
+	{
+		Close();
+		fp = fopen(filename.c_str(), "wb");
+		return fp == nullptr ? Tools::ResultCode::FileOpenError
+                             : Tools::ResultCode::Ok;
+	}
+
+	// 文字列を書き出す(改行コードは書き出さない)
+	Tools::Result TextWriter::Write(const std::string& str)
+	{
+		return Write(str.c_str(), str.size());
+	}
+
+	// 1行を書き出す(改行コードも書き出す) 改行コードは"\r\n"とする。
+	Tools::Result TextWriter::WriteLine(const std::string& line)
+	{
+		auto result = Write(line.c_str(), line.size());
+		if (result.is_not_ok())
+			return result;
+
+		// 改行コードも書き出す。
+		return Write("\r\n", (size_t)2);
+	}
+
+	// ptrの指すところからsize [byte]だけ書き出す。
+	Tools::Result TextWriter::Write(const char* ptr, size_t size)
+	{
+		// Openしていなければ書き出せない。
+		if (fp == nullptr)
+			return Tools::ResultCode::FileWriteError;
+
+		// 書き込みカーソルの終端がどこに来るのか。
+		size_t write_cursor_end = write_cursor + size;
+		char* ptr2 = const_cast<char*>(ptr);
+
+		size_t write_size;
+		while (write_cursor_end >= buf_size)
+		{
+			// とりあえず、書けるだけ書いてfwriteする。
+
+			// 今回のループで書き込むbyte数
+			write_size = buf_size - write_cursor;
+			std::memcpy(&buf[write_cursor], ptr2, write_size);
+			if (fwrite(&buf[0], buf_size, 1, fp) == 0)
+				return Tools::ResultCode::FileWriteError;
+
+			// buf[0..write_cursor-1]が窓で、ループごとにその窓がbuf_sizeずつずれていくと考える。
+			// 例えば、ループ2回目ならbuf[write_cursor..write_cursor*2-1]が窓だと考える。
+
+			ptr2             += write_size;
+			size             -= write_size;
+			write_cursor_end -= buf_size;
+			write_cursor      = 0;
+		}
+		std::memcpy(&buf[write_cursor], ptr2, size);
+		write_cursor += size;
+
+		return Tools::ResultCode::Ok;
+	}
+
+	// 内部バッファにあってまだファイルに書き出していないデータをファイルに書き出す。
+	// ※　Close()する時に呼び出されるので通常この関数を呼び出す必要はない。
+	Tools::Result TextWriter::Flush()
+	{
+		// Openしていなければ書き出せない。
+		if (fp == nullptr)
+			return Tools::ResultCode::FileWriteError;
+
+		// bufのwrite_cursorの指している手前までを書き出す。
+		if (write_cursor > 0 && fwrite(&buf[0], write_cursor, 1, fp) == 0)
+			return Tools::ResultCode::FileWriteError;
+
+		write_cursor = 0;
+		return Tools::ResultCode::Ok;
+	}
+
+	Tools::Result TextWriter::Close()
+	{
+		if (fp)
+		{
+			// バッファ、まだflushが終わっていないデータがあるならそれをflushする。
+			if (Flush().is_not_ok())
+				return Tools::ResultCode::FileWriteError;
+
+			fclose(fp); // GetLastErrorでエラーを取得することはできるが…。
+			fp = nullptr;
+		}
+		return Tools::ResultCode::Ok;
+	}
+
 	// === BinaryBase ===
 
 	// ファイルを閉じる。デストラクタからclose()は呼び出されるので明示的に閉じなくても良い。
-	Tools::Result BinaryBase::close()
+	Tools::Result BinaryBase::Close()
 	{
 		Tools::ResultCode result = Tools::ResultCode::Ok;
 		if (fp != nullptr)
@@ -1226,8 +1478,13 @@ namespace SystemIO
 	// === BinaryReader ===
 
 	// ファイルのopen
-	Tools::Result BinaryReader::open(const std::string& filename)
+	Tools::Result BinaryReader::Open(const std::string& filename)
 	{
+		auto close_result = Close();
+		if (!close_result.is_ok()) {
+			return close_result;
+		}
+
 		fp = fopen(filename.c_str(), "rb");
 		if (fp == nullptr)
 			return Tools::Result(Tools::ResultCode::FileOpenError);
@@ -1237,32 +1494,45 @@ namespace SystemIO
 
 	// ファイルサイズの取得
 	// ファイルポジションは先頭に移動する。
-	size_t BinaryReader::get_size()
+	size_t BinaryReader::GetSize()
 	{
 		ASSERT_LV3(fp != nullptr);
 
-		fseek(fp, 0, SEEK_END);
-		size_t endPos = (size_t)ftell(fp);
-		fseek(fp, 0, SEEK_SET);
-		size_t beginPos = (size_t)ftell(fp);
+		fseek64(fp, 0, SEEK_END);
+		size_t endPos = ftell64(fp);
+		fseek64(fp, 0, SEEK_SET);
+		size_t beginPos = ftell64(fp);
 		size_t file_size = endPos - beginPos;
 
 		return file_size;
 	}
 
 	// ptrの指すメモリにsize[byte]だけファイルから読み込む
-	Tools::Result BinaryReader::read(void* ptr, size_t size)
+	Tools::Result BinaryReader::Read(void* ptr, size_t size, size_t* size_of_read_bytes)
 	{
-		if (fread((u8*)ptr, 1, size, fp) != size)
+		size_t actual_size_of_read_bytes = fread(ptr, 1, size, fp);
+
+		if (size_of_read_bytes) {
+			*size_of_read_bytes = actual_size_of_read_bytes;
+		}
+
+		if (feof(fp)) {
+			// ファイルの末尾を超えて読もうとした場合。
+			return Tools::Result(Tools::ResultCode::Eof);
+		}
+
+		if (actual_size_of_read_bytes != size)
 			return Tools::Result(Tools::ResultCode::FileReadError);
 
+		// ファイルの末尾を超えて読もうとしなかった場合。
+		// ファイルの末尾までちょうどを読んだ場合はこちら。
 		return Tools::Result::Ok();
 	}
 
 	// === BinaryWriter ===
 
 	// ファイルのopen
-	Tools::Result BinaryWriter::open(const std::string& filename)
+	Tools::Result BinaryWriter::Open(const std::string& filename)
 	{
 		fp = fopen(filename.c_str(), "wb");
 		if (fp == nullptr)
@@ -1272,7 +1542,7 @@ namespace SystemIO
 	}
 
 	// ptrの指すメモリからsize[byte]だけファイルに書き込む
-	Tools::Result BinaryWriter::write(void* ptr, size_t size)
+	Tools::Result BinaryWriter::Write(void* ptr, size_t size)
 	{
 		if (fwrite((u8*)ptr, 1, size, fp) != size)
 			return Tools::Result(Tools::ResultCode::FileWriteError);
@@ -1280,83 +1550,6 @@ namespace SystemIO
 		return Tools::Result::Ok();
 	}
 }
-
-// --------------------
-//       Parser
-// --------------------
-
-namespace Parser
-{
-
-	/*
-		LineScanner parser("AAA BBB CCC DDD");
-		auto token = parser.peek_text();
-		cout << token << endl;
-		token = parser.get_text();
-		cout << token << endl;
-		token = parser.get_text();
-		cout << token << endl;
-		token = parser.get_text();
-		cout << token << endl;
-		token = parser.get_text();
-		cout << token << endl;
-	*/
-
-	// 次のtokenを先読みして返す。get_token()するまで解析位置は進まない。
-	std::string LineScanner::peek_text()
-	{
-		// 二重にpeek_text()を呼び出すのは合法であるものとする。
-		if (!token.empty())
-			return token;
-
-		// assert(token.empty());
-
-		while (!raw_eol())
-		{
-			char c = line[pos++];
-			if (c == ' ')
-				break;
-			token += c;
-		}
-		return token;
-	}
-
-	// 次のtokenを返す。
-	std::string LineScanner::get_text()
-	{
-		auto result = (!token.empty() ? token : peek_text());
-		token.clear();
-		return result;
-	}
-
-	// 次の文字列を数値化して返す。数値化できない時は引数の値がそのまま返る。
-	s64 LineScanner::get_number(s64 defaultValue)
-	{
-		std::string token = get_text();
-		return token.empty() ? defaultValue : atoll(token.c_str());
-	}
-
-	// 次の文字列を数値化して返す。数値化できない時は引数の値がそのまま返る。
-	double LineScanner::get_double(double defaultValue)
-	{
-		std::string token = get_text();
-		return token.empty() ? defaultValue : atof(token.c_str());
-	}
-
-}
-
-// --------------------
-//       Math
-// --------------------
-
-double Math::sigmoid(double x) {
-	return 1.0 / (1.0 + std::exp(-x));
-}
-
-double Math::dsigmoid(double x) {
-	return sigmoid(x) * (1.0 - sigmoid(x));
-}
-
 
 // --------------------
 //       Path
@@ -1371,6 +1564,10 @@ namespace Path
 	// ('/'自体は、Pathの区切り文字列として、WindowsでもLinuxでも使えるはずなので。
 	std::string Combine(const std::string& folder, const std::string& filename)
 	{
+		// 与えられたfileが絶対Pathであるかの判定
+		if (IsAbsolute(filename))
+			return filename;
+
 		if (folder.length() >= 1 && *folder.rbegin() != '/' && *folder.rbegin() != '\\')
 			return folder + "/" + filename;
 
@@ -1408,157 +1605,37 @@ namespace Path
 		return (length == 0) ? "" : path.substr(0,length);
 	}
 
+	// 絶対Pathであるかの判定。
+	// "\\"(WindowsのUNC)で始まるか、"/"で始まるか(Windows / Linuxのroot)、"~"で始まるか、"C:"(ドライブレター + ":")で始まるか。
+	bool IsAbsolute(const std::string& path)
+	{
+		// path separator
+		const auto path_char1 = '\\';
+		const auto path_char2 = '/';
+
+		// home directory
+		const auto home_char  = '~';
+
+		// dirve letter separator
+		const auto drive_char = ':';
+
+		if (path.length() >= 1)
+		{
+			const char c = path[0];
+			if (c == path_char1 || c == path_char2 || c == home_char)
+				return true;
+
+			// 2文字目が":"なら1文字目をチェックしなくとも良いかな？
+			if (path.length() >= 2 && path[1] == drive_char)
+				return true;
+		}
+
+		return false;
+	}
 };
 
 // --------------------
-//    文字列 拡張
-// --------------------
-
-namespace {
-	// 文字列を大文字化する
-	string to_upper(const string source)
-	{
-		std::string destination;
-		destination.resize(source.size());
-		std::transform(source.cbegin(), source.cend(), destination.begin(), /*toupper*/[](char c) { return (char)toupper(c); });
-		return destination;
-	}
-}
-
-namespace StringExtension
-{
-	// 大文字・小文字を無視して文字列の比較を行う。
-	// string-case insensitive-compareの略？
-	// s1==s2のとき0(false)を返す。
-	bool stricmp(const string& s1, const string& s2)
-	{
-		// Windowsだと_stricmp() , Linuxだとstrcasecmp()を使うのだが、
-		// 後者がどうも動作が怪しい。自前実装しておいたほうが無難。
-
-		return to_upper(s1) != to_upper(s2);
-	}
-
-	// スペースに相当する文字か
-	bool is_space(char c) { return c == '\r' || c == '\n' || c == ' ' || c == '\t'; }
-
-	// 数字に相当する文字か
-	bool is_number(char c) { return '0' <= c && c <= '9'; }
-
-	// 行の末尾の"\r","\n",スペース、"\t"を除去した文字列を返す。
-	std::string trim(const std::string& input)
-	{
-		// copyしておく。
-		string s = input;
-
-		// curを現在位置( s[cur]のような )カーソルだとして扱うと、最後、-1になるまで
-		// ループするコードになり、符号型が必要になる。
-		// size_tのまま扱いたいので、curを現在の(注目位置+1)を示すカーソルだという扱いに
-		// すればこの問題は起きない。
-
-		auto cur = s.length();
-
-		// 改行文字、スペース、タブではないならループを抜ける。
-		// これらの文字が出現しなくなるまで末尾を切り詰める。
-		while (cur > 0 && is_space(s[cur-1]))
-			cur--;
-
-		s.resize(cur);
-		return s;
-	}
-
-	// trim()の高速版。引数で受け取った文字列を直接trimする。(この関数は返し値を返さない)
-	void trim_inplace(std::string& s)
-	{
-		auto cur = s.length();
-
-		while (cur > 0 && is_space(s[cur-1]))
-			cur--;
-
-		s.resize(cur);
-	}
-
-	// 行の末尾の数字を除去した文字列を返す。
-	// (行の末尾の"\r","\n",スペース、"\t"を除去したあと)
-	std::string trim_number(const std::string& input)
-	{
-		string s = input;
-		auto cur = s.length();
-
-		// 末尾のスペースを詰めたあと数字を詰めてそのあと再度スペースを詰める。
-		// 例 : "abc 123 "→"abc"となって欲しいので。
-
-		while (cur > 0 && is_space(s[cur-1]))
-			cur--;
-
-		while (cur > 0 && is_number(s[cur-1]))
-			cur--;
-
-		while (cur > 0 && is_space(s[cur-1]))
-			cur--;
-
-		s.resize(cur);
-		return s;
-	}
-
-	// trim_number()の高速版。引数で受け取った文字列を直接trimする。(この関数は返し値を返さない)
-	void trim_number_inplace(std::string& s)
-	{
-		auto cur = s.length();
-
-		while (cur > 0 && is_space(s[cur - 1]))
-			cur--;
-
-		while (cur > 0 && is_number(s[cur - 1]))
-			cur--;
-
-		while (cur > 0 && is_space(s[cur - 1]))
-			cur--;
-
-		s.resize(cur);
-	}
-
-	// 文字列をint化する。int化に失敗した場合はdefault_の値を返す。
-	int to_int(const std::string input, int default_)
-	{
-		// stoi()は例外を出すので例外を使わないようにしてビルドしたいのでNG。
-		// atoi()は、セキュリティ的な脆弱性がある。
-		// 仕方ないのでistringstreamを使う。
-
-		std::istringstream ss(input);
-		int result = default_; // 失敗したときはこの値のままになる
-		ss >> result;
-		return result;
-	}
-
-	// スペース、タブなど空白に相当する文字で分割して返す。
-	std::vector<std::string> split(const std::string& input)
-	{
-		auto result = std::vector<string>();
-		Parser::LineScanner scanner(input);
-		while (!scanner.eol())
-			result.push_back(scanner.get_text());
-
-		return result;
-	}
-
-	// 文字列valueが、文字列endingで終了していればtrueを返す。
-	bool StartsWith(std::string const& value, std::string const& starting)
-	{
-		if (starting.size() > value.size()) return false;
-		return std::equal(starting.begin(), starting.end(), value.begin());
-	};
-
-	// 文字列valueが、文字列endingで終了していればtrueを返す。
-	bool EndsWith(std::string const& value, std::string const& ending)
-	{
-		if (ending.size() > value.size()) return false;
-		return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
-	};
-
-};
-
-// --------------------
-//  FileSystem
+//    Directory
 // --------------------
 
 #if defined(_MSC_VER)
@@ -1570,12 +1647,12 @@ namespace StringExtension
 
 // GCC/clangのほうはfilesystem使う方法がよくわからないので保留しとく。
 /*
- 備考)
-   GCC 8.1では、リンクオプションとして -lstdc++fsが必要
-   Clang 7.0では、リンクオプションとして -lc++fsが必要
+備考)
+GCC 8.1では、リンクオプションとして -lstdc++fsが必要
+Clang 7.0では、リンクオプションとして -lc++fsが必要
 
- 2020/1/17現時点で最新版はClang 9.0.0のようだが、OpenBlas等が使えるかわからないので、使えるとわかってから
- filesystemを使うように修正する。
+2020/1/17現時点で最新版はClang 9.0.0のようだが、OpenBlas等が使えるかわからないので、使えるとわかってから
+filesystemを使うように修正する。
 
 Mizarさんより。
 https://gcc.gnu.org/bugzilla/show_bug.cgi?id=91786#c2
@@ -1715,6 +1792,286 @@ namespace Directory {
 
 #endif
 
+
+// --------------------
+//       Parser
+// --------------------
+
+namespace Parser
+{
+
+	/*
+		LineScanner parser("AAA BBB CCC DDD");
+		auto token = parser.peek_text();
+		cout << token << endl;
+		token = parser.get_text();
+		cout << token << endl;
+		token = parser.get_text();
+		cout << token << endl;
+		token = parser.get_text();
+		cout << token << endl;
+		token = parser.get_text();
+		cout << token << endl;
+	*/
+
+	// 次のtokenを先読みして返す。get_token()するまで解析位置は進まない。
+	std::string LineScanner::peek_text()
+	{
+		// 二重にpeek_text()を呼び出すのは合法であるものとする。
+		if (!token.empty())
+			return token;
+
+		// assert(token.empty());
+
+		while (!raw_eol())
+		{
+			char c = line[pos++];
+			if (c == ' ')
+				break;
+			token += c;
+		}
+		return token;
+	}
+
+	// 次のtokenを返す。
+	std::string LineScanner::get_text()
+	{
+		auto result = (!token.empty() ? token : peek_text());
+		token.clear();
+		return result;
+	}
+
+	// 次の文字列を数値化して返す。数値化できない時は引数の値がそのまま返る。
+	s64 LineScanner::get_number(s64 defaultValue)
+	{
+		std::string token = get_text();
+		return token.empty() ? defaultValue : atoll(token.c_str());
+	}
+
+	// 次の文字列を数値化して返す。数値化できない時は引数の値がそのまま返る。
+	double LineScanner::get_double(double defaultValue)
+	{
+		std::string token = get_text();
+		return token.empty() ? defaultValue : atof(token.c_str());
+	}
+
+}
+
+// --------------------
+//       Math
+// --------------------
+
+double Math::sigmoid(double x) {
+	return 1.0 / (1.0 + std::exp(-x));
+}
+
+double Math::dsigmoid(double x) {
+	return sigmoid(x) * (1.0 - sigmoid(x));
+}
+
+// --------------------
+//    文字列 拡張
+// --------------------
+
+namespace {
+	// 文字列を大文字化する
+	string to_upper(const string source)
+	{
+		std::string destination;
+		destination.resize(source.size());
+		std::transform(source.cbegin(), source.cend(), destination.begin(), /*toupper*/[](char c) { return (char)toupper(c); });
+		return destination;
+	}
+}
+
+namespace StringExtension
+{
+	// 大文字・小文字を無視して文字列の比較を行う。
+	// string-case insensitive-compareの略？
+	// s1==s2のとき0(false)を返す。
+	bool stricmp(const string& s1, const string& s2)
+	{
+		// Windowsだと_stricmp() , Linuxだとstrcasecmp()を使うのだが、
+		// 後者がどうも動作が怪しい。自前実装しておいたほうが無難。
+
+		return to_upper(s1) != to_upper(s2);
+	}
+
+	// スペースに相当する文字か
+	bool is_space(char c) { return c == '\r' || c == '\n' || c == ' ' || c == '\t'; }
+
+	// 数字に相当する文字か
+	bool is_number(char c) { return '0' <= c && c <= '9'; }
+
+	// 行の末尾の"\r","\n",スペース、"\t"を除去した文字列を返す。
+	std::string trim(const std::string& input)
+	{
+		// copyしておく。
+		string s = input;
+
+		// curを現在位置( s[cur]のような )カーソルだとして扱うと、最後、-1になるまで
+		// ループするコードになり、符号型が必要になる。
+		// size_tのまま扱いたいので、curを現在の(注目位置+1)を示すカーソルだという扱いに
+		// すればこの問題は起きない。
+
+		auto cur = s.length();
+
+		// 改行文字、スペース、タブではないならループを抜ける。
+		// これらの文字が出現しなくなるまで末尾を切り詰める。
+		while (cur > 0 && is_space(s[cur-1]))
+			cur--;
+
+		s.resize(cur);
+		return s;
+	}
+
+	// trim()の高速版。引数で受け取った文字列を直接trimする。(この関数は返し値を返さない)
+	void trim_inplace(std::string& s)
+	{
+		auto cur = s.length();
+
+		while (cur > 0 && is_space(s[cur-1]))
+			cur--;
+
+		s.resize(cur);
+	}
+
+	// 行の末尾の数字を除去した文字列を返す。
+	// (行の末尾の"\r","\n",スペース、"\t"を除去したあと)
+	std::string trim_number(const std::string& input)
+	{
+		string s = input;
+		auto cur = s.length();
+
+		// 末尾のスペースを詰めたあと数字を詰めてそのあと再度スペースを詰める。
+		// 例 : "abc 123 "→"abc"となって欲しいので。
+
+		while (cur > 0 && is_space(s[cur-1]))
+			cur--;
+
+		while (cur > 0 && is_number(s[cur-1]))
+			cur--;
+
+		while (cur > 0 && is_space(s[cur-1]))
+			cur--;
+
+		s.resize(cur);
+		return s;
+	}
+
+	// trim_number()の高速版。引数で受け取った文字列を直接trimする。(この関数は返し値を返さない)
+	void trim_number_inplace(std::string& s)
+	{
+		auto cur = s.length();
+
+		while (cur > 0 && is_space(s[cur - 1]))
+			cur--;
+
+		while (cur > 0 && is_number(s[cur - 1]))
+			cur--;
+
+		while (cur > 0 && is_space(s[cur - 1]))
+			cur--;
+
+		s.resize(cur);
+	}
+
+	// 文字列をint化する。int化に失敗した場合はdefault_の値を返す。
+	int to_int(const std::string input, int default_)
+	{
+		// stoi()は例外を出すので例外を使わないようにしてビルドしたいのでNG。
+		// atoi()は、セキュリティ的な脆弱性がある。
+		// 仕方ないのでistringstreamを使う。
+
+		std::istringstream ss(input);
+		int result = default_; // 失敗したときはこの値のままになる
+		ss >> result;
+		return result;
+	}
+
+	// スペース、タブなど空白に相当する文字で分割して返す。
+	std::vector<std::string> split(const std::string& input)
+	{
+		auto result = std::vector<string>();
+		Parser::LineScanner scanner(input);
+		while (!scanner.eol())
+			result.push_back(scanner.get_text());
+
+		return result;
+	}
+
+	// 先頭にゼロサプライした文字列を返す。
+	// 例) n = 123 , digit = 6 なら "000123"という文字列が返る。
+	std::string to_string_with_zero(u64 n, int digit)
+	{
+		// 現在の状態
+		std::ios::fmtflags curret_flag = std::cout.flags();
+
+		std::ostringstream ss;
+		ss << std::setw(digit) << std::setfill('0') << n;
+		string s(ss.str());
+
+		// 状態を戻す
+		std::cout.flags(curret_flag);
+		return s;
+	}
+
+	// 文字列valueが、文字列endingで終了していればtrueを返す。
+	bool StartsWith(std::string const& value, std::string const& starting)
+	{
+		if (starting.size() > value.size()) return false;
+		return std::equal(starting.begin(), starting.end(), value.begin());
+	};
+
+	// 文字列valueが、文字列endingで終了していればtrueを返す。
+	bool EndsWith(std::string const& value, std::string const& ending)
+	{
+		if (ending.size() > value.size()) return false;
+		return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+	};
+
+	// 文字列valueに対して文字xを文字yに置換した新しい文字列を返す。
+	std::string Replace(std::string const& value, char x, char y)
+	{
+		std::string r(value);
+		for (size_t i = 0; i < r.size(); ++i)
+			if (r[i] == x)
+				r[i] = y;
+		return r;
+	}
+
+	// 文字列を大文字にして返す。
+	std::string ToUpper(std::string const& value)
+	{
+		std::string s(value);
+		transform(s.begin(), s.end(), s.begin(),
+			[](unsigned char c){ return toupper(c); });
+		return s;
+	}
+
+	// sを文字列sepで分割した文字列集合を返す。
+	std::vector<std::string> Split(const std::string& s, const std::string& sep)
+	{
+		std::vector<std::string> v;
+		string ss = s;
+		size_t p = 0; // 前回の分割場所
+		while (true)
+		{
+			size_t pos = ss.find(sep , p);
+			if (pos == string::npos)
+			{
+				// sepが見つからなかったのでこれでおしまい。
+				v.emplace_back(ss.substr(p));
+				break;
+			}
+			v.emplace_back(ss.substr(p, pos - p));
+			p = pos + sep.length();
+		}
+		return v;
+	}
+
+};
+
 // ----------------------------
 //     working directory
 // ----------------------------
@@ -1773,4 +2130,45 @@ namespace CommandLine {
 			binaryDirectory.replace(0, 1, workingDirectory);
 	}
 
+}
+
+// --------------------
+//     UnitTest
+// --------------------
+
+namespace Misc {
+	// このheaderに書いてある関数のUnitTest。
+	void UnitTest(Test::UnitTester& tester)
+	{
+		auto section1 = tester.section("Misc");
+
+		{
+			auto section2 = tester.section("Path");
+
+			{
+				auto section3 = tester.section("Combine");
+
+				tester.test("Absolute Path Root1",        Path::Combine("xxxx"  , "/dir"   ) == "/dir"     );
+				tester.test("Absolute Path Root2",        Path::Combine("xxxx"  , "\\dir"  ) == "\\dir"    );
+				tester.test("Absolute Path Home",         Path::Combine("xxxx"  , "~dir"   ) == "~dir"     );
+				tester.test("Absolute Path Drive Letter", Path::Combine("xxxx"  , "c:\\dir") == "c:\\dir"  );
+				tester.test("Absolute Path UNC",          Path::Combine("xxxx"  , "\\\\dir") == "\\\\dir"  );
+				tester.test("Relative Path1",             Path::Combine("xxxx"  , "yyy"    ) == "xxxx/yyy" );
+				tester.test("Relative Path2",             Path::Combine("xxxx/" , "yyy"    ) == "xxxx/yyy" );
+				tester.test("Relative Path3",             Path::Combine("xxxx\\", "yyy"    ) == "xxxx\\yyy");
+			}
+
+		}
+		{
+			auto section2 = tester.section("StringExtension");
+			{
+				tester.test("to_string_with_zero", StringExtension::to_string_with_zero(123 , 6) == "000123");
+				tester.test("to_string_with_zero", StringExtension::to_string_with_zero(1234, 6) == "001234");
+				tester.test("ToUpper"            , StringExtension::ToUpper("False&True") == "FALSE&TRUE");
+
+				auto v = StringExtension::Split("ABC ; DEF ; GHI", " ; ");
+				tester.test("Split"              , v[0]=="ABC" && v[1]=="DEF" && v[2] =="GHI");
+			}
+		}
+	}
 }

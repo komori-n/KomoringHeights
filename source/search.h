@@ -25,12 +25,14 @@ namespace Search {
 		Move excludedMove;			// singular extension判定のときに置換表の指し手をそのnodeで除外して探索したいのでその除外する指し手
 		Move killers[2];			// killer move
 		Value staticEval;			// 評価関数を呼び出して得た値。NULL MOVEのときに親nodeでの評価値が欲しいので保存しておく。
+		Depth depth;				// 残り探索深さ。
 		int statScore;				// 一度計算したhistoryの合計値をcacheしておくのに用いる。
 		int moveCount;				// このnodeでdo_move()した生成した何手目の指し手か。(1ならおそらく置換表の指し手だろう)
 
 		bool inCheck;				// この局面で王手がかかっていたかのフラグ
 		bool ttPv;					// 置換表にPV nodeで調べた値が格納されていたか(これは価値が高い)
 		bool ttHit;					// 置換表にhitしたかのフラグ
+		int doubleExtensions;		// 前のノードで延長した手数と今回のノードで延長したか手数を加算した値
 	};
 #endif
 
@@ -65,6 +67,9 @@ namespace Search {
 		// 次のiteration時の探索窓の範囲を決めるときに使う。
 		Value previousScore = -VALUE_INFINITE;
 
+		// aspiration searchの時に用いる。previousScoreの移動平均。
+		Value averageScore = -VALUE_INFINITE;
+
 		// このスレッドがrootから最大、何手目まで探索したか(選択深さの最大)
 		int selDepth = 0;
 
@@ -88,17 +93,20 @@ namespace Search {
 			depth = mate = perft = infinite = 0;
 			nodes = 0;
 
-			// やねうら王で、将棋用に追加したメンバーの初期化。
+			// --- やねうら王で、将棋用に追加したメンバーの初期化。
 
 			byoyomi[WHITE] = byoyomi[BLACK] = TimePoint(0);
 			max_game_ply = 100000;
 			rtime = 0;
+
+			// 入玉に関して
 			enteringKingRule = EKR_NONE;
+			enteringKingPoint[BLACK] = 28; // Position::set()でupdate_entering_point()が呼び出されて設定される。
+			enteringKingPoint[WHITE] = 27; // Position::set()でupdate_entering_point()が呼び出されて設定される。
+
 			silent = bench = consideration_mode = outout_fail_lh_pv = false;
 			pv_interval = 0;
-#if defined(USE_GENERATE_ALL_LEGAL_MOVES)
-			generate_all_legal_moves = false;
-#endif
+			generate_all_legal_moves = true;
 		}
 
 		// 時間制御を行うのか。
@@ -163,6 +171,9 @@ namespace Search {
 
 		// 入玉ルール設定
 		EnteringKingRule enteringKingRule;
+		// 駒落ち対応入玉ルーの時に、この点数以上であれば入玉宣言可能。
+		// 例) 27点法の2枚落ちならば、↓の[BLACK(下手 = 後手)]には 27 , ↓の[WHITE(上手 = 先手)]には 28-10 = 18 が代入されている。
+		int enteringKingPoint[COLOR_NB];
 
 		// 画面に出力しないサイレントモード(プロセス内での連続自己対戦のとき用)
 		// このときPVを出力しない。
@@ -180,11 +191,12 @@ namespace Search {
 		// PVの出力間隔(探索のときにMainThread::search()内で初期化する)
 		TimePoint pv_interval;
 
-#if defined (USE_GENERATE_ALL_LEGAL_MOVES)
-		// 全合法手を生成するのか
-		// TANUKI_MATE_ENGINE , YANEURAOU_MATE_ENGINE ではこの設定は無視されている。
+		// 合法手を生成する時に全合法手を生成するのか(歩の不成など)
+		// エンジンオプションのGenerateAllLegalMovesの値がこのフラグに反映される。
+		// 
+		// Position::pseudo_legal()も、このフラグに応じてどこまでをpseudo-legalとみなすかが変わる。
+		// (このフラグがfalseなら歩の不成は非合法手扱い)
 		bool generate_all_legal_moves;
-#endif
 
 #if defined(TANUKI_MATE_ENGINE)
 		std::vector<Move16> pv_check;

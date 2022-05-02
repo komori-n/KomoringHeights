@@ -123,16 +123,6 @@ void ThreadPool::set(size_t requested)
 		// 　　isreadyの応答でやるべき。
 
 		//TT.resize(size_t(Options["USI_Hash"]));
-
-
-		// Init thread number dependent search params.
-		// スレッド数に依存する探索パラメーターの初期化
-
-		// →　Stockfish 12との互換性を保つために一応呼び出しておくが、
-		// 　　こんなところで初期化せずに、isreadyの応答として初期化すべきだと思う。
-
-		Search::init();
-
 	}
 
 #if defined(EVAL_LEARN)
@@ -182,7 +172,6 @@ void ThreadPool::start_thinking(const Position& pos, StateListPtr& states ,
 #endif
 
 	// 全合法手を生成するオプションが有効ならば。
-#if defined(USE_GENERATE_ALL_LEGAL_MOVES)
 	if (limits.generate_all_legal_moves)
 	{
 		for (auto m : MoveList<LEGAL_ALL>(pos))
@@ -190,9 +179,7 @@ void ThreadPool::start_thinking(const Position& pos, StateListPtr& states ,
 				|| std::count(limits.searchmoves.begin(), limits.searchmoves.end(), m))
 				rootMoves.emplace_back(m);
 
-	} else
-#endif
-	{
+	} else {
 
 		for (auto m : MoveList<LEGAL>(pos))
 			if (limits.searchmoves.empty()
@@ -232,6 +219,14 @@ void ThreadPool::start_thinking(const Position& pos, StateListPtr& states ,
 		th->nodes = th->bestMoveChanges = /* th->tbHits = */ th->nmpMinPly = 0;
 
 		th->rootDepth = th->completedDepth = 0;
+
+		// 以上の初期化、探索スレッド側でやるべきだと思うが、しかしth->nodesなどはmain threadが探索ノード数の
+		// 出力のために積算するので、main threadが積算する時にはすでに他のスレッドのth->nodesがゼロ初期化されている状態でないと
+		// おかしい値になってしまう。
+		// 
+		// そこで、main threadが開始する時点では、すべてのスレッドのスレッド初期化が完了していることを保証しなければならない。
+		// ゆえにここに書くしかないのである。
+
 		th->rootMoves = rootMoves;
 		th->rootPos.set(sfen, &th->rootState,th);
 		th->rootState = setupStates->back();

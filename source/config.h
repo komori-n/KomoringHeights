@@ -82,11 +82,6 @@
 //     Position::DeclarationWin()は、宣言勝ち判定を行うときに、それを見る。
 // #define USE_ENTERING_KING_WIN
 
-// 全合法手を生成する機能を追加するか。
-// これをdefineすると、"GenerateAllLegalMoves"というオプションが自動追加される。
-// ※　Search::Limits.generate_all_legal_moves に↑のオプションの値が反映されるので、
-//     それを見て、trueならば、指し手生成の時に歩の不成も含めて生成すれば良い。
-// #define USE_GENERATE_ALL_LEGAL_MOVES
 
 // PV(読み筋)を表示するときに置換表の指し手をかき集めてきて表示するか。
 // 自前でPVを管理してRootMoves::pvを更新するなら、この機能を使う必要はない。
@@ -168,6 +163,10 @@
 // このオプションを有効化すると、金と小駒の成りを区別する。(Bonanzaとは異なる特徴量になる)
 // #define DISTINGUISH_GOLDS
 
+// エンジンオプションをコンパイル時に指定したい時に用いる。
+// ";"で区切って複数指定できる。
+// #define ENGINE_OPTIONS "FV_SCALE=24;BookFile=no_book"
+
 // ---------------------
 //  機械学習関連の設定
 // ---------------------
@@ -243,6 +242,7 @@
 // ---------------------
 
 // 探索パラメーターのチューニングを行うモード
+// ※　使い方は、"docs/解説.txt" の 「探索パラメーターのチューニングについて」をご覧ください。
 //
 // 実行時に"param/yaneuraou-param.h" からパラメーターファイルを読み込むので
 // "source/engine/yaneuraou-engine/yaneuraou-param.h"をそこに配置すること。
@@ -282,11 +282,6 @@
 // do_move()のときに利きの差分更新を行なうので、do_move()は少し遅くなる。(その代わり、利きが使えるようになる)
 //#define LONG_EFFECT_LIBRARY
 
-// やねうら王の従来の遠方駒の利きを求めるコードを用いる。
-// これをundefするとApery型の利きのコードを用いる。(そっちのほうがPEXTが使えない環境だと速い)
-// 互換性維持および、55将棋のように盤面を変形させるときに、magic tableで用いるmagic numberを求めたくないときに用いる。
-
-// #define USE_OLD_YANEURAOU_EFFECT
 
 // position.hのStateInfoに直前の指し手、移動させた駒などの情報を保存しておくのか
 // これが保存されていると詰将棋ルーチンなどを自作する場合においてそこまでの手順を表示するのが簡単になる。
@@ -321,9 +316,12 @@
 // 通例hash keyは64bitだが、これを128にするとPosition::state()->long_key()から128bit hash keyが
 // 得られるようになる。研究時に局面が厳密に合致しているかどうかを判定したいときなどに用いる。
 // 実験用の機能なので、128bit,256bitのhash keyのサポートはAVX2のみ。
+#if !defined(HASH_KEY_BITS) // Makefileの方から指定されているかも知れない。
 #define HASH_KEY_BITS 64
 //#define HASH_KEY_BITS 128
 //#define HASH_KEY_BITS 256
+// 注意 : ふかうら王で、スーパーテラショック定跡の生成を行う時は、HASH_KEY_BITSを128に設定すること。
+#endif
 
 // 通常探索時の最大探索深さ
 constexpr int MAX_PLY_NUM = 246;
@@ -346,17 +344,16 @@ constexpr int MAX_PLY_NUM = 246;
 // 通常のやねうら王探索部(Stockfishっぽいやつ)を用いる。
 #define YANEURAOU_ENGINE
 
-#define USE_PIECE_VALUE
-#define USE_SEE
-#define USE_EVAL_LIST
-#define USE_MATE_1PLY
-#define USE_MATE_SOLVER
-#define USE_MATE_DFPN
-#define USE_TIME_MANAGEMENT
-#define USE_MOVE_PICKER
-#define USE_EVAL
-#define USE_GENERATE_ALL_LEGAL_MOVES
-#define USE_ENTERING_KING_WIN
+	#define USE_PIECE_VALUE
+	#define USE_SEE
+	#define USE_EVAL_LIST
+	#define USE_MATE_1PLY
+	#define USE_MATE_SOLVER
+	#define USE_MATE_DFPN
+	#define USE_TIME_MANAGEMENT
+	#define USE_MOVE_PICKER
+	#define USE_EVAL
+	#define USE_ENTERING_KING_WIN
 
 #if defined(YANEURAOU_ENGINE_KPPT) || defined(YANEURAOU_ENGINE_KPP_KKPT)
 // EvalHashを用いるのは3駒型のみ。それ以外は差分計算用の状態が大きすぎてhitしたところでどうしようもない。
@@ -440,17 +437,16 @@ constexpr int MAX_PLY_NUM = 246;
 
 #if defined(YANEURAOU_ENGINE_DEEP)
 
-#define ENGINE_NAME "FukauraOu"
-#define EVAL_DEEP "dlshogi-denryu2020"
-#define USE_EVAL
-#define USE_TIME_MANAGEMENT
-#define USE_GENERATE_ALL_LEGAL_MOVES
-#define USE_ENTERING_KING_WIN
-#define USE_MATE_1PLY
-#define USE_MATE_SOLVER
-#define USE_MATE_DFPN
-#define USE_PIECE_VALUE
-#define ENABLE_TEST_CMD
+	#define ENGINE_NAME "FukauraOu"
+	#define EVAL_DEEP "dlshogi-denryu2021"
+	#define USE_EVAL
+	#define USE_TIME_MANAGEMENT
+	#define USE_ENTERING_KING_WIN
+	#define USE_MATE_1PLY
+	#define USE_MATE_SOLVER
+	#define USE_MATE_DFPN
+	#define USE_PIECE_VALUE
+	#define ENABLE_TEST_CMD
 
 // 勝率の集計を行う型としてdouble型を用いる。
 #define WIN_TYPE_DOUBLE
@@ -466,20 +462,10 @@ constexpr int MAX_PLY_NUM = 246;
 // --- tanuki-詰将棋エンジンとして実行ファイルを公開するとき用の設定集
 
 #if defined(TANUKI_MATE_ENGINE)
-#define ENGINE_NAME "tanuki- mate solver"
-#define KEEP_LAST_MOVE
-#undef MAX_PLY_NUM
-#define MAX_PLY_NUM 2000
-#define USE_MATE_1PLY
-//#define LONG_EFFECT_LIBRARY
-#define USE_KEY_AFTER
-#define ENABLE_TEST_CMD
-#endif
-
-// --- やねうら王詰将棋エンジンとして実行ファイルを公開するとき用の設定集
-
-#if defined(YANEURAOU_MATE_ENGINE)
-#define ENGINE_NAME "YaneuraOu mate solver"
+	#define ENGINE_NAME "tanuki- mate solver"
+	#define KEEP_LAST_MOVE
+	#undef  MAX_PLY_NUM
+	#define MAX_PLY_NUM 2000
 #undef MAX_PLY_NUM
 #define MAX_PLY_NUM 2000
 #define USE_MATE_1PLY
@@ -487,7 +473,6 @@ constexpr int MAX_PLY_NUM = 246;
 #define USE_MATE_SOLVER
 #define USE_MATE_DFPN
 #define USE_PIECE_VALUE
-#define ENABLE_TEST_CMD
 #endif
 
 // --- ユーザーの自作エンジンとして実行ファイルを公開するとき用の設定集

@@ -14,7 +14,7 @@
 namespace {
 komori::KomoringHeights g_searcher;
 komori::EngineOption g_option;
-std::once_flag g_path_key_init_flag;
+std::atomic_bool g_path_key_init_flag;
 
 // <探索終了同期>
 bool g_search_end = false;
@@ -149,7 +149,10 @@ void Search::init() {}
 
 // isreadyコマンドの応答中に呼び出される。時間のかかる処理はここに書くこと。
 void Search::clear() {
-  std::call_once(g_path_key_init_flag, komori::PathKeyInit);
+  if (!g_path_key_init_flag) {
+    g_path_key_init_flag = true;
+    komori::PathKeyInit();
+  }
   g_option.Reload(Options);
 
 #if defined(USE_DEEP_DFPN)

@@ -128,7 +128,7 @@ class DelayableMoves {
       const Square from = from_sq(move);
       const Piece moved_piece = n_.Pos().piece_on(from);
       const PieceType moved_pr = type_of(moved_piece);
-      if (EnemyField[us].test(from) || EnemyField[us].test(to)) {
+      if (enemy_field(us).test(from) || enemy_field(us).test(to)) {
         if (moved_pr == PAWN || moved_pr == BISHOP || moved_pr == ROOK) {
           // 歩、角、飛車の不成は基本的に考える必要がない
           return true;
@@ -211,7 +211,7 @@ inline bool DoesHaveMatePossibility(const Position& n) {
   for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
     if (hand_exists(hand, pr)) {
       // 二歩チェック
-      if (pr == PAWN && (n.pieces(us, PAWN) & FILE_BB[file_of(king_sq)])) {
+      if (pr == PAWN && (n.pieces(us, PAWN) & file_bb(file_of(king_sq)))) {
         continue;
       }
 

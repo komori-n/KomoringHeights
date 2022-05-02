@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 # MSYS2 (MinGW 32-bit) 上で Windows バイナリのビルド
 # ビルド用パッケージの導入
-# $ pacman --needed --noconfirm -Syuu pactoys-git
-# $ pacboy --needed --noconfirm -Syuu clang:m openblas:x openmp:x toolchain:m base-devel:
+# $ pacman --needed --noconfirm -Syuu pactoys
+# $ pacboy --needed --noconfirm -Syuu clang:m lld:m openblas:x openmp:x toolchain:m base-devel:
 # MSYS2パッケージの更新、更新出来る項目が無くなるまで繰り返し実行、場合によってはMSYS2の再起動が必要
 # $ pacman -Syuu --noconfirm
 
@@ -24,8 +24,9 @@ JOBS=`grep -c ^processor /proc/cpuinfo 2>/dev/null`
 COMPILERS="clang++,g++"
 EDITIONS='*'
 TARGETS='*'
+EXTRA=''
 
-while getopts c:e:t: OPT
+while getopts c:e:t:x: OPT
 do
   case $OPT in
     c) COMPILERS="$OPTARG"
@@ -33,6 +34,8 @@ do
     e) EDITIONS="$OPTARG"
       ;;
     t) TARGETS="$OPTARG"
+      ;;
+    x) EXTRA="$OPTARG"
       ;;
   esac
 done
@@ -47,6 +50,7 @@ pushd ../source
 
 EDITIONS=(
   YANEURAOU_ENGINE_NNUE
+  YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32
   YANEURAOU_ENGINE_NNUE_HALFKPE9
   YANEURAOU_ENGINE_NNUE_KP256
   YANEURAOU_ENGINE_KPPT
@@ -76,6 +80,7 @@ TARGETS=(
 declare -A EDITIONSTR;
 EDITIONSTR=(
   ["YANEURAOU_ENGINE_NNUE"]="YANEURAOU_ENGINE_NNUE"
+  ["YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32"]="YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32"
   ["YANEURAOU_ENGINE_NNUE_HALFKPE9"]="YANEURAOU_ENGINE_NNUE_HALFKPE9"
   ["YANEURAOU_ENGINE_NNUE_KP256"]="YANEURAOU_ENGINE_NNUE_KP256"
   ["YANEURAOU_ENGINE_KPPT"]="YANEURAOU_ENGINE_KPPT"
@@ -98,6 +103,7 @@ EDITIONSTR=(
 declare -A DIRSTR;
 DIRSTR=(
   ["YANEURAOU_ENGINE_NNUE"]="NNUE"
+  ["YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32"]="NNUE_HalfKP_VM"
   ["YANEURAOU_ENGINE_NNUE_HALFKPE9"]="NNUE_HALFKPE9"
   ["YANEURAOU_ENGINE_NNUE_KP256"]="NNUE_KP256"
   ["YANEURAOU_ENGINE_KPPT"]="KPPT"
@@ -120,7 +126,8 @@ DIRSTR=(
 declare -A FILESTR;
 FILESTR=(
   ["YANEURAOU_ENGINE_NNUE"]="YaneuraOu_NNUE"
-  ["YANEURAOU_ENGINE_NNUE_HALFKPE9"]="YaneuraOu_NNUE_KPE9"
+  ["YANEURAOU_ENGINE_NNUE_HALFKP_VM_256X2_32_32"]="YaneuraOu_NNUE_HalfKP_VM"
+  ["YANEURAOU_ENGINE_NNUE_HALFKPE9"]="YaneuraOu_NNUE_HalfKPE9"
   ["YANEURAOU_ENGINE_NNUE_KP256"]="YaneuraOu_NNUE_KP256"
   ["YANEURAOU_ENGINE_KPPT"]="YaneuraOu_KPPT"
   ["YANEURAOU_ENGINE_KPP_KKPT"]="YaneuraOu_KPP_KKPT"
@@ -157,11 +164,11 @@ for COMPILER in ${COMPILERSARR[@]}; do
             set +f
             if [[ $TARGET == $TARGETPTN ]]; then
               echo "* target: ${TARGET}"
-              TGSTR=YaneuraOu-${FILESTR[$EDITION]}-msys2-${CSTR}-${TARGET}
-              ${MAKE} -f ${MAKEFILE} clean YANEURAOU_EDITION=${EDITIONSTR[$EDITION]}
-              nice ${MAKE} -f ${MAKEFILE} -j${JOBS} ${TARGET} YANEURAOU_EDITION=${EDITIONSTR[$EDITION]} COMPILER=${COMPILER} TARGET_CPU=NO_SSE >& >(tee ${BUILDDIR}/${TGSTR}.log) || exit $?
+              TGSTR=KomoringHeights-${FILESTR[$EDITION]}-msys2-${CSTR}-${TARGET}
+              ${MAKE} -f ${MAKEFILE} clean YANEURAOU_EDITION=${EDITIONSTR[$EDITION]} ${EXTRA}
+              nice ${MAKE} -f ${MAKEFILE} -j${JOBS} ${TARGET} YANEURAOU_EDITION=${EDITIONSTR[$EDITION]} COMPILER=${COMPILER} TARGET_CPU=NO_SSE ${EXTRA} >& >(tee ${BUILDDIR}/${TGSTR}.log) || exit $?
               cp KomoringHeights-by-gcc.exe ${BUILDDIR}/${TGSTR}.exe
-              ${MAKE} -f ${MAKEFILE} clean YANEURAOU_EDITION=${EDITIONSTR[$EDITION]}
+              ${MAKE} -f ${MAKEFILE} clean YANEURAOU_EDITION=${EDITIONSTR[$EDITION]} ${EXTRA}
               set -f
               break
             fi

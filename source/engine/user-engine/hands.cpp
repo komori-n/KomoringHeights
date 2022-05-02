@@ -50,7 +50,7 @@ Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand) {
   for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
     if (!hand_exists(hand, pr)) {
       // 二歩の場合は反証駒を消す必要はない（打てないので）
-      if (pr == PAWN && (n.pieces(us, PAWN) & FILE_BB[file_of(king_sq)])) {
+      if (pr == PAWN && (n.pieces(us, PAWN) & file_bb(file_of(king_sq)))) {
         continue;
       }
 
@@ -87,7 +87,7 @@ Hand AddIfHandGivesOtherEvasions(const Position& n, Hand proof_hand) {
       auto bb = between_bb(king_sq, checker_sq);
       while (bb) {
         auto sq = bb.pop();
-        if (!(n.pieces(us, PAWN) & FILE_BB[file_of(sq)])) {
+        if (!(n.pieces(us, PAWN) & file_bb(file_of(sq)))) {
           double_pawn = false;
           break;
         }
