@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "bitset.hpp"
+#include "move_picker.hpp"
 #include "transposition_table.hpp"
 #include "typedefs.hpp"
 
@@ -14,22 +15,45 @@ namespace detail {
  * @brief 子局面の置換表 LookUp のキャッシュを行う構造体。
  */
 struct Child {
-  ExtMove move;  ///< 子局面への move とその簡易評価値
-
-  LookUpQuery query;  ///< 子局面の置換表エントリを LookUp するためのクエリ
-  SearchResult search_result;  ///< 子局面の現在の pn/dn の値。LookUp はとても時間がかかるので、前回の LookUp
-                               ///< 結果をコピーして持っておく。
   std::uint64_t board_key;  ///< 子局面の board_key
   Hand hand;                ///< 子局面の or_hand
-  std::size_t next_dep;     ///< 次に展開すべき要素の i_raw + 1。0 は無効値。
+  std::uint32_t next_dep;   ///< 次に展開すべき要素の i_raw + 1。0 は無効値。
+};
 
-  PnDn Pn() const { return search_result.Pn(); }
-  PnDn Dn() const { return search_result.Dn(); }
-  PnDn Phi(bool or_node) const { return or_node ? search_result.Pn() : search_result.Dn(); }
-  PnDn Delta(bool or_node) const { return or_node ? search_result.Dn() : search_result.Pn(); }
-  bool IsFirstVisit() const { return search_result.IsFirstVisit(); }
+class IndexTable {
+ public:
+  auto Push(std::uint32_t i_raw) noexcept {
+    KOMORI_PRECONDITION(len_ < kMaxCheckMovesPerNode);
 
-  void LookUp(Node& n);
+    const auto i = len_++;
+    data_[i] = i_raw;
+    return i;
+  }
+
+  void Pop() noexcept {
+    KOMORI_PRECONDITION(len_ > 0);
+    --len_;
+  }
+
+  auto operator[](std::uint32_t i) const noexcept {
+    KOMORI_PRECONDITION(i < len_);
+    return data_[i];
+  }
+
+  auto begin() noexcept { return data_.begin(); }
+  auto begin() const noexcept { return data_.begin(); }
+  auto end() noexcept { return data_.begin() + len_; }
+  auto end() const noexcept { return data_.begin() + len_; }
+  auto size() const noexcept { return len_; }
+  auto empty() const noexcept { return len_ == 0; }
+  auto front() const noexcept {
+    KOMORI_PRECONDITION(!empty());
+    return data_[0];
+  }
+
+ private:
+  std::array<std::uint32_t, kMaxCheckMovesPerNode> data_;
+  std::uint32_t len_{0};
 };
 
 /// 局面と子局面のハッシュ値および子局面のpn/dnをまとめた構造体
@@ -59,28 +83,12 @@ class ChildrenCache {
   ~ChildrenCache() = default;
 
   /// 現在の最善手
-  Move BestMove() const {
-    KOMORI_PRECONDITION(effective_len_ > 0);
-    return NthChild(0).move.move;
-  }
+  Move BestMove() const { return mp_[idx_.front()].move; }
 
   /// 現在の最善手が初探索かどうか
-  bool BestMoveIsFirstVisit() const {
-    KOMORI_PRECONDITION(effective_len_ > 0);
-    return NthChild(0).IsFirstVisit();
-  }
+  bool BestMoveIsFirstVisit() const { return results_[idx_.front()].IsFirstVisit(); }
 
-  BitSet64 BestMoveSumMask() const {
-    auto& best_child = NthChild(0);
-    KOMORI_PRECONDITION(IsNotFinal(best_child.search_result.GetNodeState()));
-
-    if (auto unknown = best_child.search_result.TryGetUnknown()) {
-      // secret には BitSet のビットを反転した値が格納されているので注意
-      return BitSet64{~unknown->Secret()};
-    }
-
-    UNREACHABLE
-  }
+  BitSet64 BestMoveSumMask() const;
   /**
    * @brief 最善手（i=0）への置換表登録と Child の再ソートを行う。
    */
@@ -101,33 +109,9 @@ class ChildrenCache {
 
  private:
   /// i 番目に良い手に対する Child を返す
-  detail::Child& NthChild(std::size_t i) {
-    KOMORI_PRECONDITION(i < effective_len_);
-    return children_[idx_[i]];
-  }
+  detail::Child& NthChild(std::size_t i) { return children_[idx_[i]]; }
 
-  const detail::Child& NthChild(std::size_t i) const {
-    KOMORI_PRECONDITION(i < effective_len_);
-    return children_[idx_[i]];
-  }
-
-  bool IsSumChild(std::size_t i) const {
-    KOMORI_PRECONDITION(i < effective_len_);
-    return sum_mask_.Test(idx_[i]);
-  }
-
-  auto PushEffectiveChild(std::size_t i_raw) {
-    KOMORI_PRECONDITION(i_raw < actual_len_);
-    const auto i = effective_len_++;
-    idx_[i] = i_raw;
-
-    return i;
-  }
-
-  void PopEffectiveChild() {
-    KOMORI_PRECONDITION(effective_len_ > 0);
-    effective_len_--;
-  }
+  const detail::Child& NthChild(std::size_t i) const { return children_[idx_[i]]; }
 
   /// UpdateFront のソートしない版
   bool UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result);
@@ -166,24 +150,61 @@ class ChildrenCache {
   /// edge を起点とする二重カウント状態を解消する。詳しくは EliminateDoubleCount() のコメントを参照。
   void SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_root_is_or_node);
 
+  auto MakeComparer() const {
+    return [this](std::size_t i_raw, std::size_t j_raw) -> bool {
+      const auto& left_result = results_[i_raw];
+      const auto& right_result = results_[j_raw];
+
+      if (left_result.Phi(or_node_) != right_result.Phi(or_node_)) {
+        return left_result.Phi(or_node_) < right_result.Phi(or_node_);
+      } else if (left_result.Delta(or_node_) != right_result.Delta(or_node_)) {
+        return left_result.Delta(or_node_) > right_result.Delta(or_node_);
+      }
+
+      if (left_result.Dn() == 0 && right_result.Dn() == 0) {
+        // DisprovenState と RepetitionState はちゃんと順番をつけなければならない
+        // - repetition -> まだ頑張れば詰むかもしれない
+        // - disproven -> どうやっても詰まない
+        auto lstate = left_result.GetNodeState();
+        auto rstate = right_result.GetNodeState();
+
+        // or node -> repetition < disproven になってほしい（repetition なら別経路だと詰むかもしれない）
+        // and node -> disproven < repetition になってほしい（disproven なら経路に関係なく詰まないから）
+        // -> !or_node ^ (int)repetition < (int)disproven
+        if (lstate != rstate) {
+          return !or_node_ ^ (static_cast<int>(lstate) < static_cast<int>(rstate));
+        }
+      }
+
+      return mp_[i_raw] < mp_[j_raw];
+    };
+  }
+
   /// 展開元の局面が OR node なら true
   /// コンストラクト時に渡された node から取得する。node 全部をコピーする必要がないので、これだけ持っておく。
-  const bool or_node_;
-  /// 現局面が old child を持つなら true。
-  /// ここで old child とは、置換表に登録されている深さが現局面のそれよりも深いような局面のことを言う。
-  bool does_have_old_child_{false};
 
-  /// 子局面とその pn/dn 値等の情報一覧。MovePicker の手と同じ順番で格納されている
+  const bool or_node_;
+  /// <各子局面の情報>
+  /// 現局面の合法手一覧。コンストラクト時に全合法手を生成するので const にできる。
+  const MovePicker mp_;
   std::array<detail::Child, kMaxCheckMovesPerNode> children_;
-  /// children_ を良さげ順にソートした時のインデックス。children_ 自体を move(copy) すると時間がかかるので、
-  /// ソートの際は idx_ だけ並び替えを行う。
-  std::array<std::uint32_t, kMaxCheckMovesPerNode> idx_;
+  std::array<LookUpQuery, kMaxCheckMovesPerNode> queries_;
+  std::array<SearchResult, kMaxCheckMovesPerNode> results_;
+
   /// 和で Delta を計上する子局面の一覧
   /// max でなく sum のマスクを持つ理由は、合法手が 64 個以上の場合、set から溢れた手を max child として扱いたいため。
   BitSet64 sum_mask_;
-  /// 子局面の数。
-  std::size_t effective_len_{0};
-  std::size_t actual_len_{0};
+  /// </各子局面の情報>
+
+  /// mp_ を Phi 値の降順にソートした時のインデックス。データ自体を並べ替えていると時間がかかるので、ソートの際は idx_
+  /// の更新のみ行う。
+  ///
+  /// idx_ 適用前のindexを表す変数は i、 適用後のindexを表す変数は i_raw をそれぞれ用いる。
+  detail::IndexTable idx_{};
+
+  /// 現局面が old child を持つなら true。
+  /// ここで old child とは、置換表に登録されている深さが現局面のそれよりも深いような局面のことを言う。
+  bool does_have_old_child_{false};
 
   // <delta>
   // これらの値を事前計算しておくことで、Delta値を O(1) で計算できる。詳しくは GetDelta() を参照。
@@ -193,14 +214,12 @@ class ChildrenCache {
   PnDn max_delta_except_best_;
   // </delta>
 
-  int max_node_num_{0};
-
   // <double-count>
   // 二重カウント対策のために必要な値たち
 
-  std::uint64_t curr_board_key_;
-  Hand or_hand_;
-  ChildrenCache* parent_;
+  const std::uint64_t curr_board_key_;
+  const Hand or_hand_;
+  ChildrenCache* const parent_;
   // </double-count>
 };
 }  // namespace komori

@@ -32,6 +32,9 @@
 #endif
 
 namespace komori {
+template <typename... Args>
+using Constraints = std::nullptr_t;
+
 /// 1局面の最大王手/王手回避の着手数
 inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する

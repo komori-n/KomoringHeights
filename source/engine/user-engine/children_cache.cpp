@@ -42,23 +42,6 @@ struct Edge {
     return From(tt, child_edge.board_key, child_edge.hand);
   }
 };
-
-void Child::LookUp(Node& n) {
-  auto* entry = query.LookUpWithoutCreation();
-
-  if (auto unknown = entry->TryGetUnknown()) {
-    if (entry->IsFirstVisit()) {
-      auto [pn, dn] = InitialPnDn(n, move.move);
-      auto new_pn = std::max(pn, unknown->Pn());
-      auto new_dn = std::max(dn, unknown->Dn());
-      if (new_pn != unknown->Pn() || new_dn != unknown->Dn()) {
-        unknown->UpdatePnDn(new_pn, new_dn);
-      }
-    }
-  }
-
-  search_result = entry->Simplify(hand);
-}
 }  // namespace detail
 
 namespace {
@@ -238,32 +221,6 @@ inline bool DoesHaveMatePossibility(const Position& n) {
   return x | y;
 }
 
-detail::Child MakeRepetitionChild(ExtMove move) {
-  detail::Child child;
-
-  child.move = move;
-  child.search_result = SearchResult{RepetitionData{}};
-  child.board_key = kNullKey;
-  child.hand = kNullHand;
-  child.next_dep = 0;
-
-  return child;
-}
-
-detail::Child MakeNonRepetitionChild(TranspositionTable& tt, Node& n, ExtMove move) {
-  detail::Child child;
-  auto hand_after = n.OrHandAfter(move.move);
-
-  child.move = move;
-  child.query = tt.GetChildQuery(n, move.move);
-  child.board_key = n.Pos().board_key_after(move.move);
-  child.hand = hand_after;
-  child.search_result.Clear();
-  child.next_dep = 0;
-
-  return child;
-}
-
 /// edge で合流する分岐の合流元局面を求める
 std::optional<std::pair<detail::Edge, bool>> FindKnownAncestor(TranspositionTable& tt,
                                                                const Node& n,
@@ -331,32 +288,6 @@ std::optional<std::pair<detail::Edge, bool>> FindKnownAncestor(TranspositionTabl
 
   return std::nullopt;
 }
-
-template <bool kOrNode>
-bool Compare(const detail::Child& lhs, const detail::Child& rhs) {
-  if (lhs.Phi(kOrNode) != rhs.Phi(kOrNode)) {
-    return lhs.Phi(kOrNode) < rhs.Phi(kOrNode);
-  } else if (lhs.Delta(kOrNode) != rhs.Delta(kOrNode)) {
-    return lhs.Delta(kOrNode) > rhs.Delta(kOrNode);
-  }
-
-  if (lhs.Dn() == 0 && rhs.Dn() == 0) {
-    // DisprovenState と RepetitionState はちゃんと順番をつけなければならない
-    // - repetition -> まだ頑張れば詰むかもしれない
-    // - disproven -> どうやっても詰まない
-    auto lstate = lhs.search_result.GetNodeState();
-    auto rstate = rhs.search_result.GetNodeState();
-
-    // or node -> repetition < disproven になってほしい（repetition なら別経路だと詰むかもしれない）
-    // and node -> disproven < repetition になってほしい（disproven なら経路に関係なく詰まないから）
-    // -> !or_node ^ (int)repetition < (int)disproven
-    if (lstate != rstate) {
-      return !kOrNode ^ (static_cast<int>(lstate) < static_cast<int>(rstate));
-    }
-  }
-
-  return lhs.move.value < rhs.move.value;
-}
 }  // namespace
 
 ChildrenCache::ChildrenCache(TranspositionTable& tt,
@@ -365,19 +296,19 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
                              BitSet64 sum_mask,
                              ChildrenCache* parent)
     : or_node_{n.IsOrNode()},
+      mp_{n, true},
       sum_mask_{sum_mask},
       curr_board_key_{n.Pos().state()->board_key()},
       or_hand_{n.OrHand()},
       parent_{parent} {
-  // 後で子局面を良さげ順に並び替えるため、ordering=true で指し手生成を行う
-  const auto mp = MovePicker{n, true};
-
   bool found_rep = false;
 
   DelayableMoves delayed_moves{n, or_node_};
-  for (const auto& move : mp) {
-    const auto i_raw = actual_len_++;
+  std::uint32_t next_i_raw = 0;
+  for (const auto& move : mp_) {
+    const auto i_raw = next_i_raw++;
     auto& child = children_[i_raw];
+    auto& result = results_[i_raw];
 
     // どう見ても千日手 or 列島局面になる場合は読み進める必要がない
     // 置換表 LookUp の回数を減らすために別処理に分ける
@@ -386,45 +317,57 @@ ChildrenCache::ChildrenCache(TranspositionTable& tt,
         // 千日手は複数あっても意味がないので、2 つ目以降は無視する
         found_rep = true;
 
-        child = MakeRepetitionChild(move);
-        PushEffectiveChild(i_raw);
+        // child は参照しないので初期化をスキップできる
+        // child = MakeRepetitionChild();
+        result = SearchResult{RepetitionData{}};
+        idx_.Push(i_raw);
+      } else {
+        continue;
       }
     } else {
-      child = MakeNonRepetitionChild(tt, n, move);
-      const auto i = PushEffectiveChild(i_raw);
-      Expand(n, i, first_search);
+      const auto hand_after = n.OrHandAfter(move.move);
+      child = {n.Pos().board_key_after(move.move), hand_after, 0};
+      queries_[i_raw] = tt.GetChildQuery(n, move.move);
 
-      if (child.search_result.IsNotFinal()) {
+      const auto i = idx_.Push(i_raw);
+      Expand(n, i, first_search);
+      if (result.IsNotFinal()) {
         if (const auto res = delayed_moves.Get(move.move)) {
           auto& child_dep = children_[*res];
           child_dep.next_dep = i_raw + 1;
 
           // to への合駒はすでに Expand しているので、この手は後回しにする
           // effective_len_ をいじれば展開した子をいないとみなすことができる
-          PopEffectiveChild();
+          idx_.Pop();
         }
 
         delayed_moves.Add(move.move, i_raw);
       }
+    }
 
-      if (child.Phi(or_node_) == 0) {
-        break;
-      }
+    if (result.Phi(or_node_) == 0) {
+      break;
     }
   }
 
-  if (or_node_) {
-    std::sort(idx_.begin(), idx_.begin() + effective_len_,
-              [this](const auto& lhs, const auto& rhs) { return Compare<true>(children_[lhs], children_[rhs]); });
-  } else {
-    std::sort(idx_.begin(), idx_.begin() + effective_len_,
-              [this](const auto& lhs, const auto& rhs) { return Compare<false>(children_[lhs], children_[rhs]); });
-  }
+  std::sort(idx_.begin(), idx_.end(), MakeComparer());
   RecalcDelta();
 
-  if (effective_len_ > 0) {
+  if (!idx_.empty()) {
     EliminateDoubleCount(tt, n, 0);
   }
+}
+
+BitSet64 ChildrenCache::BestMoveSumMask() const {
+  const auto& best_child_result = results_[idx_.front()];
+  KOMORI_PRECONDITION(IsNotFinal(best_child_result.GetNodeState()));
+
+  if (auto unknown = best_child_result.TryGetUnknown()) {
+    // secret には BitSet のビットを反転した値が格納されているので注意
+    return BitSet64{~unknown->Secret()};
+  }
+
+  UNREACHABLE
 }
 
 void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
@@ -432,33 +375,28 @@ void ChildrenCache::UpdateBestChild(const SearchResult& search_result) {
 
   if (new_child) {
     // 余計なことを考えずに sort と delta 再計算を行う
-    if (or_node_) {
-      std::sort(idx_.begin(), idx_.begin() + effective_len_,
-                [this](const auto& lhs, const auto& rhs) { return Compare<true>(children_[lhs], children_[rhs]); });
-    } else {
-      std::sort(idx_.begin(), idx_.begin() + effective_len_,
-                [this](const auto& lhs, const auto& rhs) { return Compare<false>(children_[lhs], children_[rhs]); });
-    }
+    std::sort(idx_.begin(), idx_.end(), MakeComparer());
     RecalcDelta();
   } else {
-    auto& old_best_child = NthChild(0);
+    auto& old_result = results_[idx_.front()];
     // UpdateNthChildWithoutSort() の内部で sum_mask_ の値が変わる可能性があるが、
     // sum_delta_except_best_, max_delta_except_best_ の値には関係ないので更新後の値のみ使う
-    bool old_is_sum_delta = IsSumChild(0);
-    PnDn old_delta = old_best_child.Delta(or_node_);
-
-    Refresh(0);
-    // RecalcDelta() をすると時間がかかるので、差分更新で済む場合はそうする
-    auto& new_best_child = NthChild(0);
+    bool old_is_sum_delta = sum_mask_[idx_.front()];
+    PnDn old_delta = old_result.Delta(or_node_);
     if (old_is_sum_delta) {
       sum_delta_except_best_ += old_delta;
     } else {
       max_delta_except_best_ = std::max(max_delta_except_best_, old_delta);
     }
 
-    if (IsSumChild(0)) {
-      sum_delta_except_best_ -= new_best_child.Delta(or_node_);
-    } else if (new_best_child.Delta(or_node_) < max_delta_except_best_) {
+    Refresh(0);
+    // RecalcDelta() をすると時間がかかるので、差分更新で済む場合はそうする
+    auto& new_result = results_[idx_.front()];
+    auto new_is_sum_delta = sum_mask_[idx_.front()];
+
+    if (new_is_sum_delta) {
+      sum_delta_except_best_ -= new_result.Delta(or_node_);
+    } else if (new_result.Delta(or_node_) < max_delta_except_best_) {
       // new_best_child を抜いても max_delta_except_best_ の値は変わらない
     } else {
       // max_delta_ の再計算が必要
@@ -495,35 +433,39 @@ std::pair<PnDn, PnDn> ChildrenCache::ChildThreshold(PnDn thpn, PnDn thdn) const 
 
 bool ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult& search_result) {
   auto& child = NthChild(i);
-  child.search_result = search_result;
+  const auto i_raw = idx_[i];
+  auto& child_result = results_[i_raw];
+  auto& query = queries_[i_raw];
+
+  child_result = search_result;
 
   // このタイミングで置換表に登録する
   // なお、デストラクトまで置換表登録を遅延させると普通に性能が悪くなる（一敗）
-  child.query.SetResult(child.search_result);
+  query.SetResult(search_result);
 
-  if (!child.search_result.IsFinal() && child.Delta(or_node_) > kSumSwitchThreshold) {
-    sum_mask_.Reset(idx_[i]);
+  if (!search_result.IsFinal() && child_result.Delta(or_node_) > kSumSwitchThreshold) {
+    sum_mask_.Reset(i_raw);
   }
 
   if (search_result.Delta(or_node_) == 0 && child.next_dep > 0) {
     // 後回しにした手があるならそれを復活させる
 
     // 現在注目している子ノード
-    auto i_raw = idx_[i];
-    // i_raw の次に調べるべき子
-    auto next_dep = children_[i_raw].next_dep;
+    auto curr_i_raw = i_raw;
+    // curr_i_raw の次に調べるべき子
+    auto next_dep = children_[curr_i_raw].next_dep;
     while (next_dep > 0) {
-      children_[i_raw].next_dep = 0;
-      i_raw = next_dep - 1;
+      children_[curr_i_raw].next_dep = 0;
+      curr_i_raw = next_dep - 1;
 
-      PushEffectiveChild(i_raw);
-      if (children_[i_raw].Delta(or_node_) > 0) {
+      idx_.Push(curr_i_raw);
+      if (results_[curr_i_raw].Delta(or_node_) > 0) {
         // まだ結論の出ていない子がいた
         break;
       }
 
-      // i_raw は結論が出ているので、次の後回しにした手 next_dep を調べる
-      next_dep = children_[i_raw].next_dep;
+      // curr_i_raw は結論が出ているので、次の後回しにした手 next_dep を調べる
+      next_dep = children_[curr_i_raw].next_dep;
     }
 
     return true;
@@ -533,16 +475,28 @@ bool ChildrenCache::UpdateNthChildWithoutSort(std::size_t i, const SearchResult&
 }
 
 void ChildrenCache::Expand(Node& n, const std::size_t i, const bool first_search) {
-  KOMORI_PRECONDITION(i < effective_len_);
-
   const auto i_raw = idx_[i];
-  auto& child = children_[i_raw];
-  const auto move = child.move;
+  auto& child_result = results_[i_raw];
+  const auto move = mp_[i_raw];
 
-  child.LookUp(n);
+  auto& query = queries_[i_raw];
+  auto* entry = query.LookUpWithoutCreation();
+
+  if (auto unknown = entry->TryGetUnknown()) {
+    if (entry->IsFirstVisit()) {
+      auto [pn, dn] = InitialPnDn(n, move.move);
+      auto new_pn = std::max(pn, unknown->Pn());
+      auto new_dn = std::max(dn, unknown->Dn());
+      if (new_pn != unknown->Pn() || new_dn != unknown->Dn()) {
+        unknown->UpdatePnDn(new_pn, new_dn);
+      }
+    }
+  }
+
+  child_result = entry->Simplify(or_hand_);
 
   bool is_sum_node = IsSumDeltaNode(n, move);
-  if (auto unknown = child.search_result.TryGetUnknown()) {
+  if (auto unknown = child_result.TryGetUnknown()) {
     if (unknown->IsOldChild(n.GetDepth())) {
       does_have_old_child_ = true;
     }
@@ -557,13 +511,9 @@ void ChildrenCache::Expand(Node& n, const std::size_t i, const bool first_search
     sum_mask_.Reset(i_raw);
   }
 
-  if (!sum_mask_.Test(i_raw)) {
-    max_node_num_++;
-  }
-
   // AND node の first search の場合、1手掘り進めてみる（2手詰ルーチン）
   // OR node の場合、詰みかどうかを高速に判定できないので first_search でも先読みはしない
-  if (!or_node_ && first_search && child.IsFirstVisit()) {
+  if (!or_node_ && first_search && child_result.IsFirstVisit()) {
     n.DoMove(move.move);
     // 1手詰めチェック & 0手不詰チェック
     // 0手不詰チェックを先にした方が 1% ぐらい高速
@@ -589,19 +539,15 @@ void ChildrenCache::Expand(Node& n, const std::size_t i, const bool first_search
 }
 
 void ChildrenCache::Refresh(const std::size_t i) {
-  auto comparer = or_node_ ? Compare<true> : Compare<false>;
+  auto comparer = MakeComparer();
 
   // i 以外はソートされていることを利用して二分探索したい
   // i がソートされていないことに注意して、i の左側／右側のどちらに挿入すべきか場合分けして考える
-  if (i == 0 || comparer(NthChild(i - 1), NthChild(i))) {
-    auto itr = std::lower_bound(
-        idx_.begin() + i + 1, idx_.begin() + effective_len_, idx_[i],
-        [comparer, this](const auto& lhs, const auto& rhs) { return comparer(children_[lhs], children_[rhs]); });
+  if (i == 0 || comparer(idx_[i - 1], idx_[i])) {
+    auto itr = std::lower_bound(idx_.begin() + i + 1, idx_.end(), idx_[i], comparer);
     std::rotate(idx_.begin() + i, idx_.begin() + i + 1, itr);
   } else {
-    auto itr = std::lower_bound(
-        idx_.begin(), idx_.begin() + i, idx_[i],
-        [comparer, this](const auto& lhs, const auto& rhs) { return comparer(children_[lhs], children_[rhs]); });
+    auto itr = std::lower_bound(idx_.begin(), idx_.begin() + i, idx_[i], comparer);
     std::rotate(itr, idx_.begin() + i, idx_.begin() + i + 1);
   }
 }
@@ -613,30 +559,28 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
   MateLen mate_len = kZeroMateLen;
 
   if (or_node_) {
-    auto& best_child = NthChild(0);
-    proof_hand = BeforeHand(n.Pos(), best_child.move, best_child.search_result.FrontHand());
-    best_move = best_child.move;
-    mate_len = best_child.search_result.FrontMateLen() + 1;
-    amount = best_child.search_result.GetSearchedAmount();
+    auto& best_result = results_[idx_.front()];
+    best_move = BestMove();
+    proof_hand = BeforeHand(n.Pos(), best_move, best_result.FrontHand());
+    mate_len = best_result.FrontMateLen() + 1;
+    amount = best_result.GetSearchedAmount();
   } else {
     // 子局面の証明駒の極小集合を計算する
     HandSet set{ProofHandTag{}};
-    for (std::size_t i = 0; i < effective_len_; ++i) {
-      const auto& child = NthChild(i);
+    for (const auto i_raw : idx_) {
+      const auto& child_result = results_[i_raw];
 
-      set.Update(child.search_result.FrontHand());
-      amount = std::max(amount, child.search_result.GetSearchedAmount());
-      if (child.search_result.FrontMateLen() > mate_len) {
-        best_move = child.move;
-        mate_len = child.search_result.FrontMateLen() + 1;
+      set.Update(child_result.FrontHand());
+      amount = std::max(amount, child_result.GetSearchedAmount());
+      if (child_result.FrontMateLen() > mate_len) {
+        best_move = mp_[i_raw].move;
+        mate_len = child_result.FrontMateLen() + 1;
       }
     }
     proof_hand = set.Get(n.Pos());
 
-    // amount の総和を取ると値が大きくなりすぎるので、
-    //   amount = max(child_amount) + actual_len_ - 1
-    // により計算する
-    amount += actual_len_ - 1;
+    // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
+    amount += mp_.size() - 1;
   }
 
   ProvenData proven_data = {proof_hand, best_move, mate_len};
@@ -645,7 +589,7 @@ SearchResult ChildrenCache::GetProvenResult(const Node& n) const {
 
 SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
   // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
-  if (actual_len_ > 0 && NthChild(0).search_result.GetNodeState() == NodeState::kRepetitionState) {
+  if (!mp_.empty() && results_[idx_.front()].GetNodeState() == NodeState::kRepetitionState) {
     return SearchResult{RepetitionData{}};
   }
 
@@ -657,24 +601,25 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
   if (or_node_) {
     // 子局面の反証駒の極大集合を計算する
     HandSet set{DisproofHandTag{}};
-    for (std::size_t i = 0; i < actual_len_; ++i) {
-      const auto& child = NthChild(i);
+    for (const auto i_raw : idx_) {
+      const auto& child_result = results_[i_raw];
+      const auto child_move = mp_[i_raw];
 
-      set.Update(BeforeHand(n.Pos(), child.move, child.search_result.FrontHand()));
-      amount = std::max(amount, child.search_result.GetSearchedAmount());
-      if (child.search_result.FrontMateLen() > mate_len) {
-        best_move = child.move;
-        mate_len = child.search_result.FrontMateLen() + 1;
+      set.Update(BeforeHand(n.Pos(), child_move, child_result.FrontHand()));
+      amount = std::max(amount, child_result.GetSearchedAmount());
+      if (child_result.FrontMateLen() > mate_len) {
+        best_move = child_move;
+        mate_len = child_result.FrontMateLen() + 1;
       }
     }
-    amount += actual_len_ - 1;
+    amount += mp_.size() - 1;
     disproof_hand = set.Get(n.Pos());
   } else {
-    auto& best_child = NthChild(0);
-    disproof_hand = best_child.search_result.FrontHand();
-    best_move = best_child.move;
-    mate_len = best_child.search_result.FrontMateLen() + 1;
-    amount = best_child.search_result.GetSearchedAmount();
+    auto& best_result = results_[idx_.front()];
+    disproof_hand = best_result.FrontHand();
+    best_move = BestMove();
+    mate_len = best_result.FrontMateLen() + 1;
+    amount = best_result.GetSearchedAmount();
 
     // 駒打ちならその駒を持っていないといけない
     if (is_drop(BestMove())) {
@@ -695,8 +640,8 @@ SearchResult ChildrenCache::GetDisprovenResult(const Node& n) const {
 }
 
 SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
-  auto& child = NthChild(0);
-  SearchedAmount amount = child.search_result.GetSearchedAmount() + actual_len_ / 2;
+  const auto& child_result = results_[idx_.front()];
+  SearchedAmount amount = child_result.GetSearchedAmount() + mp_.size() / 2;
 
   // secret には ~sum_mask_ を書いておく。ビット反転している理由は、secret のデフォルト値を 0 にしたいから
   UnknownData unknown_data = {GetPn(), GetDn(), or_hand_, n.GetDepth(), ~sum_mask_.Value()};
@@ -708,7 +653,7 @@ SearchResult ChildrenCache::GetUnknownResult(const Node& n) const {
 
 PnDn ChildrenCache::NewThdeltaForBestMove(PnDn thdelta) const {
   PnDn delta_except_best = sum_delta_except_best_;
-  if (IsSumChild(0)) {
+  if (sum_mask_[idx_.front()]) {
     delta_except_best += max_delta_except_best_;
   }
 
@@ -724,12 +669,13 @@ void ChildrenCache::RecalcDelta() {
   sum_delta_except_best_ = 0;
   max_delta_except_best_ = 0;
 
-  for (std::size_t i = 1; i < effective_len_; ++i) {
-    const auto& child = NthChild(i);
-    if (IsSumChild(i)) {
-      sum_delta_except_best_ += child.Delta(or_node_);
+  for (decltype(idx_.size()) i = 1; i < idx_.size(); ++i) {
+    const auto i_raw = idx_[i];
+    const auto& child_result = results_[i_raw];
+    if (sum_mask_[idx_[i]]) {
+      sum_delta_except_best_ += child_result.Delta(or_node_);
     } else {
-      max_delta_except_best_ = std::max(max_delta_except_best_, child.Delta(or_node_));
+      max_delta_except_best_ = std::max(max_delta_except_best_, child_result.Delta(or_node_));
     }
   }
 }
@@ -751,11 +697,11 @@ PnDn ChildrenCache::GetDn() const {
 }
 
 PnDn ChildrenCache::GetPhi() const {
-  if (effective_len_ == 0) {
+  if (idx_.empty()) {
     return kInfinitePnDn;
   }
 
-  return NthChild(0).Phi(or_node_);
+  return results_[idx_.front()].Phi(or_node_);
 }
 
 PnDn ChildrenCache::GetDelta() const {
@@ -768,7 +714,7 @@ PnDn ChildrenCache::GetDelta() const {
   //
   // 例） sfen +P5l2/4+S4/p1p+bpp1kp/6pgP/3n1n3/P2NP4/3P1NP2/2P2S3/3K3L1 b RGSL2Prb2gsl3p 159
   //      1筋の合駒を考える時、玉方が合駒を微妙に変えることで読みの深さを指数関数的に大きくできてしまう
-  if (actual_len_ > effective_len_) {
+  if (mp_.size() > idx_.size()) {
     // 読みの後回しが原因の（半）無限ループを回避できればいいので、1点減点しておく
     sum_delta += 1;
   }
@@ -777,29 +723,29 @@ PnDn ChildrenCache::GetDelta() const {
 }
 
 std::pair<PnDn, PnDn> ChildrenCache::GetRawDelta() const {
-  if (effective_len_ == 0) {
+  if (idx_.empty()) {
     return {0, 0};
   }
 
-  const auto& best_child = NthChild(0);
+  const auto& best_result = results_[idx_.front()];
   // 差分計算用の値を予め持っているので、高速に計算できる
   auto sum_delta = sum_delta_except_best_;
   auto max_delta = max_delta_except_best_;
-  if (IsSumChild(0)) {
-    sum_delta += best_child.Delta(or_node_);
+  if (sum_mask_[idx_.front()]) {
+    sum_delta += best_result.Delta(or_node_);
   } else {
-    max_delta = std::max(max_delta, best_child.Delta(or_node_));
+    max_delta = std::max(max_delta, best_result.Delta(or_node_));
   }
 
   return {sum_delta, max_delta};
 }
 
 PnDn ChildrenCache::GetSecondPhi() const {
-  if (effective_len_ <= 1) {
+  if (idx_.size() <= 1) {
     return kInfinitePnDn;
   }
-  auto& second_best_child = NthChild(1);
-  return second_best_child.Phi(or_node_);
+  auto& second_best_result = results_[idx_[1]];
+  return second_best_result.Phi(or_node_);
 }
 
 void ChildrenCache::EliminateDoubleCount(TranspositionTable& tt, const Node& n, std::size_t i) {
@@ -823,7 +769,8 @@ void ChildrenCache::EliminateDoubleCount(TranspositionTable& tt, const Node& n, 
   // この関数は、上記のような局面の合流を検出し、二重カウント状態を解消する役割である。
 
   auto& child = NthChild(i);
-  if (auto edge = detail::Edge::From(child.search_result, child.board_key, child.hand)) {
+  auto& child_result = results_[idx_[i]];
+  if (auto edge = detail::Edge::From(child_result, child.board_key, child.hand)) {
     if (edge->board_key != curr_board_key_) {
       // ここまでの条件分岐より、以下の局面グラフになっていることが分かった。
       //
@@ -846,11 +793,11 @@ void ChildrenCache::SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_r
     // 現局面が edge の分岐元。すなわち、edge と NthChild(0) が子孫局面が合流していることが分かった。
     // 何もケアしないと二重カウントが発生してしまうので、sum ではなく max でδ値を計算させるようにする。
 
-    for (std::size_t i = 1; i < effective_len_; ++i) {
+    for (decltype(idx_.size()) i = 1; i < idx_.size(); ++i) {
       auto& child = NthChild(i);
       if (child.board_key == edge.child_board_key && child.hand == edge.child_hand) {
-        sum_mask_.Reset(idx_[0]);
-        if (sum_mask_.Test(idx_[i])) {
+        sum_mask_.Reset(idx_.front());
+        if (sum_mask_[idx_[i]]) {
           sum_mask_.Reset(idx_[i]);
           RecalcDelta();
         }
@@ -862,10 +809,10 @@ void ChildrenCache::SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_r
   }
 
   if (branch_root_is_or_node == or_node_) {
-    const auto& best_child = NthChild(0);
+    const auto& best_child_result = results_[idx_.front()];
     // max child でδ値が max_delta よりも小さい場合、NthChild(0) のδ値は上位ノードに伝播していない。
     // つまり、親局面でδ値の二重カウントは発生しないため、return できる。
-    if (!IsSumChild(0) && best_child.Delta(or_node_) < max_delta_except_best_) {
+    if (!sum_mask_[idx_.front()] && best_child_result.Delta(or_node_) < max_delta_except_best_) {
       return;
     }
 

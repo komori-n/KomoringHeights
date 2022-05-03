@@ -44,6 +44,8 @@ class BitSet {
     return false;
   }
 
+  constexpr bool operator[](std::size_t i) const noexcept { return Test(i); }
+
   constexpr ValueType Value() const noexcept { return val_; }
 
  private:

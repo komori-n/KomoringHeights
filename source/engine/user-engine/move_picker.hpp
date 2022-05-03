@@ -56,6 +56,16 @@ class MovePicker {
   const ExtMove* end() const { return begin() + size_; }
   bool empty() const { return size() == 0; }
 
+  auto& operator[](std::size_t i) {
+    KOMORI_PRECONDITION(i < size_);
+    return move_list_[i];
+  }
+
+  const auto& operator[](std::size_t i) const {
+    KOMORI_PRECONDITION(i < size_);
+    return move_list_[i];
+  }
+
  private:
   std::array<ExtMove, kMaxCheckMovesPerNode> move_list_;
   std::size_t size_;
