@@ -318,10 +318,10 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     best_moves_.clear();
     MateLen mate_len;
     for (int i = 0; i < 50; ++i) {
-      // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
-      auto tree_moves = pv_tree_.Pv(node);
       std::unordered_map<Key, int> visit_count;
+      // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
       mate_len = PostSearch(visit_count, node, kZeroMateLen, kMaxMateLen);
+      auto tree_moves = pv_tree_.Pv(node);
       if (tree_moves.size() % 2 == (is_root_or_node ? 1 : 0)) {
         best_moves_ = std::move(tree_moves);
         break;
@@ -490,13 +490,9 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
       // 可能性が高い。これ以上この局面を調べても意味があまりないため、以前に見つけた上界値・下界値を結果として
       // 返してしまう。
 
-      if (n.IsOrNode() && probed_range.max_mate_len < kMaxMateLen) {
-        pv_move_len.Update(probed_range.best_move, probed_range.max_mate_len);
-        goto PV_END;
-      } else if (!n.IsOrNode() && probed_range.min_mate_len > kZeroMateLen) {
-        pv_move_len.Update(probed_range.best_move, probed_range.min_mate_len);
-        goto PV_END;
-      }
+      auto nn = n.HistoryClearedNode();
+      std::unordered_map<Key, int> new_visit_count;
+      PostSearch(new_visit_count, nn, kZeroMateLen, kMaxMateLen);
     }
 
     // このタイミングで探索を打ち切れない場合でも、最善手だけは覚えて置くと後の探索が楽になる
