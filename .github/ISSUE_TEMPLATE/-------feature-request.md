@@ -1,6 +1,6 @@
 ---
 name: 機能要望 / Feature request
-about: 要約 / About
+about: あると嬉しい機能の提案 / Suggest an idea for this project
 title: ''
 labels: ''
 assignees: ''

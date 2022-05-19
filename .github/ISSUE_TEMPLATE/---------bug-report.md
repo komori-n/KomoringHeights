@@ -1,6 +1,6 @@
 ---
 name: バグレポート / Bug report
-about: 要約 / About
+about: バグの報告 / Create a report to help us improve
 title: ''
 labels: ''
 assignees: ''
