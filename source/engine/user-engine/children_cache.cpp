@@ -493,7 +493,7 @@ void ChildrenCache::Expand(Node& n, const std::size_t i, const bool first_search
     }
   }
 
-  child_result = entry->Simplify(or_hand_);
+  child_result = entry->Simplify(children_[i_raw].hand);
 
   bool is_sum_node = IsSumDeltaNode(n, move);
   if (auto unknown = child_result.TryGetUnknown()) {
