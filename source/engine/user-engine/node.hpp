@@ -67,7 +67,7 @@ class Node {
     }
   }
 
-  Move ImmidiateCapture() const {
+  Move ImmediateCapture() const {
     if (!IsOrNode() || GetDepth() < 1) {
       return MOVE_NONE;
     }

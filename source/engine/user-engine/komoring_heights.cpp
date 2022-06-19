@@ -37,54 +37,34 @@ inline MateLen MakeMateLen(Depth depth, Hand hand) {
   return {static_cast<std::uint16_t>(depth), static_cast<std::uint16_t>(std::min(15, CountHand(hand)))};
 }
 
-/// Pv探索で現在の最善手および alpha, beta を管理するクラス
-class PvMoveLen {
+/// PostSearch において、現局面の MateLen および alpha, beta を管理するクラス
+class SearchingLen {
  public:
-  PvMoveLen(Node& n, MateLen alpha, MateLen beta)
-      : or_node_{n.IsOrNode()}, orig_alpha_{alpha}, orig_beta_{beta}, alpha_{alpha}, beta_{beta}, trivial_cut_{false} {
-    // mate_len_ の初期化
-    // OR node では+∞、AND node では 0 で初期化する
-    if (or_node_) {
-      mate_len_ = kMaxMateLen;
-      const auto min_mate_len = MakeMateLen(1, n.OrHand());
-      if (orig_beta_ < min_mate_len) {
-        // どう見ても fail high のときは（下限値の）1 手詰めということにしておく
-        Update(MOVE_NONE, min_mate_len);
-        trivial_cut_ = true;
-      }
-    } else {
-      mate_len_ = kZeroMateLen;
+  SearchingLen(bool or_node, Hand or_hand, MateLen alpha, MateLen beta)
+      : or_node_{or_node}, alpha_{alpha}, beta_{beta}, mate_len_{or_node ? kMaxMateLen : MakeMateLen(0, or_hand)} {}
 
-      alpha_ = Max(alpha_, mate_len_);
+  bool Update(Move move, MateLen new_mate_len) {
+    if (or_node_ && mate_len_ > new_mate_len) {
+      best_move_ = move;
+      mate_len_ = new_mate_len;
+      beta_ = std::min(beta_, new_mate_len);
+
+      return true;
+    } else if (!or_node_ && mate_len_ < new_mate_len) {
+      best_move_ = move;
+      mate_len_ = new_mate_len;
+      alpha_ = std::max(alpha_, new_mate_len);
+
+      return true;
     }
+
+    return false;
   }
 
-  // 子局面の探索結果が child_mate_len のとき、alpha/beta と mate_len の更新を行う
-  void Update(Move move, MateLen child_mate_len) {
-    if (or_node_) {
-      // child_mate_len 手詰みが見つかったので、この局面は高々 child_mate_len 手詰み。
-      beta_ = Min(beta_, child_mate_len);
-      if (mate_len_ > child_mate_len) {
-        best_move_ = move;
-        mate_len_ = child_mate_len;
-      }
-    } else {
-      // child_mate_len 手詰みが見つかったので、この局面は少なくとも child_mate_len 手詰み以上。
-      alpha_ = Max(alpha_, child_mate_len);
-      if (mate_len_ < child_mate_len) {
-        best_move_ = move;
-        mate_len_ = child_mate_len;
-      }
-    }
-  }
-
-  bool IsEnd() const { return trivial_cut_ || alpha_ >= beta_; }
-
-  bool LessThanAlpha(MateLen mate_len) const { return mate_len < alpha_; }
-  bool GreaterThanOrigAlpha() const { return mate_len_ > orig_alpha_; }
-  bool LessThanOrigBeta() const { return mate_len_ < orig_beta_; }
-  bool GreaterThanBeta(MateLen mate_len) const { return mate_len > beta_; }
-  bool IsExactBound() const { return GreaterThanOrigAlpha() && LessThanOrigBeta(); }
+  bool IsEnd() const { return alpha_ >= beta_; }
+  bool IsLowerBound() const { return mate_len_ >= alpha_; }
+  bool IsUpperBound() const { return mate_len_ <= beta_; }
+  bool IsExactBound() const { return IsLowerBound() && IsUpperBound(); }
 
   MateLen GetMateLen() const { return mate_len_; }
   Move GetBestMove() const { return best_move_; }
@@ -94,15 +74,32 @@ class PvMoveLen {
 
  private:
   const bool or_node_;
+
   Move best_move_{MOVE_NONE};
 
-  MateLen mate_len_;
-  const MateLen orig_alpha_;
-  const MateLen orig_beta_;
   MateLen alpha_;
   MateLen beta_;
-  bool trivial_cut_;
+  MateLen mate_len_;
 };
+
+/// 局面 n の最短の考えられる最短の詰み手数を返す
+template <bool kAndNodeHasAtLeastOneLegalMove = false>
+MateLen MateLenInf(const Node& n) {
+  const auto or_node = n.IsOrNode();
+  const auto or_hand = n.OrHand();
+
+  if (or_node) {
+    const auto or_hand_sup = CountHand(or_hand) + 1;
+    return {1, static_cast<std::uint16_t>(std::min(or_hand_sup, 15))};
+  } else {
+    if constexpr (kAndNodeHasAtLeastOneLegalMove) {
+      const auto or_hand_sup = CountHand(or_hand) + 1;
+      return {2, static_cast<std::uint16_t>(std::min(or_hand_sup, 15))};
+    } else {
+      return {0, static_cast<std::uint16_t>(std::min(CountHand(or_hand), 15))};
+    }
+  }
+}
 
 std::vector<std::pair<Move, SearchResult>> ExpandChildren(TranspositionTable& tt, const Node& n) {
   std::vector<std::pair<Move, SearchResult>> ret;
@@ -441,185 +438,180 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
 }
 
 MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, Node& n, MateLen alpha, MateLen beta) {
-  PvMoveLen pv_move_len{n, alpha, beta};
-  bool repetition = false;
-
-  if (pv_move_len.IsEnd()) {
-    return pv_move_len.GetMateLen();
+  const bool or_node = n.IsOrNode();
+  const auto or_hand = n.OrHand();
+  const auto key = n.Pos().key();
+  // そもそも beta を下回らなさそうなら early return する
+  if (const auto inf = MateLenInf(n); beta < inf) {
+    return inf;
+  } else if (alpha > beta) {
+    return or_node ? alpha : beta;
   }
+
+  SearchingLen searching_len{or_node, or_hand, alpha, beta};
+  bool repetition = false;
 
   PrintIfNeeded(n);
 
-  // 1手詰チェック
-  if (n.IsOrNode() && !n.Pos().in_check()) {
-    if (Move move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
-      pv_move_len.Update(move, MakeMateLen(1, n.OrHandAfter(move)));
-      // 1手詰を見つけたので終わり（最終手余詰は考えない）
-      goto PV_END;
-    }
+  const auto& probed_range = pv_tree_.Probe(n);
+  if (probed_range.min_mate_len == probed_range.max_mate_len) {
+    // min == max のとき
+    // 詰み手数が確定しているので探索を省ける
+    return probed_range.max_mate_len;
+  } else if (probed_range.max_mate_len < searching_len.Alpha()) {
+    // (min <) max < alpha (<= beta) のとき
+    searching_len.Update(probed_range.best_move, probed_range.max_mate_len);
+    return probed_range.max_mate_len;
+  } else if (searching_len.Beta() < probed_range.min_mate_len) {
+    // (alpha <=) beta < min (< max) のとき
+    searching_len.Update(probed_range.best_move, probed_range.min_mate_len);
+    return probed_range.min_mate_len;
   }
 
-  {
-    // 置換表にそこそこよい手が書かれているはず
-    // それを先に読んで alpha/beta を更新しておくことで、探索が少しだけ高速化される
-    auto tt_move = MOVE_NONE;
-    auto&& probed_range = pv_tree_.Probe(n);
-    bool is_tree_entry_exist = (probed_range.best_move != MOVE_NONE);
-    if (probed_range.min_mate_len == probed_range.max_mate_len) {
-      // 探索したことがある局面なら、その結果を再利用する。
-      return probed_range.max_mate_len;
+  // <組み合わせ爆発回避（暫定）>
+  visit_count[key]++;
+  if (visit_count[key] > kPostSearchVisitThreshold) {
+    // 何回もこの局面を通っているのに評価値が確定していないのは様子がおかしい。込み入った千日手が絡んだ局面である
+    // 可能性が高い。これ以上この局面を調べても意味があまりないため、以前に見つけた上界値・下界値を結果として
+    // 返してしまう。
+
+    auto nn = n.HistoryClearedNode();
+    std::unordered_map<Key, int> new_visit_count;
+    PostSearch(new_visit_count, nn, kZeroMateLen, kMaxMateLen);
+  }
+  // </組み合わせ爆発回避（暫定）>
+
+  // pv_tree の情報だけでは詰み手数が確定できなかったので、指し手生成が必要
+  auto& mp = pickers_.emplace(n, true);
+  std::sort(mp.begin(), mp.end(), [](const ExtMove& m1, const ExtMove& m2) { return m1.value < m2.value; });
+
+  // 優先して探索したい手の挿入箇所。[mp.begin(), mp_insert_itr) に先に探索したい手を配置する
+  auto mp_insert_itr = mp.begin();
+  auto mp_insert_move = [&mp, &mp_insert_itr](const Move move) {
+    if (move == MOVE_NONE) {
+      return;
     }
 
-    // OR node かつ upper bound かつ 手数が alpha よりも小さいなら、見込み 0 なので探索を打ち切れる
-    // 3 番目の条件（entry->mate_len < alpha) は等号を入れてはいけない。もしここで等号を入れて
-    // 探索を打ち切ってしまうと、ちょうど alpha 手詰めのときに詰み手順の探索が行われない可能性がある。
-    //
-    // AND node の場合も同様。
-    if (pv_move_len.LessThanAlpha(probed_range.max_mate_len)) {
-      pv_move_len.Update(probed_range.best_move, probed_range.max_mate_len);
-      goto PV_END;
-    } else if (pv_move_len.GreaterThanBeta(probed_range.min_mate_len)) {
-      pv_move_len.Update(probed_range.best_move, probed_range.min_mate_len);
-      goto PV_END;
-    }
-
-    auto key = n.Pos().key();
-    visit_count[key]++;
-    if (visit_count[key] > kPostSearchVisitThreshold) {
-      // 何回もこの局面を通っているのに評価値が確定していないのは様子がおかしい。込み入った千日手が絡んだ局面である
-      // 可能性が高い。これ以上この局面を調べても意味があまりないため、以前に見つけた上界値・下界値を結果として
-      // 返してしまう。
-
-      auto nn = n.HistoryClearedNode();
-      std::unordered_map<Key, int> new_visit_count;
-      PostSearch(new_visit_count, nn, kZeroMateLen, kMaxMateLen);
-    }
-
-    // このタイミングで探索を打ち切れない場合でも、最善手だけは覚えて置くと後の探索が楽になる
-    tt_move = probed_range.best_move;
-
-    // pv_tree_ に登録されていなければ、置換表から最善手を読んでくる
-    // （n が詰みなので、ほとんどの場合は置換表にエンドが保存されている）
-    if (tt_move == MOVE_NONE) {
-      tt_move = tt_.LookUpBestMove(n);
-    }
-
-    // 優等局面の詰みから現局面の詰みを示した場合、置換表に書いてある最善手を指せないことがある
-    // そのときは、子局面の手の中からいい感じの手を選んで優先的に探索する
-    if (!n.Pos().pseudo_legal(tt_move) || !n.Pos().legal(tt_move)) {
-      tt_move = SelectBestMove(tt_, n);
-    }
-
-    auto& mp = pickers_.emplace(n, true);
-    std::sort(mp.begin(), mp.end(), [tt_move](const ExtMove& m1, const ExtMove& m2) {
-      // tt_move がいちばん手前にくるようにする
-      if (m1.move == tt_move) {
-        return true;
-      } else if (m2.move == tt_move) {
-        return false;
+    auto itr = std::find_if(mp.begin(), mp.end(), [=](const ExtMove& m) { return m.move == move; });
+    if (itr != mp.end()) {
+      if (itr >= mp_insert_itr) {
+        // itr を mp_insert_itr の位置に持ってきて、それ以外を一つずつ後ろにずらす
+        std::rotate(mp_insert_itr, itr, itr + 1);
+        mp_insert_itr++;
       }
-      return m1.value < m2.value;
-    });
+    }
+  };
 
-    for (const auto& move : mp) {
-      if (monitor_.ShouldStop() || pv_move_len.IsEnd()) {
+  mp_insert_move(probed_range.best_move);
+  auto tt_move = tt_.LookUpBestMove(n);
+  mp_insert_move(tt_move);
+  if (mp_insert_itr == mp.begin()) {
+    // 1手詰でない、pv_treeにbest_moveが書かれていない、tt_にもbest_moveが書かれていないケース
+    tt_move = SelectBestMove(tt_, n);
+    mp_insert_move(tt_move);
+  }
+
+  for (const auto& move : mp) {
+    if (monitor_.ShouldStop() || searching_len.IsEnd()) {
+      break;
+    }
+
+    if (n.IsRepetitionAfter(move.move)) {
+      repetition = true;
+      if (or_node) {
+        continue;
+      } else {
         break;
       }
+    }
 
-      if (n.IsRepetitionAfter(move.move)) {
+    if (!or_node && n.IsRepetitionOrSuperiorAfter(move.move)) {
+      // AND node で劣等局面に突入する手は無駄合と同じで禁じ手扱いにする
+      continue;
+    }
+
+    auto result = PostSearchEntry(n, move);
+    // 置換表に書いてある手なのに詰みを示せなかった
+    // これを放置すると PV 探索に失敗する可能性があるので、再探索を行い置換表に書き込む
+    if (move.move == tt_move && result.GetNodeState() != NodeState::kProvenState) {
+      n.DoMove(move.move);
+      auto nn = n.HistoryClearedNode();
+
+      monitor_.PushLimit(monitor_.MoveCount() + kGcReconstructSearchCount);
+      result = SearchEntry(nn);
+      monitor_.PopLimit();
+
+      n.UndoMove(move.move);
+      if (result.GetNodeState() != NodeState::kProvenState) {
         repetition = true;
-        if (n.IsOrNode()) {
-          continue;
-        } else {
+        if (!or_node) {
           break;
         }
       }
+    }
 
-      if (!n.IsOrNode() && n.IsRepetitionOrSuperiorAfter(move.move)) {
-        continue;
-      }
+    if (result.GetNodeState() != NodeState::kProvenState) {
+      continue;
+    }
 
-      auto result = PostSearchEntry(n, move);
-      // 置換表に書いてある手（tt_move）なのに詰みを示せなかった
-      // これを放置すると PV 探索に失敗する可能性があるので、再探索を行い置換表に書き込む
-      if (tt_move == move.move && result.GetNodeState() != NodeState::kProvenState) {
-        n.DoMove(move.move);
-        auto nn = n.HistoryClearedNode();
-
-        monitor_.PushLimit(monitor_.MoveCount() + kGcReconstructSearchCount);
-        result = SearchEntry(nn);
-        monitor_.PopLimit();
-
-        n.UndoMove(move.move);
-        if (result.GetNodeState() != NodeState::kProvenState) {
-          repetition = true;
-          if (!n.IsOrNode()) {
-            break;
-          }
+    // move を選べば詰み
+    // これ以降で continue や break したい場合は UndoMove を忘れずにしなければならない
+    n.DoMove(move.move);
+    if (!or_node) {
+      // 無駄合探索
+      if (auto capture_move = n.ImmediateCapture(); capture_move != MOVE_NONE) {
+        // 現在王手している駒ですぐ取り返して（capture_move）、取った駒を玉方に返しても詰むなら無駄合
+        auto useless_result = UselessDropSearchEntry(n, capture_move);
+        if (useless_result.GetNodeState() == NodeState::kProvenState) {
+          // 無駄合。move を選んではダメ。
+          // move は非合法手と同じ扱いでなかったことにする
+          goto UNDO_MOVE_AND_CONTINUE;
         }
       }
 
-      if (result.GetNodeState() == NodeState::kProvenState) {
-        // move を選べば詰み
-
-        n.DoMove(move.move);
-        // 無駄合探索
-        bool need_search = true;
-        if (auto capture_move = n.ImmidiateCapture(); capture_move != MOVE_NONE) {
-          // 現在王手している駒ですぐ取り返して（capture_move）、取った駒を玉方に返しても詰むなら無駄合
-          auto useless_result = UselessDropSearchEntry(n, capture_move);
-          if (useless_result.GetNodeState() == NodeState::kProvenState) {
-            // 無駄合。move を選んではダメ。
-            // move は非合法手と同じ扱いでなかったことにする
-            need_search = false;
-          }
-        }
-
-        if (need_search) {
-          auto child_mate_len = PostSearch(visit_count, n, pv_move_len.Alpha() - 1, pv_move_len.Beta() - 1);
-          n.UndoMove(move.move);
-          if (child_mate_len >= kMaxMateLen) {
-            repetition = true;
-            continue;
-          }
-          pv_move_len.Update(move.move, child_mate_len + 1);
-
-          if (n.IsOrNode() && pv_move_len.LessThanOrigBeta()) {
-            // mate_len < orig_beta が確定したので、この局面は高々 mate_len 手詰
-            pv_tree_.Insert(n, BOUND_UPPER, pv_move_len.GetMateLen(), pv_move_len.GetBestMove());
-            is_tree_entry_exist = true;
-          } else if (!n.IsOrNode() && pv_move_len.GreaterThanOrigAlpha()) {
-            // mate_len > orig_alpha が確定したので、この局面は少なくとも mate_len 手詰以上
-            pv_tree_.Insert(n, BOUND_LOWER, pv_move_len.GetMateLen(), pv_move_len.GetBestMove());
-            is_tree_entry_exist = true;
-          }
-        } else {
-          n.UndoMove(move.move);
-        }
+      // move は無駄合いではなかったので、詰みまで少なくとも 2 手かかる事がわかった
+      searching_len.Update(move.move, MateLenInf<true>(n));
+      if (searching_len.IsEnd()) {
+        goto UNDO_MOVE_AND_CONTINUE;
       }
     }
 
-    if (!is_tree_entry_exist) {
-      // pv_tree に全くエントリが書かれないまま探索が終わった場合でも、稀に PV になる場合がある。
-      // このとき、pv_tree_[n] が空だと PV の復元に失敗してしまうので、1 つ以上手を保存しておく。
-      is_tree_entry_exist = true;
-      pv_tree_.Insert(n, BOUND_LOWER, kZeroMateLen, pv_move_len.GetBestMove());
+    {
+      const auto child_mate_len = PostSearch(visit_count, n, searching_len.Alpha() - 1, searching_len.Beta() - 1);
+      if (child_mate_len >= kMaxMateLen) {
+        repetition = true;
+      }
+      searching_len.Update(move.move, child_mate_len + 1);
     }
 
-    pickers_.pop();
+  UNDO_MOVE_AND_CONTINUE:
+    n.UndoMove(move.move);
   }
 
-PV_END:
-  // 千日手が原因で詰み／不詰の判断が狂った可能性がある場合は置換表に exact を書かない
-  if (!repetition && pv_move_len.IsExactBound()) {
-    pv_tree_.Insert(n, BOUND_EXACT, pv_move_len.GetMateLen(), pv_move_len.GetBestMove());
+  pickers_.pop();
+
+  const auto mate_len = searching_len.GetMateLen();
+  const auto best_move = searching_len.GetBestMove();
+  Bound bound = BOUND_NONE;
+  if (!repetition && searching_len.IsExactBound()) {
+    bound = BOUND_EXACT;
+  } else if (!repetition && searching_len.IsLowerBound()) {
+    bound = BOUND_LOWER;
+  } else if ((!repetition || or_node) && searching_len.IsUpperBound()) {
+    // (repetition && or_node) でも UPPER BOUND にできる理由
+    // 千日手を加味した詰み手数は加味しない詰み手数よりも長いので upper bound として使えるため。
+    bound = BOUND_UPPER;
   }
 
-  if (repetition && !n.IsOrNode()) {
+  if (bound != BOUND_NONE) {
+    pv_tree_.Insert(n, bound, mate_len, best_move);
+  }
+
+  if (repetition && !or_node) {
     return kMaxMateLen;
   }
 
-  return pv_move_len.GetMateLen();
+  return mate_len;
 }
 
 SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
