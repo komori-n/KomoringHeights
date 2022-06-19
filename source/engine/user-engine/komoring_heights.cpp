@@ -516,6 +516,17 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
       break;
     }
 
+    // 子局面を以前探索したことがあるなら、探索せずに済ませられないか調べてみる
+    const auto probed_range_after = pv_tree_.ProbeAfter(n, move.move);
+    if (probed_range_after.min_mate_len == probed_range_after.max_mate_len) {
+      // 子局面の厳密評価値を知っている
+      searching_len.Update(move.move, probed_range_after.max_mate_len + 1);
+      continue;
+    } else if ((or_node && probed_range_after.min_mate_len + 1 >= searching_len.GetMateLen()) ||
+               (!or_node && probed_range_after.max_mate_len + 1 <= searching_len.GetMateLen())) {
+      continue;
+    }
+
     if (n.IsRepetitionAfter(move.move)) {
       repetition = true;
       if (or_node) {
@@ -530,28 +541,34 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
       continue;
     }
 
-    auto result = PostSearchEntry(n, move);
-    // 置換表に書いてある手なのに詰みを示せなかった
-    // これを放置すると PV 探索に失敗する可能性があるので、再探索を行い置換表に書き込む
-    if (move.move == tt_move && result.GetNodeState() != NodeState::kProvenState) {
-      n.DoMove(move.move);
-      auto nn = n.HistoryClearedNode();
-
-      monitor_.PushLimit(monitor_.MoveCount() + kGcReconstructSearchCount);
-      result = SearchEntry(nn);
-      monitor_.PopLimit();
-
-      n.UndoMove(move.move);
+    if (or_node && (true || probed_range_after.best_move == MOVE_NONE)) {
+      auto result = PostSearchEntry(n, move);
       if (result.GetNodeState() != NodeState::kProvenState) {
-        repetition = true;
-        if (!or_node) {
-          break;
+        if (tt_move != MOVE_NONE && move.move != tt_move) {
+          continue;
+        }
+
+        // 置換表に書いてある手なのに詰みを示せなかった
+        // これを放置すると PV 探索に失敗する可能性があるので、再探索を行い置換表に書き込む
+        n.DoMove(move.move);
+        auto nn = n.HistoryClearedNode();
+
+        monitor_.PushLimit(monitor_.MoveCount() + kGcReconstructSearchCount);
+        result = SearchEntry(nn);
+        monitor_.PopLimit();
+
+        n.UndoMove(move.move);
+        if (result.GetNodeState() != NodeState::kProvenState) {
+          if (result.GetNodeState() == NodeState::kRepetitionState) {
+            repetition = true;
+            if (!or_node) {
+              break;
+            }
+          }
+
+          continue;
         }
       }
-    }
-
-    if (result.GetNodeState() != NodeState::kProvenState) {
-      continue;
     }
 
     // move を選べば詰み
@@ -582,6 +599,10 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
         repetition = true;
       }
       searching_len.Update(move.move, child_mate_len + 1);
+
+      if (tt_move == MOVE_NONE) {
+        tt_move = move.move;
+      }
     }
 
   UNDO_MOVE_AND_CONTINUE:
