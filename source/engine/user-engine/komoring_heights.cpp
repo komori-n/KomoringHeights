@@ -504,12 +504,12 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
 
   mp_insert_move(probed_range.best_move);
   auto tt_move = tt_.LookUpBestMove(n);
-  mp_insert_move(tt_move);
-  if (mp_insert_itr == mp.begin()) {
-    // 1手詰でない、pv_treeにbest_moveが書かれていない、tt_にもbest_moveが書かれていないケース
-    tt_move = SelectBestMove(tt_, n);
-    mp_insert_move(tt_move);
+  if (or_node && tt_move == MOVE_NONE) {
+    auto nn = n.HistoryClearedNode();
+    SearchEntry(nn);
+    tt_move = tt_.LookUpBestMove(n);
   }
+  mp_insert_move(tt_move);
 
   for (const auto& move : mp) {
     if (monitor_.ShouldStop() || searching_len.IsEnd()) {
@@ -541,33 +541,10 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
       continue;
     }
 
-    if (or_node && (true || probed_range_after.best_move == MOVE_NONE)) {
+    if (or_node && move.move != tt_move) {
       auto result = PostSearchEntry(n, move);
       if (result.GetNodeState() != NodeState::kProvenState) {
-        if (tt_move != MOVE_NONE && move.move != tt_move) {
-          continue;
-        }
-
-        // 置換表に書いてある手なのに詰みを示せなかった
-        // これを放置すると PV 探索に失敗する可能性があるので、再探索を行い置換表に書き込む
-        n.DoMove(move.move);
-        auto nn = n.HistoryClearedNode();
-
-        monitor_.PushLimit(monitor_.MoveCount() + kGcReconstructSearchCount);
-        result = SearchEntry(nn);
-        monitor_.PopLimit();
-
-        n.UndoMove(move.move);
-        if (result.GetNodeState() != NodeState::kProvenState) {
-          if (result.GetNodeState() == NodeState::kRepetitionState) {
-            repetition = true;
-            if (!or_node) {
-              break;
-            }
-          }
-
-          continue;
-        }
+        continue;
       }
     }
 
