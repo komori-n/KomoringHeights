@@ -22,9 +22,6 @@ namespace komori {
 namespace {
 constexpr std::size_t kSplittedPrintLen = 12;
 constexpr int kPostSearchVisitThreshold = 200;
-/// PostSearch で詰み局面のはずなのに TT から詰み手順を復元できないとき、追加探索する局面数。
-/// この値が大きすぎると一生探索が終わらなくなるので注意。
-constexpr std::uint64_t kGcReconstructSearchCount = 100'000;
 
 inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
   const std::uint64_t entry_num = hash_mb * 1024 * 1024 / sizeof(CommonEntry);
@@ -313,18 +310,25 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
 
   if (result.GetNodeState() == NodeState::kProvenState) {
     best_moves_.clear();
-    MateLen mate_len;
+    MateLen mate_len = kZeroMateLen;
+    std::unordered_map<Key, int> visit_count;
     for (int i = 0; i < 50; ++i) {
-      std::unordered_map<Key, int> visit_count;
-      // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
-      mate_len = PostSearch(visit_count, node, kZeroMateLen, kMaxMateLen);
+      auto [m, r] = PostSearch(visit_count, node, kZeroMateLen, kMaxMateLen);
       auto tree_moves = pv_tree_.Pv(node);
-      if (tree_moves.size() % 2 == (is_root_or_node ? 1 : 0)) {
-        best_moves_ = std::move(tree_moves);
+      RollForward(node, tree_moves);
+      for (const auto move : tree_moves) {
+        best_moves_.push_back(move);
+      }
+
+      if (mate_len == kZeroMateLen) {
+        mate_len = m;
+      }
+      if (mate_len.len == tree_moves.size()) {
         break;
       }
     }
 
+    RollBack(node, best_moves_);
     sync_cout << "info string mate_len=" << mate_len << sync_endl;
 
     score_ = Score::Proven(static_cast<Depth>(best_moves_.size()), is_root_or_node);
@@ -437,19 +441,23 @@ void KomoringHeights::ShowPv(Position& n, bool is_root_or_node) {
   }
 }
 
-MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, Node& n, MateLen alpha, MateLen beta) {
+std::pair<MateLen, Depth> KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count,
+                                                      Node& n,
+                                                      MateLen alpha,
+                                                      MateLen beta) {
   const bool or_node = n.IsOrNode();
   const auto or_hand = n.OrHand();
   const auto key = n.Pos().key();
+  Depth repetition_start = kMaxNumMateMoves;
+
   // そもそも beta を下回らなさそうなら early return する
   if (const auto inf = MateLenInf(n); beta < inf) {
-    return inf;
+    return {inf, repetition_start};
   } else if (alpha > beta) {
-    return or_node ? alpha : beta;
+    return {or_node ? alpha : beta, repetition_start};
   }
 
   SearchingLen searching_len{or_node, or_hand, alpha, beta};
-  bool repetition = false;
 
   PrintIfNeeded(n);
 
@@ -457,15 +465,15 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
   if (probed_range.min_mate_len == probed_range.max_mate_len) {
     // min == max のとき
     // 詰み手数が確定しているので探索を省ける
-    return probed_range.max_mate_len;
+    return {probed_range.max_mate_len, repetition_start};
   } else if (probed_range.max_mate_len < searching_len.Alpha()) {
     // (min <) max < alpha (<= beta) のとき
     searching_len.Update(probed_range.best_move, probed_range.max_mate_len);
-    return probed_range.max_mate_len;
+    return {probed_range.max_mate_len, repetition_start};
   } else if (searching_len.Beta() < probed_range.min_mate_len) {
     // (alpha <=) beta < min (< max) のとき
     searching_len.Update(probed_range.best_move, probed_range.min_mate_len);
-    return probed_range.min_mate_len;
+    return {probed_range.min_mate_len, repetition_start};
   }
 
   // <組み合わせ爆発回避（暫定）>
@@ -528,7 +536,17 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
     }
 
     if (n.IsRepetitionAfter(move.move)) {
-      repetition = true;
+      int found_ply = 0;
+      n.DoMove(move.move);
+      auto rep = n.Pos().is_repetition(kMaxNumMateMoves, found_ply);
+      if (rep != REPETITION_NONE) {
+        repetition_start = std::min(repetition_start, n.GetDepth() - found_ply);
+        searching_len.Update(move.move, kMaxMateLen);
+      } else {
+        sync_cout << "info string ha???" << sync_endl;
+      }
+      n.UndoMove(move.move);
+
       if (or_node) {
         continue;
       } else {
@@ -571,10 +589,9 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
     }
 
     {
-      const auto child_mate_len = PostSearch(visit_count, n, searching_len.Alpha() - 1, searching_len.Beta() - 1);
-      if (child_mate_len >= kMaxMateLen) {
-        repetition = true;
-      }
+      const auto [child_mate_len, child_repetition_start] =
+          PostSearch(visit_count, n, searching_len.Alpha() - 1, searching_len.Beta() - 1);
+      repetition_start = std::min(repetition_start, child_repetition_start);
       searching_len.Update(move.move, child_mate_len + 1);
 
       if (tt_move == MOVE_NONE) {
@@ -590,12 +607,13 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
 
   const auto mate_len = searching_len.GetMateLen();
   const auto best_move = searching_len.GetBestMove();
+  const bool rep_value = repetition_start < n.GetDepth();
   Bound bound = BOUND_NONE;
-  if (!repetition && searching_len.IsExactBound()) {
+  if (!rep_value && searching_len.IsExactBound()) {
     bound = BOUND_EXACT;
-  } else if (!repetition && searching_len.IsLowerBound()) {
+  } else if (!rep_value && searching_len.IsLowerBound()) {
     bound = BOUND_LOWER;
-  } else if ((!repetition || or_node) && searching_len.IsUpperBound()) {
+  } else if ((!rep_value || or_node) && searching_len.IsUpperBound()) {
     // (repetition && or_node) でも UPPER BOUND にできる理由
     // 千日手を加味した詰み手数は加味しない詰み手数よりも長いので upper bound として使えるため。
     bound = BOUND_UPPER;
@@ -605,11 +623,11 @@ MateLen KomoringHeights::PostSearch(std::unordered_map<Key, int>& visit_count, N
     pv_tree_.Insert(n, bound, mate_len, best_move);
   }
 
-  if (repetition && !or_node) {
-    return kMaxMateLen;
+  if (mate_len > kMaxMateLen) {
+    return {kMaxMateLen, repetition_start};
   }
 
-  return mate_len;
+  return {mate_len, rep_value ? repetition_start : kMaxNumMateMoves};
 }
 
 SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {

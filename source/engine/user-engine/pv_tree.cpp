@@ -91,7 +91,8 @@ std::vector<Move> PvTree::Pv(Node& n) const {
 
   auto mate_range = Probe(n);
   auto best_move = mate_range.best_move;
-  while (best_move != MOVE_NONE && !n.IsRepetitionAfter(best_move)) {
+  while (best_move != MOVE_NONE && !n.IsRepetitionAfter(best_move) && n.Pos().pseudo_legal(best_move) &&
+         n.Pos().legal(best_move)) {
     pv.push_back(best_move);
     n.DoMove(best_move);
     mate_range = Probe(n);
