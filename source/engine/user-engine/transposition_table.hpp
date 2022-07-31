@@ -249,7 +249,7 @@ class TranspositionTable {
   /// ハッシュサイズを `hash_size_mb` （以下）に変更する。以前に保存されていた結果は削除される
   void Resize(std::uint64_t hash_size_mb);
   /// 以前の探索結果をすべて削除し、新たな探索をを始める
-  void NewSearch();
+  void NewSearch(bool force_clear = false);
   /// GCを実行する
   std::size_t CollectGarbage();
 

@@ -14,6 +14,10 @@ namespace {
 constexpr std::size_t kHashfullCalcEntries = 10000;
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合
 constexpr double kNormalRepetitionRatio = 0.95;
+/// TT を完全クリアするかどうか決める Hashfull のしきい値
+/// TT のクリアは USI_Hash=64 MB でも数msかかるほど重い処理なので、サボれる時はサボる。
+/// ただし、再現が難しいバグにつながることがあるので、しきい値の値は小さめにしておく
+constexpr int kTTClearHashfullThreshold = 50;
 /// エントリを消すしきい値。
 constexpr std::size_t kGcThreshold = BoardCluster::kClusterSize - 1;
 constexpr std::size_t kGcRemoveElementNum = 6;
@@ -181,13 +185,17 @@ void TranspositionTable::Resize(std::uint64_t hash_size_mb) {
   std::uint64_t rep_entry_max = rep_bytes / 3 / sizeof(Key);
   rep_table_.SetTableSizeMax(rep_entry_max);
 
-  NewSearch();
+  NewSearch(true);
 }
 
-void TranspositionTable::NewSearch() {
-  for (auto& entry : tt_) {
-    entry.Clear();
+void TranspositionTable::NewSearch(bool force_clear) {
+  const auto hashfull = Hashfull();
+  if (force_clear || hashfull >= kTTClearHashfullThreshold) {
+    for (auto& entry : tt_) {
+      entry.Clear();
+    }
   }
+
   rep_table_.Clear();
 }
 
