@@ -319,10 +319,11 @@ NodeState KomoringHeights::Search(Position& n, bool is_root_or_node) {
     MateLen mate_len;
     for (int i = 0; i < 50; ++i) {
       // MateLen::len は unsigned なので、調子に乗って alpha の len をマイナスにするとバグる（一敗）
-      auto tree_moves = pv_tree_.Pv(node);
       std::unordered_map<Key, int> visit_count;
       mate_len = PostSearch(visit_count, node, kZeroMateLen, kMaxMateLen);
-      if (tree_moves.size() % 2 == (is_root_or_node ? 1 : 0)) {
+
+      auto tree_moves = pv_tree_.Pv(node);
+      if (tree_moves.size() > 0 && tree_moves.size() % 2 == (is_root_or_node ? 1 : 0)) {
         best_moves_ = std::move(tree_moves);
         break;
       }
