@@ -2,6 +2,7 @@ name: ct
 
 on:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   prepare-matrix:
