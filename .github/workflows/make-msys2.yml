@@ -3,11 +3,8 @@ name: Make CI (MSYS2 for Windows)
 
 on:
   push:
-    branches:
-      - "**"
   pull_request:
-    branches:
-      - "**"
+  workflow_dispatch:
 
 jobs:
   build-msys2-windows:
