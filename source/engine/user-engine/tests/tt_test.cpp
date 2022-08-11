@@ -4,6 +4,8 @@
 
 using komori::kInfinitePnDn;
 using komori::kMaxMateLen;
+using komori::kNullHand;
+using komori::kNullKey;
 using komori::MateLen;
 using komori::PnDn;
 
@@ -172,6 +174,16 @@ TEST_F(EntryTest, LookUp_InferiorDisproven) {
   LookUp(hand_p1_, 262, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
 }
 
+TEST_F(EntryTest, Parent) {
+  Init(334, hand_p1_);
+
+  entry_.UpdateParent(264, hand_p2_, 445);
+  const auto [key, hand] = entry_.GetParent();
+  EXPECT_EQ(key, 264);
+  EXPECT_EQ(hand, hand_p2_);
+  EXPECT_EQ(entry_.GetSecret(), 445);
+}
+
 TEST_F(EntryTest, ProvenClear) {
   Init(334, hand_p1_);
 
@@ -291,6 +303,9 @@ TEST_F(QueryTest, Empty) {
   EXPECT_EQ(res.len, kMaxMateLen);
   EXPECT_FALSE(res.is_repetition);
   EXPECT_TRUE(res.is_first_visit);
+  EXPECT_EQ(res.parent_board_key, kNullKey);
+  EXPECT_EQ(res.parent_hand, kNullHand);
+  EXPECT_EQ(res.secret, 0);
 }
 
 TEST_F(QueryTest, EmptyWithInitFunc) {
@@ -301,6 +316,9 @@ TEST_F(QueryTest, EmptyWithInitFunc) {
   EXPECT_EQ(res.len, kMaxMateLen);
   EXPECT_FALSE(res.is_repetition);
   EXPECT_TRUE(res.is_first_visit);
+  EXPECT_EQ(res.parent_board_key, kNullKey);
+  EXPECT_EQ(res.parent_hand, kNullHand);
+  EXPECT_EQ(res.secret, 0);
 }
 
 TEST_F(QueryTest, EmptyCreate) {
@@ -312,10 +330,13 @@ TEST_F(QueryTest, EmptyCreate) {
   EXPECT_EQ(res.len, kMaxMateLen);
   EXPECT_FALSE(res.is_repetition);
   EXPECT_FALSE(res.is_first_visit);
+  EXPECT_EQ(res.parent_board_key, kNullKey);
+  EXPECT_EQ(res.parent_hand, kNullHand);
+  EXPECT_EQ(res.secret, 0);
 }
 
 TEST_F(QueryTest, CreateUnknown) {
-  query_.SetResult({33, 4, hand_p1_, {26, 4}}, 10);
+  query_.SetResult({33, 4, hand_p1_, {26, 4}, false, false, 264, hand_p2_, 445}, 10);
   const auto res = query_.LookUp({26, 4}, false);
   EXPECT_EQ(res.pn, 33);
   EXPECT_EQ(res.dn, 4);
@@ -323,6 +344,9 @@ TEST_F(QueryTest, CreateUnknown) {
   EXPECT_EQ(res.len, (MateLen{26, 4}));
   EXPECT_FALSE(res.is_repetition);
   EXPECT_FALSE(res.is_first_visit);
+  EXPECT_EQ(res.parent_board_key, 264);
+  EXPECT_EQ(res.parent_hand, hand_p2_);
+  EXPECT_EQ(res.secret, 445);
 }
 
 TEST_F(QueryTest, CreateRepetition) {
@@ -335,6 +359,9 @@ TEST_F(QueryTest, CreateRepetition) {
   EXPECT_EQ(res.len, (MateLen{26, 4}));
   EXPECT_TRUE(res.is_repetition);
   EXPECT_FALSE(res.is_first_visit);
+  EXPECT_EQ(res.parent_board_key, kNullKey);
+  EXPECT_EQ(res.parent_hand, kNullHand);
+  EXPECT_EQ(res.secret, 0);
 }
 
 TEST_F(QueryTest, CreateProven) {
@@ -346,6 +373,9 @@ TEST_F(QueryTest, CreateProven) {
   EXPECT_EQ(res.len, (MateLen{22, 4}));
   EXPECT_FALSE(res.is_repetition);
   EXPECT_FALSE(res.is_first_visit);
+  EXPECT_EQ(res.parent_board_key, kNullKey);
+  EXPECT_EQ(res.parent_hand, kNullHand);
+  EXPECT_EQ(res.secret, 0);
 }
 
 TEST_F(QueryTest, CreateDisproven) {
@@ -357,4 +387,7 @@ TEST_F(QueryTest, CreateDisproven) {
   EXPECT_EQ(res.len, (MateLen{28, 4}));
   EXPECT_FALSE(res.is_repetition);
   EXPECT_FALSE(res.is_first_visit);
+  EXPECT_EQ(res.parent_board_key, kNullKey);
+  EXPECT_EQ(res.parent_hand, kNullHand);
+  EXPECT_EQ(res.secret, 0);
 }

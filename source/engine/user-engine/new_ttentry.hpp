@@ -29,6 +29,9 @@ class Entry {
     hand_ = hand;
     vals_.may_rep = false;
     vals_.min_depth = static_cast<std::uint32_t>(kMaxNumMateMoves);
+    parent_board_key_ = kNullKey;
+    parent_hand_ = kNullHand;
+    secret_ = 0;
     for (auto& sub_entry : sub_entries_) {
       sub_entry.vals.is_used = false;
     }
@@ -112,6 +115,15 @@ class Entry {
     }
   }
 
+  constexpr std::pair<Key, Hand> GetParent() const { return {parent_board_key_, parent_hand_}; }
+  constexpr std::uint64_t GetSecret() const { return secret_; }
+
+  constexpr void UpdateParent(Key parent_board_key, Hand parent_hand, std::uint64_t secret) {
+    parent_board_key_ = parent_board_key;
+    parent_hand_ = parent_hand;
+    secret_ = secret;
+  }
+
   template <bool kIsProven>
   constexpr void Clear(Hand hand, MateLen len) {
     if ((kIsProven && hand_is_equal_or_superior(hand_, hand)) ||
@@ -180,7 +192,11 @@ class Entry {
   };
 
   Key board_key_;
+  Key parent_board_key_{kNullKey};
   Hand hand_{kNullHand};
+  Hand parent_hand_;
+
+  std::uint64_t secret_{};
   struct {
     std::uint32_t may_rep : 1;
     std::uint32_t min_depth : 31;
@@ -237,6 +253,12 @@ struct SearchResult {
   MateLen len;
   bool is_repetition{false};
   bool is_first_visit{false};
+  Key parent_board_key{kNullKey};
+  Hand parent_hand{kNullHand};
+  std::uint64_t secret{};
+
+  constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
+  constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
 };
 
 class Query {
@@ -267,7 +289,9 @@ class Query {
           return {kInfinitePnDn, 0, itr->GetHand(), len, true};
         }
 
-        return {pn, dn, itr->GetHand(), len};
+        const auto parent = itr->GetParent();
+        const auto secret = itr->GetSecret();
+        return {pn, dn, itr->GetHand(), len, false, false, parent.first, parent.second, secret};
       }
     }
 
@@ -332,8 +356,10 @@ class Query {
   void SetResultImpl(const SearchResult& result, std::uint32_t amount) {
     if (auto itr = Find(result.hand)) {
       itr->Update(depth_, result.pn, result.dn, result.len, amount);
+      itr->UpdateParent(result.parent_board_key, result.parent_hand, result.secret);
     } else {
-      CreateEntry(result.pn, result.dn, result.len, result.hand, amount);
+      auto new_itr = CreateEntry(result.pn, result.dn, result.len, result.hand, amount);
+      new_itr->UpdateParent(result.parent_board_key, result.parent_hand, result.secret);
     }
   }
 
@@ -359,20 +385,21 @@ class Query {
     return nullptr;
   }
 
-  constexpr void CreateEntry(PnDn pn, PnDn dn, MateLen len, Hand hand, std::uint32_t amount) {
+  constexpr detail::Entry* CreateEntry(PnDn pn, PnDn dn, MateLen len, Hand hand, std::uint32_t amount) {
     const auto begin_itr = begin();
     const auto end_itr = end();
     for (auto itr = begin_itr; itr != end_itr; ++itr) {
       if (itr->IsNull()) {
         itr->Init(board_key_, hand);
         itr->Update(depth_, pn, dn, len, amount);
-        return;
+        return itr;
       }
     }
 
     const auto idx = rand() & kClusterSize;
     head_entry_[idx].Init(board_key_, hand);
     head_entry_[idx].Update(depth_, pn, dn, len, amount);
+    return &head_entry_[idx];
   }
 
   constexpr detail::Entry* begin() { return head_entry_; }
