@@ -288,6 +288,18 @@ class QueryTest : public ::testing::Test {
     query_ = tt_.BuildQueryByKey(334, hand_p1_);
   }
 
+  static void ExpectEq(const komori::tt::SearchResult& lhs, const komori::tt::SearchResult& rhs, int line) {
+    EXPECT_EQ(lhs.pn, rhs.pn) << "LINE: " << line;
+    EXPECT_EQ(lhs.dn, rhs.dn) << "LINE: " << line;
+    EXPECT_EQ(lhs.hand, rhs.hand) << "LINE: " << line;
+    EXPECT_EQ(lhs.len, rhs.len) << "LINE: " << line;
+    EXPECT_EQ(lhs.is_repetition, rhs.is_repetition) << "LINE: " << line;
+    EXPECT_EQ(lhs.is_first_visit, rhs.is_first_visit) << "LINE: " << line;
+    EXPECT_EQ(lhs.parent_board_key, rhs.parent_board_key) << "LINE: " << line;
+    EXPECT_EQ(lhs.parent_hand, rhs.parent_hand) << "LINE: " << line;
+    EXPECT_EQ(lhs.secret, rhs.secret) << "LINE: " << line;
+  }
+
   Hand hand_p1_;
   Hand hand_p2_;
   komori::tt::TranspositionTable tt_;
@@ -297,97 +309,41 @@ class QueryTest : public ::testing::Test {
 
 TEST_F(QueryTest, Empty) {
   const auto res = query_.LookUp(kMaxMateLen, false);
-  EXPECT_EQ(res.pn, 1);
-  EXPECT_EQ(res.dn, 1);
-  EXPECT_EQ(res.hand, hand_p1_);
-  EXPECT_EQ(res.len, kMaxMateLen);
-  EXPECT_FALSE(res.is_repetition);
-  EXPECT_TRUE(res.is_first_visit);
-  EXPECT_EQ(res.parent_board_key, kNullKey);
-  EXPECT_EQ(res.parent_hand, kNullHand);
-  EXPECT_EQ(res.secret, 0);
+  ExpectEq(res, {1, 1, hand_p1_, kMaxMateLen, false, true, kNullKey, kNullHand, 0}, __LINE__);
 }
 
 TEST_F(QueryTest, EmptyWithInitFunc) {
   const auto res = query_.LookUp(kMaxMateLen, false, []() { return std::make_pair(PnDn{33}, PnDn{4}); });
-  EXPECT_EQ(res.pn, 33);
-  EXPECT_EQ(res.dn, 4);
-  EXPECT_EQ(res.hand, hand_p1_);
-  EXPECT_EQ(res.len, kMaxMateLen);
-  EXPECT_FALSE(res.is_repetition);
-  EXPECT_TRUE(res.is_first_visit);
-  EXPECT_EQ(res.parent_board_key, kNullKey);
-  EXPECT_EQ(res.parent_hand, kNullHand);
-  EXPECT_EQ(res.secret, 0);
+  ExpectEq(res, {33, 4, hand_p1_, kMaxMateLen, false, true, kNullKey, kNullHand, 0}, __LINE__);
 }
 
 TEST_F(QueryTest, EmptyCreate) {
   query_.LookUp(kMaxMateLen, true, []() { return std::make_pair(PnDn{33}, PnDn{4}); });
   const auto res = query_.LookUp(kMaxMateLen, false);
-  EXPECT_EQ(res.pn, 33);
-  EXPECT_EQ(res.dn, 4);
-  EXPECT_EQ(res.hand, hand_p1_);
-  EXPECT_EQ(res.len, kMaxMateLen);
-  EXPECT_FALSE(res.is_repetition);
-  EXPECT_FALSE(res.is_first_visit);
-  EXPECT_EQ(res.parent_board_key, kNullKey);
-  EXPECT_EQ(res.parent_hand, kNullHand);
-  EXPECT_EQ(res.secret, 0);
+  ExpectEq(res, {33, 4, hand_p1_, kMaxMateLen, false, false, kNullKey, kNullHand, 0}, __LINE__);
 }
 
 TEST_F(QueryTest, CreateUnknown) {
   query_.SetResult({33, 4, hand_p1_, {26, 4}, false, false, 264, hand_p2_, 445}, 10);
   const auto res = query_.LookUp({26, 4}, false);
-  EXPECT_EQ(res.pn, 33);
-  EXPECT_EQ(res.dn, 4);
-  EXPECT_EQ(res.hand, hand_p1_);
-  EXPECT_EQ(res.len, (MateLen{26, 4}));
-  EXPECT_FALSE(res.is_repetition);
-  EXPECT_FALSE(res.is_first_visit);
-  EXPECT_EQ(res.parent_board_key, 264);
-  EXPECT_EQ(res.parent_hand, hand_p2_);
-  EXPECT_EQ(res.secret, 445);
+  ExpectEq(res, {33, 4, hand_p1_, {26, 4}, false, false, 264, hand_p2_, 445}, __LINE__);
 }
 
 TEST_F(QueryTest, CreateRepetition) {
   query_.SetResult({33, 4, hand_p1_, {26, 4}}, 10);
   query_.SetResult({kInfinitePnDn, 0, hand_p1_, {26, 4}, true}, 10);
   const auto res = query_.LookUp({26, 4}, false);
-  EXPECT_EQ(res.pn, kInfinitePnDn);
-  EXPECT_EQ(res.dn, 0);
-  EXPECT_EQ(res.hand, hand_p1_);
-  EXPECT_EQ(res.len, (MateLen{26, 4}));
-  EXPECT_TRUE(res.is_repetition);
-  EXPECT_FALSE(res.is_first_visit);
-  EXPECT_EQ(res.parent_board_key, kNullKey);
-  EXPECT_EQ(res.parent_hand, kNullHand);
-  EXPECT_EQ(res.secret, 0);
+  ExpectEq(res, {kInfinitePnDn, 0, hand_p1_, {26, 4}, true, false, kNullKey, kNullHand, 0}, __LINE__);
 }
 
 TEST_F(QueryTest, CreateProven) {
   query_.SetResult({0, kInfinitePnDn, HAND_ZERO, {22, 4}}, 10);
   const auto res = query_.LookUp({26, 4}, false);
-  EXPECT_EQ(res.pn, 0);
-  EXPECT_EQ(res.dn, kInfinitePnDn);
-  EXPECT_EQ(res.hand, HAND_ZERO);
-  EXPECT_EQ(res.len, (MateLen{22, 4}));
-  EXPECT_FALSE(res.is_repetition);
-  EXPECT_FALSE(res.is_first_visit);
-  EXPECT_EQ(res.parent_board_key, kNullKey);
-  EXPECT_EQ(res.parent_hand, kNullHand);
-  EXPECT_EQ(res.secret, 0);
+  ExpectEq(res, {0, kInfinitePnDn, HAND_ZERO, {22, 4}, false, false, kNullKey, kNullHand, 0}, __LINE__);
 }
 
 TEST_F(QueryTest, CreateDisproven) {
   query_.SetResult({kInfinitePnDn, 0, hand_p2_, {28, 4}}, 10);
   const auto res = query_.LookUp({26, 4}, false);
-  EXPECT_EQ(res.pn, kInfinitePnDn);
-  EXPECT_EQ(res.dn, 0);
-  EXPECT_EQ(res.hand, hand_p2_);
-  EXPECT_EQ(res.len, (MateLen{28, 4}));
-  EXPECT_FALSE(res.is_repetition);
-  EXPECT_FALSE(res.is_first_visit);
-  EXPECT_EQ(res.parent_board_key, kNullKey);
-  EXPECT_EQ(res.parent_hand, kNullHand);
-  EXPECT_EQ(res.secret, 0);
+  ExpectEq(res, {kInfinitePnDn, 0, hand_p2_, {28, 4}, false, false, kNullKey, kNullHand, 0}, __LINE__);
 }
