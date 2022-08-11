@@ -115,6 +115,7 @@ class Entry {
     }
   }
 
+  constexpr Depth MinDepth() const { return static_cast<Depth>(vals_.min_depth); }
   constexpr std::pair<Key, Hand> GetParent() const { return {parent_board_key_, parent_hand_}; }
   constexpr std::uint64_t GetSecret() const { return secret_; }
 
@@ -253,12 +254,20 @@ struct SearchResult {
   MateLen len;
   bool is_repetition{false};
   bool is_first_visit{false};
+  Depth min_depth{kMaxCheckMovesPerNode};
   Key parent_board_key{kNullKey};
   Hand parent_hand{kNullHand};
   std::uint64_t secret{};
 
   constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
   constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
+  constexpr Depth IsOldChild(Depth depth) const { return min_depth < depth; }
+
+  SearchResult() = default;
+  constexpr SearchResult(const SearchResult&) = default;
+  constexpr SearchResult(SearchResult&&) = default;
+  constexpr SearchResult& operator=(const SearchResult&) = default;
+  constexpr SearchResult& operator=(SearchResult&&) = default;
 };
 
 class Query {
@@ -289,9 +298,10 @@ class Query {
           return {kInfinitePnDn, 0, itr->GetHand(), len, true};
         }
 
+        const auto min_depth = itr->MinDepth();
         const auto parent = itr->GetParent();
         const auto secret = itr->GetSecret();
-        return {pn, dn, itr->GetHand(), len, false, false, parent.first, parent.second, secret};
+        return {pn, dn, itr->GetHand(), len, false, false, itr->MinDepth(), parent.first, parent.second, secret};
       }
     }
 
