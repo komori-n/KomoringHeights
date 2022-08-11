@@ -236,6 +236,7 @@ struct SearchResult {
   Hand hand;
   MateLen len;
   bool is_repetition{false};
+  bool is_first_visit{false};
 };
 
 class Query {
@@ -276,7 +277,7 @@ class Query {
     if (create_entry) {
       CreateEntry(pn, dn, len, hand_, 1);
     }
-    return {pn, dn, hand_, len};
+    return {pn, dn, hand_, len, false, true};
   }
 
   constexpr SearchResult LookUp(MateLen len, bool create_entry) {

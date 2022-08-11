@@ -289,6 +289,8 @@ TEST_F(QueryTest, Empty) {
   EXPECT_EQ(res.dn, 1);
   EXPECT_EQ(res.hand, hand_p1_);
   EXPECT_EQ(res.len, kMaxMateLen);
+  EXPECT_FALSE(res.is_repetition);
+  EXPECT_TRUE(res.is_first_visit);
 }
 
 TEST_F(QueryTest, EmptyWithInitFunc) {
@@ -297,6 +299,8 @@ TEST_F(QueryTest, EmptyWithInitFunc) {
   EXPECT_EQ(res.dn, 4);
   EXPECT_EQ(res.hand, hand_p1_);
   EXPECT_EQ(res.len, kMaxMateLen);
+  EXPECT_FALSE(res.is_repetition);
+  EXPECT_TRUE(res.is_first_visit);
 }
 
 TEST_F(QueryTest, EmptyCreate) {
@@ -306,6 +310,8 @@ TEST_F(QueryTest, EmptyCreate) {
   EXPECT_EQ(res.dn, 4);
   EXPECT_EQ(res.hand, hand_p1_);
   EXPECT_EQ(res.len, kMaxMateLen);
+  EXPECT_FALSE(res.is_repetition);
+  EXPECT_FALSE(res.is_first_visit);
 }
 
 TEST_F(QueryTest, CreateUnknown) {
@@ -316,6 +322,7 @@ TEST_F(QueryTest, CreateUnknown) {
   EXPECT_EQ(res.hand, hand_p1_);
   EXPECT_EQ(res.len, (MateLen{26, 4}));
   EXPECT_FALSE(res.is_repetition);
+  EXPECT_FALSE(res.is_first_visit);
 }
 
 TEST_F(QueryTest, CreateRepetition) {
@@ -327,6 +334,7 @@ TEST_F(QueryTest, CreateRepetition) {
   EXPECT_EQ(res.hand, hand_p1_);
   EXPECT_EQ(res.len, (MateLen{26, 4}));
   EXPECT_TRUE(res.is_repetition);
+  EXPECT_FALSE(res.is_first_visit);
 }
 
 TEST_F(QueryTest, CreateProven) {
@@ -337,6 +345,7 @@ TEST_F(QueryTest, CreateProven) {
   EXPECT_EQ(res.hand, HAND_ZERO);
   EXPECT_EQ(res.len, (MateLen{22, 4}));
   EXPECT_FALSE(res.is_repetition);
+  EXPECT_FALSE(res.is_first_visit);
 }
 
 TEST_F(QueryTest, CreateDisproven) {
@@ -347,4 +356,5 @@ TEST_F(QueryTest, CreateDisproven) {
   EXPECT_EQ(res.hand, hand_p2_);
   EXPECT_EQ(res.len, (MateLen{28, 4}));
   EXPECT_FALSE(res.is_repetition);
+  EXPECT_FALSE(res.is_first_visit);
 }
