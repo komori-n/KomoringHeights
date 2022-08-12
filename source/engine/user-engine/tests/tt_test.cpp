@@ -321,43 +321,44 @@ class QueryTest : public ::testing::Test {
 
 TEST_F(QueryTest, Empty) {
   const auto res = query_.LookUp(kMaxMateLen, false);
-  ExpectEq(res, {1, 1, hand_p1_, kMaxMateLen, false, true, kMaxNumMateMoves, kNullKey, kNullHand, 0}, __LINE__);
+  ExpectEq(res, {1, 1, hand_p1_, kMaxMateLen, false, true, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0}, __LINE__);
 }
 
 TEST_F(QueryTest, EmptyWithInitFunc) {
   const auto res = query_.LookUp(kMaxMateLen, false, []() { return std::make_pair(PnDn{33}, PnDn{4}); });
-  ExpectEq(res, {33, 4, hand_p1_, kMaxMateLen, false, true, kMaxNumMateMoves, kNullKey, kNullHand, 0}, __LINE__);
+  ExpectEq(res, {33, 4, hand_p1_, kMaxMateLen, false, true, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0}, __LINE__);
 }
 
 TEST_F(QueryTest, EmptyCreate) {
   query_.LookUp(kMaxMateLen, true, []() { return std::make_pair(PnDn{33}, PnDn{4}); });
   const auto res = query_.LookUp(kMaxMateLen, false);
-  ExpectEq(res, {33, 4, hand_p1_, kMaxMateLen, false, false, kMaxNumMateMoves, kNullKey, kNullHand, 0}, __LINE__);
+  ExpectEq(res, {33, 4, hand_p1_, kMaxMateLen, false, false, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0}, __LINE__);
 }
 
 TEST_F(QueryTest, CreateUnknown) {
-  query_.SetResult({33, 4, hand_p1_, {26, 4}, false, false, kMaxNumMateMoves, 264, hand_p2_, 445}, 10);
+  query_.SetResult({33, 4, hand_p1_, {26, 4}, false, false, 1, kMaxNumMateMoves, 264, hand_p2_, 445});
   const auto res = query_.LookUp({26, 4}, false);
-  ExpectEq(res, {33, 4, hand_p1_, {26, 4}, false, false, kMaxNumMateMoves, 264, hand_p2_, 445}, __LINE__);
+  ExpectEq(res, {33, 4, hand_p1_, {26, 4}, false, false, 1, kMaxNumMateMoves, 264, hand_p2_, 445}, __LINE__);
 }
 
 TEST_F(QueryTest, CreateRepetition) {
-  query_.SetResult({33, 4, hand_p1_, {26, 4}}, 10);
-  query_.SetResult({kInfinitePnDn, 0, hand_p1_, {26, 4}, true}, 10);
+  query_.SetResult({33, 4, hand_p1_, {26, 4}});
+  query_.SetResult({kInfinitePnDn, 0, hand_p1_, {26, 4}, true});
   const auto res = query_.LookUp({26, 4}, false);
-  ExpectEq(res, {kInfinitePnDn, 0, hand_p1_, {26, 4}, true, false, kMaxNumMateMoves, kNullKey, kNullHand, 0}, __LINE__);
+  ExpectEq(res, {kInfinitePnDn, 0, hand_p1_, {26, 4}, true, false, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0},
+           __LINE__);
 }
 
 TEST_F(QueryTest, CreateProven) {
-  query_.SetResult({0, kInfinitePnDn, HAND_ZERO, {22, 4}}, 10);
+  query_.SetResult({0, kInfinitePnDn, HAND_ZERO, {22, 4}});
   const auto res = query_.LookUp({26, 4}, false);
-  ExpectEq(res, {0, kInfinitePnDn, HAND_ZERO, {22, 4}, false, false, kMaxNumMateMoves, kNullKey, kNullHand, 0},
+  ExpectEq(res, {0, kInfinitePnDn, HAND_ZERO, {22, 4}, false, false, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0},
            __LINE__);
 }
 
 TEST_F(QueryTest, CreateDisproven) {
-  query_.SetResult({kInfinitePnDn, 0, hand_p2_, {28, 4}}, 10);
+  query_.SetResult({kInfinitePnDn, 0, hand_p2_, {28, 4}});
   const auto res = query_.LookUp({26, 4}, false);
-  ExpectEq(res, {kInfinitePnDn, 0, hand_p2_, {28, 4}, false, false, kMaxNumMateMoves, kNullKey, kNullHand, 0},
+  ExpectEq(res, {kInfinitePnDn, 0, hand_p2_, {28, 4}, false, false, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0},
            __LINE__);
 }

@@ -254,6 +254,7 @@ struct SearchResult {
   MateLen len;
   bool is_repetition{false};
   bool is_first_visit{false};
+  std::uint32_t amount{1};
   Depth min_depth{kMaxCheckMovesPerNode};
   Key parent_board_key{kNullKey};
   Hand parent_hand{kNullHand};
@@ -262,6 +263,7 @@ struct SearchResult {
   constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
   constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
   constexpr Depth IsOldChild(Depth depth) const { return min_depth < depth; }
+  constexpr bool IsFinal() const { return pn == 0 || dn == 0; }
 
   SearchResult() = default;
   constexpr SearchResult(const SearchResult&) = default;
@@ -301,7 +303,8 @@ class Query {
         const auto min_depth = itr->MinDepth();
         const auto parent = itr->GetParent();
         const auto secret = itr->GetSecret();
-        return {pn, dn, itr->GetHand(), len, false, false, itr->MinDepth(), parent.first, parent.second, secret};
+        return {pn,        dn,           itr->GetHand(), len,   false, false, itr->TotalAmount(),
+                min_depth, parent.first, parent.second,  secret};
       }
     }
 
@@ -318,11 +321,11 @@ class Query {
     return LookUp(len, create_entry, []() { return std::make_pair(PnDn{1}, PnDn{1}); });
   }
 
-  void SetResult(const SearchResult& result, std::uint32_t amount) {
+  void SetResult(const SearchResult& result) {
     if (result.is_repetition) {
       SetRepetition(result);
     } else {
-      SetResultImpl(result, amount);
+      SetResultImpl(result);
       if (result.pn == 0) {
         CleanFinal<true>(result.hand, result.len);
       } else if (result.dn == 0) {
@@ -363,12 +366,12 @@ class Query {
     }
   }
 
-  void SetResultImpl(const SearchResult& result, std::uint32_t amount) {
+  void SetResultImpl(const SearchResult& result) {
     if (auto itr = Find(result.hand)) {
-      itr->Update(depth_, result.pn, result.dn, result.len, amount);
+      itr->Update(depth_, result.pn, result.dn, result.len, result.amount);
       itr->UpdateParent(result.parent_board_key, result.parent_hand, result.secret);
     } else {
-      auto new_itr = CreateEntry(result.pn, result.dn, result.len, result.hand, amount);
+      auto new_itr = CreateEntry(result.pn, result.dn, result.len, result.hand, result.amount);
       new_itr->UpdateParent(result.parent_board_key, result.parent_hand, result.secret);
     }
   }
