@@ -246,10 +246,7 @@ class ChildrenCache {
       } else {
         child = {0};
         query = tt.BuildChildQuery(n, move.move);
-        result = query.LookUp(len, false, [&n, &move]() { return InitialPnDn(n, move.move); });
-        if (result.IsOldChild(n.GetDepth())) {
-          does_have_old_child_ = true;
-        }
+        result = query.LookUp(does_have_old_child_, len, false, [&n, &move]() { return InitialPnDn(n, move.move); });
 
         if (!result.IsFinal() && !or_node_ && first_search && result.unknown_data.is_first_visit) {
           nn.DoMove(move.move);
@@ -341,7 +338,7 @@ class ChildrenCache {
       parent_hand = parent_->or_hand_;
     }
 
-    tt::UnknownData unknown_data{false, n.GetDepth(), parent_board_key, parent_hand, ~sum_mask_.Value()};
+    tt::UnknownData unknown_data{false, parent_board_key, parent_hand, ~sum_mask_.Value()};
     return {GetPn(), GetDn(), or_hand_, len_, amount, unknown_data};
   }
 

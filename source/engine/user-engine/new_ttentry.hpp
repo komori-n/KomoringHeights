@@ -250,7 +250,6 @@ class RepetitionTable {
 
 struct UnknownData {
   bool is_first_visit;
-  Depth min_depth;
   Key parent_board_key;
   Hand parent_hand;
   std::uint64_t secret;
@@ -299,7 +298,6 @@ struct SearchResult {
 
   constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
   constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
-  constexpr Depth IsOldChild(Depth depth) const { return unknown_data.min_depth < depth; }
   constexpr bool IsFinal() const { return pn == 0 || dn == 0; }
 };
 
@@ -313,7 +311,7 @@ class Query {
   ~Query() = default;
 
   template <typename InitialEvalFunc>
-  SearchResult LookUp(MateLen len, bool create_entry, InitialEvalFunc&& eval_func) {
+  SearchResult LookUp(bool& does_have_old_child, MateLen len, bool create_entry, InitialEvalFunc&& eval_func) {
     static_assert(std::is_invocable_v<InitialEvalFunc>);
     static_assert(std::is_same_v<std::invoke_result_t<InitialEvalFunc>, std::pair<PnDn, PnDn>>);
     PnDn pn = 1;
@@ -334,8 +332,10 @@ class Query {
         if (pn == 0 || dn == 0) {
           return {pn, dn, itr->GetHand(), len, itr->TotalAmount(), FinalData{false}};
         } else {
+          does_have_old_child = itr->MinDepth() < depth_;
+
           const auto parent = itr->GetParent();
-          UnknownData unknown_data{false, itr->MinDepth(), parent.first, parent.second, itr->GetSecret()};
+          UnknownData unknown_data{false, parent.first, parent.second, itr->GetSecret()};
           return {pn, dn, itr->GetHand(), len, itr->TotalAmount(), unknown_data};
         }
       }
@@ -348,12 +348,23 @@ class Query {
       CreateEntry(pn, dn, len, hand_, 1);
     }
 
-    UnknownData unknown_data{true, depth_, kNullKey, kNullHand, 0};
+    UnknownData unknown_data{true, kNullKey, kNullHand, 0};
     return {pn, dn, hand_, len, 1, unknown_data};
   }
 
+  template <typename InitialEvalFunc>
+  SearchResult LookUp(MateLen len, bool create_entry, InitialEvalFunc&& eval_func) {
+    bool does_have_old_child = false;
+    return LookUp(does_have_old_child, len, create_entry, std::forward<InitialEvalFunc>(eval_func));
+  }
+
+  SearchResult LookUp(bool& does_have_old_child, MateLen len, bool create_entry) {
+    return LookUp(does_have_old_child, len, create_entry, []() { return std::make_pair(PnDn{1}, PnDn{1}); });
+  }
+
   SearchResult LookUp(MateLen len, bool create_entry) {
-    return LookUp(len, create_entry, []() { return std::make_pair(PnDn{1}, PnDn{1}); });
+    bool does_have_old_child = false;
+    return LookUp(does_have_old_child, len, create_entry);
   }
 
   void SetResult(const SearchResult& result) {
