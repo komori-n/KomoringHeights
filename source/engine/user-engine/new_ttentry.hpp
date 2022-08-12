@@ -252,24 +252,21 @@ struct SearchResult {
   PnDn pn, dn;
   Hand hand;
   MateLen len;
-  bool is_repetition{false};
-  bool is_first_visit{false};
-  std::uint32_t amount{1};
-  Depth min_depth{kMaxCheckMovesPerNode};
-  Key parent_board_key{kNullKey};
-  Hand parent_hand{kNullHand};
-  std::uint64_t secret{};
+  bool is_repetition;
+  bool is_first_visit;
+  std::uint32_t amount;
+  Depth min_depth;
+  Key parent_board_key;
+  Hand parent_hand;
+  std::uint64_t secret;
+
+  SearchResult() = default;
+  SearchResult(PnDn pn, PnDn dn, Hand hand, MateLen len) : pn{pn}, dn{dn}, hand{hand}, len{len} {}
 
   constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
   constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
   constexpr Depth IsOldChild(Depth depth) const { return min_depth < depth; }
   constexpr bool IsFinal() const { return pn == 0 || dn == 0; }
-
-  SearchResult() = default;
-  constexpr SearchResult(const SearchResult&) = default;
-  constexpr SearchResult(SearchResult&&) = default;
-  constexpr SearchResult& operator=(const SearchResult&) = default;
-  constexpr SearchResult& operator=(SearchResult&&) = default;
 };
 
 class Query {
@@ -282,7 +279,7 @@ class Query {
   ~Query() = default;
 
   template <typename InitialEvalFunc>
-  constexpr SearchResult LookUp(MateLen len, bool create_entry, InitialEvalFunc&& eval_func) {
+  SearchResult LookUp(MateLen len, bool create_entry, InitialEvalFunc&& eval_func) {
     static_assert(std::is_invocable_v<InitialEvalFunc>);
     static_assert(std::is_same_v<std::invoke_result_t<InitialEvalFunc>, std::pair<PnDn, PnDn>>);
     PnDn pn = 1;
@@ -297,14 +294,27 @@ class Query {
       const bool is_end = itr->LookUp(hand_, depth_, len, pn, dn);
       if (is_end) {
         if (pn > 0 && dn > 0 && itr->MayRepeat() && rep_table_->Contains(path_key_)) {
-          return {kInfinitePnDn, 0, itr->GetHand(), len, true};
+          SearchResult ret{kInfinitePnDn, 0, itr->GetHand(), len};
+          ret.amount = 1;
+          ret.is_repetition = true;
+          return ret;
         }
 
-        const auto min_depth = itr->MinDepth();
-        const auto parent = itr->GetParent();
-        const auto secret = itr->GetSecret();
-        return {pn,        dn,           itr->GetHand(), len,   false, false, itr->TotalAmount(),
-                min_depth, parent.first, parent.second,  secret};
+        SearchResult ret{pn, dn, itr->GetHand(), len};
+        ret.amount = itr->TotalAmount();
+        if (ret.IsFinal()) {
+          ret.is_repetition = false;
+        } else {
+          ret.min_depth = itr->MinDepth();
+          ret.secret = itr->GetSecret();
+
+          const auto parent = itr->GetParent();
+          ret.parent_board_key = parent.first;
+          ret.parent_hand = parent.second;
+          ret.is_first_visit = false;
+        }
+
+        return ret;
       }
     }
 
@@ -314,10 +324,18 @@ class Query {
     if (create_entry) {
       CreateEntry(pn, dn, len, hand_, 1);
     }
-    return {pn, dn, hand_, len, false, true};
+
+    SearchResult ret{pn, dn, hand_, len};
+    ret.amount = 1;
+    ret.min_depth = depth_;
+    ret.secret = 0;
+    ret.parent_board_key = kNullKey;
+    ret.parent_hand = kNullHand;
+    ret.is_first_visit = true;
+    return ret;
   }
 
-  constexpr SearchResult LookUp(MateLen len, bool create_entry) {
+  SearchResult LookUp(MateLen len, bool create_entry) {
     return LookUp(len, create_entry, []() { return std::make_pair(PnDn{1}, PnDn{1}); });
   }
 
@@ -464,7 +482,7 @@ class TranspositionTable {
 
   constexpr Query BuildQueryByKey(Key board_key, Hand or_hand) {
     auto* const head_entry = HeadOf(board_key);
-    const auto dummy_depth = std::numeric_limits<Depth>::max();
+    const auto dummy_depth = kMaxNumMateMoves;
     return Query{rep_table_, head_entry, kNullKey, board_key, or_hand, dummy_depth};
   }
 
