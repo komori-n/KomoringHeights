@@ -1,6 +1,8 @@
 #ifndef KOMORI_NEW_CC_HPP_
 #define KOMORI_NEW_CC_HPP_
 
+#include <algorithm>
+
 #include "../../mate/mate.h"
 #include "bitset.hpp"
 #include "hands.hpp"
@@ -297,20 +299,85 @@ class ChildrenCache {
   BitSet64 BestMoveSumMask() const { return BitSet64{~FrontResult().unknown_data.secret}; }
 
   tt::SearchResult CurrentResult(const Node& n) const {
-    // if (GetPn() == 0) {
-    //   return GetProvenResult(n);
-    // } else if (GetDn() == 0) {
-    //   return GetDisprovenResult(n);
-    // } else {
-    //   return GetUnknownResult(n);
-    // }
+    if (GetPn() == 0) {
+      return GetProvenResult(n);
+    } else if (GetDn() == 0) {
+      return GetDisprovenResult(n);
+    } else {
+      return GetUnknownResult();
+    }
   }
-
-  PnDn GetPn() const { return 1; }
-  PnDn GetDn() const { return 1; }
 
  private:
   const tt::SearchResult& FrontResult() const { return results_[idx_.front()]; }
+
+  // <PnDn>
+  constexpr PnDn GetPn() const {
+    if (or_node_) {
+      return GetPhi();
+    } else {
+      return GetDelta();
+    }
+  }
+  constexpr PnDn GetDn() const {
+    if (or_node_) {
+      return GetDelta();
+    } else {
+      return GetPhi();
+    }
+  }
+
+  constexpr PnDn GetPhi() const {
+    if (idx_.empty()) {
+      return kInfinitePnDn;
+    }
+    return FrontResult().Phi(or_node_);
+  }
+
+  constexpr PnDn GetDelta() const {
+    auto [sum_delta, max_delta] = GetRawDelta();
+    if (sum_delta == 0 && max_delta == 0) {
+      return 0;
+    }
+
+    // 後回しにしている子局面が存在する場合、その値をδ値に加算しないと局面を過大評価してしまう。
+    //
+    // 例） sfen +P5l2/4+S4/p1p+bpp1kp/6pgP/3n1n3/P2NP4/3P1NP2/2P2S3/3K3L1 b RGSL2Prb2gsl3p 159
+    //      1筋の合駒を考える時、玉方が合駒を微妙に変えることで読みの深さを指数関数的に大きくできてしまう
+    if (mp_.size() > idx_.size()) {
+      // 読みの後回しが原因の（半）無限ループを回避できればいいので、1点減点しておく
+      sum_delta += 1;
+    }
+
+    return sum_delta + max_delta;
+  }
+
+  constexpr std::pair<PnDn, PnDn> GetRawDelta() const {
+    if (idx_.empty()) {
+      return {0, 0};
+    }
+
+    const auto& best_result = FrontResult();
+    // 差分計算用の値を予め持っているので、高速に計算できる
+    auto sum_delta = sum_delta_except_best_;
+    auto max_delta = max_delta_except_best_;
+    if (sum_mask_[idx_.front()]) {
+      sum_delta += best_result.Delta(or_node_);
+    } else {
+      max_delta = std::max(max_delta, best_result.Delta(or_node_));
+    }
+
+    return {sum_delta, max_delta};
+  }
+
+  constexpr PnDn GetSecondPhi() const {
+    if (idx_.size() <= 1) {
+      return kInfinitePnDn;
+    }
+    const auto& second_best_result = results_[idx_[1]];
+    return second_best_result.Phi(or_node_);
+  }
+  // </PnDn>
 
   constexpr void RecalcDelta() {
     sum_delta_except_best_ = 0;
@@ -327,7 +394,90 @@ class ChildrenCache {
     }
   }
 
-  tt::SearchResult GetUnknownResult(const Node& n) const {
+  tt::SearchResult GetProvenResult(const Node& n) const {
+    if (or_node_) {
+      const auto& result = FrontResult();
+      const auto best_move = mp_[idx_[0]];
+      const auto proof_hand = BeforeHand(n.Pos(), best_move, result.hand);
+      const auto mate_len = result.len;
+      const auto amount = result.amount;
+
+      return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::UnknownData{false}};
+    } else {
+      // 子局面の証明駒の極小集合を計算する
+      HandSet set{ProofHandTag{}};
+      MateLen mate_len = kZeroMateLen;
+      std::uint32_t amount = 1;
+      for (const auto i_raw : idx_) {
+        const auto& result = results_[i_raw];
+
+        set.Update(result.hand);
+        amount = std::max(amount, result.amount);
+        if (result.len > mate_len) {
+          mate_len = result.len + 1;
+        }
+      }
+      const auto proof_hand = set.Get(n.Pos());
+
+      // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
+      amount += std::max(mp_.size(), std::size_t{1}) - 1;
+
+      return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::UnknownData{false}};
+    }
+  }
+
+  tt::SearchResult GetDisprovenResult(const Node& n) const {
+    // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
+    if (!mp_.empty()) {
+      if (const auto& result = FrontResult(); result.dn == 0 && result.final_data.is_repetition) {
+        return {kInfinitePnDn, 0, n.OrHand(), {0, 0}, 1, tt::FinalData{false}};
+      }
+    }
+
+    // フツーの不詰
+    if (or_node_) {
+      // 子局面の反証駒の極大集合を計算する
+      HandSet set{DisproofHandTag{}};
+      MateLen mate_len = kMaxMateLen;
+      std::uint32_t amount = 1;
+      for (const auto i_raw : idx_) {
+        const auto& result = results_[i_raw];
+        const auto child_move = mp_[i_raw];
+
+        set.Update(BeforeHand(n.Pos(), child_move, result.hand));
+        amount = std::max(amount, result.amount);
+        if (result.len > mate_len) {
+          mate_len = result.len + 1;
+        }
+      }
+      amount += std::max(mp_.size(), std::size_t{1}) - 1;
+      const auto disproof_hand = set.Get(n.Pos());
+
+      return {kInfinitePnDn, 0, disproof_hand, mate_len, amount, tt::FinalData{false}};
+    } else {
+      const auto& result = FrontResult();
+      auto disproof_hand = result.hand;
+      const auto mate_len = result.len + 1;
+      const auto amount = result.amount;
+
+      // 駒打ちならその駒を持っていないといけない
+      if (const auto best_move = mp_[idx_[0]]; is_drop(best_move)) {
+        const auto pr = move_dropped_piece(best_move);
+        const auto pr_cnt = hand_count(MergeHand(n.OrHand(), n.AndHand()), pr);
+        const auto disproof_pr_cnt = hand_count(disproof_hand, pr);
+        if (pr_cnt - disproof_pr_cnt <= 0) {
+          // もし現局面の攻め方の持ち駒が disproof_hand だった場合、打とうとしている駒 pr が攻め方に独占されているため
+          // 受け方は BestMove() を着手することができない。そのため、攻め方の持ち駒を何枚か受け方に渡す必要がある。
+          sub_hand(disproof_hand, pr, disproof_pr_cnt);
+          add_hand(disproof_hand, pr, pr_cnt - 1);
+        }
+      }
+
+      return {kInfinitePnDn, 0, disproof_hand, mate_len, amount, tt::FinalData{false}};
+    }
+  }
+
+  tt::SearchResult GetUnknownResult() const {
     const auto& result = FrontResult();
     std::uint32_t amount = result.amount + mp_.size() / 2;
 
