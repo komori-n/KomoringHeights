@@ -248,24 +248,58 @@ class RepetitionTable {
 };
 }  // namespace detail
 
-struct SearchResult {
-  PnDn pn, dn;
-  Hand hand;
-  MateLen len;
-  bool is_repetition;
+struct UnknownData {
   bool is_first_visit;
-  std::uint32_t amount;
   Depth min_depth;
   Key parent_board_key;
   Hand parent_hand;
   std::uint64_t secret;
+};
+
+struct FinalData {
+  bool is_repetition;
+};
+
+struct SearchResult {
+  PnDn pn, dn;
+  Hand hand;
+  MateLen len;
+  std::uint32_t amount;
+  union {
+    UnknownData unknown_data;
+    FinalData final_data;
+  };
 
   SearchResult() = default;
-  SearchResult(PnDn pn, PnDn dn, Hand hand, MateLen len) : pn{pn}, dn{dn}, hand{hand}, len{len} {}
+  SearchResult(PnDn pn, PnDn dn, Hand hand, MateLen len, std::uint32_t amount, UnknownData unknown_data)
+      : pn{pn}, dn{dn}, hand{hand}, len{len}, amount{amount}, unknown_data{unknown_data} {}
+  SearchResult(PnDn pn, PnDn dn, Hand hand, MateLen len, std::uint32_t amount, FinalData final_data)
+      : pn{pn}, dn{dn}, hand{hand}, len{len}, amount{amount}, final_data{final_data} {}
+
+  void InitUnknown(PnDn pn, PnDn dn, Hand hand, MateLen len, std::uint32_t amount, UnknownData unknown_data) {
+    this->pn = pn;
+    this->dn = dn;
+    this->hand = hand;
+    this->len = len;
+    this->amount = amount;
+    this->unknown_data = std::move(unknown_data);
+  }
+
+  template <bool kIsProven, bool kIsRepetition = false>
+  void InitFinal(Hand hand, MateLen len, std::uint32_t amount) {
+    static_assert(!(kIsProven && kIsRepetition));
+
+    this->pn = kIsProven ? 0 : kInfinitePnDn;
+    this->dn = kIsProven ? kInfinitePnDn : 0;
+    this->hand = hand;
+    this->len = len;
+    this->amount = amount;
+    this->final_data.is_repetition = kIsRepetition;
+  }
 
   constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
   constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
-  constexpr Depth IsOldChild(Depth depth) const { return min_depth < depth; }
+  constexpr Depth IsOldChild(Depth depth) const { return unknown_data.min_depth < depth; }
   constexpr bool IsFinal() const { return pn == 0 || dn == 0; }
 };
 
@@ -294,27 +328,16 @@ class Query {
       const bool is_end = itr->LookUp(hand_, depth_, len, pn, dn);
       if (is_end) {
         if (pn > 0 && dn > 0 && itr->MayRepeat() && rep_table_->Contains(path_key_)) {
-          SearchResult ret{kInfinitePnDn, 0, itr->GetHand(), len};
-          ret.amount = 1;
-          ret.is_repetition = true;
-          return ret;
+          return {kInfinitePnDn, 0, itr->GetHand(), len, 1, FinalData{true}};
         }
 
-        SearchResult ret{pn, dn, itr->GetHand(), len};
-        ret.amount = itr->TotalAmount();
-        if (ret.IsFinal()) {
-          ret.is_repetition = false;
+        if (pn == 0 || dn == 0) {
+          return {pn, dn, itr->GetHand(), len, itr->TotalAmount(), FinalData{false}};
         } else {
-          ret.min_depth = itr->MinDepth();
-          ret.secret = itr->GetSecret();
-
           const auto parent = itr->GetParent();
-          ret.parent_board_key = parent.first;
-          ret.parent_hand = parent.second;
-          ret.is_first_visit = false;
+          UnknownData unknown_data{false, itr->MinDepth(), parent.first, parent.second, itr->GetSecret()};
+          return {pn, dn, itr->GetHand(), len, itr->TotalAmount(), unknown_data};
         }
-
-        return ret;
       }
     }
 
@@ -325,14 +348,8 @@ class Query {
       CreateEntry(pn, dn, len, hand_, 1);
     }
 
-    SearchResult ret{pn, dn, hand_, len};
-    ret.amount = 1;
-    ret.min_depth = depth_;
-    ret.secret = 0;
-    ret.parent_board_key = kNullKey;
-    ret.parent_hand = kNullHand;
-    ret.is_first_visit = true;
-    return ret;
+    UnknownData unknown_data{true, depth_, kNullKey, kNullHand, 0};
+    return {pn, dn, hand_, len, 1, unknown_data};
   }
 
   SearchResult LookUp(MateLen len, bool create_entry) {
@@ -340,7 +357,7 @@ class Query {
   }
 
   void SetResult(const SearchResult& result) {
-    if (result.is_repetition) {
+    if (result.final_data.is_repetition) {
       SetRepetition(result);
     } else {
       SetResultImpl(result);
@@ -387,10 +404,16 @@ class Query {
   void SetResultImpl(const SearchResult& result) {
     if (auto itr = Find(result.hand)) {
       itr->Update(depth_, result.pn, result.dn, result.len, result.amount);
-      itr->UpdateParent(result.parent_board_key, result.parent_hand, result.secret);
+      if (!result.IsFinal()) {
+        itr->UpdateParent(result.unknown_data.parent_board_key, result.unknown_data.parent_hand,
+                          result.unknown_data.secret);
+      }
     } else {
       auto new_itr = CreateEntry(result.pn, result.dn, result.len, result.hand, result.amount);
-      new_itr->UpdateParent(result.parent_board_key, result.parent_hand, result.secret);
+      if (!result.IsFinal()) {
+        new_itr->UpdateParent(result.unknown_data.parent_board_key, result.unknown_data.parent_hand,
+                              result.unknown_data.secret);
+      }
     }
   }
 

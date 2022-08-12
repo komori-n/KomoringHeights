@@ -196,8 +196,8 @@ class ChildrenCache {
       }
 
       if (left_result.dn == 0 && right_result.dn == 0) {
-        const auto l_is_rep = left_result.is_repetition;
-        const auto r_is_rep = right_result.is_repetition;
+        const auto l_is_rep = left_result.final_data.is_repetition;
+        const auto r_is_rep = right_result.final_data.is_repetition;
 
         if (l_is_rep != r_is_rep) {
           return !or_node_ ^ (static_cast<int>(l_is_rep) < static_cast<int>(r_is_rep));
@@ -238,11 +238,7 @@ class ChildrenCache {
       if (n.IsRepetitionOrInferiorAfter(move.move)) {
         if (!found_rep) {
           found_rep = true;
-          result.pn = kInfinitePnDn;
-          result.dn = 0;
-          result.hand = hand_after;
-          result.len = len;
-          result.is_repetition = true;
+          result.InitFinal<false, true>(hand_after, len, 1);
         } else {
           idx_.Pop();
           continue;
@@ -255,19 +251,16 @@ class ChildrenCache {
           does_have_old_child_ = true;
         }
 
-        if (!or_node_ && first_search && result.is_first_visit) {
+        if (!result.IsFinal() && !or_node_ && first_search && result.unknown_data.is_first_visit) {
           nn.DoMove(move.move);
           if (!detail::DoesHaveMatePossibility(n.Pos())) {
-            result.pn = kInfinitePnDn;
-            result.dn = 0;
-            result.hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
-            result.len = {0, static_cast<std::uint16_t>(CountHand(n.OrHand()))};
+            const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
+            const auto len = MateLen{0, static_cast<std::uint16_t>(CountHand(n.OrHand()))};
+            result.InitFinal<false>(hand, len, 1);
             query.SetResult(result);
           } else if (auto [best_move, proof_hand] = detail::CheckMate1Ply(nn); proof_hand != kNullHand) {
-            result.pn = 0;
-            result.dn = kInfinitePnDn;
-            result.hand = proof_hand;
-            result.len = {1, static_cast<std::uint16_t>(CountHand(proof_hand))};
+            const auto len = MateLen{1, static_cast<std::uint16_t>(CountHand(proof_hand))};
+            result.InitFinal<true>(proof_hand, len, 1);
             query.SetResult(result);
           }
           nn.UndoMove(move.move);
@@ -303,8 +296,8 @@ class ChildrenCache {
   ~ChildrenCache() = default;
 
   Move BestMove() const { return mp_[idx_.front()].move; };
-  bool BestMoveIsFirstVisit() const { return FrontResult().is_first_visit; }
-  BitSet64 BestMoveSumMask() const { return BitSet64{~FrontResult().secret}; }
+  bool BestMoveIsFirstVisit() const { return FrontResult().unknown_data.is_first_visit; }
+  BitSet64 BestMoveSumMask() const { return BitSet64{~FrontResult().unknown_data.secret}; }
 
   tt::SearchResult CurrentResult(const Node& n) const {
     // if (GetPn() == 0) {
@@ -340,19 +333,16 @@ class ChildrenCache {
   tt::SearchResult GetUnknownResult(const Node& n) const {
     const auto& result = FrontResult();
     std::uint32_t amount = result.amount + mp_.size() / 2;
-    tt::SearchResult ret{GetPn(), GetDn(), or_hand_, len_};
-    ret.is_first_visit = false;
-    ret.amount = amount;
-    ret.min_depth = n.GetDepth();
-    ret.secret = ~sum_mask_.Value();
+
+    Key parent_board_key{kNullKey};
+    Hand parent_hand{kNullHand};
     if (parent_ != nullptr) {
-      ret.parent_board_key = parent_->board_key_;
-      ret.parent_hand = parent_->or_hand_;
-    } else {
-      ret.parent_board_key = kNullKey;
-      ret.parent_hand = kNullHand;
+      parent_board_key = parent_->board_key_;
+      parent_hand = parent_->or_hand_;
     }
-    return ret;
+
+    tt::UnknownData unknown_data{false, n.GetDepth(), parent_board_key, parent_hand, ~sum_mask_.Value()};
+    return {GetPn(), GetDn(), or_hand_, len_, amount, unknown_data};
   }
 
   void EliminateDoubleCount(tt::TranspositionTable& tt, const Node& n, std::size_t i) {

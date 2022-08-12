@@ -300,52 +300,36 @@ class QueryTest : public ::testing::Test {
     query_ = tt_.BuildQueryByKey(334, hand_p1_);
   }
 
-  static void ExpectEq(const komori::tt::SearchResult& lhs, const komori::tt::SearchResult& rhs, int line) {
-    EXPECT_EQ(lhs.pn, rhs.pn) << "LINE: " << line;
-    EXPECT_EQ(lhs.dn, rhs.dn) << "LINE: " << line;
-    EXPECT_EQ(lhs.hand, rhs.hand) << "LINE: " << line;
-    EXPECT_EQ(lhs.len, rhs.len) << "LINE: " << line;
-    EXPECT_EQ(lhs.is_repetition, rhs.is_repetition) << "LINE: " << line;
-    EXPECT_EQ(lhs.is_first_visit, rhs.is_first_visit) << "LINE: " << line;
-    EXPECT_EQ(lhs.parent_board_key, rhs.parent_board_key) << "LINE: " << line;
-    EXPECT_EQ(lhs.parent_hand, rhs.parent_hand) << "LINE: " << line;
-    EXPECT_EQ(lhs.secret, rhs.secret) << "LINE: " << line;
-  }
-
   static void ExpectBase(const komori::tt::SearchResult& result,
                          PnDn expected_pn,
                          PnDn expected_dn,
                          Hand expected_hand,
                          MateLen expected_len,
+                         std::uint32_t expected_amount,
                          int line) {
     EXPECT_EQ(result.pn, expected_pn) << "LINE: " << line;
     EXPECT_EQ(result.dn, expected_dn) << "LINE: " << line;
     EXPECT_EQ(result.hand, expected_hand) << "LINE: " << line;
     EXPECT_EQ(result.len, expected_len) << "LINE: " << line;
+    EXPECT_EQ(result.amount, expected_amount) << "LINE: " << line;
   }
 
   static void ExpectUnknown(const komori::tt::SearchResult& result,
                             bool expected_is_first_visit,
-                            std::uint32_t expected_amount,
                             Depth expected_min_depth,
                             Key expected_parent_board_key,
                             Hand expected_parent_hand,
                             std::uint64_t expected_secret,
                             int line) {
-    EXPECT_EQ(result.is_first_visit, expected_is_first_visit) << "LINE: " << line;
-    EXPECT_EQ(result.amount, expected_amount) << "LINE: " << line;
-    EXPECT_EQ(result.min_depth, expected_min_depth) << "LINE: " << line;
-    EXPECT_EQ(result.parent_board_key, expected_parent_board_key) << "LINE: " << line;
-    EXPECT_EQ(result.parent_hand, expected_parent_hand) << "LINE: " << line;
-    EXPECT_EQ(result.secret, expected_secret) << "LINE: " << line;
+    EXPECT_EQ(result.unknown_data.is_first_visit, expected_is_first_visit) << "LINE: " << line;
+    EXPECT_EQ(result.unknown_data.min_depth, expected_min_depth) << "LINE: " << line;
+    EXPECT_EQ(result.unknown_data.parent_board_key, expected_parent_board_key) << "LINE: " << line;
+    EXPECT_EQ(result.unknown_data.parent_hand, expected_parent_hand) << "LINE: " << line;
+    EXPECT_EQ(result.unknown_data.secret, expected_secret) << "LINE: " << line;
   }
 
-  static void ExpectFinal(const komori::tt::SearchResult& result,
-                          bool expected_is_repetition,
-                          std::uint32_t expected_amount,
-                          int line) {
-    EXPECT_EQ(result.is_repetition, expected_is_repetition) << "LINE: " << line;
-    EXPECT_EQ(result.amount, expected_amount) << "LINE: " << line;
+  static void ExpectFinal(const komori::tt::SearchResult& result, bool expected_is_repetition, int line) {
+    EXPECT_EQ(result.final_data.is_repetition, expected_is_repetition) << "LINE: " << line;
   }
 
   Hand hand_p1_;
@@ -357,68 +341,59 @@ class QueryTest : public ::testing::Test {
 
 TEST_F(QueryTest, Empty) {
   const auto res = query_.LookUp(kMaxMateLen, false);
-  ExpectBase(res, 1, 1, hand_p1_, kMaxMateLen, __LINE__);
-  ExpectUnknown(res, true, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0, __LINE__);
+  ExpectBase(res, 1, 1, hand_p1_, kMaxMateLen, 1, __LINE__);
+  ExpectUnknown(res, true, kMaxNumMateMoves, kNullKey, kNullHand, 0, __LINE__);
 }
 
 TEST_F(QueryTest, EmptyWithInitFunc) {
   const auto res = query_.LookUp(kMaxMateLen, false, []() { return std::make_pair(PnDn{33}, PnDn{4}); });
-  ExpectBase(res, 33, 4, hand_p1_, kMaxMateLen, __LINE__);
-  ExpectUnknown(res, true, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0, __LINE__);
+  ExpectBase(res, 33, 4, hand_p1_, kMaxMateLen, 1, __LINE__);
+  ExpectUnknown(res, true, kMaxNumMateMoves, kNullKey, kNullHand, 0, __LINE__);
 }
 
 TEST_F(QueryTest, EmptyCreate) {
   query_.LookUp(kMaxMateLen, true, []() { return std::make_pair(PnDn{33}, PnDn{4}); });
   const auto res = query_.LookUp(kMaxMateLen, false);
-  ExpectBase(res, 33, 4, hand_p1_, kMaxMateLen, __LINE__);
-  ExpectUnknown(res, false, 1, kMaxNumMateMoves, kNullKey, kNullHand, 0, __LINE__);
+  ExpectBase(res, 33, 4, hand_p1_, kMaxMateLen, 1, __LINE__);
+  ExpectUnknown(res, false, kMaxNumMateMoves, kNullKey, kNullHand, 0, __LINE__);
 }
 
 TEST_F(QueryTest, CreateUnknown) {
-  komori::tt::SearchResult set_result{33, 4, hand_p1_, {26, 4}};
-  set_result.is_first_visit = false;
-  set_result.amount = 1;
-  set_result.min_depth = kMaxNumMateMoves;
-  set_result.parent_board_key = 264;
-  set_result.parent_hand = hand_p2_;
-  set_result.secret = 445;
+  komori::tt::UnknownData unknown_data = {false, kMaxNumMateMoves, 264, hand_p2_, 445};
+  komori::tt::SearchResult set_result{33, 4, hand_p1_, {26, 4}, 1, unknown_data};
 
   query_.SetResult(set_result);
   const auto res = query_.LookUp({26, 4}, false);
-  ExpectBase(res, 33, 4, hand_p1_, {26, 4}, __LINE__);
-  ExpectUnknown(res, false, 1, kMaxNumMateMoves, 264, hand_p2_, 445, __LINE__);
+  ExpectBase(res, 33, 4, hand_p1_, {26, 4}, 1, __LINE__);
+  ExpectUnknown(res, false, kMaxNumMateMoves, 264, hand_p2_, 445, __LINE__);
 }
 
 TEST_F(QueryTest, CreateRepetition) {
-  query_.SetResult({33, 4, hand_p1_, {26, 4}});
+  komori::tt::UnknownData unknown_data = {false, kMaxNumMateMoves, 264, hand_p1_, 445};
+  query_.SetResult({33, 4, hand_p1_, {26, 4}, 1, unknown_data});
 
-  komori::tt::SearchResult rep_result{kInfinitePnDn, 0, hand_p1_, {26, 4}};
-  rep_result.is_repetition = true;
-  query_.SetResult(rep_result);
+  query_.SetResult({kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, komori::tt::FinalData{true}});
   const auto res = query_.LookUp({26, 4}, false);
 
-  ExpectBase(res, kInfinitePnDn, 0, hand_p1_, {26, 4}, __LINE__);
-  ExpectFinal(res, true, 1, __LINE__);
+  ExpectBase(res, kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, __LINE__);
+  ExpectFinal(res, true, __LINE__);
 }
 
 TEST_F(QueryTest, CreateProven) {
-  komori::tt::SearchResult proven_result{0, kInfinitePnDn, HAND_ZERO, {22, 4}};
-  proven_result.amount = 10;
-  proven_result.is_repetition = false;
+  komori::tt::SearchResult proven_result{0, kInfinitePnDn, HAND_ZERO, {22, 4}, 10, komori::tt::FinalData{false}};
+
   query_.SetResult(proven_result);
   const auto res = query_.LookUp({26, 4}, false);
 
-  ExpectBase(res, 0, kInfinitePnDn, HAND_ZERO, {22, 4}, __LINE__);
-  ExpectFinal(res, false, 10, __LINE__);
+  ExpectBase(res, 0, kInfinitePnDn, HAND_ZERO, {22, 4}, 10, __LINE__);
+  ExpectFinal(res, false, __LINE__);
 }
 
 TEST_F(QueryTest, CreateDisproven) {
-  komori::tt::SearchResult disproven_result{kInfinitePnDn, 0, hand_p2_, {28, 4}};
-  disproven_result.amount = 10;
-  disproven_result.is_repetition = false;
+  komori::tt::SearchResult disproven_result{kInfinitePnDn, 0, hand_p2_, {28, 4}, 10, komori::tt::FinalData{false}};
 
   query_.SetResult(disproven_result);
   const auto res = query_.LookUp({26, 4}, false);
-  ExpectBase(res, kInfinitePnDn, 0, hand_p2_, {28, 4}, __LINE__);
-  ExpectFinal(res, false, 10, __LINE__);
+  ExpectBase(res, kInfinitePnDn, 0, hand_p2_, {28, 4}, 10, __LINE__);
+  ExpectFinal(res, false, __LINE__);
 }
