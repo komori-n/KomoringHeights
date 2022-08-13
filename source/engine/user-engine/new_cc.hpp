@@ -36,6 +36,8 @@ class IndexTable {
   constexpr bool empty() const { return len_ == 0; }
   constexpr std::uint32_t& front() { return data_[0]; }
   constexpr const std::uint32_t& front() const { return data_[0]; }
+  constexpr std::uint32_t& back() { return data_[len_ - 1]; }
+  constexpr const std::uint32_t& back() const { return data_[len_ - 1]; }
 
  private:
   std::array<std::uint32_t, kMaxCheckMovesPerNode> data_;
@@ -276,8 +278,7 @@ class ChildrenCache {
   ~ChildrenCache() = default;
 
   Move BestMove() const { return mp_[idx_.front()].move; };
-  bool BestMoveIsFirstVisit() const { return FrontResult().unknown_data.is_first_visit; }
-  BitSet64 BestMoveSumMask() const { return BitSet64{~FrontResult().unknown_data.secret}; }
+  bool DoesHaveOldChild() const { return does_have_old_child_; }
 
   tt::SearchResult CurrentResult(const Node& n) const {
     if (GetPn() == 0) {
@@ -286,6 +287,77 @@ class ChildrenCache {
       return GetDisprovenResult(n);
     } else {
       return GetUnknownResult();
+    }
+  }
+
+  tt::SearchResult UpdateBestChild(const tt::SearchResult& search_result) {
+    const auto old_i_raw = idx_[0];
+    auto& child = children_[old_i_raw];
+    auto& query = queries_[old_i_raw];
+    auto& result = results_[old_i_raw];
+    result = search_result;
+    query.SetResult(search_result);
+
+    if (search_result.Delta(or_node_) == 0 && child.next_dep != 0) {
+      // 後回しにした手があるならそれを復活させる
+
+      // 現在注目している子ノード
+      auto curr_i_raw = old_i_raw;
+      // curr_i_raw の次に調べるべき子
+      auto next_dep = child.next_dep;
+      do {
+        children_[curr_i_raw].next_dep = 0;
+        curr_i_raw = next_dep - 1;
+
+        idx_.Push(curr_i_raw);
+        if (results_[curr_i_raw].Delta(or_node_) > 0) {
+          // まだ結論の出ていない子がいた
+          break;
+        }
+
+        // curr_i_raw は結論が出ているので、次の後回しにした手 next_dep を調べる
+        next_dep = children_[curr_i_raw].next_dep;
+      } while (next_dep > 0);
+
+      std::sort(idx_.begin(), idx_.end(), MakeComparer());
+      RecalcDelta();
+    } else {
+      const bool old_is_sum_delta = sum_mask_[old_i_raw];
+      if (old_is_sum_delta) {
+        sum_delta_except_best_ += result.Delta(or_node_);
+      } else {
+        max_delta_except_best_ = std::max(max_delta_except_best_, result.Delta(or_node_));
+      }
+
+      ResortFront();
+
+      const auto new_i_raw = idx_[0];
+      const auto new_result = results_[new_i_raw];
+      const bool new_is_sum_delta = sum_mask_[new_i_raw];
+      if (new_is_sum_delta) {
+        sum_delta_except_best_ -= new_result.Delta(or_node_);
+      } else if (new_result.Delta(or_node_) < max_delta_except_best_) {
+        // new_best_child を抜いても max_delta_except_best_ の値は変わらない
+      } else {
+        // max_delta_ の再計算が必要
+        RecalcDelta();
+      }
+    }
+  }
+
+  std::pair<PnDn, PnDn> PnDnThresholds(PnDn thpn, PnDn thdn) const {
+    // pn/dn で考えるよりも phi/delta で考えたほうがわかりやすい
+    // そのため、いったん phi/delta の世界に変換して、最後にもとに戻す
+
+    const auto thphi = Phi(thpn, thdn, or_node_);
+    const auto thdelta = Delta(thpn, thdn, or_node_);
+    const auto child_thphi = std::min(thphi, GetSecondPhi() + 1);
+    const auto child_thdelta = NewThdeltaForBestMove(thdelta);
+
+    if (or_node_) {
+      return {child_thphi, child_thdelta};
+    } else {
+      return {child_thdelta, child_thphi};
     }
   }
 
@@ -358,6 +430,20 @@ class ChildrenCache {
     const auto& second_best_result = results_[idx_[1]];
     return second_best_result.Phi(or_node_);
   }
+
+  PnDn NewThdeltaForBestMove(PnDn thdelta) const {
+    PnDn delta_except_best = sum_delta_except_best_;
+    if (sum_mask_[idx_[0]]) {
+      delta_except_best += max_delta_except_best_;
+    }
+
+    // 計算の際はオーバーフローに注意
+    if (thdelta >= delta_except_best) {
+      return Clamp(thdelta - delta_except_best);
+    }
+
+    return 0;
+  }
   // </PnDn>
 
   constexpr void RecalcDelta() {
@@ -383,7 +469,7 @@ class ChildrenCache {
       const auto mate_len = result.len;
       const auto amount = result.amount;
 
-      return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::UnknownData{false}};
+      return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::FinalData{false}};
     } else {
       // 子局面の証明駒の極小集合を計算する
       HandSet set{ProofHandTag{}};
@@ -403,7 +489,7 @@ class ChildrenCache {
       // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
       amount += std::max(mp_.size(), std::size_t{1}) - 1;
 
-      return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::UnknownData{false}};
+      return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::FinalData{false}};
     }
   }
 
@@ -471,6 +557,13 @@ class ChildrenCache {
 
     tt::UnknownData unknown_data{false, parent_board_key, parent_hand, ~sum_mask_.Value()};
     return {GetPn(), GetDn(), or_hand_, len_, amount, unknown_data};
+  }
+
+  void ResortFront() {
+    const auto comparer = MakeComparer();
+
+    auto itr = std::lower_bound(idx_.begin() + 1, idx_.end(), idx_[0], comparer);
+    std::rotate(idx_.begin(), idx_.begin() + 1, itr);
   }
 
   void EliminateDoubleCount(tt::TranspositionTable& tt, const Node& n, std::size_t i) {
