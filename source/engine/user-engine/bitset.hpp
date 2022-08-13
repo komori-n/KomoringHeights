@@ -49,7 +49,7 @@ class BitSet {
   constexpr ValueType Value() const noexcept { return val_; }
 
  private:
-  static constexpr inline std::size_t kBitPerByte = 8;
+  static constexpr inline std::size_t kBitPerByte = CHAR_BIT;
 
   ValueType val_{};
 };
