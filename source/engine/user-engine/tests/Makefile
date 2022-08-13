@@ -57,8 +57,7 @@ SOURCES  = \
     ../../../testcmd/benchmark.cpp
 
 SOURCES += dummy_engine.cpp \
-    ../path_keys.cpp \
-    ../hands.cpp
+    ../path_keys.cpp
 SOURCES += $(wildcard *_test.cpp) test_main.cpp
 
 CPPFLAGS += -DTARGET_CPU=\"$(TARGET_CPU)\"

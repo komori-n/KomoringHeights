@@ -546,7 +546,8 @@ class ChildrenCache {
 
   tt::SearchResult GetUnknownResult() const {
     const auto& result = FrontResult();
-    std::uint32_t amount = result.amount + mp_.size() / 2;
+    const auto is_first_visit = result.unknown_data.is_first_visit;
+    const std::uint32_t amount = result.amount + mp_.size() / 2;
 
     Key parent_board_key{kNullKey};
     Hand parent_hand{kNullHand};
@@ -555,7 +556,7 @@ class ChildrenCache {
       parent_hand = parent_->or_hand_;
     }
 
-    tt::UnknownData unknown_data{false, parent_board_key, parent_hand, ~sum_mask_.Value()};
+    tt::UnknownData unknown_data{is_first_visit, parent_board_key, parent_hand, ~sum_mask_.Value()};
     return {GetPn(), GetDn(), or_hand_, len_, amount, unknown_data};
   }
 
@@ -567,7 +568,24 @@ class ChildrenCache {
   }
 
   void EliminateDoubleCount(tt::TranspositionTable& tt, const Node& n, std::size_t i) {
-    // unimplemented
+    // [best move in TT]     node      [best move in search tree]
+    //                        |
+    //                       node★
+    //          found_edge-> /  \                                 |
+    //                   node   node
+    //                     |      |
+    //                       ...
+    //                     |      |
+    //                   node   node <-current position(n)
+    //               edge-> \   /
+    //                      node <-child (NthChild(i))
+    //
+    // 上記のような探索木の状態を考える。局面★で分岐した探索木の部分木が子孫ノードで合流している。このとき、局面★の
+    // δ値の計算で合流ノード由来の値を二重で加算してしまう可能性がある。
+    // このとき、pn/dn のどちらが二重カウントされるかは★のノード種別（OR node/AND node）にしか依存せず、合流局面の
+    // ノード種別には依存しないことに注意。
+    //
+    // この関数は、上記のような局面の合流を検出し、二重カウント状態を解消する役割である。
   }
 
   const bool or_node_;

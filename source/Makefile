@@ -425,7 +425,6 @@ ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 	SOURCES += \
 		engine/user-engine/children_cache.cpp \
     engine/user-engine/engine_option.cpp \
-		engine/user-engine/hands.cpp \
     engine/user-engine/initial_estimation.cpp \
 		engine/user-engine/komoring_heights.cpp \
 		engine/user-engine/path_keys.cpp \

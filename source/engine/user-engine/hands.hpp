@@ -32,9 +32,43 @@ inline int CountHand(Hand hand) {
 }
 
 /// move 後の手駒を返す
-Hand AfterHand(const Position& n, Move move, Hand before_hand);
+inline Hand AfterHand(const Position& n, Move move, Hand before_hand) {
+  if (is_drop(move)) {
+    const auto pr = move_dropped_piece(move);
+    if (hand_exists(before_hand, pr)) {
+      sub_hand(before_hand, move_dropped_piece(move));
+    }
+  } else {
+    if (const auto to_pc = n.piece_on(to_sq(move)); to_pc != NO_PIECE) {
+      const auto pr = raw_type_of(to_pc);
+      add_hand(before_hand, pr);
+      if (before_hand & HAND_BORROW_MASK) {
+        sub_hand(before_hand, pr);
+      }
+    }
+  }
+  return before_hand;
+}
+
 /// move 後の手駒が after_hand のとき、移動前の持ち駒を返す
-Hand BeforeHand(const Position& n, Move move, Hand after_hand);
+inline Hand BeforeHand(const Position& n, Move move, Hand after_hand) {
+  if (is_drop(move)) {
+    const auto pr = move_dropped_piece(move);
+    add_hand(after_hand, pr);
+    if (after_hand & HAND_BORROW_MASK) {
+      sub_hand(after_hand, pr);
+    }
+  } else {
+    const auto to_pc = n.piece_on(to_sq(move));
+    if (to_pc != NO_PIECE) {
+      const auto pr = raw_type_of(to_pc);
+      if (hand_exists(after_hand, pr)) {
+        sub_hand(after_hand, pr);
+      }
+    }
+  }
+  return after_hand;
+}
 
 /**
  * @brief 局面 n の子局面がすべて 反証駒 disproof_hand で不詰であることが既知の場合、もとの局面 n の反証駒を計算する。
@@ -67,7 +101,28 @@ Hand BeforeHand(const Position& n, Move move, Hand after_hand);
  * @param disproof_hand n に対する子局面の探索で得られた反証駒の極大集合
  * @return Hand disproof_hand から n で持っていない　かつ　王手になる持ち駒を除いた持ち駒
  */
-Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand);
+inline Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand) {
+  const Color us = n.side_to_move();
+  const Color them = ~n.side_to_move();
+  const Hand hand = n.hand_of(us);
+  const Square king_sq = n.king_square(them);
+  const auto droppable_bb = ~n.pieces();
+
+  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+    if (!hand_exists(hand, pr)) {
+      // 二歩の場合は反証駒を消す必要はない（打てないので）
+      if (pr == PAWN && (n.pieces(us, PAWN) & file_bb(file_of(king_sq)))) {
+        continue;
+      }
+
+      if (droppable_bb.test(StepEffect(pr, them, king_sq))) {
+        // pr を持っていたら王手ができる -> pr は反証駒から除かれるべき
+        RemoveHand(disproof_hand, pr);
+      }
+    }
+  }
+  return disproof_hand;
+}
 
 /**
  * @brief 局面 n の子局面がすべて証明駒 proof_hand で詰みであることが既知の場合、もとの局面 n の証明駒を計算する。
@@ -100,7 +155,50 @@ Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand);
  * @param proof_hand n に対する子局面の探索で得られた証明駒の極小集合
  * @return Hand proof_hand から n で受け方が持っていない　かつ　合駒で王手を防げる持ち駒を攻め方側に集めた持ち駒
  */
-Hand AddIfHandGivesOtherEvasions(const Position& n, Hand proof_hand);
+inline Hand AddIfHandGivesOtherEvasions(const Position& n, Hand proof_hand) {
+  const auto us = n.side_to_move();
+  const auto them = ~us;
+  const Hand us_hand = n.hand_of(us);
+  const Hand them_hand = n.hand_of(them);
+  const auto king_sq = n.king_square(n.side_to_move());
+  auto checkers = n.checkers();
+
+  if (checkers.pop_count() != 1) {
+    return proof_hand;
+  }
+
+  const auto checker_sq = checkers.pop();
+  if (!between_bb(king_sq, checker_sq)) {
+    return proof_hand;
+  }
+
+  // 駒を持っていれば合駒で詰みを防げたかもしれない（合法手が増えるから）
+  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+    if (pr == PAWN) {
+      bool double_pawn = true;
+      auto bb = between_bb(king_sq, checker_sq);
+      while (bb) {
+        auto sq = bb.pop();
+        if (!(n.pieces(us, PAWN) & file_bb(file_of(sq)))) {
+          double_pawn = false;
+          break;
+        }
+      }
+
+      if (double_pawn) {
+        continue;
+      }
+    }
+
+    if (!hand_exists(us_hand, pr)) {
+      // pr を持っていれば詰みを防げた（かもしれない）
+      RemoveHand(proof_hand, pr);
+      proof_hand = MergeHand(proof_hand, static_cast<Hand>(hand_exists(them_hand, pr)));
+    }
+  }
+
+  return proof_hand;
+}
 
 /// HandSet の初期化時に使うタグ
 struct ProofHandTag {};
