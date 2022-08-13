@@ -57,7 +57,8 @@ SOURCES  = \
     ../../../testcmd/benchmark.cpp
 
 SOURCES += dummy_engine.cpp \
-    ../path_keys.cpp
+    ../path_keys.cpp \
+    ../hands.cpp
 SOURCES += $(wildcard *_test.cpp) test_main.cpp
 
 CPPFLAGS += -DTARGET_CPU=\"$(TARGET_CPU)\"
@@ -73,7 +74,7 @@ all: $(TARGET)
 
 test: $(TARGET)
 	rm -rf $(OBJECTS:.o=.gcda)
-	./$(TARGET) || exit $?
+	./$(TARGET) || exit 1
 
 $(TARGET): $(OBJECTS) $(LIBS)
 	$(COMPILER) -o $@ $^ $(LDFLAGS) $(CPPFLAGS)

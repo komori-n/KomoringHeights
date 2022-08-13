@@ -34,14 +34,8 @@ class IndexTable {
   constexpr auto end() const { return data_.begin() + len_; }
   constexpr auto size() const { return len_; }
   constexpr bool empty() const { return len_ == 0; }
-  constexpr std::uint32_t& front() {
-    KOMORI_PRECONDITION(!empty());
-    return data_[0];
-  }
-  constexpr const std::uint32_t& front() const {
-    KOMORI_PRECONDITION(!empty());
-    return data_[0];
-  }
+  constexpr std::uint32_t& front() { return data_[0]; }
+  constexpr const std::uint32_t& front() const { return data_[0]; }
 
  private:
   std::array<std::uint32_t, kMaxCheckMovesPerNode> data_;
@@ -218,8 +212,8 @@ class ChildrenCache {
     detail::DelayedMoves delayed_moves{nn};
     std::uint32_t next_i_raw = 0;
     for (const auto& move : mp_) {
-      const auto hand_after = n.OrHandAfter(move.move);
       const auto i_raw = next_i_raw++;
+      const auto hand_after = n.OrHandAfter(move.move);
       idx_.Push(i_raw);
       auto& child = children_[i_raw];
       auto& result = results_[i_raw];

@@ -476,7 +476,6 @@ TEST_F(QueryTest, CreateOverflow) {
     query_.SetResult(result);
   }
 
-  std::cout << "end for" << std::endl;
   komori::tt::SearchResult result{33, 264, hand_p1_, {26, 4}, 1, unknown_data};
   query_.SetResult(result);
 
