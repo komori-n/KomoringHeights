@@ -11,7 +11,7 @@ CXXFLAGS += -g -Wall -Wextra -pthread
 LDFLAGS += -lpthread
 LDFLAGS += -v
 LTOFLAGS = -flto
-OBJDIR = ../../../../obj
+OBJDIR = ../../../../obj/source/engine/user-engine/tests
 
 INCLUDE = -I$(GTEST_DIR)/include/gtest/*.h \
           -I$(GTEST_DIR)/include/gtest/internal/*.h \
@@ -55,8 +55,9 @@ SOURCES  = \
     ../../../testcmd/normal_test_cmd.cpp                                        \
     ../../../testcmd/benchmark.cpp
 
-SOURCES += dummy_engine.cpp
-SOURCES += $(wildcard *_test.cpp)
+SOURCES += dummy_engine.cpp \
+    ../path_keys.cpp
+SOURCES += $(wildcard *_test.cpp) test_main.cpp
 
 CPPFLAGS += -DTARGET_CPU=\"$(TARGET_CPU)\"
 CPPFLAGS += -DUSER_ENGINE
@@ -64,7 +65,7 @@ CPPFLAGS += -DUSER_ENGINE
 OBJECTS  = $(addprefix $(OBJDIR)/, $(SOURCES:.cpp=.o))
 DEPENDS  = $(OBJECTS:.o=.d)
 
-LIBS    = $(OBJDIR)/gtest.a $(OBJDIR)/gtest_main.a
+LIBS    = $(OBJDIR)/gtest.a
 
 all: $(TARGET)
 .PHONY : all test clean

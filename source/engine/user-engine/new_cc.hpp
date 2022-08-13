@@ -52,7 +52,7 @@ class DelayedMoves {
  public:
   explicit DelayedMoves(const Node& n) : n_{n} {}
 
-  std::optional<std::size_t> Get(Move move) {
+  std::optional<std::size_t> Add(Move move, std::size_t i_raw) {
     if (!IsDelayable(move)) {
       return std::nullopt;
     }
@@ -60,28 +60,16 @@ class DelayedMoves {
     for (std::size_t i = 0; i < len_; ++i) {
       const auto m = moves_[i].first;
       if (IsSame(m, move)) {
-        return moves_[i].second;
-      }
-    }
-    return std::nullopt;
-  }
-
-  void Add(Move move, std::size_t i_raw) {
-    if (!IsDelayable(move)) {
-      return;
-    }
-
-    for (std::size_t i = 0; i < len_; ++i) {
-      const auto m = moves_[i].first;
-      if (IsSame(m, move)) {
+        const auto ret = moves_[i].second;
         moves_[i] = {move, i_raw};
-        return;
+        return ret;
       }
     }
 
     if (len_ < kMaxLen) {
       moves_[len_++] = {move, i_raw};
     }
+    return std::nullopt;
   }
 
  private:
@@ -266,12 +254,11 @@ class ChildrenCache {
         }
 
         if (!result.IsFinal()) {
-          if (const auto res = delayed_moves.Get(move.move)) {
+          if (const auto res = delayed_moves.Add(move.move, i_raw)) {
             auto& child_dep = children_[*res];
             child_dep.next_dep = i_raw + 1;
             idx_.Pop();
           }
-          delayed_moves.Add(move.move, i_raw);
         }
       }
 
