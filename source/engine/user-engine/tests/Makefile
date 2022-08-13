@@ -5,11 +5,12 @@ GTEST_DIR=../../../../googletest/googletest
 CPPFLAGS += -isystem $(GTEST_DIR)/include
 CPPFLAGS += -std=c++17 -fno-exceptions -fno-rtti -Wunused-variable -Wextra -Ofast -MMD -MP -fpermissive
 CPPFLAGS  += -DUNICODE -DNO_EXCEPTIONS
+CPPFLAGS  += -fprofile-arcs -ftest-coverage
 CPPFLAGS  += -g3 -ggdb
 WCPPFLAGS  =
 CXXFLAGS += -g -Wall -Wextra -pthread
 LDFLAGS += -lpthread
-LDFLAGS += -v
+LDFLAGS += -v --coverage
 LTOFLAGS = -flto
 OBJDIR = ../../../../obj/source/engine/user-engine/tests
 
@@ -68,10 +69,11 @@ DEPENDS  = $(OBJECTS:.o=.d)
 LIBS    = $(OBJDIR)/gtest.a
 
 all: $(TARGET)
-.PHONY : all test clean
+.PHONY : all test coverage clean
 
 test: $(TARGET)
-	./$(TARGET)
+	rm -rf $(OBJECTS:.o=.gcda)
+	./$(TARGET) || exit $?
 
 $(TARGET): $(OBJECTS) $(LIBS)
 	$(COMPILER) -o $@ $^ $(LDFLAGS) $(CPPFLAGS)
@@ -95,6 +97,12 @@ $(OBJDIR)/gtest.a : $(OBJDIR)/gtest-all.o
 
 $(OBJDIR)/gtest_main.a : $(OBJDIR)/gtest-all.o $(OBJDIR)/gtest_main.o
 	$(AR) $(ARFLAGS) $@ $^
+
+coverage: test
+	lcov --directory ../../../../obj --base-directory . --capture -o cov.info
+	lcov -e cov.info -o cov.info "**/user-engine/*"
+	lcov -r cov.info -o cov.info "**/tests/*"
+	genhtml cov.info -o coverage-html
 
 clean:
 	rm -rf $(OBJECTS) $(DEPENDS) $(TARGET) ${OBJECTS:.o=.gcda} ${OBJDIR}

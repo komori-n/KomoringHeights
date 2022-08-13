@@ -175,6 +175,35 @@ TEST_F(EntryTest, LookUp_InferiorDisproven) {
   LookUp(hand_p1_, 262, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
 }
 
+TEST_F(EntryTest, Update_ProvenSkip) {
+  Init(334, hand_p1_);
+  entry_.Update(264, 0, kInfinitePnDn, {264, 3}, 1);
+  entry_.Update(264, 0, kInfinitePnDn, {266, 3}, 1);
+
+  LookUp(hand_p1_, 264, {266, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+}
+
+TEST_F(EntryTest, Update_DisprovenSkip) {
+  Init(334, hand_p1_);
+  entry_.Update(264, kInfinitePnDn, 0, {264, 3}, 1);
+  entry_.Update(264, kInfinitePnDn, 0, {262, 3}, 1);
+
+  LookUp(hand_p1_, 264, {262, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+}
+
+TEST_F(EntryTest, Update_Overwrite) {
+  Init(334, hand_p1_);
+  entry_.Update(264, 1, 7, {264, 3}, 1);
+  entry_.Update(264, 2, 6, {264, 4}, 1);
+  entry_.Update(264, 3, 5, {264, 5}, 1);
+  entry_.Update(264, 4, 4, {264, 6}, 1);
+  entry_.Update(264, 5, 3, {264, 7}, 1);
+  entry_.Update(264, 6, 2, {264, 8}, 1);
+  entry_.Update(264, 7, 1, {264, 9}, 1);
+
+  LookUp(hand_p1_, 264, {264, 9}, true, 7, 1, {264, 9}, __LINE__);
+}
+
 TEST_F(EntryTest, Parent) {
   Init(334, hand_p1_);
 
@@ -185,7 +214,7 @@ TEST_F(EntryTest, Parent) {
   EXPECT_EQ(entry_.GetSecret(), 445);
 }
 
-TEST_F(EntryTest, ProvenClear) {
+TEST_F(EntryTest, Clear_Proven) {
   Init(334, hand_p1_);
 
   // unknown entry
@@ -213,7 +242,7 @@ TEST_F(EntryTest, ProvenClear) {
   LookUp(hand_p1_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
 }
 
-TEST_F(EntryTest, DisprovenClear) {
+TEST_F(EntryTest, Clear_Disproven) {
   Init(334, hand_p1_);
   entry_.Update(264, kInfinitePnDn, 0, {264, 3}, 1);
 
@@ -236,6 +265,15 @@ TEST_F(EntryTest, DisprovenClear) {
   // clear proven entry
   entry_.Clear<false>(hand_p2_, {264, 3});
   LookUp(hand_p1_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+}
+
+TEST_F(EntryTest, Clear_Compaction) {
+  Init(334, hand_p1_);
+  entry_.Update(264, 10, 20, {266, 3}, 1);
+  entry_.Update(264, 0, kInfinitePnDn, {264, 3}, 1);
+  entry_.Clear<true>(hand_p1_, {264, 3});
+
+  LookUp(hand_p1_, 264, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
 }
 
 TEST_F(EntryTest, MinDepth) {
@@ -367,14 +405,18 @@ TEST_F(QueryTest, CreateUnknown) {
 }
 
 TEST_F(QueryTest, CreateRepetition) {
+  query_.SetResult({kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, komori::tt::FinalData{true}});
+  const auto res_1 = query_.LookUp({26, 4}, false);
+  ExpectBase(res_1, 1, 1, hand_p1_, {26, 4}, 1, __LINE__);
+
   komori::tt::UnknownData unknown_data = {false, 264, hand_p1_, 445};
   query_.SetResult({33, 4, hand_p1_, {26, 4}, 1, unknown_data});
 
   query_.SetResult({kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, komori::tt::FinalData{true}});
-  const auto res = query_.LookUp({26, 4}, false);
+  const auto res_2 = query_.LookUp({26, 4}, false);
 
-  ExpectBase(res, kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, __LINE__);
-  ExpectFinal(res, true, __LINE__);
+  ExpectBase(res_2, kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, __LINE__);
+  ExpectFinal(res_2, true, __LINE__);
 }
 
 TEST_F(QueryTest, CreateProven) {
@@ -394,4 +436,51 @@ TEST_F(QueryTest, CreateDisproven) {
   const auto res = query_.LookUp({26, 4}, false);
   ExpectBase(res, kInfinitePnDn, 0, hand_p2_, {28, 4}, 10, __LINE__);
   ExpectFinal(res, false, __LINE__);
+}
+
+TEST_F(QueryTest, CreateDoubleUnknown) {
+  komori::tt::UnknownData unknown_data_1 = {false, 264, hand_p2_, 445};
+  komori::tt::SearchResult set_result_1{33, 4, hand_p2_, {26, 4}, 1, unknown_data_1};
+
+  query_.SetResult(set_result_1);
+
+  komori::tt::UnknownData unknown_data_2 = {false, 334, HAND_ZERO, 4450};
+  komori::tt::SearchResult set_result_2{330, 40, hand_p1_, {26, 4}, 1, unknown_data_2};
+  query_.SetResult(set_result_2);
+  const auto res = query_.LookUp({26, 4}, false);
+  ExpectBase(res, 330, 40, hand_p1_, {26, 4}, 1, __LINE__);
+  ExpectUnknown(res, false, 334, HAND_ZERO, 4450, __LINE__);
+}
+
+TEST_F(QueryTest, CreateOverwriteUnknown) {
+  komori::tt::UnknownData unknown_data = {false, 264, hand_p2_, 445};
+  komori::tt::SearchResult set_result_1{33, 4, hand_p1_, {26, 4}, 1, unknown_data};
+
+  query_.SetResult(set_result_1);
+
+  komori::tt::SearchResult set_result_2{330, 40, hand_p1_, {26, 4}, 1, unknown_data};
+  query_.SetResult(set_result_2);
+  const auto res = query_.LookUp({26, 4}, false);
+  ExpectBase(res, 330, 40, hand_p1_, {26, 4}, 1, __LINE__);
+  ExpectUnknown(res, false, 264, hand_p2_, 445, __LINE__);
+}
+
+TEST_F(QueryTest, CreateOverflow) {
+  komori::tt::UnknownData unknown_data = {false, 264, hand_p2_, 445};
+  for (std::size_t i = 0; i < komori::tt::kClusterSize; ++i) {
+    auto hand = HAND_ZERO;
+    add_hand(hand, LANCE, 1);
+    add_hand(hand, PAWN, i);
+
+    komori::tt::SearchResult result{33, i + 334, hand, {26, 4}, 1, unknown_data};
+    query_.SetResult(result);
+  }
+
+  std::cout << "end for" << std::endl;
+  komori::tt::SearchResult result{33, 264, hand_p1_, {26, 4}, 1, unknown_data};
+  query_.SetResult(result);
+
+  const auto res = query_.LookUp({26, 4}, false);
+  ExpectBase(res, 33, 264, hand_p1_, {26, 4}, 1, __LINE__);
+  ExpectUnknown(res, false, 264, hand_p2_, 445, __LINE__);
 }

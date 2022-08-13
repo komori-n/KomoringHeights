@@ -461,7 +461,7 @@ class Query {
       }
     }
 
-    const auto idx = rand() & kClusterSize;
+    const auto idx = rand() % kClusterSize;
     head_entry_[idx].Init(board_key_, hand);
     head_entry_[idx].Update(depth_, pn, dn, len, amount);
     return &head_entry_[idx];
@@ -482,22 +482,17 @@ class Query {
 
 class TranspositionTable {
  public:
-  bool Resize(std::uint64_t hash_size_mb) {
+  void Resize(std::uint64_t hash_size_mb) {
     const auto new_bytes = hash_size_mb * 1024 * 1024;
     const auto normal_bytes = static_cast<std::uint64_t>(static_cast<double>(new_bytes) * kNormalRepetitionRatio);
     const auto rep_bytes = new_bytes - normal_bytes;
     const auto new_num_entries =
         std::max(static_cast<std::uint64_t>(kClusterSize + 1), normal_bytes / sizeof(detail::Entry));
     const auto rep_num_entries = rep_bytes / 3 / sizeof(Key);
-    if (entries_.size() == new_num_entries) {
-      return true;
-    }
 
     entries_.resize(new_num_entries);
     entries_.shrink_to_fit();
     rep_table_.SetTableSizeMax(rep_num_entries);
-
-    return true;
   }
 
   constexpr Query BuildQuery(const Node& n) {

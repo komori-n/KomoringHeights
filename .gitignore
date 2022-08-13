@@ -257,3 +257,7 @@ source/resource
 
 # vscode
 .vscode/
+
+# coverage
+coverage-html/
+cov.info
