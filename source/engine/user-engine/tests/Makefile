@@ -98,10 +98,10 @@ $(OBJDIR)/gtest_main.a : $(OBJDIR)/gtest-all.o $(OBJDIR)/gtest_main.o
 	$(AR) $(ARFLAGS) $@ $^
 
 coverage: test
-	lcov --directory ../../../../obj --base-directory . --capture -o cov.info
-	lcov -e cov.info -o cov.info "**/user-engine/*"
-	lcov -r cov.info -o cov.info "**/tests/*"
-	genhtml cov.info -o coverage-html
+	lcov --rc lcov_branch_coverage=1 --directory ../../../../obj --base-directory . --capture -o cov.info
+	lcov --rc lcov_branch_coverage=1 -e cov.info -o cov.info "**/user-engine/*"
+	lcov --rc lcov_branch_coverage=1 -r cov.info -o cov.info "**/tests/*"
+	genhtml --rc lcov_branch_coverage=1 cov.info -o coverage-html
 
 clean:
 	rm -rf $(OBJECTS) $(DEPENDS) $(TARGET) ${OBJECTS:.o=.gcda} ${OBJDIR}

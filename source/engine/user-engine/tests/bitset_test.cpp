@@ -41,6 +41,10 @@ TEST(BitSet, Set) {
   EXPECT_FALSE(bs.Test(10));
   bs.Set(10);
   EXPECT_TRUE(bs.Test(10));
+
+  BitSet64 bs2 = bs;
+  bs2.Set(334);
+  EXPECT_EQ(bs2.Value(), bs.Value());
 }
 
 TEST(BitSet, Reset) {
@@ -50,6 +54,10 @@ TEST(BitSet, Reset) {
   EXPECT_TRUE(bs.Test(10));
   bs.Reset(10);
   EXPECT_FALSE(bs.Test(10));
+
+  BitSet64 bs2 = bs;
+  bs2.Reset(334);
+  EXPECT_EQ(bs2.Value(), bs.Value());
 }
 
 TEST(BitSet, Test) {

@@ -93,8 +93,10 @@ TEST_F(HandsTest, BeforeHand) {
   EXPECT_EQ(komori::BeforeHand(p_, make_move_drop(LANCE, SQ_52, BLACK), orig_minus_lance), orig);
   EXPECT_EQ(komori::BeforeHand(p_, make_move_promote(SQ_63, SQ_62, B_PAWN), orig_plus_lance), orig);
   EXPECT_EQ(komori::BeforeHand(p_, make_move_promote(SQ_53, SQ_52, B_PAWN), orig), orig);
-  // overflow
+  // overflow drop
   EXPECT_EQ(komori::BeforeHand(p_, make_move_drop(LANCE, SQ_52, BLACK), kFullHand), kFullHand);
+  // overflow capture
+  EXPECT_EQ(komori::BeforeHand(p_, make_move_promote(SQ_63, SQ_62, B_PAWN), HAND_ZERO), HAND_ZERO);
 }
 
 TEST_F(HandsTest, RemoveIfHandGivesOtherChecks) {
