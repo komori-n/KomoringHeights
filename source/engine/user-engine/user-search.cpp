@@ -5,7 +5,7 @@
 #include "../../extra/all.h"
 
 #include "initial_estimation.hpp"
-#include "komoring_heights.hpp"
+#include "new_kh.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
 
@@ -22,7 +22,7 @@ std::mutex g_end_mtx;
 std::condition_variable g_end_cv;
 // </探索終了同期>
 
-komori::NodeState g_search_result = komori::NodeState::kNullState;
+komori::NodeState g_search_result = komori::NodeState::kUnknown;
 
 /// 局面が OR node っぽいかどうかを調べる。困ったら OR node として処理する。
 bool IsPosOrNode(const Position& root_pos) {
@@ -67,30 +67,11 @@ void PrintResult(bool is_mate_search, LoseKind kind, const std::string& pv_moves
 }
 
 void ShowCommand(Position& pos, std::istringstream& is) {
-  std::vector<Move> moves;
-  std::vector<StateInfo> st_info;
-  std::string token;
-  Move m;
-  while (is >> token && (m = USI::to_move(pos, token)) != MOVE_NONE) {
-    moves.emplace_back(m);
-    pos.do_move(m, st_info.emplace_back());
-    sync_cout << m << sync_endl;
-  }
-
-  sync_cout << pos << sync_endl;
-
-  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
-    pos.undo_move(*itr);
-    st_info.pop_back();
-  }
-
-  bool is_root_or_node = IsPosOrNode(pos);
-  g_searcher.ShowValues(pos, is_root_or_node, moves);
+  // unimplemented
 }
 
 void PvCommand(Position& pos, std::istringstream& /* is */) {
-  bool is_root_or_node = IsPosOrNode(pos);
-  g_searcher.ShowPv(pos, is_root_or_node);
+  // unimplemented
 }
 
 void WaitSearchEnd() {
@@ -201,20 +182,19 @@ void MainThread::search() {
   }
 
   Move best_move = MOVE_NONE;
-  if (g_search_result == komori::NodeState::kProvenState) {
-    auto best_moves = g_searcher.BestMoves();
-    std::ostringstream oss;
-    for (const auto& move : best_moves) {
-      oss << move << " ";
-    }
-    PrintResult(is_mate_search, LoseKind::kMate, oss.str());
+  if (g_search_result == komori::NodeState::kProven) {
+    // auto best_moves = g_searcher.BestMoves();
+    // std::ostringstream oss;
+    // for (const auto& move : best_moves) {
+    //   oss << move << " ";
+    // }
+    // PrintResult(is_mate_search, LoseKind::kMate, oss.str());
 
-    if (!best_moves.empty()) {
-      best_move = best_moves[0];
-    }
+    // if (!best_moves.empty()) {
+    //   best_move = best_moves[0];
+    // }
   } else {
-    if (g_search_result == komori::NodeState::kDisprovenState ||
-        g_search_result == komori::NodeState::kRepetitionState) {
+    if (g_search_result == komori::NodeState::kDisproven || g_search_result == komori::NodeState::kRepetition) {
       PrintResult(is_mate_search, LoseKind::kNoMate);
     } else {
       PrintResult(is_mate_search, LoseKind::kTimeout);

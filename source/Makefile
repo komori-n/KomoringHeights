@@ -423,10 +423,9 @@ endif
 
 ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 	SOURCES += \
-		engine/user-engine/children_cache.cpp \
     engine/user-engine/engine_option.cpp \
     engine/user-engine/initial_estimation.cpp \
-		engine/user-engine/komoring_heights.cpp \
+		engine/user-engine/new_kh.cpp \
 		engine/user-engine/path_keys.cpp \
 		engine/user-engine/pv_tree.cpp \
 		engine/user-engine/transposition_table.cpp\

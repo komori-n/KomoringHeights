@@ -17,6 +17,7 @@ namespace tt {
 constexpr inline double kNormalRepetitionRatio = 0.95;
 constexpr inline std::size_t kClusterSize = 16;
 constexpr inline std::uint32_t kAmountMax = std::numeric_limits<std::uint32_t>::max() / 4;
+constexpr std::size_t kHashfullCalcEntries = 10000;
 
 // forward declaration
 class TranspositionTable;
@@ -299,6 +300,24 @@ struct SearchResult {
   constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
   constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
   constexpr bool IsFinal() const { return pn == 0 || dn == 0; }
+
+  friend std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
+    if (result.pn == 0) {
+      os << "proof_hand=" << result.hand;
+    } else if (result.dn == 0) {
+      if (result.final_data.is_repetition) {
+        os << "repetition";
+      } else {
+        os << "disproof_hand" << result.hand;
+      }
+    } else {
+      os << "(pn,dn)=(" << result.pn << "," << result.dn << ")";
+    }
+
+    os << " len=" << result.len;
+    os << " amount=" << result.amount;
+    return os;
+  }
 };
 
 class Query {
@@ -493,6 +512,13 @@ class TranspositionTable {
     entries_.resize(new_num_entries);
     entries_.shrink_to_fit();
     rep_table_.SetTableSizeMax(rep_num_entries);
+    NewSearch();
+  }
+
+  constexpr void NewSearch() {
+    for (auto& entry : entries_) {
+      entry.SetNull();
+    }
   }
 
   constexpr Query BuildQuery(const Node& n) {
@@ -514,6 +540,29 @@ class TranspositionTable {
     const auto dummy_depth = kMaxNumMateMoves;
     return Query{rep_table_, head_entry, kNullKey, board_key, or_hand, dummy_depth};
   }
+
+  constexpr int Hashfull() const {
+    std::size_t used = 0;
+
+    // entries_ の最初と最後はエントリ数が若干少ないので、真ん中から kHashfullCalcEntries 個のエントリを調べる
+    const std::size_t begin_idx = kClusterSize;
+    const std::size_t end_idx = std::min(begin_idx + kHashfullCalcEntries, static_cast<std::size_t>(entries_.size()));
+
+    const std::size_t num_entries = end_idx - begin_idx;
+    std::size_t idx = begin_idx;
+    for (std::size_t i = 0; i < num_entries; ++i) {
+      if (!entries_[idx].IsNull()) {
+        used++;
+      }
+      idx += 334;
+      if (idx > end_idx) {
+        idx -= end_idx - begin_idx;
+      }
+    }
+    return static_cast<int>(used * 1000 / num_entries);
+  }
+
+  void CollectGarbage(){};
 
  private:
   constexpr detail::Entry* HeadOf(Key board_key) {
