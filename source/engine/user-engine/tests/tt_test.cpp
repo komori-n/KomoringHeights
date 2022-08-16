@@ -95,6 +95,18 @@ TEST_F(EntryTest, LookUp_Exact) {
   LookUp(hand_p1_, 264, kMaxMateLen, true, 100, 200, kMaxMateLen, __LINE__);
 }
 
+TEST_F(EntryTest, LookUp_NotFound) {
+  Init(334, hand_p1_);
+  entry_.Update(264, 100, 200, {33, 4}, 1);
+  entry_.Update(264, 101, 201, {35, 4}, 1);
+  entry_.Update(264, 102, 202, {37, 4}, 1);
+  entry_.Update(264, 103, 203, {39, 4}, 1);
+  entry_.Update(264, 105, 205, {41, 4}, 1);
+  entry_.Update(264, 106, 206, {43, 4}, 1);
+
+  LookUp(hand_p1_, 264, {45, 4}, false, 1, 206, {45, 4}, __LINE__);
+}
+
 TEST_F(EntryTest, LookUp_DnUpdate) {
   Init(334, hand_p1_);
   entry_.Update(264, 100, 200, {264, 3}, 1);
@@ -222,7 +234,7 @@ TEST_F(EntryTest, Clear_Proven) {
   LookUp(hand_p1_, 264, {264, 3}, true, 100, 200, {264, 3}, __LINE__);
 
   // clear unknown entry
-  entry_.Clear<true>(HAND_ZERO, {264, 3});
+  entry_.Clear<true>(HAND_ZERO, {262, 3});
   LookUp(hand_p1_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
 
   // proven entry
@@ -247,7 +259,7 @@ TEST_F(EntryTest, Clear_Disproven) {
   entry_.Update(264, kInfinitePnDn, 0, {264, 3}, 1);
 
   // clear unknown entry
-  entry_.Clear<false>(hand_p2_, {264, 3});
+  entry_.Clear<false>(hand_p2_, {266, 3});
   LookUp(hand_p1_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
 
   // disproven entry

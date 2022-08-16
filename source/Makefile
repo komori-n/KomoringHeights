@@ -426,9 +426,6 @@ ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
     engine/user-engine/engine_option.cpp \
     engine/user-engine/initial_estimation.cpp \
 		engine/user-engine/new_kh.cpp \
-		engine/user-engine/pv_tree.cpp \
-		engine/user-engine/transposition_table.cpp\
-		engine/user-engine/ttentry.cpp \
 		engine/user-engine/user-search.cpp \
     engine/user-engine/usi.cpp
 endif

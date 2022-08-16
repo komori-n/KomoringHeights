@@ -77,10 +77,12 @@ class KomoringHeights {
   void RequestPrint() { print_flag_ = true; }
   UsiInfo CurrentInfo() const;
 
+  const std::vector<Move>& BestMoves() const { return best_moves_; }
+
   NodeState Search(const Position& n, bool is_root_or_node);
 
  private:
-  tt::SearchResult SearchEntry(Node& n, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
+  tt::SearchResult SearchEntry(Node& n, MateLen len, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
   tt::SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, ChildrenCache& cache, bool inc_flag);
 
   void PrintIfNeeded(const Node& n);
@@ -91,6 +93,8 @@ class KomoringHeights {
   detail::SearchMonitor monitor_;
   Score score_{};
   std::atomic_bool print_flag_{false};
+
+  std::vector<Move> best_moves_;
 
   // <一時変数>
   // 探索中に使用する一時変数。本当はスタック上に置きたいが、スタックオーバーフローしてしまうのでメンバで持つ。

@@ -302,6 +302,10 @@ class ChildrenCache {
       auto& result = results_[i_raw];
       auto& query = queries_[i_raw];
 
+      if (!IsSumDeltaNode(n, move.move)) {
+        sum_mask_.Reset(i_raw);
+      }
+
       if (n.IsRepetitionOrInferiorAfter(move.move)) {
         if (!found_rep) {
           found_rep = true;
@@ -313,19 +317,29 @@ class ChildrenCache {
       } else {
         child = {n.Pos().board_key_after(move.move), 0};
         query = tt.BuildChildQuery(n, move.move);
-        result = query.LookUp(does_have_old_child_, len, false, [&n, &move]() { return InitialPnDn(n, move.move); });
+        result =
+            query.LookUp(does_have_old_child_, len - 1, false, [&n, &move]() { return InitialPnDn(n, move.move); });
+
+        if (result.dn == 0) {
+          sync_cout << "info string " << move.move << " " << result << sync_endl;
+        }
 
         if (!result.IsFinal() && !or_node_ && first_search && result.unknown_data.is_first_visit) {
           nn.DoMove(move.move);
           if (!detail::DoesHaveMatePossibility(n.Pos())) {
             const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
-            const auto len = MateLen{0, static_cast<std::uint16_t>(CountHand(n.OrHand()))};
-            result.InitFinal<false>(hand, len, 1);
+            result.InitFinal<false>(hand, kMaxMateLen, 1);
             query.SetResult(result);
           } else if (auto [best_move, proof_hand] = detail::CheckMate1Ply(nn); proof_hand != kNullHand) {
             const auto proof_hand_after = AfterHand(n.Pos(), best_move, proof_hand);
-            const auto len = MateLen{1, static_cast<std::uint16_t>(CountHand(proof_hand_after))};
-            result.InitFinal<true>(proof_hand, len, 1);
+            const auto len = MateLen{2, CountHand(proof_hand_after)};
+
+            if (len <= len_ - 1) {
+              result.InitFinal<true>(proof_hand, len, 1);
+            } else {
+              result.InitFinal<false>(n.OrHand(), Prec(len), 1);
+            }
+
             query.SetResult(result);
           }
           nn.UndoMove(move.move);
@@ -361,6 +375,11 @@ class ChildrenCache {
 
   Move BestMove() const { return mp_[idx_.front()].move; };
   bool DoesHaveOldChild() const { return does_have_old_child_; }
+  bool FrontIsFirstVisit() const { return FrontResult().unknown_data.is_first_visit; }
+  BitSet64 FrontSumMask() const {
+    const auto& result = FrontResult();
+    return BitSet64{~result.unknown_data.secret};
+  }
 
   tt::SearchResult CurrentResult(const Node& n) const {
     if (GetPn() == 0) {
@@ -368,7 +387,7 @@ class ChildrenCache {
     } else if (GetDn() == 0) {
       return GetDisprovenResult(n);
     } else {
-      return GetUnknownResult();
+      return GetUnknownResult(n);
     }
   }
 
@@ -548,7 +567,7 @@ class ChildrenCache {
       const auto& result = FrontResult();
       const auto best_move = mp_[idx_[0]];
       const auto proof_hand = BeforeHand(n.Pos(), best_move, result.hand);
-      const auto mate_len = result.len + 1;
+      const auto mate_len = std::min(result.len + 1, kMaxMateLen);
       const auto amount = result.amount;
 
       return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::FinalData{false}};
@@ -557,19 +576,29 @@ class ChildrenCache {
       HandSet set{ProofHandTag{}};
       MateLen mate_len = kZeroMateLen;
       std::uint32_t amount = 1;
+      std::uint32_t argmin_i_raw = 0;
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
 
         set.Update(result.hand);
         amount = std::max(amount, result.amount);
-        if (result.len > mate_len) {
-          mate_len = result.len + 1;
+        if (result.len + 1 > mate_len) {
+          mate_len = std::min(result.len + 1, kMaxMateLen);
+          argmin_i_raw = i_raw;
         }
       }
+
       const auto proof_hand = set.Get(n.Pos());
 
       // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
       amount += std::max(mp_.size(), std::size_t{1}) - 1;
+
+      if (idx_.empty()) {
+        mate_len = {1, CountHand(n.OrHand())};
+        if (mate_len > len_) {
+          return {kInfinitePnDn, 0, n.OrHand(), Prec(mate_len), amount, tt::FinalData{false}};
+        }
+      }
 
       return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::FinalData{false}};
     }
@@ -578,8 +607,8 @@ class ChildrenCache {
   tt::SearchResult GetDisprovenResult(const Node& n) const {
     // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
     if (!mp_.empty()) {
-      if (const auto& result = FrontResult(); result.dn == 0 && result.final_data.is_repetition) {
-        return {kInfinitePnDn, 0, n.OrHand(), {0, 0}, 1, tt::FinalData{false}};
+      if (const auto& result = FrontResult(); result.final_data.is_repetition) {
+        return {kInfinitePnDn, 0, n.OrHand(), len_, 1, tt::FinalData{true}};
       }
     }
 
@@ -595,7 +624,7 @@ class ChildrenCache {
 
         set.Update(BeforeHand(n.Pos(), child_move, result.hand));
         amount = std::max(amount, result.amount);
-        if (result.len > mate_len) {
+        if (result.len + 1 < mate_len) {
           mate_len = result.len + 1;
         }
       }
@@ -606,7 +635,7 @@ class ChildrenCache {
     } else {
       const auto& result = FrontResult();
       auto disproof_hand = result.hand;
-      const auto mate_len = result.len + 1;
+      const auto mate_len = std::min(result.len + 1, kMaxMateLen);
       const auto amount = result.amount;
 
       // 駒打ちならその駒を持っていないといけない
@@ -626,9 +655,8 @@ class ChildrenCache {
     }
   }
 
-  tt::SearchResult GetUnknownResult() const {
+  tt::SearchResult GetUnknownResult(const Node& n) const {
     const auto& result = FrontResult();
-    const auto is_first_visit = result.unknown_data.is_first_visit;
     const std::uint32_t amount = result.amount + mp_.size() / 2;
 
     Key parent_board_key{kNullKey};
@@ -638,7 +666,7 @@ class ChildrenCache {
       parent_hand = parent_->or_hand_;
     }
 
-    tt::UnknownData unknown_data{is_first_visit, parent_board_key, parent_hand, ~sum_mask_.Value()};
+    tt::UnknownData unknown_data{false, parent_board_key, parent_hand, ~sum_mask_.Value()};
     return {GetPn(), GetDn(), or_hand_, len_, amount, unknown_data};
   }
 

@@ -13,24 +13,6 @@
 #include "../../position.h"
 #include "../../types.h"
 
-#if defined(KOMORI_DEBUG)
-#define KOMORI_PRECONDITION(cond)                                                                        \
-  do {                                                                                                   \
-    if (!(cond)) {                                                                                       \
-      /* デバッグを楽にするために info コマンドでエラーログを出す */            \
-      sync_cout << "info string assertion \"" << #cond << "\" failed in " << __FILE__ << "(" << __LINE__ \
-                << "): " << __FUNCTION__ << sync_endl;                                                   \
-      std::cout.flush();                                                                                 \
-                                                                                                         \
-      /* GUI 側でエラーログを表示してもらうまで待ってから terminate する */      \
-      std::this_thread::sleep_for(std::chrono::seconds(1));                                              \
-      std::terminate();                                                                                  \
-    }                                                                                                    \
-  } while (false)
-#else
-#define KOMORI_PRECONDITION(...)
-#endif
-
 namespace komori {
 template <typename... Args>
 using Constraints = std::nullptr_t;
@@ -132,71 +114,25 @@ inline std::string HexString(std::uint32_t x) {
   return ss.str();
 }
 
-/// 詰み／不詰手数とその手順における駒余り枚数を16bitでまとめた構造体。
-struct MateLen {
-  std::uint16_t len : 12;  ///< 詰み／不詰手数。kMaxNumMateLen が収まるギリギリのサイズを指定する
-  std::uint16_t final_hand : 4;  ///< 詰み／不詰局面における駒余り枚数
-
-  constexpr MateLen(std::uint16_t len, std::uint16_t final_hand) : len(len), final_hand(final_hand) {}
-  MateLen() = default;
+template <typename T>
+struct Identity {
+  using type = T;
 };
 
-constexpr inline MateLen kZeroMateLen{std::uint16_t{0}, std::uint16_t{15}};
-constexpr inline MateLen kMaxMateLen{std::uint16_t{kMaxNumMateMoves}, std::uint16_t{0}};
+template <typename T>
+struct DefineNotEqualByEqual {
+  constexpr friend bool operator!=(const T& lhs, const T& rhs) noexcept(noexcept(lhs == rhs)) { return !(lhs == rhs); }
+};
 
-inline bool operator==(const MateLen& lhs, const MateLen& rhs) {
-  return lhs.len == rhs.len && lhs.final_hand == rhs.final_hand;
-}
-
-inline bool operator!=(const MateLen& lhs, const MateLen& rhs) {
-  return !(lhs == rhs);
-}
-
-/// MateLen 同士の比較をする。OR node から見て望ましい手順ほど小さく、AND node から見て望ましい手順ほど大きくする
-inline bool operator<(const MateLen& lhs, const MateLen& rhs) {
-  // 基本的には手数勝負
-  if (lhs.len != rhs.len) {
-    return lhs.len < rhs.len;
+template <typename T>
+struct DefineComparisonOperatorsByEqualAndLess {
+  constexpr friend bool operator<=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs) && noexcept(lhs == rhs)) {
+    return lhs < rhs || lhs == rhs;
   }
 
-  // 手数が同じ場合、駒余りの枚数で勝負
-  // OR node:  たくさん余る手を選ぶ
-  // AND node: できるだけ駒を使わせられる方に逃げる
-  return lhs.final_hand > rhs.final_hand;
-}
-
-inline bool operator>(const MateLen& lhs, const MateLen& rhs) {
-  return !(lhs < rhs) && !(lhs == rhs);
-}
-
-inline bool operator<=(const MateLen& lhs, const MateLen& rhs) {
-  return lhs < rhs || lhs == rhs;
-}
-
-inline bool operator>=(const MateLen& lhs, const MateLen& rhs) {
-  return lhs > rhs || lhs == rhs;
-}
-
-inline MateLen operator+(const MateLen& lhs, Depth d) {
-  return MateLen{static_cast<std::uint16_t>(lhs.len + d), lhs.final_hand};
-}
-
-inline MateLen operator+(Depth d, const MateLen& rhs) {
-  return MateLen{static_cast<std::uint16_t>(rhs.len + d), rhs.final_hand};
-}
-
-inline MateLen operator-(const MateLen& lhs, Depth d) {
-  // len は unsigned なので、マイナスにならないようにする
-  if (lhs.len < d) {
-    return kZeroMateLen;
-  }
-  return MateLen{static_cast<std::uint16_t>(lhs.len - d), lhs.final_hand};
-}
-
-inline std::ostream& operator<<(std::ostream& os, const MateLen& mate_len) {
-  os << mate_len.len << "(" << mate_len.final_hand << ")";
-  return os;
-}
+  constexpr friend bool operator>(const T& lhs, const T& rhs) noexcept(noexcept(rhs < lhs)) { return rhs < lhs; }
+  constexpr friend bool operator>=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs)) { return !(lhs < rhs); }
+};
 
 template <typename N>
 inline std::string OrdinalNumeral(N n) {

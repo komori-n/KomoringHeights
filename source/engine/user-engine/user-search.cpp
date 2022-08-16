@@ -183,16 +183,16 @@ void MainThread::search() {
 
   Move best_move = MOVE_NONE;
   if (g_search_result == komori::NodeState::kProven) {
-    // auto best_moves = g_searcher.BestMoves();
-    // std::ostringstream oss;
-    // for (const auto& move : best_moves) {
-    //   oss << move << " ";
-    // }
-    // PrintResult(is_mate_search, LoseKind::kMate, oss.str());
+    auto best_moves = g_searcher.BestMoves();
+    std::ostringstream oss;
+    for (const auto& move : best_moves) {
+      oss << move << " ";
+    }
+    PrintResult(is_mate_search, LoseKind::kMate, oss.str());
 
-    // if (!best_moves.empty()) {
-    //   best_move = best_moves[0];
-    // }
+    if (!best_moves.empty()) {
+      best_move = best_moves[0];
+    }
   } else {
     if (g_search_result == komori::NodeState::kDisproven || g_search_result == komori::NodeState::kRepetition) {
       PrintResult(is_mate_search, LoseKind::kNoMate);

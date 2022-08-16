@@ -91,33 +91,91 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   tt_.NewSearch();
   monitor_.NewSearch(GcInterval(option_.hash_mb));
   monitor_.PushLimit(option_.nodes_limit);
+  best_moves_.clear();
   // </初期化>
 
   Position& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
 
-  PnDn thpn = 1;
-  PnDn thdn = 1;
-  tt::SearchResult result;
-  do {
-    result = SearchEntry(node, thpn, thdn);
-    // score_ = MakeScore(result, is_root_or_node);
-    if (result.IsFinal() || result.pn >= kInfinitePnDn || result.dn >= kInfinitePnDn) {
+  bool proven = false;
+  MateLen len = kMaxMateLen;
+  for (int i = 0; i < 10; ++i) {
+    const auto result = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
+    auto info = CurrentInfo();
+    sync_cout << info << " string " << len << " " << result << sync_endl;
+
+    if (result.pn == 0) {
+      if (result.len > len) {
+        sync_cout << "info string Failed to detect PV" << sync_endl;
+        break;
+      }
+      proven = true;
+      len = Prec(result.len);
+    } else {
+      if (result.dn == 0 && result.len > len) {
+        sync_cout << "info string Failed to detect PV" << sync_endl;
+      }
       break;
     }
+  }
 
-    thpn = Clamp(thpn, 2 * result.pn, kInfinitePnDn);
-    thdn = Clamp(thdn, 2 * result.dn, kInfinitePnDn);
-  } while (!monitor_.ShouldStop());
+  if (proven) {
+    len = Succ2(len);
+    bool retry = false;
+    while (len.len_plus_1 > 1) {
+      const auto [move, hand] = detail::CheckMate1Ply(node);
+      if (move != MOVE_NONE) {
+        best_moves_.push_back(move);
+        node.DoMove(move);
+        break;
+      }
 
-  sync_cout << "info string " << result << sync_endl;
-  std::this_thread::sleep_for(std::chrono::seconds(3));
-  return NodeState::kRepetition;
+      Move best_move = MOVE_NONE;
+      MateLen best_len = node.IsOrNode() ? kMaxMateLen : kZeroMateLen;
+      for (const auto move : MovePicker{node}) {
+        auto query = tt_.BuildChildQuery(node, move.move);
+        const auto child_result = query.LookUp(len - 1, false);
+        if (child_result.pn == 0 && ((node.IsOrNode() && child_result.len + 1 < best_len) ||
+                                     (!node.IsOrNode() && child_result.len + 1 > best_len))) {
+          best_move = move.move;
+          best_len = child_result.len + 1;
+        }
+      }
+
+      if (best_move == MOVE_NONE || best_len > len) {
+        if (!retry) {
+          auto res = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
+          sync_cout << "info string ex: " << res << sync_endl;
+          retry = true;
+          continue;
+        }
+      }
+      retry = false;
+      sync_cout << "info string " << node.GetDepth() << " " << best_move << " " << best_len << sync_endl;
+
+      if (best_move == MOVE_NONE) {
+        break;
+      }
+
+      len = len - 1;
+      node.DoMove(best_move);
+      best_moves_.push_back(best_move);
+    }
+
+    RollBack(node, best_moves_);
+
+    if (best_moves_.size() % 2 != static_cast<int>(is_root_or_node)) {
+      sync_cout << "info string Failed to detect PV" << sync_endl;
+    }
+    return NodeState::kProven;
+  } else {
+    return NodeState::kDisproven;
+  }
 }
 
-tt::SearchResult KomoringHeights::SearchEntry(Node& n, PnDn thpn, PnDn thdn) {
-  ChildrenCache cache{tt_, n, kMaxMateLen, true};
-  auto result = SearchImpl(n, thpn, thdn, kMaxMateLen, cache, false);
+tt::SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, PnDn thdn) {
+  ChildrenCache cache{tt_, n, len, true};
+  auto result = SearchImpl(n, thpn, thdn, len, cache, false);
 
   auto query = tt_.BuildQuery(n);
   query.SetResult(result);
@@ -162,10 +220,17 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
   while (!monitor_.ShouldStop() && !(curr_result.pn >= thpn || curr_result.dn >= thdn)) {
     // cache.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
-    auto best_move = cache.BestMove();
-    bool is_first_search = curr_result.unknown_data.is_first_visit;
-    BitSet64 sum_mask = BitSet64(~curr_result.unknown_data.secret);
-    auto [child_thpn, child_thdn] = cache.PnDnThresholds(thpn, thdn);
+    const auto best_move = cache.BestMove();
+    const auto min_len =
+        n.IsOrNode() ? MateLen{2, CountHand(n.OrHandAfter(best_move)) + 1} : MateLen{3, CountHand(n.OrHand()) + 1};
+    if (len < min_len) {
+      cache.UpdateBestChild({kInfinitePnDn, 0, n.OrHandAfter(best_move), Prec(min_len), 1, tt::FinalData{false}});
+      curr_result = cache.CurrentResult(n);
+      continue;
+    }
+    const bool is_first_search = cache.FrontIsFirstVisit();
+    const BitSet64 sum_mask = cache.FrontSumMask();
+    const auto [child_thpn, child_thdn] = cache.PnDnThresholds(thpn, thdn);
 
     n.DoMove(best_move);
 

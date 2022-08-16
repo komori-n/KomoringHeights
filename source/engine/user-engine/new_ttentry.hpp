@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "mate_len.hpp"
 #include "node.hpp"
 #include "typedefs.hpp"
 
@@ -136,7 +137,7 @@ class Entry {
           break;
         }
 
-        if (len >= sub_entry.len &&
+        if (((kIsProven && len <= sub_entry.len) || (!kIsProven && len >= sub_entry.len)) &&
             (hand != hand_ || ((kIsProven && sub_entry.pn > 0) || (!kIsProven && sub_entry.dn > 0)))) {
           sub_entry.vals.is_used = false;
         } else {
@@ -387,7 +388,7 @@ class Query {
   }
 
   void SetResult(const SearchResult& result) {
-    if (result.final_data.is_repetition) {
+    if (result.IsFinal() && result.final_data.is_repetition) {
       SetRepetition(result);
     } else {
       SetResultImpl(result);
