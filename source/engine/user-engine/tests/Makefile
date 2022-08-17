@@ -1,6 +1,6 @@
 COMPILER = clang++
 
-GTEST_DIR=../../../../googletest/googletest
+GTEST_DIR=../../../../third-party/googletest/googletest
 
 CPPFLAGS += -isystem $(GTEST_DIR)/include
 CPPFLAGS += -std=c++17 -fno-exceptions -fno-rtti -Wunused-variable -Wextra -Ofast -MMD -MP -fpermissive
@@ -68,7 +68,7 @@ DEPENDS  = $(OBJECTS:.o=.d)
 LIBS    = $(OBJDIR)/gtest.a
 
 all: $(TARGET)
-.PHONY : all test coverage clean
+.PHONY : all test coverage clean docs
 
 test: $(TARGET)
 	rm -rf $(OBJECTS:.o=.gcda)
@@ -102,6 +102,9 @@ coverage: test
 	lcov --rc lcov_branch_coverage=1 -e cov.info -o cov.info "**/user-engine/*"
 	lcov --rc lcov_branch_coverage=1 -r cov.info -o cov.info "**/tests/*"
 	genhtml --rc lcov_branch_coverage=1 cov.info -o coverage-html
+
+docs:
+	doxygen
 
 clean:
 	rm -rf $(OBJECTS) $(DEPENDS) $(TARGET) ${OBJECTS:.o=.gcda} ${OBJDIR}

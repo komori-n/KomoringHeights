@@ -4,6 +4,10 @@
 
 using komori::BitSet64;
 
+TEST(BitSet, Full) {
+  EXPECT_EQ(BitSet64::Full().Value(), std::numeric_limits<std::uint64_t>::max());
+}
+
 TEST(BitSet, DefaultConstructor) {
   BitSet64 bs{};
 
@@ -29,10 +33,6 @@ TEST(BitSet, Operators) {
 
   EXPECT_EQ(bs_lref.Value(), 334);
   EXPECT_EQ(bs_rref.Value(), 334);
-}
-
-TEST(BitSet, Full) {
-  EXPECT_EQ(BitSet64::Full().Value(), std::numeric_limits<std::uint64_t>::max());
 }
 
 TEST(BitSet, Set) {

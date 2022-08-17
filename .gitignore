@@ -261,3 +261,6 @@ source/resource
 # coverage
 coverage-html/
 cov.info
+
+# Doxygen
+docs-html/
