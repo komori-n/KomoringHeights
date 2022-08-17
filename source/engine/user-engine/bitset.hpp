@@ -39,7 +39,7 @@ class BitSet {
 
   /**
    * @brief `i` 番目のフラグを `true` に設定する。
-   * @param i         添字
+   * @param[in] i     添字
    * @return BitSet&  `*this`
    *
    * `i` が範囲外を指している場合、なにもしない。
@@ -53,7 +53,7 @@ class BitSet {
 
   /**
    * @brief `i` 番目のフラグを `false` に設定する。
-   * @param i         添字
+   * @param[in] i     添字
    * @return BitSet&  `*this`
    *
    * `i` が範囲外を指している場合、なにもしない。
@@ -67,7 +67,7 @@ class BitSet {
 
   /**
    * @brief `i` 番目のフラグ状態を取得する。
-   * @param i      添字
+   * @param[in] i  添字
    * @return bool  `i` 番目のフラグ状態
    *
    * `i` が範囲外を指している場合、 `false` を返す。
@@ -81,7 +81,7 @@ class BitSet {
 
   /**
    * @brief `i` 番目のフラグ状態を取得する。
-   * @param i      添字
+   * @param[in] i  添字
    * @return bool  `i` 番目のフラグ状態
    *
    * `i` が範囲外を指している場合、 `false` を返す。
