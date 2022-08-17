@@ -3,9 +3,9 @@
 #include <memory>
 #include <string>
 
-#include "../../thread.h"
-#include "initial_estimation.hpp"
-#include "new_cc.hpp"
+#include "../../../thread.h"
+#include "../cc.hpp"
+#include "../initial_estimation.hpp"
 
 using komori::kInfinitePnDn;
 

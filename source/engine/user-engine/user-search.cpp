@@ -5,7 +5,7 @@
 #include "../../extra/all.h"
 
 #include "initial_estimation.hpp"
-#include "new_kh.hpp"
+#include "komoring_heights.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
 

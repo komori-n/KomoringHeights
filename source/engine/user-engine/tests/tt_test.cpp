@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "new_ttentry.hpp"
+#include "../tt.hpp"
 
 using komori::kInfinitePnDn;
 using komori::kMaxMateLen;

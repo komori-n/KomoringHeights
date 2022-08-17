@@ -9,8 +9,8 @@
 #include "hands.hpp"
 #include "initial_estimation.hpp"
 #include "move_picker.hpp"
-#include "new_ttentry.hpp"
 #include "node.hpp"
+#include "tt.hpp"
 
 namespace komori {
 namespace detail {
