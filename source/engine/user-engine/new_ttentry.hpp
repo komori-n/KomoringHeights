@@ -301,6 +301,15 @@ struct SearchResult {
   constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
   constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
   constexpr bool IsFinal() const { return pn == 0 || dn == 0; }
+  constexpr MateLen ActualMateLen(Hand actual_hand) const {
+    if (pn == 0) {
+      return {len.len_plus_1, len.final_hand + CountHand(actual_hand - hand)};
+    } else if (dn == 0) {
+      return {len.len_plus_1, len.final_hand - CountHand(hand - actual_hand)};
+    } else {
+      return len;
+    }
+  }
 
   friend std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
     if (result.pn == 0) {

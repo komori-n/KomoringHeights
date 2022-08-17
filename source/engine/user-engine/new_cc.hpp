@@ -576,7 +576,6 @@ class ChildrenCache {
       HandSet set{ProofHandTag{}};
       MateLen mate_len = kZeroMateLen;
       std::uint32_t amount = 1;
-      std::uint32_t argmin_i_raw = 0;
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
 
@@ -584,7 +583,6 @@ class ChildrenCache {
         amount = std::max(amount, result.amount);
         if (result.len + 1 > mate_len) {
           mate_len = std::min(result.len + 1, kMaxMateLen);
-          argmin_i_raw = i_raw;
         }
       }
 
@@ -599,7 +597,6 @@ class ChildrenCache {
           return {kInfinitePnDn, 0, n.OrHand(), Prec(mate_len), amount, tt::FinalData{false}};
         }
       }
-
       return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::FinalData{false}};
     }
   }

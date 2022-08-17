@@ -414,6 +414,7 @@ TEST_F(QueryTest, CreateUnknown) {
   const auto res = query_.LookUp({26, 4}, false);
   ExpectBase(res, 33, 4, hand_p1_, {26, 4}, 1, __LINE__);
   ExpectUnknown(res, false, 264, hand_p2_, 445, __LINE__);
+  EXPECT_EQ(res.ActualMateLen(hand_p1_), res.len);
 }
 
 TEST_F(QueryTest, CreateRepetition) {
@@ -439,6 +440,7 @@ TEST_F(QueryTest, CreateProven) {
 
   ExpectBase(res, 0, kInfinitePnDn, HAND_ZERO, {22, 4}, 10, __LINE__);
   ExpectFinal(res, false, __LINE__);
+  EXPECT_EQ(res.ActualMateLen(hand_p1_), (komori::MateLen{22, 5}));
 }
 
 TEST_F(QueryTest, CreateDisproven) {
@@ -448,6 +450,7 @@ TEST_F(QueryTest, CreateDisproven) {
   const auto res = query_.LookUp({26, 4}, false);
   ExpectBase(res, kInfinitePnDn, 0, hand_p2_, {28, 4}, 10, __LINE__);
   ExpectFinal(res, false, __LINE__);
+  EXPECT_EQ(res.ActualMateLen(hand_p1_), (komori::MateLen{28, 3}));
 }
 
 TEST_F(QueryTest, CreateDoubleUnknown) {
