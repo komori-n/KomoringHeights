@@ -122,7 +122,7 @@ void user_test(Position& pos, std::istringstream& is) {
 // USIに追加オプションを設定したいときは、この関数を定義すること。
 // USI::init()のなかからコールバックされる。
 void USI::extra_option(USI::OptionsMap& o) {
-  g_option.Init(o);
+  komori::EngineOption::Init(o);
 }
 
 // 起動時に呼び出される。時間のかからない探索関係の初期化処理はここに書くこと。

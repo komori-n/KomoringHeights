@@ -192,11 +192,6 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);
 
-  // 深さ制限。これ以上探索を続けても詰みが見つかる見込みがないのでここで early return する。
-  if (n.GetDepth() >= option_.depth_limit) {
-    return {kInfinitePnDn, 0, n.OrHand(), len, 1, tt::FinalData{true}};
-  }
-
   // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
   auto curr_result = cache.CurrentResult(n);
   // Threshold Controlling Algorithm(TCA).
