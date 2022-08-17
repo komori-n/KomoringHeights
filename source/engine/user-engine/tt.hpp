@@ -41,7 +41,7 @@ class Entry {
 
   constexpr bool IsFor(Key board_key) const { return board_key_ == board_key && !IsNull(); }
   constexpr bool IsFor(Key board_key, Hand hand) const { return board_key_ == board_key && hand_ == hand; }
-  constexpr bool LookUp(Hand hand, Depth depth, MateLen& len, PnDn& pn, PnDn& dn) {
+  constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn) {
     if (hand_ == hand) {
       vals_.min_depth = std::min(vals_.min_depth, static_cast<std::uint32_t>(depth));
     }
@@ -88,7 +88,7 @@ class Entry {
     return false;
   }
 
-  constexpr void Update(Depth depth, PnDn pn, PnDn dn, MateLen len, std::uint32_t amount) {
+  constexpr void Update(Depth depth, PnDn pn, PnDn dn, MateLen16 len, std::uint32_t amount) {
     vals_.min_depth = std::min(vals_.min_depth, static_cast<std::uint32_t>(depth));
 
     bool inserted = false;
@@ -128,7 +128,7 @@ class Entry {
   }
 
   template <bool kIsProven>
-  constexpr void Clear(Hand hand, MateLen len) {
+  constexpr void Clear(Hand hand, MateLen16 len) {
     if ((kIsProven && hand_is_equal_or_superior(hand_, hand)) ||
         (!kIsProven && hand_is_equal_or_superior(hand, hand_))) {
       auto new_itr = sub_entries_.begin();
@@ -189,7 +189,7 @@ class Entry {
       std::uint32_t is_used : 1;
       std::uint32_t amount : 31;
     } vals;
-    MateLen len;
+    MateLen16 len;
     PnDn pn;
     PnDn dn;
   };
@@ -301,15 +301,6 @@ struct SearchResult {
   constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
   constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
   constexpr bool IsFinal() const { return pn == 0 || dn == 0; }
-  constexpr MateLen ActualMateLen(Hand actual_hand) const {
-    if (pn == 0) {
-      return {len.len_plus_1, len.final_hand + CountHand(actual_hand - hand)};
-    } else if (dn == 0) {
-      return {len.len_plus_1, len.final_hand - CountHand(hand - actual_hand)};
-    } else {
-      return len;
-    }
-  }
 
   friend std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
     if (result.pn == 0) {
@@ -343,6 +334,8 @@ class Query {
   SearchResult LookUp(bool& does_have_old_child, MateLen len, bool create_entry, InitialEvalFunc&& eval_func) {
     static_assert(std::is_invocable_v<InitialEvalFunc>);
     static_assert(std::is_same_v<std::invoke_result_t<InitialEvalFunc>, std::pair<PnDn, PnDn>>);
+
+    MateLen16 len16 = len.To16();
     PnDn pn = 1;
     PnDn dn = 1;
     const auto begin_itr = begin();
@@ -352,14 +345,14 @@ class Query {
         continue;
       }
 
-      const bool is_end = itr->LookUp(hand_, depth_, len, pn, dn);
+      const bool is_end = itr->LookUp(hand_, depth_, len16, pn, dn);
       if (is_end) {
         if (pn > 0 && dn > 0 && itr->MayRepeat() && rep_table_->Contains(path_key_)) {
           return {kInfinitePnDn, 0, itr->GetHand(), len, 1, FinalData{true}};
         }
 
         if (pn == 0 || dn == 0) {
-          return {pn, dn, itr->GetHand(), len, itr->TotalAmount(), FinalData{false}};
+          return {pn, dn, itr->GetHand(), MateLen{len16}, itr->TotalAmount(), FinalData{false}};
         } else {
           does_have_old_child = itr->MinDepth() < depth_;
 
@@ -374,7 +367,7 @@ class Query {
     pn = std::max(pn, init_pn);
     dn = std::max(dn, init_dn);
     if (create_entry) {
-      CreateEntry(pn, dn, len, hand_, 1);
+      CreateEntry(pn, dn, len16, hand_, 1);
     }
 
     UnknownData unknown_data{true, kNullKey, kNullHand, 0};
@@ -402,9 +395,9 @@ class Query {
     } else {
       SetResultImpl(result);
       if (result.pn == 0) {
-        CleanFinal<true>(result.hand, result.len);
+        CleanFinal<true>(result.hand, result.len.To16());
       } else if (result.dn == 0) {
-        CleanFinal<false>(result.hand, result.len);
+        CleanFinal<false>(result.hand, result.len.To16());
       }
     }
   }
@@ -431,7 +424,7 @@ class Query {
   }
 
   template <bool kIsProven>
-  void CleanFinal(Hand hand, MateLen len) {
+  void CleanFinal(Hand hand, MateLen16 len) {
     const auto begin_itr = begin();
     const auto end_itr = end();
     for (auto itr = begin_itr; itr != end_itr; ++itr) {
@@ -443,13 +436,13 @@ class Query {
 
   void SetResultImpl(const SearchResult& result) {
     if (auto itr = Find(result.hand)) {
-      itr->Update(depth_, result.pn, result.dn, result.len, result.amount);
+      itr->Update(depth_, result.pn, result.dn, result.len.To16(), result.amount);
       if (!result.IsFinal()) {
         itr->UpdateParent(result.unknown_data.parent_board_key, result.unknown_data.parent_hand,
                           result.unknown_data.secret);
       }
     } else {
-      auto new_itr = CreateEntry(result.pn, result.dn, result.len, result.hand, result.amount);
+      auto new_itr = CreateEntry(result.pn, result.dn, result.len.To16(), result.hand, result.amount);
       if (!result.IsFinal()) {
         new_itr->UpdateParent(result.unknown_data.parent_board_key, result.unknown_data.parent_hand,
                               result.unknown_data.secret);
@@ -479,7 +472,7 @@ class Query {
     return nullptr;
   }
 
-  constexpr detail::Entry* CreateEntry(PnDn pn, PnDn dn, MateLen len, Hand hand, std::uint32_t amount) {
+  constexpr detail::Entry* CreateEntry(PnDn pn, PnDn dn, MateLen16 len, Hand hand, std::uint32_t amount) {
     const auto begin_itr = begin();
     const auto end_itr = end();
     for (auto itr = begin_itr; itr != end_itr; ++itr) {

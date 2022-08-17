@@ -110,7 +110,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
         break;
       }
       proven = true;
-      len = Prec(result.len);
+      len = Prec(MateLen{result.len});
     } else {
       if (result.dn == 0 && result.len > len) {
         sync_cout << "info string Failed to detect PV" << sync_endl;
@@ -142,7 +142,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
         }
       }
 
-      if (best_move == MOVE_NONE || best_len > len) {
+      if (best_move == MOVE_NONE || MateLen{best_len} > len) {
         if (!retry) {
           auto res = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
           sync_cout << "info string ex: " << res << sync_endl;
@@ -221,8 +221,8 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
     // cache.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     const auto best_move = cache.BestMove();
-    const auto min_len =
-        n.IsOrNode() ? MateLen{2, CountHand(n.OrHandAfter(best_move)) + 1} : MateLen{3, CountHand(n.OrHand()) + 1};
+    const auto min_len = n.IsOrNode() ? MateLen{2, static_cast<std::uint32_t>(CountHand(n.OrHandAfter(best_move)) + 1)}
+                                      : MateLen{3, static_cast<std::uint32_t>(CountHand(n.OrHand()) + 1)};
     if (len < min_len) {
       cache.UpdateBestChild({kInfinitePnDn, 0, n.OrHandAfter(best_move), Prec(min_len), 1, tt::FinalData{false}});
       curr_result = cache.CurrentResult(n);

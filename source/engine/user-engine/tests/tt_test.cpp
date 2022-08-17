@@ -4,10 +4,12 @@
 
 using komori::kInfinitePnDn;
 using komori::kMaxMateLen;
+using komori::kMaxMateLen16;
 using komori::kMaxNumMateMoves;
 using komori::kNullHand;
 using komori::kNullKey;
 using komori::MateLen;
+using komori::MateLen16;
 using komori::PnDn;
 
 namespace {
@@ -29,16 +31,17 @@ class EntryTest : public ::testing::Test {
               bool expected_res,
               PnDn expected_pn,
               PnDn expected_dn,
-              MateLen expected_len,
+              MateLen16 expected_len,
               int line) {
     PnDn pn = 1;
     PnDn dn = 1;
-    const auto res = entry_.LookUp(hand, depth, len, pn, dn);
+    auto len16 = len.To16();
+    const auto res = entry_.LookUp(hand, depth, len16, pn, dn);
 
     EXPECT_EQ(res, expected_res) << "LINE: " << line;
     EXPECT_EQ(pn, expected_pn) << "LINE: " << line;
     EXPECT_EQ(dn, expected_dn) << "LINE: " << line;
-    EXPECT_EQ(len, expected_len) << "LINE: " << line;
+    EXPECT_EQ(len16, expected_len) << "LINE: " << line;
   }
 
   Hand hand_p1_;
@@ -57,14 +60,14 @@ TEST_F(EntryTest, Init) {
 
 TEST_F(EntryTest, MayRepeat) {
   Init(334, hand_p1_);
-  entry_.Update(264, 100, 200, kMaxMateLen, 1);
+  entry_.Update(264, 100, 200, kMaxMateLen16, 1);
 
   EXPECT_FALSE(entry_.MayRepeat());
-  LookUp(hand_p1_, 264, kMaxMateLen, true, 100, 200, kMaxMateLen, __LINE__);
+  LookUp(hand_p1_, 264, kMaxMateLen, true, 100, 200, kMaxMateLen16, __LINE__);
 
   entry_.SetRepeat();
   EXPECT_TRUE(entry_.MayRepeat());
-  LookUp(hand_p1_, 264, kMaxMateLen, true, 1, 1, kMaxMateLen, __LINE__);
+  LookUp(hand_p1_, 264, kMaxMateLen, true, 1, 1, kMaxMateLen16, __LINE__);
 }
 
 TEST_F(EntryTest, Null) {
@@ -81,18 +84,18 @@ TEST_F(EntryTest, LookUp_Empty) {
   Init(334, hand_p1_);
 
   // inferior
-  LookUp(HAND_ZERO, 264, kMaxMateLen, false, 1, 1, kMaxMateLen, __LINE__);
+  LookUp(HAND_ZERO, 264, kMaxMateLen, false, 1, 1, kMaxMateLen16, __LINE__);
   // equal
-  LookUp(hand_p1_, 264, kMaxMateLen, false, 1, 1, kMaxMateLen, __LINE__);
+  LookUp(hand_p1_, 264, kMaxMateLen, false, 1, 1, kMaxMateLen16, __LINE__);
   // superior
-  LookUp(hand_p2_, 264, kMaxMateLen, false, 1, 1, kMaxMateLen, __LINE__);
+  LookUp(hand_p2_, 264, kMaxMateLen, false, 1, 1, kMaxMateLen16, __LINE__);
 }
 
 TEST_F(EntryTest, LookUp_Exact) {
   Init(334, hand_p1_);
-  entry_.Update(264, 100, 200, kMaxMateLen, 1);
+  entry_.Update(264, 100, 200, kMaxMateLen16, 1);
 
-  LookUp(hand_p1_, 264, kMaxMateLen, true, 100, 200, kMaxMateLen, __LINE__);
+  LookUp(hand_p1_, 264, kMaxMateLen, true, 100, 200, kMaxMateLen16, __LINE__);
 }
 
 TEST_F(EntryTest, LookUp_NotFound) {
@@ -414,7 +417,6 @@ TEST_F(QueryTest, CreateUnknown) {
   const auto res = query_.LookUp({26, 4}, false);
   ExpectBase(res, 33, 4, hand_p1_, {26, 4}, 1, __LINE__);
   ExpectUnknown(res, false, 264, hand_p2_, 445, __LINE__);
-  EXPECT_EQ(res.ActualMateLen(hand_p1_), res.len);
 }
 
 TEST_F(QueryTest, CreateRepetition) {
@@ -440,7 +442,6 @@ TEST_F(QueryTest, CreateProven) {
 
   ExpectBase(res, 0, kInfinitePnDn, HAND_ZERO, {22, 4}, 10, __LINE__);
   ExpectFinal(res, false, __LINE__);
-  EXPECT_EQ(res.ActualMateLen(hand_p1_), (komori::MateLen{22, 5}));
 }
 
 TEST_F(QueryTest, CreateDisproven) {
@@ -450,7 +451,6 @@ TEST_F(QueryTest, CreateDisproven) {
   const auto res = query_.LookUp({26, 4}, false);
   ExpectBase(res, kInfinitePnDn, 0, hand_p2_, {28, 4}, 10, __LINE__);
   ExpectFinal(res, false, __LINE__);
-  EXPECT_EQ(res.ActualMateLen(hand_p1_), (komori::MateLen{28, 3}));
 }
 
 TEST_F(QueryTest, CreateDoubleUnknown) {
