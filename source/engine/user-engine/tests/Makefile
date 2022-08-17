@@ -101,7 +101,7 @@ coverage: test
 	lcov --rc lcov_branch_coverage=1 --directory ../../../../obj --base-directory . --capture -o cov.info
 	lcov --rc lcov_branch_coverage=1 -e cov.info -o cov.info "**/user-engine/*"
 	lcov --rc lcov_branch_coverage=1 -r cov.info -o cov.info "**/tests/*"
-	genhtml --rc lcov_branch_coverage=1 cov.info -o coverage-html
+	genhtml --dark-mode --rc lcov_branch_coverage=1 cov.info -o coverage-html
 
 docs:
 	doxygen
