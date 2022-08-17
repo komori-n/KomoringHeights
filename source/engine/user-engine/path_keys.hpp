@@ -1,5 +1,5 @@
-#ifndef PATH_KEYS_HPP_
-#define PATH_KEYS_HPP_
+#ifndef KOMORI_PATH_KEYS_HPP_
+#define KOMORI_PATH_KEYS_HPP_
 
 #include "typedefs.hpp"
 
@@ -75,4 +75,4 @@ inline Key PathKeyAfterGive(Key path_key, PieceType stolen_pr, Depth depth) {
 
 }  // namespace komori
 
-#endif  // PATH_KEYS_HPP_
+#endif  // KOMORI_PATH_KEYS_HPP_

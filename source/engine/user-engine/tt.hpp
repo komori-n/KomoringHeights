@@ -1,5 +1,5 @@
-#ifndef NEW_TT_ENTRY_HPP_
-#define NEW_TT_ENTRY_HPP_
+#ifndef KOMORI_NEW_TT_ENTRY_HPP_
+#define KOMORI_NEW_TT_ENTRY_HPP_
 
 #include <algorithm>
 #include <array>
@@ -589,4 +589,4 @@ class TranspositionTable {
 }  // namespace tt
 }  // namespace komori
 
-#endif  // NEW_TT_ENTRY_HPP_
+#endif  // KOMORI_NEW_TT_ENTRY_HPP_

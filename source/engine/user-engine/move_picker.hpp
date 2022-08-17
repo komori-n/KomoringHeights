@@ -1,5 +1,5 @@
-#ifndef MOVE_PICKER_HPP_
-#define MOVE_PICKER_HPP_
+#ifndef KOMORI_MOVE_PICKER_HPP_
+#define KOMORI_MOVE_PICKER_HPP_
 
 #include <array>
 
@@ -67,4 +67,4 @@ class MovePicker {
 
 }  // namespace komori
 
-#endif  // MOVE_PICKER_HPP_
+#endif  // KOMORI_MOVE_PICKER_HPP_

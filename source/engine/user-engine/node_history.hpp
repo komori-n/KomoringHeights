@@ -1,5 +1,5 @@
-#ifndef NODE_HISTORY_HPP_
-#define NODE_HISTORY_HPP_
+#ifndef KOMORI_NODE_HISTORY_HPP_
+#define KOMORI_NODE_HISTORY_HPP_
 
 #include <unordered_map>
 
@@ -120,4 +120,4 @@ class NodeHistory {
 };
 }  // namespace komori
 
-#endif  // NODE_HISTORY_HPP_
+#endif  // KOMORI_NODE_HISTORY_HPP_

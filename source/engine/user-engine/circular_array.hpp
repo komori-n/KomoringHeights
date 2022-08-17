@@ -1,5 +1,5 @@
-#ifndef CIRCULAR_ARRAY_HPP_
-#define CIRCULAR_ARRAY_HPP_
+#ifndef KOMORI_CIRCULAR_ARRAY_HPP_
+#define KOMORI_CIRCULAR_ARRAY_HPP_
 
 #include <array>
 #include <type_traits>
@@ -26,4 +26,4 @@ class CircularArray {
 };
 }  // namespace komori
 
-#endif  // CIRCULAR_ARRAY_HPP_
+#endif  // KOMORI_CIRCULAR_ARRAY_HPP_

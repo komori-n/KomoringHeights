@@ -1,5 +1,5 @@
-#ifndef PNDN_ESTIMATION_HPP_
-#define PNDN_ESTIMATION_HPP_
+#ifndef KOMORI_PNDN_ESTIMATION_HPP_
+#define KOMORI_PNDN_ESTIMATION_HPP_
 
 #include <utility>
 
@@ -107,7 +107,7 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
       0, 1, 2, 2, 3, 5, 5, 5, 8, 5, 5, 5, 5, 8, 8, 8,
   };
 
-  auto us = n.Pos().side_to_move();
+  auto us = n.Us();
   auto king_color = n.AndColor();
   auto king_sq = n.Pos().king_square(king_color);
   auto to = to_sq(move);
@@ -156,4 +156,4 @@ inline bool IsSumDeltaNode(const Node& n, Move move) {
 }
 }  // namespace komori
 
-#endif  // PNDN_ESTIMATION_HPP_
+#endif  // KOMORI_PNDN_ESTIMATION_HPP_

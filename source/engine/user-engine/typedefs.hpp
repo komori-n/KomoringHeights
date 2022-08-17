@@ -1,5 +1,5 @@
-#ifndef TYPEDEFS_HPP_
-#define TYPEDEFS_HPP_
+#ifndef KOMORI_TYPEDEFS_HPP_
+#define KOMORI_TYPEDEFS_HPP_
 
 #include <cassert>
 #include <chrono>
@@ -151,4 +151,4 @@ inline std::string OrdinalNumeral(N n) {
 }
 }  // namespace komori
 
-#endif  // TYPEDEFS_HPP_
+#endif  // KOMORI_TYPEDEFS_HPP_

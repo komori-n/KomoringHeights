@@ -1,5 +1,5 @@
-#ifndef NODE_HPP_
-#define NODE_HPP_
+#ifndef KOMORI_NODE_HPP_
+#define KOMORI_NODE_HPP_
 
 #include <functional>
 #include <stack>
@@ -166,4 +166,4 @@ inline void RollBack(Node& n, const std::vector<Move>& moves) {
   }
 }
 }  // namespace komori
-#endif  // NODE_HPP_
+#endif  // KOMORI_NODE_HPP_

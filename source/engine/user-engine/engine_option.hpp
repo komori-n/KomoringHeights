@@ -1,5 +1,5 @@
-#ifndef ENGINE_OPTION_HPP_
-#define ENGINE_OPTION_HPP_
+#ifndef KOMORI_ENGINE_OPTION_HPP_
+#define KOMORI_ENGINE_OPTION_HPP_
 
 #include <string>
 
@@ -45,4 +45,4 @@ struct EngineOption {
 };
 }  // namespace komori
 
-#endif  // ENGINE_OPTION_HPP_
+#endif  // KOMORI_ENGINE_OPTION_HPP_

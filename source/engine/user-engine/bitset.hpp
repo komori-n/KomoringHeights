@@ -1,5 +1,5 @@
-#ifndef BITSET_HPP_
-#define BITSET_HPP_
+#ifndef KOMORI_BITSET_HPP_
+#define KOMORI_BITSET_HPP_
 
 #include <cstdint>
 #include <limits>
@@ -57,4 +57,4 @@ class BitSet {
 using BitSet64 = BitSet<std::uint64_t>;
 }  // namespace komori
 
-#endif  // BITSET_HPP_
+#endif  // KOMORI_BITSET_HPP_

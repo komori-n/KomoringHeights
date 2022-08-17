@@ -1,5 +1,5 @@
-#ifndef PROOF_HAND_HPP_
-#define PROOF_HAND_HPP_
+#ifndef KOMORI_PROOF_HAND_HPP_
+#define KOMORI_PROOF_HAND_HPP_
 
 #include <algorithm>
 #include <array>
@@ -258,4 +258,4 @@ class HandSet {
 };
 }  // namespace komori
 
-#endif  // PROOF_HAND_HPP_
+#endif  // KOMORI_PROOF_HAND_HPP_

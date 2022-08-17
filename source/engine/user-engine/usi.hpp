@@ -1,5 +1,5 @@
-#ifndef USI_HPP_
-#define USI_HPP_
+#ifndef KOMORI_USI_HPP_
+#define KOMORI_USI_HPP_
 
 #include <algorithm>
 #include <cmath>
@@ -145,4 +145,4 @@ class UsiInfo {
 std::ostream& operator<<(std::ostream& os, const UsiInfo& usi_output);
 UsiInfo operator|(const UsiInfo& lhs, const UsiInfo& rhs);
 }  // namespace komori
-#endif  // USI_HPP_
+#endif  // KOMORI_USI_HPP_
