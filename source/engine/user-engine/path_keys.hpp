@@ -5,11 +5,11 @@
 
 namespace komori {
 namespace detail {
-inline HASH_KEY g_move_from[SQ_NB_PLUS1][komori::kMaxNumMateMoves];
-inline HASH_KEY g_move_to[SQ_NB_PLUS1][komori::kMaxNumMateMoves];
-inline HASH_KEY g_promote[komori::kMaxNumMateMoves];
-inline HASH_KEY g_dropped_pr[PIECE_HAND_NB][komori::kMaxNumMateMoves];
-inline HASH_KEY g_stolen_pr[PIECE_HAND_NB][komori::kMaxNumMateMoves];
+inline HASH_KEY g_move_from[SQ_NB_PLUS1][komori::kDepthMax];
+inline HASH_KEY g_move_to[SQ_NB_PLUS1][komori::kDepthMax];
+inline HASH_KEY g_promote[komori::kDepthMax];
+inline HASH_KEY g_dropped_pr[PIECE_HAND_NB][komori::kDepthMax];
+inline HASH_KEY g_stolen_pr[PIECE_HAND_NB][komori::kDepthMax];
 }  // namespace detail
 
 /// ハッシュを初期化する
@@ -23,7 +23,7 @@ inline void PathKeyInit() {
   PRNG rng(334334);
 
   for (const auto sq : SQ) {
-    for (std::size_t depth = 0; depth < kMaxNumMateMoves; ++depth) {
+    for (std::size_t depth = 0; depth < kDepthMax; ++depth) {
       SET_HASH(g_move_from[sq][depth], rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>());
       SET_HASH(g_move_to[sq][depth], rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>());
     }
@@ -34,7 +34,7 @@ inline void PathKeyInit() {
   }
 
   for (PieceType pr = NO_PIECE_TYPE; pr < PIECE_HAND_NB; ++pr) {
-    for (std::size_t depth = 0; depth < kMaxNumMateMoves; ++depth) {
+    for (std::size_t depth = 0; depth < kDepthMax; ++depth) {
       SET_HASH(g_dropped_pr[pr][depth], rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>());
       SET_HASH(g_stolen_pr[pr][depth], rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>(), rng.rand<Key>());
     }

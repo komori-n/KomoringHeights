@@ -39,7 +39,7 @@ struct MateLen16 : DefineNotEqualByEqual<MateLen16>, DefineComparisonOperatorsBy
 };
 
 constexpr inline MateLen16 kZeroMateLen16{1, 15};
-constexpr inline MateLen16 kMaxMateLen16{kMaxNumMateMoves + 1, 0};
+constexpr inline MateLen16 kMaxMateLen16{kDepthMax + 1, 0};
 
 struct MateLen : DefineNotEqualByEqual<MateLen>, DefineComparisonOperatorsByEqualAndLess<MateLen> {
   static constexpr inline std::uint32_t kFinalHandMax = 38;
@@ -78,7 +78,7 @@ struct MateLen : DefineNotEqualByEqual<MateLen>, DefineComparisonOperatorsByEqua
 };
 
 constexpr inline MateLen kZeroMateLen{1, MateLen::kFinalHandMax};
-constexpr inline MateLen kMaxMateLen{kMaxNumMateMoves + 1, 0};
+constexpr inline MateLen kMaxMateLen{kDepthMax + 1, 0};
 
 inline MateLen Succ(const MateLen& len) {
   if (len.final_hand == 0) {

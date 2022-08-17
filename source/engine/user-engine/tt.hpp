@@ -30,7 +30,7 @@ class Entry {
     board_key_ = board_key;
     hand_ = hand;
     vals_.may_rep = false;
-    vals_.min_depth = static_cast<std::uint32_t>(kMaxNumMateMoves);
+    vals_.min_depth = static_cast<std::uint32_t>(kDepthMax);
     parent_board_key_ = kNullKey;
     parent_hand_ = kNullHand;
     secret_ = 0;
@@ -540,7 +540,7 @@ class TranspositionTable {
 
   constexpr Query BuildQueryByKey(Key board_key, Hand or_hand) {
     auto* const head_entry = HeadOf(board_key);
-    const auto dummy_depth = kMaxNumMateMoves;
+    const auto dummy_depth = kDepthMax;
     return Query{rep_table_, head_entry, kNullKey, board_key, or_hand, dummy_depth};
   }
 

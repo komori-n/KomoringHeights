@@ -2,10 +2,10 @@
 
 #include "../tt.hpp"
 
+using komori::kDepthMax;
 using komori::kInfinitePnDn;
 using komori::kMaxMateLen;
 using komori::kMaxMateLen16;
-using komori::kMaxNumMateMoves;
 using komori::kNullHand;
 using komori::kNullKey;
 using komori::MateLen;

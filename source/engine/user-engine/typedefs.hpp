@@ -13,23 +13,107 @@
 #include "../../position.h"
 #include "../../types.h"
 
+/**
+ * @namespace komori
+ * @brief created by komori
+ */
 namespace komori {
+/**
+ * @brief `T` をそのまま返すメタ関数。
+ * @tparam T 型
+ *
+ * 意図しない型推論を防ぎたいときに用いる。
+ */
+template <typename T>
+struct Identity {
+  using type = T;
+};
+
+/**
+ * @brief SFINAE の制約を書くのに便利な型。
+ * @tparam Args `std::enable_if_t` の列。
+ *
+ * `Args...` の中で `std::enable_if_t` による SFINAE 制約式を書くことができる。制約式がすべて真の場合に限り、
+ * `Args...` の推論に成功し `std::nullptr_t` となる。
+ *
+ * 例）型 `T` がデフォルト構築可能なときに限り `Func()` を定義したいとき。
+ *
+ * ```cpp
+ * template <typename T,
+ *    Constraints<std::enable_if_t<std::is_default_constructible_v<U>>> = nullptr>
+ * void Func(T t) {
+ *   ...
+ * }
+ * ```
+ */
 template <typename... Args>
-using Constraints = std::nullptr_t;
+using Constraints = decltype(nullptr);
+
+/**
+ * @brief `operator==` から `operator!=` を自動定義するクラス。
+ * @tparam T `operator==` が定義されたクラス
+ *
+ * `operator==` の定義から `operator!=` を自動定義するクラス。以下のように使用する。
+ *
+ * ```cpp
+ * struct Hoge : DefineNotEqualByEqual<Hoge> {
+ *   constexpr friend operator==(const Hoge& lhs, const Hoge& rhs) {
+ *     ...
+ *   }
+ * };
+ * ```
+ *
+ * 定義したいクラス `Hoge` に対し、 `DefineNotEqualByEqual<Hoge>` を継承させることで `operator!=` を自動定義できる。
+ */
+template <typename T>
+struct DefineNotEqualByEqual {
+  /// `lhs` と `rhs` が一致しないかどうか判定する（`operator==`からの自動定義）
+  constexpr friend bool operator!=(const T& lhs, const T& rhs) noexcept(noexcept(lhs == rhs)) { return !(lhs == rhs); }
+};
+
+/**
+ * @brief `operator==` および `operator<` から各種演算子を自動定義するクラス。
+ * @tparam T `operator==` および `operator<` が定義されたクラス
+ *
+ * `operator==` および `operator<` の定義から以下の演算子を自動定義する。
+ *
+ * - `operator<=`
+ * - `operator>`
+ * - `operator>=`
+ *
+ * 詳しくは `DefineNotEqualByEauyl` も参照のこと。
+ */
+template <typename T>
+struct DefineComparisonOperatorsByEqualAndLess {
+  /// `lhs <= rhs` を判定する（`operator==` および `operator<` からの自動定義）
+  constexpr friend bool operator<=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs) && noexcept(lhs == rhs)) {
+    return lhs < rhs || lhs == rhs;
+  }
+
+  /// `lhs > rhs` を判定する（`operator==` および `operator<` からの自動定義）
+  constexpr friend bool operator>(const T& lhs, const T& rhs) noexcept(noexcept(rhs < lhs)) { return rhs < lhs; }
+  /// `lhs >= rhs` を判定する（`operator==` および `operator<` からの自動定義）
+  constexpr friend bool operator>=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs)) { return !(lhs < rhs); }
+};
 
 /// 1局面の最大王手/王手回避の着手数
 inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
-inline constexpr Depth kMaxNumMateMoves = 4000;
+inline constexpr Depth kDepthMax = 4000;
 /// 無効な持ち駒
 inline constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
 /// 無効な Key
 inline constexpr Key kNullKey = Key{0x3343343343343340ULL};
 
+/// OR Node/AND Node を表す型。コンパイル時分岐に用いる
 template <bool kOrNode>
 struct NodeTag {};
 
-/// 証明数／反証数を格納する型
+/**
+ * @brief 証明数／反証数を格納する型
+ *
+ * 32ビット整数だとすぐにオーバーフローしてしまうので、64ビット整数を用いる。
+ */
 using PnDn = std::uint64_t;
 /// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
 inline constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
@@ -37,16 +121,35 @@ inline constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
 inline constexpr PnDn kInitialPn = 2;
 /// dnの初期値。df-pn+やdeep df-pnへの拡張を考慮して 1 ではない値で初期化できるようにしておく。
 inline constexpr PnDn kInitialDn = 2;
-/// pn/dn 値を [0, kInfinitePnDn] の範囲に収まるように丸める。
+/**
+ * @brief pn/dn の値を [`min`, `max`] の範囲に収まるように丸める。
+ * @param[in] val pnまたはdn
+ * @param[in] min 範囲の最小値
+ * @param[in] max 範囲の最大値
+ * @return PnDn [`min`, `max`] の範囲に丸めた `val`
+ */
 inline constexpr PnDn Clamp(PnDn val, PnDn min = 0, PnDn max = kInfinitePnDn) {
   return std::clamp(val, min, max);
 }
-/// Phi値（OR node なら pn、AND node なら dn）を計算する。
+
+/**
+ * @brief φ値を計算する。現局面が `or_node` なら `pn`, そうでないなら `dn` を返す。
+ * @param[in] pn pn
+ * @param[in] dn dn
+ * @param[in] or_node 現局面が OR Node なら `true`
+ * @return PnDn φ値
+ */
 inline PnDn Phi(PnDn pn, PnDn dn, bool or_node) {
   return or_node ? pn : dn;
 }
 
-/// Delta値（OR node ならdn、AND node なら pn）を計算する。
+/**
+ * @brief δ値を計算する。現局面が `or_node` なら `dn`, そうでないなら `pn` を返す。
+ * @param[in] pn pn
+ * @param[in] dn dn
+ * @param[in] or_node 現局面が OR Node なら `true`
+ * @return PnDn δ値
+ */
 inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) {
   return or_node ? dn : pn;
 }
@@ -62,7 +165,13 @@ inline std::string ToString(PnDn val) {
   }
 }
 
-/// c 側の sq にある pt の利き先の Bitboard を返す
+/**
+ * @brief `c` 側の `sq` にある `pt` の短い利きの `Bitboard` を返す
+ * @param pt 駒種
+ * @param c  プレイヤー
+ * @param sq 場所
+ * @return Bitboard 短い利きの `Bitboard`
+ */
 inline Bitboard StepEffect(PieceType pt, Color c, Square sq) {
   switch (pt) {
     case PAWN:
@@ -89,64 +198,6 @@ inline Bitboard StepEffect(PieceType pt, Color c, Square sq) {
       return rookStepEffect(sq);
     default:
       return {};
-  }
-}
-
-inline bool IsStepCheck(const Position& n, Move move) {
-  auto us = n.side_to_move();
-  auto them = ~us;
-  auto king_sq = n.king_square(them);
-  Piece pc = n.moved_piece_after(move);
-  PieceType pt = type_of(pc);
-
-  return StepEffect(pt, us, to_sq(move)).test(king_sq);
-}
-
-inline std::string HexString(std::uint64_t x) {
-  std::stringstream ss;
-  ss << "0x" << std::hex << std::setfill('0') << std::setw(16) << x;
-  return ss.str();
-}
-
-inline std::string HexString(std::uint32_t x) {
-  std::stringstream ss;
-  ss << "0x" << std::hex << std::setfill('0') << std::setw(8) << x;
-  return ss.str();
-}
-
-template <typename T>
-struct Identity {
-  using type = T;
-};
-
-template <typename T>
-struct DefineNotEqualByEqual {
-  constexpr friend bool operator!=(const T& lhs, const T& rhs) noexcept(noexcept(lhs == rhs)) { return !(lhs == rhs); }
-};
-
-template <typename T>
-struct DefineComparisonOperatorsByEqualAndLess {
-  constexpr friend bool operator<=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs) && noexcept(lhs == rhs)) {
-    return lhs < rhs || lhs == rhs;
-  }
-
-  constexpr friend bool operator>(const T& lhs, const T& rhs) noexcept(noexcept(rhs < lhs)) { return rhs < lhs; }
-  constexpr friend bool operator>=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs)) { return !(lhs < rhs); }
-};
-
-template <typename N>
-inline std::string OrdinalNumeral(N n) {
-  static_assert(std::is_integral_v<N>);
-
-  switch (n) {
-    case N{1}:
-      return "1st";
-    case N{2}:
-      return "2nd";
-    case N{3}:
-      return "3rd";
-    default:
-      return std::to_string(n) + "th";
   }
 }
 }  // namespace komori
