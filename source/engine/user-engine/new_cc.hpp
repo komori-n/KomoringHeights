@@ -74,7 +74,7 @@ class DelayedMoves {
   static constexpr inline std::size_t kMaxLen = 10;
 
   bool IsDelayable(Move move) const {
-    const Color us = n_.Pos().side_to_move();
+    const Color us = n_.Us();
     const auto to = to_sq(move);
 
     if (is_drop(move)) {
@@ -287,7 +287,7 @@ class ChildrenCache {
         len_{len},
         sum_mask_{sum_mask},
         parent_{parent},
-        board_key_{n.Pos().state()->board_key()},
+        board_key_{n.BoardKey()},
         or_hand_{n.OrHand()} {
     bool found_rep = false;
     Node& nn = const_cast<Node&>(n);
@@ -315,7 +315,7 @@ class ChildrenCache {
           continue;
         }
       } else {
-        child = {n.Pos().board_key_after(move.move), 0};
+        child = {n.BoardKeyAfter(move.move), 0};
         query = tt.BuildChildQuery(n, move.move);
         result =
             query.LookUp(does_have_old_child_, len - 1, false, [&n, &move]() { return InitialPnDn(n, move.move); });
@@ -697,7 +697,7 @@ class ChildrenCache {
     const auto result = FrontResult();
     const auto pn = result.pn;
     const auto dn = result.dn;
-    const auto child_board_key = n.Pos().board_key_after(best_move);
+    const auto child_board_key = n.BoardKeyAfter(best_move);
     const auto child_hand = AfterHand(n.Pos(), best_move, n.OrHand());
 
     if (!result.IsFinal()) {

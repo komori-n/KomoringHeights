@@ -193,7 +193,7 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
   PrintIfNeeded(n);
 
   // 深さ制限。これ以上探索を続けても詰みが見つかる見込みがないのでここで early return する。
-  if (n.IsExceedLimit(option_.depth_limit)) {
+  if (n.GetDepth() >= option_.depth_limit) {
     return {kInfinitePnDn, 0, n.OrHand(), len, 1, tt::FinalData{true}};
   }
 
