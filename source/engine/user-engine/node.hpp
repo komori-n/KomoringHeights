@@ -6,9 +6,9 @@
 #include <vector>
 
 #include "hands.hpp"
-#include "node_history.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
+#include "visit_history.hpp"
 
 namespace komori {
 /**
@@ -48,7 +48,7 @@ class Node {
 
   void DoMove(Move m) {
     path_key_ = PathKeyAfter(m);
-    node_history_.Visit(BoardKey(), this->OrHand());
+    visit_history.Visit(BoardKey(), this->OrHand());
     Pos().do_move(m, st_info_.emplace());
     depth_++;
   }
@@ -57,7 +57,7 @@ class Node {
     depth_--;
     Pos().undo_move(m);
     st_info_.pop();
-    node_history_.Leave(BoardKey(), this->OrHand());
+    visit_history.Leave(BoardKey(), this->OrHand());
     path_key_ = PathKeyBefore(m);
   }
 
@@ -110,29 +110,29 @@ class Node {
     return MOVE_NONE;
   }
 
-  bool IsRepetition() const { return node_history_.Contains(BoardKey(), this->OrHand()); }
+  bool IsRepetition() const { return visit_history.Contains(BoardKey(), this->OrHand()); }
 
   bool IsRepetitionAfter(Move move) const {
-    return node_history_.Contains(BoardKeyAfter(move), this->OrHandAfter(move));
+    return visit_history.Contains(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
-  bool IsRepetitionOrInferior() const { return node_history_.IsInferior(BoardKey(), this->OrHand()); }
+  bool IsRepetitionOrInferior() const { return visit_history.IsInferior(BoardKey(), this->OrHand()); }
 
   bool IsRepetitionOrInferiorAfter(Move move) const {
-    return node_history_.IsInferior(BoardKeyAfter(move), this->OrHandAfter(move));
+    return visit_history.IsInferior(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
-  bool IsRepetitionOrSuperior() const { return node_history_.IsSuperior(BoardKey(), this->OrHand()); }
+  bool IsRepetitionOrSuperior() const { return visit_history.IsSuperior(BoardKey(), this->OrHand()); }
 
   bool IsRepetitionOrSuperiorAfter(Move move) const {
-    return node_history_.IsSuperior(BoardKeyAfter(move), this->OrHandAfter(move));
+    return visit_history.IsSuperior(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
   bool ContainsInPath(Key key, Hand hand) const {
-    return node_history_.Contains(key, hand) || (BoardKey() == key && OrHand() == hand);
+    return visit_history.Contains(key, hand) || (BoardKey() == key && OrHand() == hand);
   }
 
-  bool ContainsInPath(Key key) const { return node_history_.Contains(key) || BoardKey() == key; }
+  bool ContainsInPath(Key key) const { return visit_history.Contains(key) || BoardKey() == key; }
   Depth GetDepth() const { return depth_; }
   Key GetPathKey() const { return path_key_; }
   Key PathKeyAfter(Move m) const { return ::komori::PathKeyAfter(path_key_, m, depth_); }
@@ -147,7 +147,7 @@ class Node {
   std::reference_wrapper<Position> n_;  ///< 現在の局面
   Color or_color_;                      ///< OR node（攻め方）の手番
   Depth depth_{};                       ///< root から数えた探索深さ
-  NodeHistory node_history_{};          ///< 千日手・優等局面の一覧
+  VisitHistory visit_history{};         ///< 千日手・優等局面の一覧
   std::stack<StateInfo> st_info_{};     ///< do_move で必要な一時領域
   Key path_key_{};                      ///< 経路ハッシュ値。差分計算により求める。
 };
