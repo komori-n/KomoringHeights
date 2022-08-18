@@ -6,6 +6,7 @@
 
 #include "../../mate/mate.h"
 #include "bitset.hpp"
+#include "delayed_move_list.hpp"
 #include "hands.hpp"
 #include "initial_estimation.hpp"
 #include "move_picker.hpp"
@@ -16,7 +17,6 @@ namespace komori {
 namespace detail {
 struct Child {
   Key board_key;
-  std::uint32_t next_dep;
 };
 
 class IndexTable {
@@ -44,84 +44,6 @@ class IndexTable {
  private:
   std::array<std::uint32_t, kMaxCheckMovesPerNode> data_;
   std::uint32_t len_{0};
-};
-
-class DelayedMoves {
- public:
-  explicit DelayedMoves(const Node& n) : n_{n} {}
-
-  std::optional<std::size_t> Add(Move move, std::size_t i_raw) {
-    if (!IsDelayable(move)) {
-      return std::nullopt;
-    }
-
-    for (std::size_t i = 0; i < len_; ++i) {
-      const auto m = moves_[i].first;
-      if (IsSame(m, move)) {
-        const auto ret = moves_[i].second;
-        moves_[i] = {move, i_raw};
-        return ret;
-      }
-    }
-
-    if (len_ < kMaxLen) {
-      moves_[len_++] = {move, i_raw};
-    }
-    return std::nullopt;
-  }
-
- private:
-  static constexpr inline std::size_t kMaxLen = 10;
-
-  bool IsDelayable(Move move) const {
-    const Color us = n_.Us();
-    const auto to = to_sq(move);
-
-    if (is_drop(move)) {
-      if (n_.IsOrNode()) {
-        return false;
-      } else {
-        return true;
-      }
-    } else {
-      const Square from = from_sq(move);
-      const Piece moved_piece = n_.Pos().piece_on(from);
-      const PieceType moved_pr = type_of(moved_piece);
-      if (enemy_field(us).test(from) || enemy_field(us).test(to)) {
-        if (moved_pr == PAWN || moved_pr == BISHOP || moved_pr == ROOK) {
-          return true;
-        }
-
-        if (moved_pr == LANCE) {
-          if (us == BLACK) {
-            return rank_of(to) == RANK_2;
-          } else {
-            return rank_of(to) == RANK_8;
-          }
-        }
-      }
-    }
-
-    return false;
-  }
-
-  bool IsSame(Move m1, Move m2) const {
-    const auto to1 = to_sq(m1);
-    const auto to2 = to_sq(m2);
-    if (is_drop(m1) && is_drop(m2)) {
-      return to1 == to2;
-    } else if (!is_drop(m1) && !is_drop(m2)) {
-      const auto from1 = from_sq(m1);
-      const auto from2 = from_sq(m2);
-      return from1 == from2 && to1 == to2;
-    } else {
-      return false;
-    }
-  }
-
-  const Node& n_;
-  std::array<std::pair<Move, std::size_t>, kMaxLen> moves_;
-  std::size_t len_{0};
 };
 
 struct Edge {
@@ -284,6 +206,7 @@ class ChildrenCache {
                 ChildrenCache* parent = nullptr)
       : or_node_{n.IsOrNode()},
         mp_{n, true},
+        delayed_move_list_{n, mp_},
         len_{len},
         sum_mask_{sum_mask},
         parent_{parent},
@@ -292,7 +215,6 @@ class ChildrenCache {
     bool found_rep = false;
     Node& nn = const_cast<Node&>(n);
 
-    detail::DelayedMoves delayed_moves{nn};
     std::uint32_t next_i_raw = 0;
     for (const auto& move : mp_) {
       const auto i_raw = next_i_raw++;
@@ -315,7 +237,7 @@ class ChildrenCache {
           continue;
         }
       } else {
-        child = {n.BoardKeyAfter(move.move), 0};
+        child = {n.BoardKeyAfter(move.move)};
         query = tt.BuildChildQuery(n, move.move);
         result =
             query.LookUp(does_have_old_child_, len - 1, false, [&n, &move]() { return InitialPnDn(n, move.move); });
@@ -345,12 +267,8 @@ class ChildrenCache {
           nn.UndoMove(move.move);
         }
 
-        if (!result.IsFinal()) {
-          if (const auto res = delayed_moves.Add(move.move, i_raw)) {
-            auto& child_dep = children_[*res];
-            child_dep.next_dep = i_raw + 1;
-            idx_.Pop();
-          }
+        if (!result.IsFinal() && delayed_move_list_.Prev(i_raw)) {
+          idx_.Pop();
         }
       }
 
@@ -393,32 +311,25 @@ class ChildrenCache {
 
   void UpdateBestChild(const tt::SearchResult& search_result) {
     const auto old_i_raw = idx_[0];
-    auto& child = children_[old_i_raw];
     auto& query = queries_[old_i_raw];
     auto& result = results_[old_i_raw];
     result = search_result;
     query.SetResult(search_result);
 
-    if (search_result.Delta(or_node_) == 0 && child.next_dep != 0) {
+    if (search_result.Delta(or_node_) == 0 && delayed_move_list_.Next(old_i_raw)) {
       // 後回しにした手があるならそれを復活させる
-
-      // 現在注目している子ノード
-      auto curr_i_raw = old_i_raw;
       // curr_i_raw の次に調べるべき子
-      auto next_dep = child.next_dep;
+      auto curr_i_raw = delayed_move_list_.Next(old_i_raw);
       do {
-        children_[curr_i_raw].next_dep = 0;
-        curr_i_raw = next_dep - 1;
-
-        idx_.Push(curr_i_raw);
-        if (results_[curr_i_raw].Delta(or_node_) > 0) {
+        idx_.Push(*curr_i_raw);
+        if (results_[*curr_i_raw].Delta(or_node_) > 0) {
           // まだ結論の出ていない子がいた
           break;
         }
 
         // curr_i_raw は結論が出ているので、次の後回しにした手 next_dep を調べる
-        next_dep = children_[curr_i_raw].next_dep;
-      } while (next_dep > 0);
+        curr_i_raw = delayed_move_list_.Next(*curr_i_raw);
+      } while (curr_i_raw.has_value());
 
       std::sort(idx_.begin(), idx_.end(), MakeComparer());
       RecalcDelta();
@@ -753,6 +664,7 @@ class ChildrenCache {
 
   const bool or_node_;
   const MovePicker mp_;
+  const DelayedMoveList delayed_move_list_;
   const MateLen len_;
 
   ChildrenCache* const parent_;

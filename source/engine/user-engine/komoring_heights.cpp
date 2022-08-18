@@ -7,11 +7,6 @@ inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
 
   return entry_num / 2 * 3;
 }
-
-Score MakeScore(const tt::SearchResult& result, bool root_is_or_node) {
-  // unimplemented
-  return {};
-}
 }  // namespace
 
 namespace detail {
@@ -81,7 +76,6 @@ void SearchMonitor::PopLimit() {
 
 UsiInfo KomoringHeights::CurrentInfo() const {
   UsiInfo usi_output = monitor_.GetInfo();
-  usi_output.Set(UsiInfo::KeyKind::kHashfull, tt_.Hashfull()).Set(UsiInfo::KeyKind::kScore, score_);
 
   return usi_output;
 }

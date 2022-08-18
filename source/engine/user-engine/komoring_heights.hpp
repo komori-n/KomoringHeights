@@ -91,7 +91,6 @@ class KomoringHeights {
   EngineOption option_;
 
   detail::SearchMonitor monitor_;
-  Score score_{};
   std::atomic_bool print_flag_{false};
 
   std::vector<Move> best_moves_;
