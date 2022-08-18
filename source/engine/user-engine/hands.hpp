@@ -80,6 +80,7 @@ inline Hand BeforeHand(const Position& n, Move move, Hand after_hand) {
  *
  * ### 例
  *
+ * ```
  * 後手の持駒：飛二 角二 金四 銀四 桂三 香三 歩十六
  *   ９ ８ ７ ６ ５ ４ ３ ２ １
  * +---------------------------+
@@ -94,6 +95,7 @@ inline Hand BeforeHand(const Position& n, Move move, Hand after_hand) {
  * | ・ ・ ・ ・ ・ ・ ・ ・ ・|九
  * +---------------------------+
  * 先手の持駒：桂 香 歩
+ * ```
  *
  * ↑子局面はすべて金を持っていても詰まないが、現局面で金を持っているなら詰む
  *
@@ -134,6 +136,7 @@ inline Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand) 
  *
  * ### 例
  *
+ * ```
  * 後手の持駒：香
  *   ９ ８ ７ ６ ５ ４ ３ ２ １
  * +---------------------------+
@@ -148,6 +151,7 @@ inline Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand) 
  * |v金v金 ・ ・ ・ ・ ・ ・ 香|九
  * +---------------------------+
  * 先手の持駒：歩十六
+ * ```
  *
  * ↑後手の合駒が悪いので詰んでしまう。つまり、「先手が歩を独占している」という情報も証明駒に含める必要がある。
  *
@@ -200,8 +204,9 @@ inline Hand AddIfHandGivesOtherEvasions(const Position& n, Hand proof_hand) {
   return proof_hand;
 }
 
-/// HandSet の初期化時に使うタグ
+/// HandSet の初期化時に使うタグ（AND nodeの証明駒）
 struct ProofHandTag {};
+/// HandSet の初期化時に使うタグ（OR nodeの反証駒）
 struct DisproofHandTag {};
 
 /// 持ち駒集合を扱うクラス。駒の種別ごとに別の変数で保存しているので、Hand を直接扱うよりもやや高速に処理できる。
