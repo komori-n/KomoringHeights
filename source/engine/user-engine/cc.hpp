@@ -6,6 +6,7 @@
 
 #include "../../mate/mate.h"
 #include "bitset.hpp"
+#include "children_board_key.hpp"
 #include "delayed_move_list.hpp"
 #include "hands.hpp"
 #include "initial_estimation.hpp"
@@ -15,9 +16,6 @@
 
 namespace komori {
 namespace detail {
-struct Child {
-  Key board_key;
-};
 
 class IndexTable {
  public:
@@ -207,6 +205,7 @@ class ChildrenCache {
       : or_node_{n.IsOrNode()},
         mp_{n, true},
         delayed_move_list_{n, mp_},
+        children_board_key_{n, mp_},
         len_{len},
         sum_mask_{sum_mask},
         parent_{parent},
@@ -220,7 +219,6 @@ class ChildrenCache {
       const auto i_raw = next_i_raw++;
       const auto hand_after = n.OrHandAfter(move.move);
       idx_.Push(i_raw);
-      auto& child = children_[i_raw];
       auto& result = results_[i_raw];
       auto& query = queries_[i_raw];
 
@@ -237,7 +235,6 @@ class ChildrenCache {
           continue;
         }
       } else {
-        child = {n.BoardKeyAfter(move.move)};
         query = tt.BuildChildQuery(n, move.move);
         result =
             query.LookUp(does_have_old_child_, len - 1, false, [&n, &move]() { return InitialPnDn(n, move.move); });
@@ -608,7 +605,7 @@ class ChildrenCache {
     const auto result = FrontResult();
     const auto pn = result.pn;
     const auto dn = result.dn;
-    const auto child_board_key = n.BoardKeyAfter(best_move);
+    const auto child_board_key = children_board_key_[idx_[0]];
     const auto child_hand = AfterHand(n.Pos(), best_move, n.OrHand());
 
     if (!result.IsFinal()) {
@@ -629,8 +626,7 @@ class ChildrenCache {
       // 何もケアしないと二重カウントが発生してしまうので、sum ではなく max でδ値を計算させるようにする。
 
       for (decltype(idx_.size()) i = 1; i < idx_.size(); ++i) {
-        auto& child = children_[idx_[i]];
-        if (child.board_key == edge.child_board_key) {
+        if (children_board_key_[idx_[i]] == edge.child_board_key) {
           sum_mask_.Reset(idx_[0]);
           if (sum_mask_[idx_[i]]) {
             sum_mask_.Reset(idx_[i]);
@@ -665,13 +661,13 @@ class ChildrenCache {
   const bool or_node_;
   const MovePicker mp_;
   const DelayedMoveList delayed_move_list_;
+  const ChildrenBoardKey children_board_key_;
   const MateLen len_;
 
   ChildrenCache* const parent_;
   const Key board_key_;
   const Hand or_hand_;
 
-  std::array<detail::Child, kMaxCheckMovesPerNode> children_;
   std::array<tt::SearchResult, kMaxCheckMovesPerNode> results_;
   std::array<tt::Query, kMaxCheckMovesPerNode> queries_;
 
