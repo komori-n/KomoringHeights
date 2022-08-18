@@ -250,7 +250,7 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
   CHILD_SEARCH_END:
     // 動的に確保した ChildrenCache の領域を忘れずに開放する
     children_cache_.pop();
-    n.UndoMove(best_move);
+    n.UndoMove();
 
     cache.UpdateBestChild(child_result);
     curr_result = cache.CurrentResult(n);

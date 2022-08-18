@@ -87,7 +87,7 @@ inline std::pair<Move, Hand> CheckMate1Ply(Node& n) {
     if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
       n.DoMove(move);
       auto hand = HandSet{ProofHandTag{}}.Get(n.Pos());
-      n.UndoMove(move);
+      n.UndoMove();
 
       return {move, BeforeHand(n.Pos(), move, hand)};
     }
@@ -257,7 +257,7 @@ class ChildrenCache {
 
             query.SetResult(result);
           }
-          nn.UndoMove(move.move);
+          nn.UndoMove();
         }
 
         if (!result.IsFinal() && delayed_move_list_.Prev(i_raw)) {
