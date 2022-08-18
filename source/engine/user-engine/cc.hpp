@@ -239,10 +239,6 @@ class ChildrenCache {
         result =
             query.LookUp(does_have_old_child_, len - 1, false, [&n, &move]() { return InitialPnDn(n, move.move); });
 
-        if (result.dn == 0) {
-          sync_cout << "info string " << move.move << " " << result << sync_endl;
-        }
-
         if (!result.IsFinal() && !or_node_ && first_search && result.unknown_data.is_first_visit) {
           nn.DoMove(move.move);
           if (!detail::DoesHaveMatePossibility(n.Pos())) {

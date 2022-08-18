@@ -8,7 +8,7 @@
 #include "circular_array.hpp"
 #include "engine_option.hpp"
 #include "tt.hpp"
-#include "usi.hpp"
+#include "usi_info.hpp"
 
 namespace komori {
 enum class NodeState {

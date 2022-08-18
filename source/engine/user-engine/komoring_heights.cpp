@@ -49,10 +49,10 @@ UsiInfo SearchMonitor::GetInfo() const {
   }
 
   UsiInfo output;
-  output.Set(UsiInfo::KeyKind::kSelDepth, depth_)
-      .Set(UsiInfo::KeyKind::kTime, time_ms)
-      .Set(UsiInfo::KeyKind::kNodes, move_count)
-      .Set(UsiInfo::KeyKind::kNps, nps);
+  output.Set(UsiInfoKey::kSelDepth, depth_);
+  output.Set(UsiInfoKey::kTime, time_ms);
+  output.Set(UsiInfoKey::kNodes, move_count);
+  output.Set(UsiInfoKey::kNps, nps);
 
   return output;
 }
@@ -96,18 +96,18 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   for (int i = 0; i < 10; ++i) {
     const auto result = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
     auto info = CurrentInfo();
-    sync_cout << info << " string " << len << " " << result << sync_endl;
+    sync_cout << info << len << " " << result << sync_endl;
 
     if (result.pn == 0) {
       if (result.len > len) {
-        sync_cout << "info string Failed to detect PV" << sync_endl;
+        sync_cout << info << "Failed to detect PV" << sync_endl;
         break;
       }
       proven = true;
       len = result.len.Prec2();
     } else {
       if (result.dn == 0 && result.len > len) {
-        sync_cout << "info string Failed to detect PV" << sync_endl;
+        sync_cout << info << "Failed to detect PV" << sync_endl;
       }
       break;
     }
@@ -139,13 +139,13 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
       if (best_move == MOVE_NONE || MateLen{best_len} > len) {
         if (!retry) {
           auto res = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
-          sync_cout << "info string ex: " << res << sync_endl;
+          sync_cout << CurrentInfo() << "ex: " << res << sync_endl;
           retry = true;
           continue;
         }
       }
       retry = false;
-      sync_cout << "info string " << node.GetDepth() << " " << best_move << " " << best_len << sync_endl;
+      sync_cout << CurrentInfo() << node.GetDepth() << " " << best_move << " " << best_len << sync_endl;
 
       if (best_move == MOVE_NONE) {
         break;
@@ -266,10 +266,9 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
   print_flag_ = false;
 
   auto usi_output = CurrentInfo();
-
-  usi_output.Set(UsiInfo::KeyKind::kDepth, n.GetDepth());
+  usi_output.Set(UsiInfoKey::kDepth, n.GetDepth());
 #if defined(KEEP_LAST_MOVE)
-  usi_output.Set(UsiInfo::KeyKind::kPv, n.Pos().moves_from_start());
+  usi_output.Set(UsiInfoKey::kPv, n.Pos().moves_from_start());
 #endif
 
   sync_cout << usi_output << sync_endl;

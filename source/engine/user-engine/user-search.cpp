@@ -61,7 +61,8 @@ void PrintResult(bool is_mate_search, LoseKind kind, const std::string& pv_moves
     }
   } else {
     auto usi_output = g_searcher.CurrentInfo();
-    usi_output.Set(komori::UsiInfo::KeyKind::kDepth, 0).Set(komori::UsiInfo::KeyKind::kPv, pv_moves);
+    usi_output.Set(komori::UsiInfoKey::kDepth, 0);
+    usi_output.Set(komori::UsiInfoKey::kPv, pv_moves);
     sync_cout << usi_output << sync_endl;
   }
 }

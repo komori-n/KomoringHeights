@@ -425,8 +425,7 @@ ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 	SOURCES += \
     engine/user-engine/initial_estimation.cpp \
 		engine/user-engine/komoring_heights.cpp \
-		engine/user-engine/user-search.cpp \
-    engine/user-engine/usi.cpp
+		engine/user-engine/user-search.cpp
 endif
 
 
