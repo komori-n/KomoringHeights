@@ -352,7 +352,7 @@ class Query {
         }
 
         if (pn == 0 || dn == 0) {
-          return {pn, dn, itr->GetHand(), MateLen{len16}, itr->TotalAmount(), FinalData{false}};
+          return {pn, dn, itr->GetHand(), MateLen::From(len16), itr->TotalAmount(), FinalData{false}};
         } else {
           does_have_old_child = itr->MinDepth() < depth_;
 

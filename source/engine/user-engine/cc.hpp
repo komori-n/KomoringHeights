@@ -332,12 +332,12 @@ class ChildrenCache {
             query.SetResult(result);
           } else if (auto [best_move, proof_hand] = detail::CheckMate1Ply(nn); proof_hand != kNullHand) {
             const auto proof_hand_after = AfterHand(n.Pos(), best_move, proof_hand);
-            const auto len = MateLen{2, static_cast<std::uint32_t>(CountHand(proof_hand_after))};
+            const auto len = MateLen::Make(1, static_cast<std::uint32_t>(CountHand(proof_hand_after)));
 
             if (len <= len_ - 1) {
               result.InitFinal<true>(proof_hand, len, 1);
             } else {
-              result.InitFinal<false>(n.OrHand(), Prec(len), 1);
+              result.InitFinal<false>(n.OrHand(), len.Prec(), 1);
             }
 
             query.SetResult(result);
@@ -592,9 +592,9 @@ class ChildrenCache {
       amount += std::max(mp_.size(), std::size_t{1}) - 1;
 
       if (idx_.empty()) {
-        mate_len = {1, static_cast<std::uint32_t>(CountHand(n.OrHand()))};
+        mate_len = MateLen::Make(0, static_cast<std::uint32_t>(CountHand(n.OrHand())));
         if (mate_len > len_) {
-          return {kInfinitePnDn, 0, n.OrHand(), Prec(mate_len), amount, tt::FinalData{false}};
+          return {kInfinitePnDn, 0, n.OrHand(), mate_len.Prec(), amount, tt::FinalData{false}};
         }
       }
       return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::FinalData{false}};

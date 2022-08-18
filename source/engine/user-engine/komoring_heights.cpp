@@ -110,7 +110,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
         break;
       }
       proven = true;
-      len = Prec(MateLen{result.len});
+      len = result.len.Prec2();
     } else {
       if (result.dn == 0 && result.len > len) {
         sync_cout << "info string Failed to detect PV" << sync_endl;
@@ -120,9 +120,9 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   }
 
   if (proven) {
-    len = Succ2(len);
+    len = len.Succ2();
     bool retry = false;
-    while (len.len_plus_1 > 1) {
+    while (len.Len() > 0) {
       const auto [move, hand] = detail::CheckMate1Ply(node);
       if (move != MOVE_NONE) {
         best_moves_.push_back(move);
@@ -216,10 +216,11 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
     // cache.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     const auto best_move = cache.BestMove();
-    const auto min_len = n.IsOrNode() ? MateLen{2, static_cast<std::uint32_t>(CountHand(n.OrHandAfter(best_move)) + 1)}
-                                      : MateLen{3, static_cast<std::uint32_t>(CountHand(n.OrHand()) + 1)};
+    const auto min_len = n.IsOrNode()
+                             ? MateLen::Make(1, static_cast<std::uint32_t>(CountHand(n.OrHandAfter(best_move)) + 1))
+                             : MateLen::Make(2, static_cast<std::uint32_t>(CountHand(n.OrHand()) + 1));
     if (len < min_len) {
-      cache.UpdateBestChild({kInfinitePnDn, 0, n.OrHandAfter(best_move), Prec(min_len), 1, tt::FinalData{false}});
+      cache.UpdateBestChild({kInfinitePnDn, 0, n.OrHandAfter(best_move), min_len.Prec(), 1, tt::FinalData{false}});
       curr_result = cache.CurrentResult(n);
       continue;
     }

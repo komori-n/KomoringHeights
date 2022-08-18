@@ -27,7 +27,7 @@ class EntryTest : public ::testing::Test {
 
   void LookUp(Hand hand,
               Depth depth,
-              MateLen len,
+              MateLen16 len,
               bool expected_res,
               PnDn expected_pn,
               PnDn expected_dn,
@@ -35,13 +35,12 @@ class EntryTest : public ::testing::Test {
               int line) {
     PnDn pn = 1;
     PnDn dn = 1;
-    auto len16 = len.To16();
-    const auto res = entry_.LookUp(hand, depth, len16, pn, dn);
+    const auto res = entry_.LookUp(hand, depth, len, pn, dn);
 
     EXPECT_EQ(res, expected_res) << "LINE: " << line;
     EXPECT_EQ(pn, expected_pn) << "LINE: " << line;
     EXPECT_EQ(dn, expected_dn) << "LINE: " << line;
-    EXPECT_EQ(len16, expected_len) << "LINE: " << line;
+    EXPECT_EQ(len, expected_len) << "LINE: " << line;
   }
 
   Hand hand_p1_;
@@ -63,11 +62,11 @@ TEST_F(EntryTest, MayRepeat) {
   entry_.Update(264, 100, 200, kMaxMateLen16, 1);
 
   EXPECT_FALSE(entry_.MayRepeat());
-  LookUp(hand_p1_, 264, kMaxMateLen, true, 100, 200, kMaxMateLen16, __LINE__);
+  LookUp(hand_p1_, 264, kMaxMateLen16, true, 100, 200, kMaxMateLen16, __LINE__);
 
   entry_.SetRepeat();
   EXPECT_TRUE(entry_.MayRepeat());
-  LookUp(hand_p1_, 264, kMaxMateLen, true, 1, 1, kMaxMateLen16, __LINE__);
+  LookUp(hand_p1_, 264, kMaxMateLen16, true, 1, 1, kMaxMateLen16, __LINE__);
 }
 
 TEST_F(EntryTest, Null) {
@@ -84,139 +83,139 @@ TEST_F(EntryTest, LookUp_Empty) {
   Init(334, hand_p1_);
 
   // inferior
-  LookUp(HAND_ZERO, 264, kMaxMateLen, false, 1, 1, kMaxMateLen16, __LINE__);
+  LookUp(HAND_ZERO, 264, kMaxMateLen16, false, 1, 1, kMaxMateLen16, __LINE__);
   // equal
-  LookUp(hand_p1_, 264, kMaxMateLen, false, 1, 1, kMaxMateLen16, __LINE__);
+  LookUp(hand_p1_, 264, kMaxMateLen16, false, 1, 1, kMaxMateLen16, __LINE__);
   // superior
-  LookUp(hand_p2_, 264, kMaxMateLen, false, 1, 1, kMaxMateLen16, __LINE__);
+  LookUp(hand_p2_, 264, kMaxMateLen16, false, 1, 1, kMaxMateLen16, __LINE__);
 }
 
 TEST_F(EntryTest, LookUp_Exact) {
   Init(334, hand_p1_);
   entry_.Update(264, 100, 200, kMaxMateLen16, 1);
 
-  LookUp(hand_p1_, 264, kMaxMateLen, true, 100, 200, kMaxMateLen16, __LINE__);
+  LookUp(hand_p1_, 264, kMaxMateLen16, true, 100, 200, kMaxMateLen16, __LINE__);
 }
 
 TEST_F(EntryTest, LookUp_NotFound) {
   Init(334, hand_p1_);
-  entry_.Update(264, 100, 200, {33, 4}, 1);
-  entry_.Update(264, 101, 201, {35, 4}, 1);
-  entry_.Update(264, 102, 202, {37, 4}, 1);
-  entry_.Update(264, 103, 203, {39, 4}, 1);
-  entry_.Update(264, 105, 205, {41, 4}, 1);
-  entry_.Update(264, 106, 206, {43, 4}, 1);
+  entry_.Update(264, 100, 200, MateLen16::Make(33, 4), 1);
+  entry_.Update(264, 101, 201, MateLen16::Make(35, 4), 1);
+  entry_.Update(264, 102, 202, MateLen16::Make(37, 4), 1);
+  entry_.Update(264, 103, 203, MateLen16::Make(39, 4), 1);
+  entry_.Update(264, 105, 205, MateLen16::Make(41, 4), 1);
+  entry_.Update(264, 106, 206, MateLen16::Make(43, 4), 1);
 
-  LookUp(hand_p1_, 264, {45, 4}, false, 1, 206, {45, 4}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(45, 4), false, 1, 206, MateLen16::Make(45, 4), __LINE__);
 }
 
 TEST_F(EntryTest, LookUp_DnUpdate) {
   Init(334, hand_p1_);
-  entry_.Update(264, 100, 200, {264, 3}, 1);
+  entry_.Update(264, 100, 200, MateLen16::Make(264, 3), 1);
 
   // hand is superior
-  LookUp(hand_p2_, 264, {264, 3}, false, 1, 200, {264, 3}, __LINE__);
+  LookUp(hand_p2_, 264, MateLen16::Make(264, 3), false, 1, 200, MateLen16::Make(264, 3), __LINE__);
   // hand is superior, and min depth is deeper
-  LookUp(hand_p2_, 266, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+  LookUp(hand_p2_, 266, MateLen16::Make(264, 3), false, 1, 1, MateLen16::Make(264, 3), __LINE__);
   // hand is superior, and min depth is shallower
-  LookUp(hand_p2_, 262, {264, 3}, false, 1, 200, {264, 3}, __LINE__);
+  LookUp(hand_p2_, 262, MateLen16::Make(264, 3), false, 1, 200, MateLen16::Make(264, 3), __LINE__);
 
   // mate_len is superior (more difficult to show it is disproven)
-  LookUp(hand_p1_, 264, {266, 3}, false, 1, 200, {266, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(266, 3), false, 1, 200, MateLen16::Make(266, 3), __LINE__);
   // mate_len is superior, and min depth is deeper
-  LookUp(hand_p1_, 266, {266, 3}, false, 1, 200, {266, 3}, __LINE__);
+  LookUp(hand_p1_, 266, MateLen16::Make(266, 3), false, 1, 200, MateLen16::Make(266, 3), __LINE__);
 }
 
 TEST_F(EntryTest, LookUp_PnUpdate) {
   Init(334, hand_p1_);
-  entry_.Update(264, 100, 200, {264, 3}, 1);
+  entry_.Update(264, 100, 200, MateLen16::Make(264, 3), 1);
 
   // hand is inferior
-  LookUp(HAND_ZERO, 264, {264, 3}, false, 100, 1, {264, 3}, __LINE__);
+  LookUp(HAND_ZERO, 264, MateLen16::Make(264, 3), false, 100, 1, MateLen16::Make(264, 3), __LINE__);
   // hand is inferior, and min depth is deeper
-  LookUp(HAND_ZERO, 266, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+  LookUp(HAND_ZERO, 266, MateLen16::Make(264, 3), false, 1, 1, MateLen16::Make(264, 3), __LINE__);
   // hand is inferior, and min depth is shallower
-  LookUp(HAND_ZERO, 262, {264, 3}, false, 100, 1, {264, 3}, __LINE__);
+  LookUp(HAND_ZERO, 262, MateLen16::Make(264, 3), false, 100, 1, MateLen16::Make(264, 3), __LINE__);
 
   // mate_len is inferior
-  LookUp(hand_p1_, 264, {262, 3}, false, 100, 1, {262, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(262, 3), false, 100, 1, MateLen16::Make(262, 3), __LINE__);
   // mate_len is inferior, and min depth is deeper
-  LookUp(hand_p1_, 266, {262, 3}, false, 100, 1, {262, 3}, __LINE__);
+  LookUp(hand_p1_, 266, MateLen16::Make(262, 3), false, 100, 1, MateLen16::Make(262, 3), __LINE__);
 }
 
 TEST_F(EntryTest, LookUp_SuperiorProven) {
   Init(334, hand_p1_);
-  entry_.Update(264, 0, kInfinitePnDn, {264, 3}, 1);
+  entry_.Update(264, 0, kInfinitePnDn, MateLen16::Make(264, 3), 1);
 
   // exact
-  LookUp(hand_p1_, 264, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
 
   // hand is superior
-  LookUp(hand_p2_, 264, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  LookUp(hand_p2_, 264, MateLen16::Make(264, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
   // hand is inferior
-  LookUp(HAND_ZERO, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+  LookUp(HAND_ZERO, 264, MateLen16::Make(264, 3), false, 1, 1, MateLen16::Make(264, 3), __LINE__);
 
   // mate_len is superior
-  LookUp(hand_p1_, 264, {266, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(266, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
   // mate_len is inferior
-  LookUp(hand_p1_, 264, {262, 3}, false, 1, 1, {262, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(262, 3), false, 1, 1, MateLen16::Make(262, 3), __LINE__);
 
   // min depth is deeper
-  LookUp(hand_p1_, 266, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 266, MateLen16::Make(264, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
   // min depth is shallower
-  LookUp(hand_p1_, 262, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 262, MateLen16::Make(264, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
 }
 
 TEST_F(EntryTest, LookUp_InferiorDisproven) {
   Init(334, hand_p1_);
-  entry_.Update(264, kInfinitePnDn, 0, {264, 3}, 1);
+  entry_.Update(264, kInfinitePnDn, 0, MateLen16::Make(264, 3), 1);
 
   // exact
-  LookUp(hand_p1_, 264, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
 
   // hand is inferior
-  LookUp(HAND_ZERO, 264, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  LookUp(HAND_ZERO, 264, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
   // hand is superior
-  LookUp(hand_p2_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+  LookUp(hand_p2_, 264, MateLen16::Make(264, 3), false, 1, 1, MateLen16::Make(264, 3), __LINE__);
 
   // mate_len is inferior
-  LookUp(hand_p1_, 264, {262, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(262, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
   // mate_len is superior
-  LookUp(hand_p1_, 264, {266, 3}, false, 1, 1, {266, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(266, 3), false, 1, 1, MateLen16::Make(266, 3), __LINE__);
 
   // min depth is deeper
-  LookUp(hand_p1_, 266, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 266, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
   // min depth is shallower
-  LookUp(hand_p1_, 262, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 262, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
 }
 
 TEST_F(EntryTest, Update_ProvenSkip) {
   Init(334, hand_p1_);
-  entry_.Update(264, 0, kInfinitePnDn, {264, 3}, 1);
-  entry_.Update(264, 0, kInfinitePnDn, {266, 3}, 1);
+  entry_.Update(264, 0, kInfinitePnDn, MateLen16::Make(264, 3), 1);
+  entry_.Update(264, 0, kInfinitePnDn, MateLen16::Make(266, 3), 1);
 
-  LookUp(hand_p1_, 264, {266, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(266, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
 }
 
 TEST_F(EntryTest, Update_DisprovenSkip) {
   Init(334, hand_p1_);
-  entry_.Update(264, kInfinitePnDn, 0, {264, 3}, 1);
-  entry_.Update(264, kInfinitePnDn, 0, {262, 3}, 1);
+  entry_.Update(264, kInfinitePnDn, 0, MateLen16::Make(264, 3), 1);
+  entry_.Update(264, kInfinitePnDn, 0, MateLen16::Make(262, 3), 1);
 
-  LookUp(hand_p1_, 264, {262, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(262, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
 }
 
 TEST_F(EntryTest, Update_Overwrite) {
   Init(334, hand_p1_);
-  entry_.Update(264, 1, 7, {264, 3}, 1);
-  entry_.Update(264, 2, 6, {264, 4}, 1);
-  entry_.Update(264, 3, 5, {264, 5}, 1);
-  entry_.Update(264, 4, 4, {264, 6}, 1);
-  entry_.Update(264, 5, 3, {264, 7}, 1);
-  entry_.Update(264, 6, 2, {264, 8}, 1);
-  entry_.Update(264, 7, 1, {264, 9}, 1);
+  entry_.Update(264, 1, 7, MateLen16::Make(264, 3), 1);
+  entry_.Update(264, 2, 6, MateLen16::Make(264, 4), 1);
+  entry_.Update(264, 3, 5, MateLen16::Make(264, 5), 1);
+  entry_.Update(264, 4, 4, MateLen16::Make(264, 6), 1);
+  entry_.Update(264, 5, 3, MateLen16::Make(264, 7), 1);
+  entry_.Update(264, 6, 2, MateLen16::Make(264, 8), 1);
+  entry_.Update(264, 7, 1, MateLen16::Make(264, 9), 1);
 
-  LookUp(hand_p1_, 264, {264, 9}, true, 7, 1, {264, 9}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 9), true, 7, 1, MateLen16::Make(264, 9), __LINE__);
 }
 
 TEST_F(EntryTest, Parent) {
@@ -233,80 +232,80 @@ TEST_F(EntryTest, Clear_Proven) {
   Init(334, hand_p1_);
 
   // unknown entry
-  entry_.Update(264, 100, 200, {264, 3}, 1);
-  LookUp(hand_p1_, 264, {264, 3}, true, 100, 200, {264, 3}, __LINE__);
+  entry_.Update(264, 100, 200, MateLen16::Make(264, 3), 1);
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, 100, 200, MateLen16::Make(264, 3), __LINE__);
 
   // clear unknown entry
-  entry_.Clear<true>(HAND_ZERO, {262, 3});
-  LookUp(hand_p1_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+  entry_.Clear<true>(HAND_ZERO, MateLen16::Make(262, 3));
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), false, 1, 1, MateLen16::Make(264, 3), __LINE__);
 
   // proven entry
-  entry_.Update(264, 0, kInfinitePnDn, {264, 3}, 1);
-  LookUp(hand_p1_, 264, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  entry_.Update(264, 0, kInfinitePnDn, MateLen16::Make(264, 3), 1);
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
 
   // don't clear exact proven entry
-  entry_.Clear<true>(hand_p1_, {264, 3});
-  LookUp(hand_p1_, 264, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  entry_.Clear<true>(hand_p1_, MateLen16::Make(264, 3));
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
 
   // don't clear unrelated entry
-  entry_.Clear<true>(hand_p1_, {266, 3});
-  LookUp(hand_p1_, 264, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  entry_.Clear<true>(hand_p1_, MateLen16::Make(266, 3));
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
 
   // clear proven entry
-  entry_.Clear<true>(HAND_ZERO, {264, 3});
-  LookUp(hand_p1_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+  entry_.Clear<true>(HAND_ZERO, MateLen16::Make(264, 3));
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), false, 1, 1, MateLen16::Make(264, 3), __LINE__);
 }
 
 TEST_F(EntryTest, Clear_Disproven) {
   Init(334, hand_p1_);
-  entry_.Update(264, kInfinitePnDn, 0, {264, 3}, 1);
+  entry_.Update(264, kInfinitePnDn, 0, MateLen16::Make(264, 3), 1);
 
   // clear unknown entry
-  entry_.Clear<false>(hand_p2_, {266, 3});
-  LookUp(hand_p1_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+  entry_.Clear<false>(hand_p2_, MateLen16::Make(266, 3));
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), false, 1, 1, MateLen16::Make(264, 3), __LINE__);
 
   // disproven entry
-  entry_.Update(264, kInfinitePnDn, 0, {264, 3}, 1);
-  LookUp(hand_p1_, 264, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  entry_.Update(264, kInfinitePnDn, 0, MateLen16::Make(264, 3), 1);
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
 
   // don't clear exact disproven entry
-  entry_.Clear<false>(hand_p1_, {264, 3});
-  LookUp(hand_p1_, 264, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  entry_.Clear<false>(hand_p1_, MateLen16::Make(264, 3));
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
 
   // don't clear unrelated entry
-  entry_.Clear<false>(hand_p1_, {266, 3});
-  LookUp(hand_p1_, 264, {264, 3}, true, kInfinitePnDn, 0, {264, 3}, __LINE__);
+  entry_.Clear<false>(hand_p1_, MateLen16::Make(266, 3));
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
 
   // clear proven entry
-  entry_.Clear<false>(hand_p2_, {264, 3});
-  LookUp(hand_p1_, 264, {264, 3}, false, 1, 1, {264, 3}, __LINE__);
+  entry_.Clear<false>(hand_p2_, MateLen16::Make(264, 3));
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), false, 1, 1, MateLen16::Make(264, 3), __LINE__);
 }
 
 TEST_F(EntryTest, Clear_Compaction) {
   Init(334, hand_p1_);
-  entry_.Update(264, 10, 20, {266, 3}, 1);
-  entry_.Update(264, 0, kInfinitePnDn, {264, 3}, 1);
-  entry_.Clear<true>(hand_p1_, {264, 3});
+  entry_.Update(264, 10, 20, MateLen16::Make(266, 3), 1);
+  entry_.Update(264, 0, kInfinitePnDn, MateLen16::Make(264, 3), 1);
+  entry_.Clear<true>(hand_p1_, MateLen16::Make(264, 3));
 
-  LookUp(hand_p1_, 264, {264, 3}, true, 0, kInfinitePnDn, {264, 3}, __LINE__);
+  LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, 0, kInfinitePnDn, MateLen16::Make(264, 3), __LINE__);
 }
 
 TEST_F(EntryTest, MinDepth) {
   Init(334, hand_p1_);
 
-  entry_.Update(334, 100, 200, {264, 3}, 3);
+  entry_.Update(334, 100, 200, MateLen16::Make(264, 3), 3);
   EXPECT_EQ(entry_.MinDepth(), 334);
-  entry_.Update(264, 100, 200, {264, 3}, 3);
+  entry_.Update(264, 100, 200, MateLen16::Make(264, 3), 3);
   EXPECT_EQ(entry_.MinDepth(), 264);
-  entry_.Update(334, 100, 200, {264, 3}, 3);
+  entry_.Update(334, 100, 200, MateLen16::Make(264, 3), 3);
   EXPECT_EQ(entry_.MinDepth(), 264);
 }
 
 TEST_F(EntryTest, TotalAmount) {
   Init(334, hand_p1_);
-  entry_.Update(264, 100, 200, {264, 3}, 3);
-  entry_.Update(264, 50, 10, {268, 3}, 3);
-  entry_.Update(264, 10, 5, {270, 3}, 4);
+  entry_.Update(264, 100, 200, MateLen16::Make(264, 3), 3);
+  entry_.Update(264, 50, 10, MateLen16::Make(268, 3), 3);
+  entry_.Update(264, 10, 5, MateLen16::Make(270, 3), 4);
 
   EXPECT_EQ(entry_.TotalAmount(), 10);
 }
@@ -411,72 +410,74 @@ TEST_F(QueryTest, EmptyCreate) {
 
 TEST_F(QueryTest, CreateUnknown) {
   komori::tt::UnknownData unknown_data = {false, 264, hand_p2_, 445};
-  komori::tt::SearchResult set_result{33, 4, hand_p1_, {26, 4}, 1, unknown_data};
+  komori::tt::SearchResult set_result{33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data};
 
   query_.SetResult(set_result);
-  const auto res = query_.LookUp({26, 4}, false);
-  ExpectBase(res, 33, 4, hand_p1_, {26, 4}, 1, __LINE__);
+  const auto res = query_.LookUp(MateLen::Make(26, 4), false);
+  ExpectBase(res, 33, 4, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
   ExpectUnknown(res, false, 264, hand_p2_, 445, __LINE__);
 }
 
 TEST_F(QueryTest, CreateRepetition) {
-  query_.SetResult({kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, komori::tt::FinalData{true}});
-  const auto res_1 = query_.LookUp({26, 4}, false);
-  ExpectBase(res_1, 1, 1, hand_p1_, {26, 4}, 1, __LINE__);
+  query_.SetResult({kInfinitePnDn, 0, hand_p1_, MateLen::Make(26, 4), 1, komori::tt::FinalData{true}});
+  const auto res_1 = query_.LookUp(MateLen::Make(26, 4), false);
+  ExpectBase(res_1, 1, 1, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
 
   komori::tt::UnknownData unknown_data = {false, 264, hand_p1_, 445};
-  query_.SetResult({33, 4, hand_p1_, {26, 4}, 1, unknown_data});
+  query_.SetResult({33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data});
 
-  query_.SetResult({kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, komori::tt::FinalData{true}});
-  const auto res_2 = query_.LookUp({26, 4}, false);
+  query_.SetResult({kInfinitePnDn, 0, hand_p1_, MateLen::Make(26, 4), 1, komori::tt::FinalData{true}});
+  const auto res_2 = query_.LookUp(MateLen::Make(26, 4), false);
 
-  ExpectBase(res_2, kInfinitePnDn, 0, hand_p1_, {26, 4}, 1, __LINE__);
+  ExpectBase(res_2, kInfinitePnDn, 0, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
   ExpectFinal(res_2, true, __LINE__);
 }
 
 TEST_F(QueryTest, CreateProven) {
-  komori::tt::SearchResult proven_result{0, kInfinitePnDn, HAND_ZERO, {22, 4}, 10, komori::tt::FinalData{false}};
+  komori::tt::SearchResult proven_result{
+      0, kInfinitePnDn, HAND_ZERO, MateLen::Make(22, 4), 10, komori::tt::FinalData{false}};
 
   query_.SetResult(proven_result);
-  const auto res = query_.LookUp({26, 4}, false);
+  const auto res = query_.LookUp(MateLen::Make(26, 4), false);
 
-  ExpectBase(res, 0, kInfinitePnDn, HAND_ZERO, {22, 4}, 10, __LINE__);
+  ExpectBase(res, 0, kInfinitePnDn, HAND_ZERO, MateLen::Make(22, 4), 10, __LINE__);
   ExpectFinal(res, false, __LINE__);
 }
 
 TEST_F(QueryTest, CreateDisproven) {
-  komori::tt::SearchResult disproven_result{kInfinitePnDn, 0, hand_p2_, {28, 4}, 10, komori::tt::FinalData{false}};
+  komori::tt::SearchResult disproven_result{kInfinitePnDn,        0,  hand_p2_,
+                                            MateLen::Make(28, 4), 10, komori::tt::FinalData{false}};
 
   query_.SetResult(disproven_result);
-  const auto res = query_.LookUp({26, 4}, false);
-  ExpectBase(res, kInfinitePnDn, 0, hand_p2_, {28, 4}, 10, __LINE__);
+  const auto res = query_.LookUp(MateLen::Make(26, 4), false);
+  ExpectBase(res, kInfinitePnDn, 0, hand_p2_, MateLen::Make(28, 4), 10, __LINE__);
   ExpectFinal(res, false, __LINE__);
 }
 
 TEST_F(QueryTest, CreateDoubleUnknown) {
   komori::tt::UnknownData unknown_data_1 = {false, 264, hand_p2_, 445};
-  komori::tt::SearchResult set_result_1{33, 4, hand_p2_, {26, 4}, 1, unknown_data_1};
+  komori::tt::SearchResult set_result_1{33, 4, hand_p2_, MateLen::Make(26, 4), 1, unknown_data_1};
 
   query_.SetResult(set_result_1);
 
   komori::tt::UnknownData unknown_data_2 = {false, 334, HAND_ZERO, 4450};
-  komori::tt::SearchResult set_result_2{330, 40, hand_p1_, {26, 4}, 1, unknown_data_2};
+  komori::tt::SearchResult set_result_2{330, 40, hand_p1_, MateLen::Make(26, 4), 1, unknown_data_2};
   query_.SetResult(set_result_2);
-  const auto res = query_.LookUp({26, 4}, false);
-  ExpectBase(res, 330, 40, hand_p1_, {26, 4}, 1, __LINE__);
+  const auto res = query_.LookUp(MateLen::Make(26, 4), false);
+  ExpectBase(res, 330, 40, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
   ExpectUnknown(res, false, 334, HAND_ZERO, 4450, __LINE__);
 }
 
 TEST_F(QueryTest, CreateOverwriteUnknown) {
   komori::tt::UnknownData unknown_data = {false, 264, hand_p2_, 445};
-  komori::tt::SearchResult set_result_1{33, 4, hand_p1_, {26, 4}, 1, unknown_data};
+  komori::tt::SearchResult set_result_1{33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data};
 
   query_.SetResult(set_result_1);
 
-  komori::tt::SearchResult set_result_2{330, 40, hand_p1_, {26, 4}, 1, unknown_data};
+  komori::tt::SearchResult set_result_2{330, 40, hand_p1_, MateLen::Make(26, 4), 1, unknown_data};
   query_.SetResult(set_result_2);
-  const auto res = query_.LookUp({26, 4}, false);
-  ExpectBase(res, 330, 40, hand_p1_, {26, 4}, 1, __LINE__);
+  const auto res = query_.LookUp(MateLen::Make(26, 4), false);
+  ExpectBase(res, 330, 40, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
   ExpectUnknown(res, false, 264, hand_p2_, 445, __LINE__);
 }
 
@@ -487,14 +488,14 @@ TEST_F(QueryTest, CreateOverflow) {
     add_hand(hand, LANCE, 1);
     add_hand(hand, PAWN, i);
 
-    komori::tt::SearchResult result{33, i + 334, hand, {26, 4}, 1, unknown_data};
+    komori::tt::SearchResult result{33, i + 334, hand, MateLen::Make(26, 4), 1, unknown_data};
     query_.SetResult(result);
   }
 
-  komori::tt::SearchResult result{33, 264, hand_p1_, {26, 4}, 1, unknown_data};
+  komori::tt::SearchResult result{33, 264, hand_p1_, MateLen::Make(26, 4), 1, unknown_data};
   query_.SetResult(result);
 
-  const auto res = query_.LookUp({26, 4}, false);
-  ExpectBase(res, 33, 264, hand_p1_, {26, 4}, 1, __LINE__);
+  const auto res = query_.LookUp(MateLen::Make(26, 4), false);
+  ExpectBase(res, 33, 264, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
   ExpectUnknown(res, false, 264, hand_p2_, 445, __LINE__);
 }
