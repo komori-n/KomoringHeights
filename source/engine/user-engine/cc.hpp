@@ -23,38 +23,6 @@ struct Edge {
   PnDn child_pn, child_dn;
 };
 
-inline bool DoesHaveMatePossibility(const Position& n) {
-  auto us = n.side_to_move();
-  auto them = ~us;
-  auto hand = n.hand_of(us);
-  auto king_sq = n.king_square(them);
-
-  auto droppable_bb = ~n.pieces();
-  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
-    if (hand_exists(hand, pr)) {
-      if (pr == PAWN && (n.pieces(us, PAWN) & file_bb(file_of(king_sq)))) {
-        continue;
-      }
-
-      if (droppable_bb.test(StepEffect(pr, them, king_sq))) {
-        return true;
-      }
-    }
-  }
-
-  auto x = ((n.pieces(PAWN) & check_candidate_bb(us, PAWN, king_sq)) |
-            (n.pieces(LANCE) & check_candidate_bb(us, LANCE, king_sq)) |
-            (n.pieces(KNIGHT) & check_candidate_bb(us, KNIGHT, king_sq)) |
-            (n.pieces(SILVER) & check_candidate_bb(us, SILVER, king_sq)) |
-            (n.pieces(GOLDS) & check_candidate_bb(us, GOLD, king_sq)) |
-            (n.pieces(BISHOP) & check_candidate_bb(us, BISHOP, king_sq)) | (n.pieces(ROOK_DRAGON)) |
-            (n.pieces(HORSE) & check_candidate_bb(us, ROOK, king_sq))) &
-           n.pieces(us);
-  auto y = n.blockers_for_king(them) & n.pieces(us);
-
-  return x | y;
-}
-
 inline std::pair<Move, Hand> CheckMate1Ply(Node& n) {
   if (!n.Pos().in_check()) {
     if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
@@ -214,7 +182,7 @@ class ChildrenCache {
 
         if (!result.IsFinal() && !or_node_ && first_search && result.GetUnknownData().is_first_visit) {
           nn.DoMove(move.move);
-          if (!detail::DoesHaveMatePossibility(n.Pos())) {
+          if (!DoesHaveMatePossibility(n.Pos())) {
             const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
             result.InitFinal<false>(hand, kMaxMateLen, 1);
             query.SetResult(result);

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "../typedefs.hpp"
+#include "test_lib.hpp"
 
 using komori::Clamp;
 using komori::Constraints;
@@ -103,4 +104,20 @@ TEST(StepEffectTest, StepEffectTest) {
   EXPECT_EQ(StepEffect(BISHOP, BLACK, SQ_55), bishopStepEffect(SQ_55));
   EXPECT_EQ(StepEffect(ROOK, BLACK, SQ_55), rookStepEffect(SQ_55));
   EXPECT_EQ(StepEffect(NO_PIECE_TYPE, BLACK, SQ_55), Bitboard{});
+}
+
+TEST(DoesHaveMatePossibilityTest, BoardPiece) {
+  TestNode node{"4k4/9/4P4/PPPP1PPPP/9/9/9/9/9 b 2r2b4g4s4n4l9p 1", true};
+  EXPECT_TRUE(komori::DoesHaveMatePossibility(node->Pos()));
+
+  TestNode node2{"4k4/9/9/PPPPPPPPP/9/9/9/9/9 b 2r2b4g4s4n4l9p 1", true};
+  EXPECT_FALSE(komori::DoesHaveMatePossibility(node2->Pos()));
+}
+
+TEST(DoesHaveMatePossibilityTest, DoublePawnCheck) {
+  TestNode node{"4k4/9/9/9/9/9/9/9/9 b P2r2b4g4s4n4l17p 1", true};
+  EXPECT_TRUE(komori::DoesHaveMatePossibility(node->Pos()));
+
+  TestNode node2{"4k4/9/9/9/9/9/9/9/4P4 b P2r2b4g4s4n4l16p 1", true};
+  EXPECT_FALSE(komori::DoesHaveMatePossibility(node2->Pos()));
 }

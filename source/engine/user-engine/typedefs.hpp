@@ -200,6 +200,50 @@ inline Bitboard StepEffect(PieceType pt, Color c, Square sq) {
       return {};
   }
 }
+
+/**
+ * @brief (OR node限定) `n` が不詰かどうかを簡易的に調べる。
+ * @param n 現局面（OR node）
+ * @return `true`: 不明
+ * @return `false`: 確実に不詰
+ *
+ * 指し手生成をすることなく `n` の合法手がない、すなわち不詰局面かどうかを判定する。`generateMoves` よりも
+ * 厳密性は劣るが、より高速に不詰を判定できる可能性がある。
+ *
+ * この関数の戻り値が `false` のとき、`n` には合法手が存在しない。戻り値が `true` のとき、不詰かどうかは不明である。
+ * 戻り値が `true` であっても、現局面に合法手が存在しない可能性があるので注意。
+ */
+inline bool DoesHaveMatePossibility(const Position& n) {
+  auto us = n.side_to_move();
+  auto them = ~us;
+  auto hand = n.hand_of(us);
+  auto king_sq = n.king_square(them);
+
+  auto droppable_bb = ~n.pieces();
+  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+    if (hand_exists(hand, pr)) {
+      if (pr == PAWN && (n.pieces(us, PAWN) & file_bb(file_of(king_sq)))) {
+        continue;
+      }
+
+      if (droppable_bb.test(StepEffect(pr, them, king_sq))) {
+        return true;
+      }
+    }
+  }
+
+  auto x = ((n.pieces(PAWN) & check_candidate_bb(us, PAWN, king_sq)) |
+            (n.pieces(LANCE) & check_candidate_bb(us, LANCE, king_sq)) |
+            (n.pieces(KNIGHT) & check_candidate_bb(us, KNIGHT, king_sq)) |
+            (n.pieces(SILVER) & check_candidate_bb(us, SILVER, king_sq)) |
+            (n.pieces(GOLDS) & check_candidate_bb(us, GOLD, king_sq)) |
+            (n.pieces(BISHOP) & check_candidate_bb(us, BISHOP, king_sq)) | (n.pieces(ROOK_DRAGON)) |
+            (n.pieces(HORSE) & check_candidate_bb(us, ROOK, king_sq))) &
+           n.pieces(us);
+  auto y = n.blockers_for_king(them) & n.pieces(us);
+
+  return x | y;
+}
 }  // namespace komori
 
 #endif  // KOMORI_TYPEDEFS_HPP_
