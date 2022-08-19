@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "../tt.hpp"
+#include "test_lib.hpp"
 
 using komori::kDepthMax;
 using komori::kInfinitePnDn;
@@ -16,11 +17,8 @@ namespace {
 class EntryTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    hand_p1_ = HAND_ZERO;
-    add_hand(hand_p1_, PAWN);
-
-    hand_p2_ = HAND_ZERO;
-    add_hand(hand_p2_, PAWN, 2);
+    hand_p1_ = MakeHand<PAWN>();
+    hand_p2_ = MakeHand<PAWN, PAWN>();
   }
 
   void Init(Key board_key, Hand hand) { entry_.Init(board_key, hand); }
@@ -342,11 +340,8 @@ namespace {
 class QueryTest : public ::testing::Test {
  protected:
   void SetUp() {
-    hand_p1_ = HAND_ZERO;
-    add_hand(hand_p1_, PAWN);
-
-    hand_p2_ = HAND_ZERO;
-    add_hand(hand_p2_, PAWN, 2);
+    hand_p1_ = MakeHand<PAWN>();
+    hand_p2_ = MakeHand<PAWN, PAWN>();
 
     tt_.Resize(1);
     query_ = tt_.BuildQueryByKey(334, hand_p1_);

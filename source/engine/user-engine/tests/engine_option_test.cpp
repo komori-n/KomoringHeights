@@ -4,7 +4,7 @@
 
 using komori::EngineOption;
 
-TEST(EngineOption, Init) {
+TEST(EngineOptionTest, Init) {
   USI::OptionsMap o;
   EngineOption::Init(o);
 
@@ -13,7 +13,7 @@ TEST(EngineOption, Init) {
   EXPECT_NE(o.find("RootIsAndNodeIfChecked"), o.end());
 }
 
-TEST(EngineOption, Default) {
+TEST(EngineOptionTest, Default) {
   USI::OptionsMap o;
   o["USI_Hash"] << USI::Option(16, 1, 1024, [](const USI::Option&) {});
   o["Threads"] << USI::Option(4, 1, 512, [](const USI::Option&) {});
@@ -29,7 +29,7 @@ TEST(EngineOption, Default) {
   EXPECT_EQ(op.root_is_and_node_if_checked, true);
 }
 
-TEST(EngineOption, NoInitialization) {
+TEST(EngineOptionTest, NoInitialization) {
   USI::OptionsMap o;
   EngineOption op;
   op.Reload(o);

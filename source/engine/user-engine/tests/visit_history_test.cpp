@@ -2,6 +2,7 @@
 
 #include "../../../thread.h"
 #include "../visit_history.hpp"
+#include "test_lib.hpp"
 
 using komori::VisitHistory;
 
@@ -9,10 +10,8 @@ namespace {
 class VisitHistoryTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    hand_p1_ = HAND_ZERO;
-    add_hand(hand_p1_, PAWN);
-    hand_p2_ = HAND_ZERO;
-    add_hand(hand_p2_, PAWN, 2);
+    hand_p1_ = MakeHand<PAWN>();
+    hand_p2_ = MakeHand<PAWN, PAWN>();
   }
 
   Hand hand_p1_, hand_p2_;

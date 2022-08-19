@@ -2,14 +2,7 @@
 
 #include "../path_keys.hpp"
 
-namespace {
-class PathKeysTest : public ::testing::Test {
- protected:
-  void SetUp() override { komori::PathKeyInit(); }
-};
-}  // namespace
-
-TEST_F(PathKeysTest, PathKeyAfter_drop) {
+TEST(PathKeysTest, PathKeyAfter_drop) {
   const Key before_key = 0x334334;
   const Key after_key = komori::PathKeyAfter(before_key, make_move_drop(PAWN, SQ_88, BLACK), 264);
 
