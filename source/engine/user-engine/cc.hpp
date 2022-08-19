@@ -8,6 +8,7 @@
 #include "bitset.hpp"
 #include "children_board_key.hpp"
 #include "delayed_move_list.hpp"
+#include "fixed_size_stack.hpp"
 #include "hands.hpp"
 #include "initial_estimation.hpp"
 #include "move_picker.hpp"
@@ -16,34 +17,6 @@
 
 namespace komori {
 namespace detail {
-
-class IndexTable {
- public:
-  constexpr std::uint32_t Push(std::uint32_t i_raw) {
-    const auto i = len_++;
-    data_[i] = i_raw;
-    return i;
-  }
-  constexpr void Pop() { --len_; }
-
-  constexpr std::uint32_t operator[](std::uint32_t i) const { return data_[i]; }
-
-  constexpr auto begin() { return data_.begin(); }
-  constexpr auto begin() const { return data_.begin(); }
-  constexpr auto end() { return data_.begin() + len_; }
-  constexpr auto end() const { return data_.begin() + len_; }
-  constexpr auto size() const { return len_; }
-  constexpr bool empty() const { return len_ == 0; }
-  constexpr std::uint32_t& front() { return data_[0]; }
-  constexpr const std::uint32_t& front() const { return data_[0]; }
-  constexpr std::uint32_t& back() { return data_[len_ - 1]; }
-  constexpr const std::uint32_t& back() const { return data_[len_ - 1]; }
-
- private:
-  std::array<std::uint32_t, kMaxCheckMovesPerNode> data_;
-  std::uint32_t len_{0};
-};
-
 struct Edge {
   std::uint64_t board_key, child_board_key;
   Hand hand, child_hand;
@@ -673,7 +646,7 @@ class ChildrenCache {
   PnDn max_delta_except_best_;
 
   BitSet64 sum_mask_;
-  detail::IndexTable idx_;
+  FixedSizeStack<std::uint32_t, kMaxCheckMovesPerNode> idx_;
 };
 }  // namespace komori
 
