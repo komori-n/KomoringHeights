@@ -5,7 +5,6 @@
 #include <optional>
 
 #include "bitset.hpp"
-#include "children_board_key.hpp"
 #include "delayed_move_list.hpp"
 #include "fixed_size_stack.hpp"
 #include "hands.hpp"
@@ -15,87 +14,6 @@
 #include "tt.hpp"
 
 namespace komori {
-namespace detail {
-struct Edge {
-  std::uint64_t board_key, child_board_key;
-  Hand hand, child_hand;
-  PnDn child_pn, child_dn;
-};
-
-/// edge で合流する分岐の合流元局面を求める
-inline std::optional<std::pair<detail::Edge, bool>> FindKnownAncestor(tt::TranspositionTable& tt,
-                                                                      const Node& n,
-                                                                      const detail::Edge& root_edge) {
-  bool pn_flag = true;
-  bool dn_flag = true;
-
-  // [best move in TT]     node      [best move in search tree]
-  //                        |
-  //                       node★
-  //                       /  \                                 |
-  //                     |    node
-  //                     |      |
-  //                       ...
-  //         root_edge-> |      |
-  //                     |    node <-current position(n)
-  //                      \   /
-  //                      node <-child (NthChild(i))
-  //
-  // 上図のように、root_edge の親局面がすでに分岐元の可能性がある。
-  if (n.ContainsInPath(root_edge.board_key, root_edge.hand)) {
-    return {std::make_pair(root_edge, n.IsOrNode())};
-  }
-
-  bool or_node = !n.IsOrNode();
-  auto last_edge = root_edge;
-  for (Depth i = 0; i < n.GetDepth(); ++i) {
-    auto query = tt.BuildQueryByKey(last_edge.board_key, last_edge.hand);
-    const auto& result = query.LookUp(kMaxMateLen, false);
-    if (result.IsFinal() || result.GetUnknownData().parent_board_key == kNullKey) {
-      break;
-    }
-    const auto next_parent_board_key = result.GetUnknownData().parent_board_key;
-    const auto next_parent_hand = result.GetUnknownData().parent_hand;
-    const Edge next_edge{next_parent_board_key, last_edge.board_key, next_parent_hand,
-                         last_edge.hand,        result.Pn(),         result.Dn()};
-
-    if (n.ContainsInPath(next_edge.board_key, next_edge.hand)) {
-      if ((or_node && dn_flag) || (!or_node && pn_flag)) {
-        return {std::make_pair(next_edge, or_node)};
-      } else {
-        break;
-      }
-    }
-
-    // 合流元局面が OR node だと仮定すると、dn の二重カウントを解消したいことになる。このとき、or_node かつ dn の値が
-    // 大きく離れた edge が存在するなら、二重カウントによる影響はそれほど深刻ではない（二重カウントを解消する
-    // 必要がない）と判断する
-    //
-    // 合流元局面が OR node/AND node のどちらであるかは合流局面を実際に見つけるまでは分からない。そのため、合流局面が
-    // or_node であった時用のフラグを dn_flag、 and_node であった時用のフラグを pn_flag として両方を計算している。
-    if (or_node) {
-      if (next_edge.child_dn > last_edge.child_dn + 5) {
-        dn_flag = false;
-      }
-    } else {
-      if (next_edge.child_pn > last_edge.child_pn + 5) {
-        pn_flag = false;
-      }
-    }
-
-    // 合流元局面が or node/and node のいずれであっても二重カウントを解消する必要がない。よって、early exit できる。
-    if (!pn_flag && !dn_flag) {
-      break;
-    }
-
-    last_edge = next_edge;
-    or_node = !or_node;
-  }
-
-  return std::nullopt;
-}
-}  // namespace detail
-
 class ChildrenCache {
  private:
   auto MakeComparer() const {
@@ -132,7 +50,6 @@ class ChildrenCache {
       : or_node_{n.IsOrNode()},
         mp_{n, true},
         delayed_move_list_{n, mp_},
-        children_board_key_{n, mp_},
         len_{len},
         sum_mask_{sum_mask},
         parent_{parent},
@@ -199,10 +116,6 @@ class ChildrenCache {
 
     std::sort(idx_.begin(), idx_.end(), MakeComparer());
     RecalcDelta();
-
-    if (!idx_.empty()) {
-      EliminateDoubleCount(tt, n);
-    }
   }
 
   ChildrenCache(const ChildrenCache&) = delete;
@@ -505,86 +418,9 @@ class ChildrenCache {
     std::rotate(idx_.begin(), idx_.begin() + 1, itr);
   }
 
-  void EliminateDoubleCount(tt::TranspositionTable& tt, const Node& n) {
-    // [best move in TT]     node      [best move in search tree]
-    //                        |
-    //                       node★
-    //          found_edge-> /  \                                 |
-    //                   node   node
-    //                     |      |
-    //                       ...
-    //                     |      |
-    //                   node   node <-current position(n)
-    //               edge-> \   /
-    //                      node <-child (NthChild(i))
-    //
-    // 上記のような探索木の状態を考える。局面★で分岐した探索木の部分木が子孫ノードで合流している。このとき、局面★の
-    // δ値の計算で合流ノード由来の値を二重で加算してしまう可能性がある。
-    // このとき、pn/dn のどちらが二重カウントされるかは★のノード種別（OR node/AND node）にしか依存せず、合流局面の
-    // ノード種別には依存しないことに注意。
-    //
-    // この関数は、上記のような局面の合流を検出し、二重カウント状態を解消する役割である。
-    const auto best_move = mp_[idx_[0]];
-    const auto result = FrontResult();
-    const auto pn = result.Pn();
-    const auto dn = result.Dn();
-    const auto child_board_key = children_board_key_[idx_[0]];
-    const auto child_hand = AfterHand(n.Pos(), best_move, n.OrHand());
-
-    if (!result.IsFinal()) {
-      const auto parent_board_key = result.GetUnknownData().parent_board_key;
-      const auto parent_hand = result.GetUnknownData().parent_hand;
-      if (parent_board_key != kNullKey && parent_hand != kNullHand && parent_board_key != board_key_) {
-        const detail::Edge edge{parent_board_key, child_board_key, parent_hand, child_hand, pn, dn};
-        if (auto res = detail::FindKnownAncestor(tt, n, edge)) {
-          SetBranchRootMaxFlag(res->first, res->second);
-        }
-      }
-    }
-  }
-
-  void SetBranchRootMaxFlag(const detail::Edge& edge, bool branch_root_is_or_node) {
-    if (board_key_ == edge.board_key && or_hand_ == edge.hand) {
-      // 現局面が edge の分岐元。すなわち、edge と NthChild(0) が子孫局面が合流していることが分かった。
-      // 何もケアしないと二重カウントが発生してしまうので、sum ではなく max でδ値を計算させるようにする。
-
-      for (decltype(idx_.size()) i = 1; i < idx_.size(); ++i) {
-        if (children_board_key_[idx_[i]] == edge.child_board_key) {
-          sum_mask_.Reset(idx_[0]);
-          if (sum_mask_[idx_[i]]) {
-            sum_mask_.Reset(idx_[i]);
-            RecalcDelta();
-          }
-
-          break;
-        }
-      }
-      return;
-    }
-
-    if (branch_root_is_or_node == or_node_) {
-      const auto& child_result = results_[idx_[0]];
-      // max child でδ値が max_delta よりも小さい場合、NthChild(0) のδ値は上位ノードに伝播していない。
-      // つまり、親局面でδ値の二重カウントは発生しないため、return できる。
-      if (!sum_mask_[idx_[0]] && child_result.Delta(or_node_) < max_delta_except_best_) {
-        return;
-      }
-
-      if (sum_delta_except_best_ > 0) {
-        return;
-      }
-    }
-
-    // 局面を 1 手戻して edge の分岐局面がないかを再帰的に探す
-    if (parent_ != nullptr) {
-      parent_->SetBranchRootMaxFlag(edge, branch_root_is_or_node);
-    }
-  }
-
   const bool or_node_;
   const MovePicker mp_;
   const DelayedMoveList delayed_move_list_;
-  const ChildrenBoardKey children_board_key_;
   const MateLen len_;
 
   ChildrenCache* const parent_;
