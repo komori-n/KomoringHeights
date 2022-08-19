@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <optional>
 
-#include "../../mate/mate.h"
 #include "bitset.hpp"
 #include "children_board_key.hpp"
 #include "delayed_move_list.hpp"
@@ -22,19 +21,6 @@ struct Edge {
   Hand hand, child_hand;
   PnDn child_pn, child_dn;
 };
-
-inline std::pair<Move, Hand> CheckMate1Ply(Node& n) {
-  if (!n.Pos().in_check()) {
-    if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
-      n.DoMove(move);
-      auto hand = HandSet{ProofHandTag{}}.Get(n.Pos());
-      n.UndoMove();
-
-      return {move, BeforeHand(n.Pos(), move, hand)};
-    }
-  }
-  return {MOVE_NONE, kNullHand};
-}
 
 /// edge で合流する分岐の合流元局面を求める
 inline std::optional<std::pair<detail::Edge, bool>> FindKnownAncestor(tt::TranspositionTable& tt,
@@ -186,7 +172,7 @@ class ChildrenCache {
             const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
             result.InitFinal<false>(hand, kMaxMateLen, 1);
             query.SetResult(result);
-          } else if (auto [best_move, proof_hand] = detail::CheckMate1Ply(nn); proof_hand != kNullHand) {
+          } else if (auto [best_move, proof_hand] = CheckMate1Ply(nn); proof_hand != kNullHand) {
             const auto proof_hand_after = AfterHand(n.Pos(), best_move, proof_hand);
             const auto len = MateLen::Make(1, static_cast<std::uint32_t>(CountHand(proof_hand_after)));
 

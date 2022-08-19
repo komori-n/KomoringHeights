@@ -103,3 +103,27 @@ TEST(NodeTest, RollForward) {
   EXPECT_EQ(n->BoardKey(), board_key);
   EXPECT_FALSE(n->IsRepetitionOrInferior());
 }
+
+TEST(CheckMate1PlyTest, Mate) {
+  TestNode n{"4k4/9/4P4/9/9/9/9/9/9 b 2R2B4G4S4N4L17P 1", true};
+
+  const auto [best_move, proof_hand] = komori::CheckMate1Ply(*n);
+  EXPECT_EQ(best_move, make_move_drop(GOLD, SQ_52, BLACK));
+  EXPECT_EQ(proof_hand, (MakeHand<GOLD>()));
+}
+
+TEST(CheckMate1PlyTest, InCheck) {
+  TestNode n{"4k4/9/4P4/9/9/9/9/9/9 b S2r2b4g3s4n4l17p 1", true};
+
+  const auto [best_move, proof_hand] = komori::CheckMate1Ply(*n);
+  EXPECT_EQ(best_move, MOVE_NONE);
+  EXPECT_EQ(proof_hand, komori::kNullHand);
+}
+
+TEST(CheckMate1PlyTest, NoCheckmate) {
+  TestNode n{"4k4/9/4P4/9/9/9/9/4p4/4K4 b G2r2b3g4s4n4l16p 1", true};
+
+  const auto [best_move, proof_hand] = komori::CheckMate1Ply(*n);
+  EXPECT_EQ(best_move, MOVE_NONE);
+  EXPECT_EQ(proof_hand, komori::kNullHand);
+}

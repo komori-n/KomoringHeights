@@ -117,7 +117,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
     len = len.Succ2();
     bool retry = false;
     while (len.Len() > 0) {
-      const auto [move, hand] = detail::CheckMate1Ply(node);
+      const auto [move, hand] = CheckMate1Ply(node);
       if (move != MOVE_NONE) {
         best_moves_.push_back(move);
         node.DoMove(move);

@@ -5,6 +5,7 @@
 #include <stack>
 #include <vector>
 
+#include "../../mate/mate.h"
 #include "hands.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
@@ -208,6 +209,26 @@ inline void RollBack(Node& n, const std::vector<Move>& moves) {
   for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
     n.UndoMove();
   }
+}
+
+/**
+ * @brief (OR node限定) `n` が 1 手詰かどうか判定する。
+ * @param n 現局面
+ * @return `Move` 1手詰があればその手。なければ `MOVE_NONE`。
+ * @return `Hand` 1手詰があればその証明駒。なければ `kNullHand`。
+ * @note 攻め方の玉に王手がかかっている等、一部局面では1手詰が見つけられない事がある。
+ */
+inline std::pair<Move, Hand> CheckMate1Ply(Node& n) {
+  if (!n.Pos().in_check()) {
+    if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
+      n.DoMove(move);
+      auto hand = HandSet{ProofHandTag{}}.Get(n.Pos());
+      n.UndoMove();
+
+      return {move, BeforeHand(n.Pos(), move, hand)};
+    }
+  }
+  return {MOVE_NONE, kNullHand};
 }
 }  // namespace komori
 #endif  // KOMORI_NODE_HPP_
