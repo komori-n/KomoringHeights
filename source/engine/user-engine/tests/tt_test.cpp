@@ -320,34 +320,35 @@ class QueryTest : public ::testing::Test {
     query_ = tt_.BuildQueryByKey(334, hand_p1_);
   }
 
-  static void ExpectBase(const komori::tt::SearchResult& result,
+  static void ExpectBase(const komori::SearchResult& result,
                          PnDn expected_pn,
                          PnDn expected_dn,
                          Hand expected_hand,
                          MateLen expected_len,
                          std::uint32_t expected_amount,
                          int line) {
-    EXPECT_EQ(result.pn, expected_pn) << "LINE: " << line;
-    EXPECT_EQ(result.dn, expected_dn) << "LINE: " << line;
-    EXPECT_EQ(result.hand, expected_hand) << "LINE: " << line;
-    EXPECT_EQ(result.len, expected_len) << "LINE: " << line;
-    EXPECT_EQ(result.amount, expected_amount) << "LINE: " << line;
+    EXPECT_EQ(result.Pn(), expected_pn) << "LINE: " << line;
+    EXPECT_EQ(result.Dn(), expected_dn) << "LINE: " << line;
+    EXPECT_EQ(result.GetHand(), expected_hand) << "LINE: " << line;
+    EXPECT_EQ(result.Len(), expected_len) << "LINE: " << line;
+    EXPECT_EQ(result.Amount(), expected_amount) << "LINE: " << line;
   }
 
-  static void ExpectUnknown(const komori::tt::SearchResult& result,
+  static void ExpectUnknown(const komori::SearchResult& result,
                             bool expected_is_first_visit,
                             Key expected_parent_board_key,
                             Hand expected_parent_hand,
                             std::uint64_t expected_secret,
                             int line) {
-    EXPECT_EQ(result.unknown_data.is_first_visit, expected_is_first_visit) << "LINE: " << line;
-    EXPECT_EQ(result.unknown_data.parent_board_key, expected_parent_board_key) << "LINE: " << line;
-    EXPECT_EQ(result.unknown_data.parent_hand, expected_parent_hand) << "LINE: " << line;
-    EXPECT_EQ(result.unknown_data.secret, expected_secret) << "LINE: " << line;
+    const auto& unknown_data = result.GetUnknownData();
+    EXPECT_EQ(unknown_data.is_first_visit, expected_is_first_visit) << "LINE: " << line;
+    EXPECT_EQ(unknown_data.parent_board_key, expected_parent_board_key) << "LINE: " << line;
+    EXPECT_EQ(unknown_data.parent_hand, expected_parent_hand) << "LINE: " << line;
+    EXPECT_EQ(unknown_data.secret, expected_secret) << "LINE: " << line;
   }
 
-  static void ExpectFinal(const komori::tt::SearchResult& result, bool expected_is_repetition, int line) {
-    EXPECT_EQ(result.final_data.is_repetition, expected_is_repetition) << "LINE: " << line;
+  static void ExpectFinal(const komori::SearchResult& result, bool expected_is_repetition, int line) {
+    EXPECT_EQ(result.GetFinalData().is_repetition, expected_is_repetition) << "LINE: " << line;
   }
 
   Hand hand_p1_;
@@ -377,8 +378,8 @@ TEST_F(QueryTest, EmptyCreate) {
 }
 
 TEST_F(QueryTest, CreateUnknown) {
-  komori::tt::UnknownData unknown_data = {false, 264, hand_p2_, 445};
-  komori::tt::SearchResult set_result{33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data};
+  komori::UnknownData unknown_data = {false, 264, hand_p2_, 445};
+  const auto set_result = komori::SearchResult::MakeUnknown(33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data);
 
   query_.SetResult(set_result);
   const auto res = query_.LookUp(MateLen::Make(26, 4), false);
@@ -387,14 +388,14 @@ TEST_F(QueryTest, CreateUnknown) {
 }
 
 TEST_F(QueryTest, CreateRepetition) {
-  query_.SetResult({kInfinitePnDn, 0, hand_p1_, MateLen::Make(26, 4), 1, komori::tt::FinalData{true}});
+  query_.SetResult(komori::SearchResult::MakeFinal<false, true>(hand_p1_, MateLen::Make(26, 4), 1));
   const auto res_1 = query_.LookUp(MateLen::Make(26, 4), false);
   ExpectBase(res_1, 1, 1, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
 
-  komori::tt::UnknownData unknown_data = {false, 264, hand_p1_, 445};
-  query_.SetResult({33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data});
+  komori::UnknownData unknown_data = {false, 264, hand_p1_, 445};
+  query_.SetResult(komori::SearchResult::MakeUnknown(33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data));
 
-  query_.SetResult({kInfinitePnDn, 0, hand_p1_, MateLen::Make(26, 4), 1, komori::tt::FinalData{true}});
+  query_.SetResult(komori::SearchResult::MakeFinal<false, true>(hand_p1_, MateLen::Make(26, 4), 1));
   const auto res_2 = query_.LookUp(MateLen::Make(26, 4), false);
 
   ExpectBase(res_2, kInfinitePnDn, 0, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
@@ -402,8 +403,7 @@ TEST_F(QueryTest, CreateRepetition) {
 }
 
 TEST_F(QueryTest, CreateProven) {
-  komori::tt::SearchResult proven_result{
-      0, kInfinitePnDn, HAND_ZERO, MateLen::Make(22, 4), 10, komori::tt::FinalData{false}};
+  const auto proven_result = komori::SearchResult::MakeFinal<true>(HAND_ZERO, MateLen::Make(22, 4), 10);
 
   query_.SetResult(proven_result);
   const auto res = query_.LookUp(MateLen::Make(26, 4), false);
@@ -413,8 +413,7 @@ TEST_F(QueryTest, CreateProven) {
 }
 
 TEST_F(QueryTest, CreateDisproven) {
-  komori::tt::SearchResult disproven_result{kInfinitePnDn,        0,  hand_p2_,
-                                            MateLen::Make(28, 4), 10, komori::tt::FinalData{false}};
+  const auto disproven_result = komori::SearchResult::MakeFinal<false>(hand_p2_, MateLen::Make(28, 4), 10);
 
   query_.SetResult(disproven_result);
   const auto res = query_.LookUp(MateLen::Make(26, 4), false);
@@ -423,13 +422,14 @@ TEST_F(QueryTest, CreateDisproven) {
 }
 
 TEST_F(QueryTest, CreateDoubleUnknown) {
-  komori::tt::UnknownData unknown_data_1 = {false, 264, hand_p2_, 445};
-  komori::tt::SearchResult set_result_1{33, 4, hand_p2_, MateLen::Make(26, 4), 1, unknown_data_1};
+  komori::UnknownData unknown_data_1 = {false, 264, hand_p2_, 445};
+  const auto set_result_1 = komori::SearchResult::MakeUnknown(33, 4, hand_p2_, MateLen::Make(26, 4), 1, unknown_data_1);
 
   query_.SetResult(set_result_1);
 
-  komori::tt::UnknownData unknown_data_2 = {false, 334, HAND_ZERO, 4450};
-  komori::tt::SearchResult set_result_2{330, 40, hand_p1_, MateLen::Make(26, 4), 1, unknown_data_2};
+  komori::UnknownData unknown_data_2 = {false, 334, HAND_ZERO, 4450};
+  const auto set_result_2 =
+      komori::SearchResult::MakeUnknown(330, 40, hand_p1_, MateLen::Make(26, 4), 1, unknown_data_2);
   query_.SetResult(set_result_2);
   const auto res = query_.LookUp(MateLen::Make(26, 4), false);
   ExpectBase(res, 330, 40, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
@@ -437,12 +437,12 @@ TEST_F(QueryTest, CreateDoubleUnknown) {
 }
 
 TEST_F(QueryTest, CreateOverwriteUnknown) {
-  komori::tt::UnknownData unknown_data = {false, 264, hand_p2_, 445};
-  komori::tt::SearchResult set_result_1{33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data};
+  komori::UnknownData unknown_data = {false, 264, hand_p2_, 445};
+  const auto set_result_1 = komori::SearchResult::MakeUnknown(33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data);
 
   query_.SetResult(set_result_1);
 
-  komori::tt::SearchResult set_result_2{330, 40, hand_p1_, MateLen::Make(26, 4), 1, unknown_data};
+  const auto set_result_2 = komori::SearchResult::MakeUnknown(330, 40, hand_p1_, MateLen::Make(26, 4), 1, unknown_data);
   query_.SetResult(set_result_2);
   const auto res = query_.LookUp(MateLen::Make(26, 4), false);
   ExpectBase(res, 330, 40, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
@@ -450,17 +450,17 @@ TEST_F(QueryTest, CreateOverwriteUnknown) {
 }
 
 TEST_F(QueryTest, CreateOverflow) {
-  komori::tt::UnknownData unknown_data = {false, 264, hand_p2_, 445};
+  komori::UnknownData unknown_data = {false, 264, hand_p2_, 445};
   for (std::size_t i = 0; i < komori::tt::kClusterSize; ++i) {
     auto hand = HAND_ZERO;
     add_hand(hand, LANCE, 1);
     add_hand(hand, PAWN, i);
 
-    komori::tt::SearchResult result{33, i + 334, hand, MateLen::Make(26, 4), 1, unknown_data};
+    const auto result = komori::SearchResult::MakeUnknown(33, i + 334, hand, MateLen::Make(26, 4), 1, unknown_data);
     query_.SetResult(result);
   }
 
-  komori::tt::SearchResult result{33, 264, hand_p1_, MateLen::Make(26, 4), 1, unknown_data};
+  const auto result = komori::SearchResult::MakeUnknown(33, 264, hand_p1_, MateLen::Make(26, 4), 1, unknown_data);
   query_.SetResult(result);
 
   const auto res = query_.LookUp(MateLen::Make(26, 4), false);

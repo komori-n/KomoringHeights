@@ -98,15 +98,15 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
     auto info = CurrentInfo();
     sync_cout << info << len << " " << result << sync_endl;
 
-    if (result.pn == 0) {
-      if (result.len > len) {
+    if (result.Pn() == 0) {
+      if (result.Len() > len) {
         sync_cout << info << "Failed to detect PV" << sync_endl;
         break;
       }
       proven = true;
-      len = result.len.Prec2();
+      len = result.Len().Prec2();
     } else {
-      if (result.dn == 0 && result.len > len) {
+      if (result.Dn() == 0 && result.Len() > len) {
         sync_cout << info << "Failed to detect PV" << sync_endl;
       }
       break;
@@ -129,10 +129,10 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
       for (const auto move : MovePicker{node}) {
         auto query = tt_.BuildChildQuery(node, move.move);
         const auto child_result = query.LookUp(len - 1, false);
-        if (child_result.pn == 0 && ((node.IsOrNode() && child_result.len + 1 < best_len) ||
-                                     (!node.IsOrNode() && child_result.len + 1 > best_len))) {
+        if (child_result.Pn() == 0 && ((node.IsOrNode() && child_result.Len() + 1 < best_len) ||
+                                       (!node.IsOrNode() && child_result.Len() + 1 > best_len))) {
           best_move = move.move;
-          best_len = child_result.len + 1;
+          best_len = child_result.Len() + 1;
         }
       }
 
@@ -167,7 +167,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   }
 }
 
-tt::SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, PnDn thdn) {
+SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, PnDn thdn) {
   ChildrenCache cache{tt_, n, len, true};
   auto result = SearchImpl(n, thpn, thdn, len, cache, false);
 
@@ -177,12 +177,12 @@ tt::SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, P
   return result;
 }
 
-tt::SearchResult KomoringHeights::SearchImpl(Node& n,
-                                             PnDn thpn,
-                                             PnDn thdn,
-                                             MateLen len,
-                                             ChildrenCache& cache,
-                                             bool inc_flag) {
+SearchResult KomoringHeights::SearchImpl(Node& n,
+                                         PnDn thpn,
+                                         PnDn thdn,
+                                         MateLen len,
+                                         ChildrenCache& cache,
+                                         bool inc_flag) {
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);
 
@@ -192,12 +192,12 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
   // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
   inc_flag = inc_flag || cache.DoesHaveOldChild();
   if (inc_flag && !curr_result.IsFinal()) {
-    if (curr_result.pn < kInfinitePnDn) {
-      thpn = Clamp(thpn, curr_result.pn + 1);
+    if (curr_result.Pn() < kInfinitePnDn) {
+      thpn = Clamp(thpn, curr_result.Pn() + 1);
     }
 
-    if (curr_result.dn < kInfinitePnDn) {
-      thdn = Clamp(thdn, curr_result.dn + 1);
+    if (curr_result.Dn() < kInfinitePnDn) {
+      thdn = Clamp(thdn, curr_result.Dn() + 1);
     }
   }
 
@@ -206,7 +206,7 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
     monitor_.ResetNextGc();
   }
 
-  while (!monitor_.ShouldStop() && !(curr_result.pn >= thpn || curr_result.dn >= thdn)) {
+  while (!monitor_.ShouldStop() && !(curr_result.Pn() >= thpn || curr_result.Dn() >= thdn)) {
     // cache.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     const auto best_move = cache.BestMove();
@@ -214,7 +214,7 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
                              ? MateLen::Make(1, static_cast<std::uint32_t>(CountHand(n.OrHandAfter(best_move)) + 1))
                              : MateLen::Make(2, static_cast<std::uint32_t>(CountHand(n.OrHand()) + 1));
     if (len < min_len) {
-      cache.UpdateBestChild({kInfinitePnDn, 0, n.OrHandAfter(best_move), min_len.Prec(), 1, tt::FinalData{false}});
+      cache.UpdateBestChild(SearchResult::MakeFinal<false>(n.OrHandAfter(best_move), min_len.Prec(), 1));
       curr_result = cache.CurrentResult(n);
       continue;
     }
@@ -232,7 +232,7 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
     // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
     auto& child_cache = children_cache_.emplace(tt_, n, len - 1, is_first_search, sum_mask, &cache);
 
-    tt::SearchResult child_result;
+    SearchResult child_result;
     if (is_first_search) {
       child_result = child_cache.CurrentResult(n);
       // 新規局面を展開したので、TCA による探索延長をこれ以上続ける必要はない
@@ -241,7 +241,7 @@ tt::SearchResult KomoringHeights::SearchImpl(Node& n,
       // 子局面を初展開する場合、child_result を計算した時点で threshold を超過する可能性がある
       // しかし、SearchImpl をコールしてしまうと TCA の探索延長によりすぐに返ってこない可能性がある
       // ゆえに、この時点で Exceed している場合は SearchImpl を呼ばないようにする。
-      if (child_result.pn >= child_thpn || child_result.dn >= child_thdn) {
+      if (child_result.Pn() >= child_thpn || child_result.Dn() >= child_thdn) {
         goto CHILD_SEARCH_END;
       }
     }

@@ -11,6 +11,7 @@
 #include "mate_len.hpp"
 #include "node.hpp"
 #include "repetition_table.hpp"
+#include "search_result.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
@@ -209,77 +210,6 @@ class Entry {
 };
 }  // namespace detail
 
-struct UnknownData {
-  bool is_first_visit;
-  Key parent_board_key;
-  Hand parent_hand;
-  std::uint64_t secret;
-};
-
-struct FinalData {
-  bool is_repetition;
-};
-
-struct SearchResult {
-  PnDn pn, dn;
-  Hand hand;
-  MateLen len;
-  std::uint32_t amount;
-  union {
-    UnknownData unknown_data;
-    FinalData final_data;
-  };
-
-  SearchResult() = default;
-  SearchResult(PnDn pn, PnDn dn, Hand hand, MateLen len, std::uint32_t amount, UnknownData unknown_data)
-      : pn{pn}, dn{dn}, hand{hand}, len{len}, amount{amount}, unknown_data{unknown_data} {}
-  SearchResult(PnDn pn, PnDn dn, Hand hand, MateLen len, std::uint32_t amount, FinalData final_data)
-      : pn{pn}, dn{dn}, hand{hand}, len{len}, amount{amount}, final_data{final_data} {}
-
-  void InitUnknown(PnDn pn, PnDn dn, Hand hand, MateLen len, std::uint32_t amount, UnknownData unknown_data) {
-    this->pn = pn;
-    this->dn = dn;
-    this->hand = hand;
-    this->len = len;
-    this->amount = amount;
-    this->unknown_data = std::move(unknown_data);
-  }
-
-  template <bool kIsProven, bool kIsRepetition = false>
-  void InitFinal(Hand hand, MateLen len, std::uint32_t amount) {
-    static_assert(!(kIsProven && kIsRepetition));
-
-    this->pn = kIsProven ? 0 : kInfinitePnDn;
-    this->dn = kIsProven ? kInfinitePnDn : 0;
-    this->hand = hand;
-    this->len = len;
-    this->amount = amount;
-    this->final_data.is_repetition = kIsRepetition;
-  }
-
-  constexpr PnDn Phi(bool or_node) const { return or_node ? pn : dn; }
-  constexpr PnDn Delta(bool or_node) const { return or_node ? dn : pn; }
-  constexpr bool IsFinal() const { return pn == 0 || dn == 0; }
-
-  friend std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
-    if (result.pn == 0) {
-      os << "proof_hand=" << result.hand;
-    } else if (result.dn == 0) {
-      if (result.final_data.is_repetition) {
-        os << "repetition";
-      } else {
-        os << "disproof_hand" << result.hand;
-      }
-    } else {
-      os << "(pn,dn)=(" << result.pn << "," << result.dn << ")";
-    }
-
-    os << " len=" << result.len;
-    os << " amount=" << result.amount;
-    return os;
-  }
-};
-
 class Query {
  public:
   friend class TranspositionTable;
@@ -307,17 +237,19 @@ class Query {
       const bool is_end = itr->LookUp(hand_, depth_, len16, pn, dn);
       if (is_end) {
         if (pn > 0 && dn > 0 && itr->MayRepeat() && rep_table_->Contains(path_key_)) {
-          return {kInfinitePnDn, 0, itr->GetHand(), len, 1, FinalData{true}};
+          return SearchResult::MakeFinal<false, true>(itr->GetHand(), len, 1);
         }
 
-        if (pn == 0 || dn == 0) {
-          return {pn, dn, itr->GetHand(), MateLen::From(len16), itr->TotalAmount(), FinalData{false}};
+        if (pn == 0) {
+          return SearchResult::MakeFinal<true>(itr->GetHand(), MateLen::From(len16), itr->TotalAmount());
+        } else if (dn == 0) {
+          return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen::From(len16), itr->TotalAmount());
         } else {
           does_have_old_child = itr->MinDepth() < depth_;
 
           const auto parent = itr->GetParent();
           UnknownData unknown_data{false, parent.first, parent.second, itr->GetSecret()};
-          return {pn, dn, itr->GetHand(), len, itr->TotalAmount(), unknown_data};
+          return SearchResult::MakeUnknown(pn, dn, itr->GetHand(), len, itr->TotalAmount(), unknown_data);
         }
       }
     }
@@ -330,7 +262,7 @@ class Query {
     }
 
     UnknownData unknown_data{true, kNullKey, kNullHand, 0};
-    return {pn, dn, hand_, len, 1, unknown_data};
+    return SearchResult::MakeUnknown(pn, dn, hand_, len, 1, unknown_data);
   }
 
   template <typename InitialEvalFunc>
@@ -349,14 +281,14 @@ class Query {
   }
 
   void SetResult(const SearchResult& result) {
-    if (result.IsFinal() && result.final_data.is_repetition) {
+    if (result.IsFinal() && result.GetFinalData().is_repetition) {
       SetRepetition(result);
     } else {
       SetResultImpl(result);
-      if (result.pn == 0) {
-        CleanFinal<true>(result.hand, result.len.To16());
-      } else if (result.dn == 0) {
-        CleanFinal<false>(result.hand, result.len.To16());
+      if (result.Pn() == 0) {
+        CleanFinal<true>(result.GetHand(), result.Len().To16());
+      } else if (result.Dn() == 0) {
+        CleanFinal<false>(result.GetHand(), result.Len().To16());
       }
     }
   }
@@ -394,17 +326,17 @@ class Query {
   }
 
   void SetResultImpl(const SearchResult& result) {
-    if (auto itr = Find(result.hand)) {
-      itr->Update(depth_, result.pn, result.dn, result.len.To16(), result.amount);
+    if (auto itr = Find(result.GetHand())) {
+      itr->Update(depth_, result.Pn(), result.Dn(), result.Len().To16(), result.Amount());
       if (!result.IsFinal()) {
-        itr->UpdateParent(result.unknown_data.parent_board_key, result.unknown_data.parent_hand,
-                          result.unknown_data.secret);
+        itr->UpdateParent(result.GetUnknownData().parent_board_key, result.GetUnknownData().parent_hand,
+                          result.GetUnknownData().secret);
       }
     } else {
-      auto new_itr = CreateEntry(result.pn, result.dn, result.len.To16(), result.hand, result.amount);
+      auto new_itr = CreateEntry(result.Pn(), result.Dn(), result.Len().To16(), result.GetHand(), result.Amount());
       if (!result.IsFinal()) {
-        new_itr->UpdateParent(result.unknown_data.parent_board_key, result.unknown_data.parent_hand,
-                              result.unknown_data.secret);
+        new_itr->UpdateParent(result.GetUnknownData().parent_board_key, result.GetUnknownData().parent_hand,
+                              result.GetUnknownData().secret);
       }
     }
   }

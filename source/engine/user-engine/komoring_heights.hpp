@@ -7,6 +7,7 @@
 #include "cc.hpp"
 #include "circular_array.hpp"
 #include "engine_option.hpp"
+#include "search_result.hpp"
 #include "tt.hpp"
 #include "usi_info.hpp"
 
@@ -82,8 +83,8 @@ class KomoringHeights {
   NodeState Search(const Position& n, bool is_root_or_node);
 
  private:
-  tt::SearchResult SearchEntry(Node& n, MateLen len, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
-  tt::SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, ChildrenCache& cache, bool inc_flag);
+  SearchResult SearchEntry(Node& n, MateLen len, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
+  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, ChildrenCache& cache, bool inc_flag);
 
   void PrintIfNeeded(const Node& n);
 

@@ -124,13 +124,13 @@ inline std::optional<std::pair<detail::Edge, bool>> FindKnownAncestor(tt::Transp
   for (Depth i = 0; i < n.GetDepth(); ++i) {
     auto query = tt.BuildQueryByKey(last_edge.board_key, last_edge.hand);
     const auto& result = query.LookUp(kMaxMateLen, false);
-    if (result.IsFinal() || result.unknown_data.parent_board_key == kNullKey) {
+    if (result.IsFinal() || result.GetUnknownData().parent_board_key == kNullKey) {
       break;
     }
-    const auto next_parent_board_key = result.unknown_data.parent_board_key;
-    const auto next_parent_hand = result.unknown_data.parent_hand;
+    const auto next_parent_board_key = result.GetUnknownData().parent_board_key;
+    const auto next_parent_hand = result.GetUnknownData().parent_hand;
     const Edge next_edge{next_parent_board_key, last_edge.board_key, next_parent_hand,
-                         last_edge.hand,        result.pn,           result.dn};
+                         last_edge.hand,        result.Pn(),         result.Dn()};
 
     if (n.ContainsInPath(next_edge.board_key, next_edge.hand)) {
       if ((or_node && dn_flag) || (!or_node && pn_flag)) {
@@ -182,9 +182,9 @@ class ChildrenCache {
         return left_result.Delta(or_node_) > right_result.Delta(or_node_);
       }
 
-      if (left_result.dn == 0 && right_result.dn == 0) {
-        const auto l_is_rep = left_result.final_data.is_repetition;
-        const auto r_is_rep = right_result.final_data.is_repetition;
+      if (left_result.Dn() == 0 && right_result.Dn() == 0) {
+        const auto l_is_rep = left_result.GetFinalData().is_repetition;
+        const auto r_is_rep = right_result.GetFinalData().is_repetition;
 
         if (l_is_rep != r_is_rep) {
           return !or_node_ ^ (static_cast<int>(l_is_rep) < static_cast<int>(r_is_rep));
@@ -239,7 +239,7 @@ class ChildrenCache {
         result =
             query.LookUp(does_have_old_child_, len - 1, false, [&n, &move]() { return InitialPnDn(n, move.move); });
 
-        if (!result.IsFinal() && !or_node_ && first_search && result.unknown_data.is_first_visit) {
+        if (!result.IsFinal() && !or_node_ && first_search && result.GetUnknownData().is_first_visit) {
           nn.DoMove(move.move);
           if (!detail::DoesHaveMatePossibility(n.Pos())) {
             const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
@@ -286,13 +286,13 @@ class ChildrenCache {
 
   Move BestMove() const { return mp_[idx_.front()].move; };
   bool DoesHaveOldChild() const { return does_have_old_child_; }
-  bool FrontIsFirstVisit() const { return FrontResult().unknown_data.is_first_visit; }
+  bool FrontIsFirstVisit() const { return FrontResult().GetUnknownData().is_first_visit; }
   BitSet64 FrontSumMask() const {
     const auto& result = FrontResult();
-    return BitSet64{~result.unknown_data.secret};
+    return BitSet64{~result.GetUnknownData().secret};
   }
 
-  tt::SearchResult CurrentResult(const Node& n) const {
+  SearchResult CurrentResult(const Node& n) const {
     if (GetPn() == 0) {
       return GetProvenResult(n);
     } else if (GetDn() == 0) {
@@ -302,7 +302,7 @@ class ChildrenCache {
     }
   }
 
-  void UpdateBestChild(const tt::SearchResult& search_result) {
+  void UpdateBestChild(const SearchResult& search_result) {
     const auto old_i_raw = idx_[0];
     auto& query = queries_[old_i_raw];
     auto& result = results_[old_i_raw];
@@ -367,7 +367,7 @@ class ChildrenCache {
   }
 
  private:
-  const tt::SearchResult& FrontResult() const { return results_[idx_.front()]; }
+  const SearchResult& FrontResult() const { return results_[idx_.front()]; }
 
   // <PnDn>
   constexpr PnDn GetPn() const {
@@ -466,15 +466,15 @@ class ChildrenCache {
     }
   }
 
-  tt::SearchResult GetProvenResult(const Node& n) const {
+  SearchResult GetProvenResult(const Node& n) const {
     if (or_node_) {
       const auto& result = FrontResult();
       const auto best_move = mp_[idx_[0]];
-      const auto proof_hand = BeforeHand(n.Pos(), best_move, result.hand);
-      const auto mate_len = std::min(result.len + 1, kMaxMateLen);
-      const auto amount = result.amount;
+      const auto proof_hand = BeforeHand(n.Pos(), best_move, result.GetHand());
+      const auto mate_len = std::min(result.Len() + 1, kMaxMateLen);
+      const auto amount = result.Amount();
 
-      return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::FinalData{false}};
+      return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
     } else {
       // 子局面の証明駒の極小集合を計算する
       HandSet set{ProofHandTag{}};
@@ -483,10 +483,10 @@ class ChildrenCache {
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
 
-        set.Update(result.hand);
-        amount = std::max(amount, result.amount);
-        if (MateLen{result.len} + 1 > mate_len) {
-          mate_len = std::min(MateLen{result.len} + 1, kMaxMateLen);
+        set.Update(result.GetHand());
+        amount = std::max(amount, result.Amount());
+        if (MateLen{result.Len()} + 1 > mate_len) {
+          mate_len = std::min(MateLen{result.Len()} + 1, kMaxMateLen);
         }
       }
 
@@ -498,18 +498,18 @@ class ChildrenCache {
       if (idx_.empty()) {
         mate_len = MateLen::Make(0, static_cast<std::uint32_t>(CountHand(n.OrHand())));
         if (mate_len > len_) {
-          return {kInfinitePnDn, 0, n.OrHand(), mate_len.Prec(), amount, tt::FinalData{false}};
+          return SearchResult::MakeFinal<false>(n.OrHand(), mate_len.Prec(), amount);
         }
       }
-      return {0, kInfinitePnDn, proof_hand, mate_len, amount, tt::FinalData{false}};
+      return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
     }
   }
 
-  tt::SearchResult GetDisprovenResult(const Node& n) const {
+  SearchResult GetDisprovenResult(const Node& n) const {
     // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
     if (!mp_.empty()) {
-      if (const auto& result = FrontResult(); result.final_data.is_repetition) {
-        return {kInfinitePnDn, 0, n.OrHand(), len_, 1, tt::FinalData{true}};
+      if (const auto& result = FrontResult(); result.GetFinalData().is_repetition) {
+        return SearchResult::MakeFinal<false, false>(n.OrHand(), len_, 1);
       }
     }
 
@@ -523,21 +523,21 @@ class ChildrenCache {
         const auto& result = results_[i_raw];
         const auto child_move = mp_[i_raw];
 
-        set.Update(BeforeHand(n.Pos(), child_move, result.hand));
-        amount = std::max(amount, result.amount);
-        if (result.len + 1 < mate_len) {
-          mate_len = result.len + 1;
+        set.Update(BeforeHand(n.Pos(), child_move, result.GetHand()));
+        amount = std::max(amount, result.Amount());
+        if (result.Len() + 1 < mate_len) {
+          mate_len = result.Len() + 1;
         }
       }
       amount += std::max(mp_.size(), std::size_t{1}) - 1;
       const auto disproof_hand = set.Get(n.Pos());
 
-      return {kInfinitePnDn, 0, disproof_hand, mate_len, amount, tt::FinalData{false}};
+      return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
     } else {
       const auto& result = FrontResult();
-      auto disproof_hand = result.hand;
-      const auto mate_len = std::min(result.len + 1, kMaxMateLen);
-      const auto amount = result.amount;
+      auto disproof_hand = result.GetHand();
+      const auto mate_len = std::min(result.Len() + 1, kMaxMateLen);
+      const auto amount = result.Amount();
 
       // 駒打ちならその駒を持っていないといけない
       if (const auto best_move = mp_[idx_[0]]; is_drop(best_move)) {
@@ -552,13 +552,13 @@ class ChildrenCache {
         }
       }
 
-      return {kInfinitePnDn, 0, disproof_hand, mate_len, amount, tt::FinalData{false}};
+      return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
     }
   }
 
-  tt::SearchResult GetUnknownResult(const Node& n) const {
+  SearchResult GetUnknownResult(const Node& n) const {
     const auto& result = FrontResult();
-    const std::uint32_t amount = result.amount + mp_.size() / 2;
+    const std::uint32_t amount = result.Amount() + mp_.size() / 2;
 
     Key parent_board_key{kNullKey};
     Hand parent_hand{kNullHand};
@@ -567,8 +567,8 @@ class ChildrenCache {
       parent_hand = parent_->or_hand_;
     }
 
-    tt::UnknownData unknown_data{false, parent_board_key, parent_hand, ~sum_mask_.Value()};
-    return {GetPn(), GetDn(), or_hand_, len_, amount, unknown_data};
+    UnknownData unknown_data{false, parent_board_key, parent_hand, ~sum_mask_.Value()};
+    return SearchResult::MakeUnknown(GetPn(), GetDn(), or_hand_, len_, amount, unknown_data);
   }
 
   void ResortFront() {
@@ -599,14 +599,14 @@ class ChildrenCache {
     // この関数は、上記のような局面の合流を検出し、二重カウント状態を解消する役割である。
     const auto best_move = mp_[idx_[0]];
     const auto result = FrontResult();
-    const auto pn = result.pn;
-    const auto dn = result.dn;
+    const auto pn = result.Pn();
+    const auto dn = result.Dn();
     const auto child_board_key = children_board_key_[idx_[0]];
     const auto child_hand = AfterHand(n.Pos(), best_move, n.OrHand());
 
     if (!result.IsFinal()) {
-      const auto parent_board_key = result.unknown_data.parent_board_key;
-      const auto parent_hand = result.unknown_data.parent_hand;
+      const auto parent_board_key = result.GetUnknownData().parent_board_key;
+      const auto parent_hand = result.GetUnknownData().parent_hand;
       if (parent_board_key != kNullKey && parent_hand != kNullHand && parent_board_key != board_key_) {
         const detail::Edge edge{parent_board_key, child_board_key, parent_hand, child_hand, pn, dn};
         if (auto res = detail::FindKnownAncestor(tt, n, edge)) {
@@ -664,7 +664,7 @@ class ChildrenCache {
   const Key board_key_;
   const Hand or_hand_;
 
-  std::array<tt::SearchResult, kMaxCheckMovesPerNode> results_;
+  std::array<SearchResult, kMaxCheckMovesPerNode> results_;
   std::array<tt::Query, kMaxCheckMovesPerNode> queries_;
 
   bool does_have_old_child_{false};

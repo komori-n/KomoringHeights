@@ -81,8 +81,8 @@ TEST_F(ChildrenCacheTest, NoLegalMoves) {
   ChildrenCache cc{tt_, *n, MateLen::Make(33, 4), true};
 
   const auto res = cc.CurrentResult(*n);
-  EXPECT_EQ(res.pn, kInfinitePnDn);
-  EXPECT_EQ(res.dn, 0);
+  EXPECT_EQ(res.Pn(), kInfinitePnDn);
+  EXPECT_EQ(res.Dn(), 0);
 }
 
 TEST_F(ChildrenCacheTest, ObviousNomate) {
@@ -90,8 +90,8 @@ TEST_F(ChildrenCacheTest, ObviousNomate) {
   ChildrenCache cc{tt_, *n, MateLen::Make(33, 4), true};
 
   const auto res = cc.CurrentResult(*n);
-  EXPECT_EQ(res.pn, kInfinitePnDn);
-  EXPECT_EQ(res.dn, 0);
+  EXPECT_EQ(res.Pn(), kInfinitePnDn);
+  EXPECT_EQ(res.Dn(), 0);
 }
 
 TEST_F(ChildrenCacheTest, ObviousMate) {
@@ -99,8 +99,8 @@ TEST_F(ChildrenCacheTest, ObviousMate) {
   ChildrenCache cc{tt_, *n, MateLen::Make(33, 4), true};
 
   const auto res = cc.CurrentResult(*n);
-  EXPECT_EQ(res.pn, 0);
-  EXPECT_EQ(res.dn, kInfinitePnDn);
+  EXPECT_EQ(res.Pn(), 0);
+  EXPECT_EQ(res.Dn(), kInfinitePnDn);
 }
 
 TEST_F(ChildrenCacheTest, DelayExpansion) {
@@ -109,8 +109,8 @@ TEST_F(ChildrenCacheTest, DelayExpansion) {
 
   const auto [pn, dn] = komori::InitialPnDn(*n, make_move_drop(ROOK, SQ_21, BLACK));
   const auto res = cc.CurrentResult(*n);
-  EXPECT_EQ(res.pn, pn + 1);
-  EXPECT_EQ(res.dn, dn);
+  EXPECT_EQ(res.Pn(), pn + 1);
+  EXPECT_EQ(res.Dn(), dn);
 }
 
 TEST_F(ChildrenCacheTest, ObviousRepetition) {
@@ -133,8 +133,8 @@ TEST_F(ChildrenCacheTest, ObviousRepetition) {
   ChildrenCache cc{tt_, *n, MateLen::Make(33, 4), true};
 
   const auto res = cc.CurrentResult(*n);
-  EXPECT_EQ(res.pn, kInfinitePnDn);
-  EXPECT_EQ(res.dn, 0);
+  EXPECT_EQ(res.Pn(), kInfinitePnDn);
+  EXPECT_EQ(res.Dn(), 0);
 }
 
 TEST_F(ChildrenCacheTest, InitialSort) {
@@ -143,8 +143,8 @@ TEST_F(ChildrenCacheTest, InitialSort) {
 
   const auto [pn, dn] = komori::InitialPnDn(*n, make_move(SQ_21, SQ_31, W_KING));
   const auto res = cc.CurrentResult(*n);
-  EXPECT_EQ(res.pn, pn);
-  EXPECT_EQ(res.dn, dn);
+  EXPECT_EQ(res.Pn(), pn);
+  EXPECT_EQ(res.Dn(), dn);
 }
 
 TEST_F(ChildrenCacheTest, MaxChildren) {
@@ -154,6 +154,6 @@ TEST_F(ChildrenCacheTest, MaxChildren) {
   const auto [pn1, dn1] = komori::InitialPnDn(*n, make_move(SQ_21, SQ_12, W_KING));
   const auto [pn2, dn2] = komori::InitialPnDn(*n, make_move(SQ_21, SQ_32, W_KING));
   const auto res = cc.CurrentResult(*n);
-  EXPECT_EQ(res.pn, std::max(pn1, pn2));
-  EXPECT_EQ(res.dn, std::min(dn1, dn2));
+  EXPECT_EQ(res.Pn(), std::max(pn1, pn2));
+  EXPECT_EQ(res.Dn(), std::min(dn1, dn2));
 }
