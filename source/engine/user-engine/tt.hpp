@@ -10,6 +10,7 @@
 
 #include "mate_len.hpp"
 #include "node.hpp"
+#include "repetition_table.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
@@ -206,48 +207,6 @@ class Entry {
   } vals_;
   std::array<SubEntry, kSubEntryNum> sub_entries_;
 };
-
-class RepetitionTable {
- public:
-  static constexpr inline std::size_t kTableLen = 2;
-  /// 置換表に保存された path key をすべて削除する
-  void Clear() {
-    for (auto& tbl : keys_) {
-      tbl.clear();
-    }
-  }
-  /// 置換表に登録してもよい key の個数を設定する
-  void SetTableSizeMax(std::size_t size_max) { size_max_ = size_max; }
-
-  /// 置換表のうち古くなった部分を削除する
-  void CollectGarbage() {}
-
-  /// `path_key` を千日手として登録する
-  void Insert(Key path_key) {
-    keys_[idx_].insert(path_key);
-    if (keys_[idx_].size() >= size_max_ / kTableLen) {
-      idx_ = (idx_ + 1) % kTableLen;
-      keys_[idx_].clear();
-    }
-  }
-  /// `path_key` が保存されていれば true
-  bool Contains(Key path_key) const {
-    return std::any_of(keys_.begin(), keys_.end(), [&](const auto& tbl) { return tbl.find(path_key) != tbl.end(); });
-  }
-  /// 現在の置換表サイズ
-  constexpr std::size_t Size() const {
-    std::size_t ret = 0;
-    for (auto& tbl : keys_) {
-      ret += tbl.size();
-    }
-    return ret;
-  }
-
- private:
-  std::array<std::unordered_set<Key>, kTableLen> keys_;
-  std::size_t idx_{0};
-  std::size_t size_max_{std::numeric_limits<std::size_t>::max()};
-};
 }  // namespace detail
 
 struct UnknownData {
@@ -403,7 +362,7 @@ class Query {
   }
 
  private:
-  constexpr Query(detail::RepetitionTable& rep_table,
+  constexpr Query(RepetitionTable& rep_table,
                   detail::Entry* head_entry,
                   Key path_key,
                   Key board_key,
@@ -494,7 +453,7 @@ class Query {
   constexpr detail::Entry* end() { return head_entry_ + kClusterSize; }
   constexpr const detail::Entry* end() const { return head_entry_ + kClusterSize; }
 
-  detail::RepetitionTable* rep_table_;
+  RepetitionTable* rep_table_;
   detail::Entry* head_entry_;
   Key path_key_;
   Key board_key_;
@@ -577,7 +536,7 @@ class TranspositionTable {
   }
 
   std::vector<detail::Entry> entries_{};
-  detail::RepetitionTable rep_table_{};
+  RepetitionTable rep_table_{};
 };
 }  // namespace tt
 }  // namespace komori

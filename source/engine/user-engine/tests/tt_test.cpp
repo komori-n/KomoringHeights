@@ -308,33 +308,6 @@ TEST_F(EntryTest, TotalAmount) {
   EXPECT_EQ(entry_.TotalAmount(), 10);
 }
 
-TEST(RepetitionTable, Clear) {
-  komori::tt::detail::RepetitionTable rep_table;
-
-  rep_table.Insert(334);
-  EXPECT_EQ(rep_table.Size(), 1);
-  rep_table.Clear();
-  EXPECT_EQ(rep_table.Size(), 0);
-}
-
-TEST(RepetitionTable, MaxSize) {
-  komori::tt::detail::RepetitionTable rep_table;
-
-  rep_table.SetTableSizeMax(2);
-  rep_table.Insert(334);
-  rep_table.Insert(264);
-  rep_table.Insert(445);
-  EXPECT_LE(rep_table.Size(), 2);
-}
-
-TEST(RepetitionTable, Insert) {
-  komori::tt::detail::RepetitionTable rep_table;
-
-  EXPECT_FALSE(rep_table.Contains(334));
-  rep_table.Insert(334);
-  EXPECT_TRUE(rep_table.Contains(334));
-}
-
 namespace {
 
 class QueryTest : public ::testing::Test {
