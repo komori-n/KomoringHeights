@@ -23,6 +23,7 @@ ifeq ($(shell uname),Linux)
     CPPFLAGS += -D_LINUX
 endif
 TARGET = kh-test
+COMMENT_CHECK_FILE = comments.md
 
 SOURCES  = \
     ../../../types.cpp                                                          \
@@ -105,6 +106,9 @@ coverage: test
 
 docs:
 	doxygen
+
+en-check:
+	python3 ../../../../tools/extract_comments.py ../ > ${COMMENT_CHECK_FILE}
 
 clean:
 	rm -rf $(OBJECTS) $(DEPENDS) $(TARGET) ${OBJECTS:.o=.gcda} ${OBJDIR}

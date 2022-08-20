@@ -264,3 +264,6 @@ cov.info
 
 # Doxygen
 docs-html/
+
+# en-check
+comments.md
