@@ -95,11 +95,17 @@ class UsiInfo {
     return os;
   }
 
+  /// Default constructor(default)
   UsiInfo() = default;
+  /// Copy constructor(default)
   UsiInfo(const UsiInfo&) = default;
+  /// Move constructor(default)
   UsiInfo(UsiInfo&&) noexcept = default;
+  /// Copy assign operator(default)
   UsiInfo& operator=(const UsiInfo&) = default;
+  /// Move assign operator(default)
   UsiInfo& operator=(UsiInfo&&) noexcept = default;
+  /// Destructor(default)
   ~UsiInfo() = default;
 
   /// `key` に `val` を設定する。

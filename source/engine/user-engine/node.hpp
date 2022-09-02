@@ -42,11 +42,17 @@ class Node {
         or_color_{or_node ? n.side_to_move() : ~n.side_to_move()},
         depth_{depth},
         path_key_{path_key} {}
+  /// Default constructor(delete)
   Node() = delete;
+  /// Copy constructor(delete)
   Node(const Node&) = delete;
+  /// Move constructor(default)
   Node(Node&&) noexcept = default;
+  /// Copy assign operator(delete)
   Node& operator=(const Node&) = delete;
+  /// Move assign operator(delete)
   Node& operator=(Node&&) noexcept = default;
+  /// Destructor(default)
   ~Node() = default;
 
   /// このクラスが保持する `Position` への参照

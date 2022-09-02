@@ -30,11 +30,17 @@ class BitSet {
 
   /** 生値 `val` から初期化する。 */
   constexpr explicit BitSet(ValueType val) noexcept : val_(val) {}
+  /// Default constructor(default)
   constexpr BitSet() noexcept = default;
+  /// Copy constructor(default)
   constexpr BitSet(const BitSet&) noexcept = default;
+  /// Move constructor(default)
   constexpr BitSet(BitSet&&) noexcept = default;
+  /// Copy assign operator(default)
   constexpr BitSet& operator=(const BitSet&) noexcept = default;
+  /// Move assign operator(default)
   constexpr BitSet& operator=(BitSet&&) noexcept = default;
+  /// Destructor(default)
   ~BitSet() = default;
 
   /**

@@ -19,11 +19,17 @@ namespace komori {
  */
 class MovePicker {
  public:
+  /// Default constructor(delete)
   MovePicker() = delete;
+  /// Copy constructor(delete)
   MovePicker(const MovePicker&) = delete;
+  /// Move constructor(delete)
   MovePicker(MovePicker&& rhs) noexcept = delete;
+  /// Copy assign operator(delete)
   MovePicker& operator=(const MovePicker&) = delete;
+  /// Move assign operator(delete)
   MovePicker& operator=(MovePicker&& rhs) noexcept = delete;
+  /// Destructor(default)
   ~MovePicker() = default;
 
   /**
