@@ -168,8 +168,8 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
 }
 
 SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, PnDn thdn) {
-  ChildrenCache cache{tt_, n, len, true};
-  auto result = SearchImpl(n, thpn, thdn, len, cache, false);
+  LocalExpansion local_expansion{tt_, n, len, true};
+  auto result = SearchImpl(n, thpn, thdn, len, local_expansion, false);
 
   auto query = tt_.BuildQuery(n);
   query.SetResult(result);
@@ -181,16 +181,16 @@ SearchResult KomoringHeights::SearchImpl(Node& n,
                                          PnDn thpn,
                                          PnDn thdn,
                                          MateLen len,
-                                         ChildrenCache& cache,
+                                         LocalExpansion& local_expansion,
                                          bool inc_flag) {
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);
 
   // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
-  auto curr_result = cache.CurrentResult(n);
+  auto curr_result = local_expansion.CurrentResult(n);
   // Threshold Controlling Algorithm(TCA).
   // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
-  inc_flag = inc_flag || cache.DoesHaveOldChild();
+  inc_flag = inc_flag || local_expansion.DoesHaveOldChild();
   if (inc_flag && !curr_result.IsFinal()) {
     if (curr_result.Pn() < kInfinitePnDn) {
       thpn = Clamp(thpn, curr_result.Pn() + 1);
@@ -207,30 +207,30 @@ SearchResult KomoringHeights::SearchImpl(Node& n,
   }
 
   while (!monitor_.ShouldStop() && !(curr_result.Pn() >= thpn || curr_result.Dn() >= thdn)) {
-    // cache.BestMove() にしたがい子局面を展開する
+    // local_expansion.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
-    const auto best_move = cache.BestMove();
+    const auto best_move = local_expansion.BestMove();
     const auto min_len = n.IsOrNode()
                              ? MateLen::Make(1, static_cast<std::uint32_t>(CountHand(n.OrHandAfter(best_move)) + 1))
                              : MateLen::Make(2, static_cast<std::uint32_t>(CountHand(n.OrHand()) + 1));
     if (len < min_len) {
-      cache.UpdateBestChild(SearchResult::MakeFinal<false>(n.OrHandAfter(best_move), min_len.Prec(), 1));
-      curr_result = cache.CurrentResult(n);
+      local_expansion.UpdateBestChild(SearchResult::MakeFinal<false>(n.OrHandAfter(best_move), min_len.Prec(), 1));
+      curr_result = local_expansion.CurrentResult(n);
       continue;
     }
-    const bool is_first_search = cache.FrontIsFirstVisit();
-    const BitSet64 sum_mask = cache.FrontSumMask();
-    const auto [child_thpn, child_thdn] = cache.PnDnThresholds(thpn, thdn);
+    const bool is_first_search = local_expansion.FrontIsFirstVisit();
+    const BitSet64 sum_mask = local_expansion.FrontSumMask();
+    const auto [child_thpn, child_thdn] = local_expansion.PnDnThresholds(thpn, thdn);
 
     n.DoMove(best_move);
 
-    // ChildrenCache をローカル変数として持つとスタックが枯渇する。v0.4.1時点では
-    //     sizeof(ChildrenCache) == 10832
+    // LocalExpansion をローカル変数として持つとスタックが枯渇する。v0.4.1時点では
+    //     sizeof(LocalExpansion) == 10832
     // なので、ミクロコスモスを解く場合、スタック領域が 16.5 MB 必要になる。スマホや低スペックPCでも動作するように
-    // したいので、ChildrenCache は動的メモリにより確保する。
+    // したいので、LocalExpansion は動的メモリにより確保する。
     //
     // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
-    auto& child_cache = children_cache_.emplace(tt_, n, len - 1, is_first_search, sum_mask, &cache);
+    auto& child_cache = expansion_cache_.emplace(tt_, n, len - 1, is_first_search, sum_mask, &local_expansion);
 
     SearchResult child_result;
     if (is_first_search) {
@@ -248,12 +248,12 @@ SearchResult KomoringHeights::SearchImpl(Node& n,
     child_result = SearchImpl(n, child_thpn, child_thdn, len - 1, child_cache, inc_flag);
 
   CHILD_SEARCH_END:
-    // 動的に確保した ChildrenCache の領域を忘れずに開放する
-    children_cache_.pop();
+    // 動的に確保した LocalExpansion の領域を忘れずに開放する
+    expansion_cache_.pop();
     n.UndoMove();
 
-    cache.UpdateBestChild(child_result);
-    curr_result = cache.CurrentResult(n);
+    local_expansion.UpdateBestChild(child_result);
+    curr_result = local_expansion.CurrentResult(n);
   }
 
   return curr_result;

@@ -1,5 +1,5 @@
-#ifndef KOMORI_NEW_CC_HPP_
-#define KOMORI_NEW_CC_HPP_
+#ifndef KOMORI_LOCAL_EXPANSION_HPP_
+#define KOMORI_LOCAL_EXPANSION_HPP_
 
 #include <algorithm>
 #include <optional>
@@ -14,7 +14,7 @@
 #include "tt.hpp"
 
 namespace komori {
-class ChildrenCache {
+class LocalExpansion {
  private:
   auto MakeComparer() const {
     return [this](std::size_t i_raw, std::size_t j_raw) -> bool {
@@ -41,12 +41,12 @@ class ChildrenCache {
   }
 
  public:
-  ChildrenCache(tt::TranspositionTable& tt,
-                const Node& n,
-                MateLen len,
-                bool first_search,
-                BitSet64 sum_mask = BitSet64::Full(),
-                ChildrenCache* parent = nullptr)
+  LocalExpansion(tt::TranspositionTable& tt,
+                 const Node& n,
+                 MateLen len,
+                 bool first_search,
+                 BitSet64 sum_mask = BitSet64::Full(),
+                 LocalExpansion* parent = nullptr)
       : or_node_{n.IsOrNode()},
         mp_{n, true},
         delayed_move_list_{n, mp_},
@@ -118,11 +118,11 @@ class ChildrenCache {
     RecalcDelta();
   }
 
-  ChildrenCache(const ChildrenCache&) = delete;
-  ChildrenCache(ChildrenCache&&) = delete;
-  ChildrenCache& operator=(const ChildrenCache&) = delete;
-  ChildrenCache& operator=(ChildrenCache&&) = delete;
-  ~ChildrenCache() = default;
+  LocalExpansion(const LocalExpansion&) = delete;
+  LocalExpansion(LocalExpansion&&) = delete;
+  LocalExpansion& operator=(const LocalExpansion&) = delete;
+  LocalExpansion& operator=(LocalExpansion&&) = delete;
+  ~LocalExpansion() = default;
 
   Move BestMove() const { return mp_[idx_.front()].move; };
   bool DoesHaveOldChild() const { return does_have_old_child_; }
@@ -423,7 +423,7 @@ class ChildrenCache {
   const DelayedMoveList delayed_move_list_;
   const MateLen len_;
 
-  ChildrenCache* const parent_;
+  LocalExpansion* const parent_;
   const Key board_key_;
   const Hand or_hand_;
 
@@ -440,4 +440,4 @@ class ChildrenCache {
 };
 }  // namespace komori
 
-#endif  // KOMORI_NEW_CC_HPP_
+#endif  // KOMORI_LOCAL_EXPANSION_HPP_

@@ -4,9 +4,9 @@
 #include <chrono>
 
 #include "../../thread.h"
-#include "cc.hpp"
 #include "circular_array.hpp"
 #include "engine_option.hpp"
+#include "local_expansion.hpp"
 #include "search_result.hpp"
 #include "tt.hpp"
 #include "usi_info.hpp"
@@ -84,7 +84,7 @@ class KomoringHeights {
 
  private:
   SearchResult SearchEntry(Node& n, MateLen len, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
-  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, ChildrenCache& cache, bool inc_flag);
+  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, LocalExpansion& local_expansion, bool inc_flag);
 
   void PrintIfNeeded(const Node& n);
 
@@ -98,7 +98,7 @@ class KomoringHeights {
 
   // <一時変数>
   // 探索中に使用する一時変数。本当はスタック上に置きたいが、スタックオーバーフローしてしまうのでメンバで持つ。
-  std::stack<ChildrenCache> children_cache_{};
+  std::stack<LocalExpansion> expansion_cache_{};
   std::stack<MovePicker> pickers_{};
   // </一時変数>
 };
