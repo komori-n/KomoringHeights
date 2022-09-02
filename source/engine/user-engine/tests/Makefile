@@ -106,6 +106,9 @@ coverage: test
 
 docs:
 	doxygen
+	python3 -m coverxygen --xml-dir docs-xml --src-dir ../ --output doc-coverage.info \
+    --kind enum,enumvalue,friend,typedef,variable,function,class,struct,union,define
+	genhtml --dark-mode --no-function-coverage --no-branch-coverage doc-coverage.info -o docs-coverage
 
 en-check:
 	python3 ../../../../tools/extract_comments.py ../ > ${COMMENT_CHECK_FILE}
