@@ -2,6 +2,7 @@
 #define KOMORI_TEST_LIB_HPP_
 
 #include <optional>
+#include <string>
 
 #include "../../../thread.h"
 #include "../move_picker.hpp"

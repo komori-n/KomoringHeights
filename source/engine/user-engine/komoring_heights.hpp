@@ -1,7 +1,10 @@
 #ifndef KOMORI_KOMORI_NEW_KH_HPP_
 #define KOMORI_KOMORI_NEW_KH_HPP_
 
+#include <algorithm>
 #include <chrono>
+#include <stack>
+#include <vector>
 
 #include "../../thread.h"
 #include "circular_array.hpp"

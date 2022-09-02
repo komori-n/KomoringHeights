@@ -1,6 +1,8 @@
 #ifndef KOMORI_MATE_LEN_HPP_
 #define KOMORI_MATE_LEN_HPP_
 
+#include <algorithm>
+
 #include "typedefs.hpp"
 
 namespace komori {

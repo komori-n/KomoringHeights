@@ -4,8 +4,10 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "mate_len.hpp"
@@ -374,7 +376,7 @@ class Query {
       }
     }
 
-    const auto idx = rand() % kClusterSize;
+    const auto idx = rand() % kClusterSize;  // NOLINT
     head_entry_[idx].Init(board_key_, hand);
     head_entry_[idx].Update(depth_, pn, dn, len, amount);
     return &head_entry_[idx];
@@ -456,7 +458,7 @@ class TranspositionTable {
     return static_cast<int>(used * 1000 / num_entries);
   }
 
-  void CollectGarbage(){};
+  void CollectGarbage() {}
 
  private:
   constexpr detail::Entry* HeadOf(Key board_key) {

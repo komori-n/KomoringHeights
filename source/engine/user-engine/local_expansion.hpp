@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 #include "bitset.hpp"
 #include "delayed_move_list.hpp"
@@ -124,7 +125,7 @@ class LocalExpansion {
   LocalExpansion& operator=(LocalExpansion&&) = delete;
   ~LocalExpansion() = default;
 
-  Move BestMove() const { return mp_[idx_.front()].move; };
+  Move BestMove() const { return mp_[idx_.front()].move; }
   bool DoesHaveOldChild() const { return does_have_old_child_; }
   bool FrontIsFirstVisit() const { return FrontResult().GetUnknownData().is_first_visit; }
   BitSet64 FrontSumMask() const {

@@ -1,6 +1,8 @@
 #ifndef KOMORI_SEARCH_RESULT_HPP_
 #define KOMORI_SEARCH_RESULT_HPP_
 
+#include <utility>
+
 #include "mate_len.hpp"
 #include "typedefs.hpp"
 

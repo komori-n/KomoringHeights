@@ -34,7 +34,7 @@ namespace {
 struct Hoge : DefineNotEqualByEqual<Hoge>, DefineComparisonOperatorsByEqualAndLess<Hoge> {
   int val;
 
-  Hoge(int val) : val{val} {}
+  explicit Hoge(int val) : val{val} {}
 
   friend bool operator==(const Hoge& lhs, const Hoge& rhs) { return lhs.val == rhs.val; }
 
