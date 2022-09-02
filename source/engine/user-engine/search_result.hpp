@@ -176,6 +176,91 @@ class SearchResult {
   };
 };
 
+/**
+ * @brief `SearchResult` 同士の半順序を定義する
+ *
+ * φ値、δ値、千日手の有無を元にした `SearchResult` 同士の（狭義の）半順序関係を定義する。`operator()` の呼び出しにより、
+ * 任意の 2 つの `SearchResult` のどちらがより「良い」かを調べることができる。自身の勝ちに近い探索結果（直感的には
+ * φ値がより小さい探索結果）ほど Less と判定される。
+ *
+ * 結果は `SearchResultComparer::Ordering` により返却される。詳しくは enum class の定義を参照。
+ */
+class SearchResultComparer {
+ public:
+  /**
+   * @brief （狭義の）半順序状態
+   */
+  enum class Ordering {
+    kEquivalent,  ///< 等しい(a == b)
+    kLess,        ///< 小さい(a < b)
+    kGreater,     ///< 大きい(a > b)
+  };
+
+  /**
+   * @brief `SearchResultComparer` の初期化を行う
+   * @param or_node OR node なら true, AND node なら false.
+   */
+  explicit constexpr SearchResultComparer(bool or_node) noexcept : or_node_{or_node} {}
+  /// Copy constructor(default)
+  constexpr SearchResultComparer(const SearchResultComparer&) noexcept = default;
+  /// Move constructor(default)
+  constexpr SearchResultComparer(SearchResultComparer&&) noexcept = default;
+  /// Copy assign operator(delete)
+  constexpr SearchResultComparer& operator=(const SearchResultComparer&) noexcept = delete;
+  /// Move assign operator(delete)
+  constexpr SearchResultComparer& operator=(SearchResultComparer&&) noexcept = delete;
+  /// Destructor(default)
+  ~SearchResultComparer() noexcept = default;
+
+  /**
+   * @brief `lhs` と `rhs` の比較を行う
+   * @param lhs `SearchResult`
+   * @param rhs `searchResult`
+   * @return `Ordering`
+   *
+   * `lhs` と `rhs` の比較は以下の基準で行う。
+   *
+   * 1. φ値が異なるならその値の大小で比較
+   * 2. δ値が異なるならその値の大小で比較
+   * 3. 片方が千日手でもう片方が普通の不詰なら、
+   *   a. OR node では千日手の方を優先（Lessとする）
+   *   b. AND node では普通の不詰を優先（Lessとする）
+   * 4. Equivalent を返す
+   */
+  constexpr Ordering operator()(const SearchResult& lhs, const SearchResult& rhs) const noexcept {
+    if (lhs.Phi(or_node_) != rhs.Phi(or_node_)) {
+      if (lhs.Phi(or_node_) < rhs.Phi(or_node_)) {
+        return Ordering::kLess;
+      } else {
+        return Ordering::kGreater;
+      }
+    } else if (lhs.Delta(or_node_) != rhs.Delta(or_node_)) {
+      if (lhs.Delta(or_node_) < rhs.Delta(or_node_)) {
+        return Ordering::kLess;
+      } else {
+        return Ordering::kGreater;
+      }
+    }
+
+    if (lhs.Dn() == 0 /* && rhs.Dn() == 0 */) {
+      const auto l_is_rep = lhs.GetFinalData().is_repetition;
+      const auto r_is_rep = rhs.GetFinalData().is_repetition;
+
+      if (l_is_rep != r_is_rep) {
+        if (!or_node_ ^ (static_cast<int>(l_is_rep) < static_cast<int>(r_is_rep))) {
+          return Ordering::kLess;
+        } else {
+          return Ordering::kGreater;
+        }
+      }
+    }
+    return Ordering::kEquivalent;
+  }
+
+ private:
+  const bool or_node_;  ///< 現局面が OR node なら true, AND node なら false.
+};
+
 }  // namespace komori
 
 #endif  // KOMORI_SEARCH_RESULT_HPP_

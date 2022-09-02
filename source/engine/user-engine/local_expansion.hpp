@@ -18,23 +18,15 @@ namespace komori {
 class LocalExpansion {
  private:
   auto MakeComparer() const {
-    return [this](std::size_t i_raw, std::size_t j_raw) -> bool {
+    SearchResultComparer sr_comparer{or_node_};
+    return [this, sr_comparer](std::size_t i_raw, std::size_t j_raw) -> bool {
       const auto& left_result = results_[i_raw];
       const auto& right_result = results_[j_raw];
-
-      if (left_result.Phi(or_node_) != right_result.Phi(or_node_)) {
-        return left_result.Phi(or_node_) < right_result.Phi(or_node_);
-      } else if (left_result.Delta(or_node_) != right_result.Delta(or_node_)) {
-        return left_result.Delta(or_node_) > right_result.Delta(or_node_);
-      }
-
-      if (left_result.Dn() == 0 && right_result.Dn() == 0) {
-        const auto l_is_rep = left_result.GetFinalData().is_repetition;
-        const auto r_is_rep = right_result.GetFinalData().is_repetition;
-
-        if (l_is_rep != r_is_rep) {
-          return !or_node_ ^ (static_cast<int>(l_is_rep) < static_cast<int>(r_is_rep));
-        }
+      const auto ordering = sr_comparer(left_result, right_result);
+      if (ordering == SearchResultComparer::Ordering::kLess) {
+        return true;
+      } else if (ordering == SearchResultComparer::Ordering::kGreater) {
+        return false;
       }
 
       return mp_[i_raw] < mp_[j_raw];
