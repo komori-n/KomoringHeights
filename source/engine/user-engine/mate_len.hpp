@@ -23,6 +23,7 @@ class MateLen;
  */
 class MateLen16 : DefineNotEqualByEqual<MateLen16>, DefineComparisonOperatorsByEqualAndLess<MateLen16> {
  public:
+  /// `MateLen::To16()` で `Make()` を介さずに直接 `MateLen16` インスタンスを作ってもらうため `friend` にする。
   friend MateLen;
 
   /**

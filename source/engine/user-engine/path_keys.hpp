@@ -5,10 +5,15 @@
 
 namespace komori {
 namespace detail {
+/// 移動元に関する経路ハッシュ値
 inline HASH_KEY g_move_from[SQ_NB_PLUS1][komori::kDepthMax];
+/// 移動先に関する経路ハッシュ値
 inline HASH_KEY g_move_to[SQ_NB_PLUS1][komori::kDepthMax];
+/// 成りを区別するための経路ハッシュ値
 inline HASH_KEY g_promote[komori::kDepthMax];
+/// 駒打ちに関する経路ハッシュ値
 inline HASH_KEY g_dropped_pr[PIECE_HAND_NB][komori::kDepthMax];
+/// 駒強奪（無駄合防止探索用）に関する経路ハッシュ値
 inline HASH_KEY g_stolen_pr[PIECE_HAND_NB][komori::kDepthMax];
 }  // namespace detail
 

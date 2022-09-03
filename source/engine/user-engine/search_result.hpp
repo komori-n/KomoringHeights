@@ -173,7 +173,7 @@ class SearchResult {
   union {
     UnknownData unknown_data_;  ///< Unknown専用領域
     FinalData final_data_;      ///< Final専用領域
-  };
+  };  ///< メモリを節約するために `UnknownData` と `FinalData` を同じ領域に押し込む
 };
 
 /**

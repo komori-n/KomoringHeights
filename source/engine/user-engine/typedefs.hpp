@@ -26,7 +26,7 @@ namespace komori {
  */
 template <typename T>
 struct Identity {
-  using type = T;
+  using type = T;  ///< `T` をそのまま返す。
 };
 
 /**

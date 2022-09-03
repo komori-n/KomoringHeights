@@ -18,10 +18,13 @@
 
 namespace komori {
 namespace tt {
-/// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合
+/// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合。
 constexpr inline double kNormalRepetitionRatio = 0.95;
+/// オープンアドレス法で仕様するエントリの個数。
 constexpr inline std::size_t kClusterSize = 16;
+/// 探索量の上限値。オーバーフローを防ぐために 2^64-1 よりも小さい値を指定する。
 constexpr inline std::uint32_t kAmountMax = std::numeric_limits<std::uint32_t>::max() / 4;
+/// Hashfull（ハッシュ使用率）を計算するために仕様するエントリ数。大きすぎると探索性能が低下する。
 constexpr std::size_t kHashfullCalcEntries = 10000;
 
 // forward declaration

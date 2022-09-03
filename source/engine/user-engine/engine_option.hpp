@@ -9,6 +9,14 @@
 
 namespace komori {
 namespace detail {
+/**
+ * @brief オプション `o` から `name` の値を読み込む
+ * @param o    エンジンオプション
+ * @param name 読み込みキー
+ * @return `name` に対応する値
+ *
+ * もし `o[name]` が存在しないなら 0 を返す。
+ */
 inline s64 ReadOption(const USI::OptionsMap& o, const std::string& name) {
   if (auto itr = o.find(name); itr != o.end()) {
     return itr->second;
@@ -17,7 +25,12 @@ inline s64 ReadOption(const USI::OptionsMap& o, const std::string& name) {
   return 0;
 }
 
-inline constexpr std::uint64_t Make0Sup(std::uint64_t val) {
+/**
+ * @brief `val` が0以下なら 2^64-1 を返す。
+ * @param val 値
+ * @return `val` が正ならその値、それ以外なら 2^64-1 を返す。
+ */
+inline constexpr std::uint64_t MakeInfIfNotPositive(std::uint64_t val) {
   if (val > 0) {
     return val;
   }
@@ -71,8 +84,8 @@ struct EngineOption {
     hash_mb = detail::ReadOption(o, "USI_Hash");
     threads = static_cast<int>(detail::ReadOption(o, "Threads"));
 
-    nodes_limit = detail::Make0Sup(detail::ReadOption(o, "NodesLimit"));
-    pv_interval = detail::Make0Sup(detail::ReadOption(o, "PvInterval"));
+    nodes_limit = detail::MakeInfIfNotPositive(detail::ReadOption(o, "NodesLimit"));
+    pv_interval = detail::MakeInfIfNotPositive(detail::ReadOption(o, "PvInterval"));
     root_is_and_node_if_checked = detail::ReadOption(o, "RootIsAndNodeIfChecked");
 
 #if defined(USE_DEEP_DFPN)
