@@ -15,6 +15,30 @@
 #include "tt.hpp"
 
 namespace komori {
+namespace detail {
+/**
+ * @brief OR node `n` を `move` した局面が自明な詰み／不詰かどうかを判定する。
+ * @param n     現局面
+ * @param move  次の手
+ * @return `n` を `move` で進めた局面が自明な詰みまたは不詰ならその結果を返す。それ以外なら `std::nullopt` を返す。
+ *
+ * 末端局面における固定深さ探索。詰め探索で必須ではないが、これによって高速化することができる。
+ *
+ * 高速 1 手詰めルーチンおよび高速 0 手不詰ルーチンにより自明な詰み／不詰を展開することなく検知することができる。
+ */
+inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
+  if (!DoesHaveMatePossibility(n.Pos())) {
+    const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
+    return SearchResult::MakeFinal<false>(hand, kMaxMateLen, 1);
+  } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
+    const auto proof_hand_after = AfterHand(n.Pos(), best_move, proof_hand);
+    const auto len = MateLen::Make(1, static_cast<std::uint32_t>(CountHand(proof_hand_after)));
+    return SearchResult::MakeFinal<true>(proof_hand, len, 1);
+  }
+  return std::nullopt;
+}
+}  // namespace detail
+
 class LocalExpansion {
  private:
   auto MakeComparer() const {
@@ -48,7 +72,6 @@ class LocalExpansion {
         parent_{parent},
         board_key_{n.BoardKey()},
         or_hand_{n.OrHand()} {
-    bool found_rep = false;
     Node& nn = const_cast<Node&>(n);
 
     std::uint32_t next_i_raw = 0;
@@ -59,40 +82,22 @@ class LocalExpansion {
       auto& result = results_[i_raw];
       auto& query = queries_[i_raw];
 
-      if (!IsSumDeltaNode(n, move.move)) {
-        sum_mask_.Reset(i_raw);
-      }
-
       if (n.IsRepetitionOrInferiorAfter(move.move)) {
-        if (!found_rep) {
-          found_rep = true;
-          result.InitFinal<false, true>(hand_after, len, 1);
-        } else {
-          idx_.Pop();
-          continue;
-        }
+        result.InitFinal<false, true>(hand_after, len, 1);
       } else {
+        if (!IsSumDeltaNode(n, move.move)) {
+          sum_mask_.Reset(i_raw);
+        }
+
         query = tt.BuildChildQuery(n, move.move);
         result =
             query.LookUp(does_have_old_child_, len - 1, false, [&n, &move]() { return InitialPnDn(n, move.move); });
 
         if (!result.IsFinal() && !or_node_ && first_search && result.GetUnknownData().is_first_visit) {
           nn.DoMove(move.move);
-          if (!DoesHaveMatePossibility(n.Pos())) {
-            const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
-            result.InitFinal<false>(hand, kMaxMateLen, 1);
-            query.SetResult(result);
-          } else if (auto [best_move, proof_hand] = CheckMate1Ply(nn); proof_hand != kNullHand) {
-            const auto proof_hand_after = AfterHand(n.Pos(), best_move, proof_hand);
-            const auto len = MateLen::Make(1, static_cast<std::uint32_t>(CountHand(proof_hand_after)));
-
-            if (len <= len_ - 1) {
-              result.InitFinal<true>(proof_hand, len, 1);
-            } else {
-              result.InitFinal<false>(n.OrHand(), len.Prec(), 1);
-            }
-
-            query.SetResult(result);
+          if (auto res = detail::CheckObviousFinalOrNode(nn); res.has_value()) {
+            result = *res;
+            query.SetResult(*res);
           }
           nn.UndoMove();
         }
