@@ -250,7 +250,9 @@ class Query {
         } else if (dn == 0) {
           return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen::From(len16), itr->TotalAmount());
         } else {
-          does_have_old_child = itr->MinDepth() < depth_;
+          if (itr->MinDepth() < depth_) {
+            does_have_old_child = true;
+          }
 
           const auto parent = itr->GetParent();
           UnknownData unknown_data{false, parent.first, parent.second, itr->GetSecret()};
