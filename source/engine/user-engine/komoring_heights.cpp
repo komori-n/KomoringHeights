@@ -174,8 +174,9 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
 }
 
 SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, PnDn thdn) {
-  LocalExpansion local_expansion{tt_, n, len, true};
-  auto result = SearchImpl(n, thpn, thdn, len, local_expansion, false);
+  expansion_list_.Emplace(tt_, n, len, true);
+  auto result = SearchImpl(n, thpn, thdn, len, false);
+  expansion_list_.Pop();
 
   auto query = tt_.BuildQuery(n);
   query.SetResult(result);
@@ -183,12 +184,8 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, PnDn 
   return result;
 }
 
-SearchResult KomoringHeights::SearchImpl(Node& n,
-                                         PnDn thpn,
-                                         PnDn thdn,
-                                         MateLen len,
-                                         LocalExpansion& local_expansion,
-                                         bool inc_flag) {
+SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool inc_flag) {
+  auto& local_expansion = expansion_list_.Current();
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);
 
@@ -231,17 +228,12 @@ SearchResult KomoringHeights::SearchImpl(Node& n,
 
     n.DoMove(best_move);
 
-    // LocalExpansion をローカル変数として持つとスタックが枯渇する。v0.4.1時点では
-    //     sizeof(LocalExpansion) == 10832
-    // なので、ミクロコスモスを解く場合、スタック領域が 16.5 MB 必要になる。スマホや低スペックPCでも動作するように
-    // したいので、LocalExpansion は動的メモリにより確保する。
-    //
-    // 確保したメモリは UndoMove する直前で忘れずに解放しなければならない。
-    auto& child_cache = expansion_cache_.emplace(tt_, n, len - 1, is_first_search, sum_mask, &local_expansion);
+    // 子局面を展開する。展開した expansion は UndoMove() の直前に忘れずに開放しなければならない。
+    auto& child_expansion = expansion_list_.Emplace(tt_, n, len - 1, is_first_search, sum_mask);
 
     SearchResult child_result;
     if (is_first_search) {
-      child_result = child_cache.CurrentResult(n);
+      child_result = child_expansion.CurrentResult(n);
       // 新規局面を展開したので、TCA による探索延長をこれ以上続ける必要はない
       inc_flag = false;
 
@@ -252,11 +244,10 @@ SearchResult KomoringHeights::SearchImpl(Node& n,
         goto CHILD_SEARCH_END;
       }
     }
-    child_result = SearchImpl(n, child_thpn, child_thdn, len - 1, child_cache, inc_flag);
+    child_result = SearchImpl(n, child_thpn, child_thdn, len - 1, inc_flag);
 
   CHILD_SEARCH_END:
-    // 動的に確保した LocalExpansion の領域を忘れずに開放する
-    expansion_cache_.pop();
+    expansion_list_.Pop();
     n.UndoMove();
 
     local_expansion.UpdateBestChild(child_result);

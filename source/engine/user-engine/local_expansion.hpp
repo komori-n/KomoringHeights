@@ -62,16 +62,8 @@ class LocalExpansion {
                  const Node& n,
                  MateLen len,
                  bool first_search,
-                 BitSet64 sum_mask = BitSet64::Full(),
-                 LocalExpansion* parent = nullptr)
-      : or_node_{n.IsOrNode()},
-        mp_{n, true},
-        delayed_move_list_{n, mp_},
-        len_{len},
-        sum_mask_{sum_mask},
-        parent_{parent},
-        board_key_{n.BoardKey()},
-        or_hand_{n.OrHand()} {
+                 BitSet64 sum_mask = BitSet64::Full())
+      : or_node_{n.IsOrNode()}, mp_{n, true}, delayed_move_list_{n, mp_}, len_{len}, sum_mask_{sum_mask} {
     Node& nn = const_cast<Node&>(n);
 
     std::uint32_t next_i_raw = 0;
@@ -405,16 +397,10 @@ class LocalExpansion {
   SearchResult GetUnknownResult(const Node& n) const {
     const auto& result = FrontResult();
     const std::uint32_t amount = result.Amount() + mp_.size() / 2;
+    const auto or_hand = n.OrHand();
 
-    Key parent_board_key{kNullKey};
-    Hand parent_hand{kNullHand};
-    if (parent_ != nullptr) {
-      parent_board_key = parent_->board_key_;
-      parent_hand = parent_->or_hand_;
-    }
-
-    UnknownData unknown_data{false, parent_board_key, parent_hand, ~sum_mask_.Value()};
-    return SearchResult::MakeUnknown(GetPn(), GetDn(), or_hand_, len_, amount, unknown_data);
+    UnknownData unknown_data{false, kNullKey, kNullHand, ~sum_mask_.Value()};
+    return SearchResult::MakeUnknown(GetPn(), GetDn(), or_hand, len_, amount, unknown_data);
   }
 
   void ResortFront() {
@@ -428,10 +414,6 @@ class LocalExpansion {
   const MovePicker mp_;
   const DelayedMoveList delayed_move_list_;
   const MateLen len_;
-
-  LocalExpansion* const parent_;
-  const Key board_key_;
-  const Hand or_hand_;
 
   std::array<SearchResult, kMaxCheckMovesPerNode> results_;
   std::array<tt::Query, kMaxCheckMovesPerNode> queries_;

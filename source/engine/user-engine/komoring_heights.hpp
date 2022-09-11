@@ -1,4 +1,4 @@
-#ifndef KOMORI_KOMORI_NEW_KH_HPP_
+﻿#ifndef KOMORI_KOMORI_NEW_KH_HPP_
 #define KOMORI_KOMORI_NEW_KH_HPP_
 
 #include <algorithm>
@@ -9,6 +9,7 @@
 #include "../../thread.h"
 #include "circular_array.hpp"
 #include "engine_option.hpp"
+#include "expansion_stack.hpp"
 #include "local_expansion.hpp"
 #include "search_result.hpp"
 #include "tt.hpp"
@@ -87,7 +88,7 @@ class KomoringHeights {
 
  private:
   SearchResult SearchEntry(Node& n, MateLen len, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
-  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, LocalExpansion& local_expansion, bool inc_flag);
+  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool inc_flag);
 
   void PrintIfNeeded(const Node& n);
 
@@ -98,10 +99,9 @@ class KomoringHeights {
   std::atomic_bool print_flag_{false};
 
   std::vector<Move> best_moves_;
+  ExpansionStack expansion_list_{};
 
   // <一時変数>
-  // 探索中に使用する一時変数。本当はスタック上に置きたいが、スタックオーバーフローしてしまうのでメンバで持つ。
-  std::stack<LocalExpansion> expansion_cache_{};
   std::stack<MovePicker> pickers_{};
   // </一時変数>
 };
