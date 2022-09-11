@@ -263,7 +263,8 @@ coverage-html/
 cov.info
 
 # Doxygen
-docs-html/
+docs-*/
+doc-coverage.info
 
 # en-check
 comments.md
