@@ -93,28 +93,34 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
 
   bool proven = false;
   MateLen len = kMaxMateLen;
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 128; ++i) {
     const auto result = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
     auto info = CurrentInfo();
     sync_cout << info << len << " " << result << sync_endl;
 
     if (result.Pn() == 0) {
-      if (result.Len() > len) {
+      if (result.Len().Len() > len.Len()) {
         sync_cout << info << "Failed to detect PV" << sync_endl;
         break;
       }
       proven = true;
-      len = result.Len().Prec2();
+      if (result.Len().Len() <= 1) {
+        break;
+      }
+
+      len = MateLen::Make(result.Len().Len() - 2, MateLen::kFinalHandMax);
     } else {
-      if (result.Dn() == 0 && result.Len() > len) {
+      if (result.Dn() == 0 && result.Len() < len) {
         sync_cout << info << "Failed to detect PV" << sync_endl;
+      }
+      if (proven) {
+        len = MateLen::Make(len.Len() + 2, MateLen::kFinalHandMax);
       }
       break;
     }
   }
 
   if (proven) {
-    len = len.Succ2();
     bool retry = false;
     while (len.Len() > 0) {
       const auto [move, hand] = CheckMate1Ply(node);
@@ -136,7 +142,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
         }
       }
 
-      if (best_move == MOVE_NONE || MateLen{best_len} > len) {
+      if (best_move == MOVE_NONE || best_len.Len() > len.Len()) {
         if (!retry) {
           auto res = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
           sync_cout << CurrentInfo() << "ex: " << res << sync_endl;
@@ -210,11 +216,12 @@ SearchResult KomoringHeights::SearchImpl(Node& n,
     // local_expansion.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     const auto best_move = local_expansion.BestMove();
-    const auto min_len = n.IsOrNode()
-                             ? MateLen::Make(1, static_cast<std::uint32_t>(CountHand(n.OrHandAfter(best_move)) + 1))
-                             : MateLen::Make(2, static_cast<std::uint32_t>(CountHand(n.OrHand()) + 1));
+    // 現局面で `BestMove` が存在するということは、0 手詰みではない。
+    // よって、OR Node では最低 1 手詰、AND Node では最低 2 手詰である。
+    const auto min_len =
+        n.IsOrNode() ? MateLen::Make(1, MateLen::kFinalHandMax) : MateLen::Make(2, MateLen::kFinalHandMax);
     if (len < min_len) {
-      local_expansion.UpdateBestChild(SearchResult::MakeFinal<false>(n.OrHandAfter(best_move), min_len.Prec(), 1));
+      local_expansion.UpdateBestChild(SearchResult::MakeFinal<false>(n.OrHandAfter(best_move), min_len, 1));
       curr_result = local_expansion.CurrentResult(n);
       continue;
     }

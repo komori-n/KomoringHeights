@@ -32,7 +32,7 @@ inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
     return SearchResult::MakeFinal<false>(hand, kMaxMateLen, 1);
   } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
     const auto proof_hand_after = AfterHand(n.Pos(), best_move, proof_hand);
-    const auto len = MateLen::Make(1, static_cast<std::uint32_t>(CountHand(proof_hand_after)));
+    const auto len = MateLen::Make(1, MateLen::kFinalHandMax);
     return SearchResult::MakeFinal<true>(proof_hand, len, 1);
   }
   return std::nullopt;
@@ -85,6 +85,13 @@ class LocalExpansion {
       if (n.IsRepetitionOrInferiorAfter(move.move)) {
         result.InitFinal<false, true>(hand_after, len, 1);
       } else {
+        const auto min_len =
+            or_node_ ? MateLen::Make(1, MateLen::kFinalHandMax) : MateLen::Make(2, MateLen::kFinalHandMax);
+        if (len_ < min_len) {
+          result.InitFinal<false>(hand_after, (min_len - 1).Prec(), 1);
+          goto CHILD_LOOP_END;
+        }
+
         if (!IsSumDeltaNode(n, move.move)) {
           sum_mask_.Reset(i_raw);
         }
@@ -107,6 +114,7 @@ class LocalExpansion {
         }
       }
 
+    CHILD_LOOP_END:
       if (result.Phi(or_node_) == 0) {
         break;
       }
@@ -334,7 +342,7 @@ class LocalExpansion {
       amount += std::max(mp_.size(), std::size_t{1}) - 1;
 
       if (idx_.empty()) {
-        mate_len = MateLen::Make(0, static_cast<std::uint32_t>(CountHand(n.OrHand())));
+        mate_len = MateLen::Make(0, MateLen::kFinalHandMax);
         if (mate_len > len_) {
           return SearchResult::MakeFinal<false>(n.OrHand(), mate_len.Prec(), amount);
         }
