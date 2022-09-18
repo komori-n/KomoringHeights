@@ -101,8 +101,17 @@ class LocalExpansion {
           nn.UndoMove();
         }
 
-        if (!result.IsFinal() && delayed_move_list_.Prev(i_raw)) {
-          idx_.Pop();
+        if (!result.IsFinal()) {
+          auto next_dep = delayed_move_list_.Prev(i_raw);
+          while (next_dep.has_value()) {
+            if (!results_[*next_dep].IsFinal()) {
+              // i_raw は next_dep の負けが確定した後で探索する
+              idx_.Pop();
+              break;
+            }
+
+            next_dep = delayed_move_list_.Prev(*next_dep);
+          }
         }
       }
 
