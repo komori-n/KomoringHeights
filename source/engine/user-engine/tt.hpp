@@ -48,7 +48,7 @@ class Entry {
 
   constexpr bool IsFor(Key board_key) const { return board_key_ == board_key && !IsNull(); }
   constexpr bool IsFor(Key board_key, Hand hand) const { return board_key_ == board_key && hand_ == hand; }
-  constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn) {
+  constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) {
     if (hand_ == hand) {
       vals_.min_depth = std::min(vals_.min_depth, static_cast<std::uint32_t>(depth));
     }
@@ -71,6 +71,9 @@ class Entry {
           return true;
         } else if (hand == hand_ || vals_.min_depth >= depth) {
           dn = std::max(dn, sub_entry.dn);
+          if (vals_.min_depth < depth) {
+            use_old_child = true;
+          }
         }
       }
       if (is_inferior && len <= sub_entry.len) {
@@ -85,6 +88,10 @@ class Entry {
         } else if (hand == hand_ || vals_.min_depth >= depth) {
           // un に関しては sub_entry の方が条件が厳しい
           pn = std::max(pn, sub_entry.pn);
+          if (vals_.min_depth < depth) {
+            use_old_child = true;
+          }
+
           if (len == sub_entry.len && hand == hand_) {
             return true;
           }
@@ -239,7 +246,7 @@ class Query {
         continue;
       }
 
-      const bool is_end = itr->LookUp(hand_, depth_, len16, pn, dn);
+      const bool is_end = itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child);
       if (is_end) {
         if (pn > 0 && dn > 0 && itr->MayRepeat() && rep_table_->Contains(path_key_)) {
           return SearchResult::MakeFinal<false, true>(itr->GetHand(), len, 1);
@@ -250,15 +257,19 @@ class Query {
         } else if (dn == 0) {
           return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen::From(len16), itr->TotalAmount());
         } else {
-          if (itr->MinDepth() < depth_) {
-            does_have_old_child = true;
-          }
+          // if (pn > 1000000 && dn != 0 && board_key_ == 11222989767728134593ull) {
+          //   sync_cout << "info string " << board_key_ << " " << depth_ << sync_endl;
+          // }
 
           const auto parent = itr->GetParent();
           UnknownData unknown_data{false, parent.first, parent.second, itr->GetSecret()};
           return SearchResult::MakeUnknown(pn, dn, itr->GetHand(), len, itr->TotalAmount(), unknown_data);
         }
       }
+    }
+
+    if (pn > 1000000 && dn != 0 && board_key_ == 11222989767728134593ull) {
+      sync_cout << "info string ha???" << sync_endl;
     }
 
     const auto [init_pn, init_dn] = std::forward<InitialEvalFunc>(eval_func)();

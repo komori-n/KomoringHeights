@@ -33,7 +33,8 @@ class EntryTest : public ::testing::Test {
               int line) {
     PnDn pn = 1;
     PnDn dn = 1;
-    const auto res = entry_.LookUp(hand, depth, len, pn, dn);
+    bool use_old_child = false;
+    const auto res = entry_.LookUp(hand, depth, len, pn, dn, use_old_child);
 
     EXPECT_EQ(res, expected_res) << "LINE: " << line;
     EXPECT_EQ(pn, expected_pn) << "LINE: " << line;
