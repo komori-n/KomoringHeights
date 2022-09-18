@@ -159,6 +159,7 @@ class Entry {
             *new_itr = sub_entry;
             sub_entry.vals.is_used = false;
           }
+          new_itr++;
         }
       }
     }
