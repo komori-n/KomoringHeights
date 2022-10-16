@@ -1,6 +1,7 @@
 #ifndef KOMORI_REPETITION_TABLE_HPP_
 #define KOMORI_REPETITION_TABLE_HPP_
 
+#include <array>
 #include <limits>
 #include <unordered_set>
 
