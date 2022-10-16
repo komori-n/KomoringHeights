@@ -31,7 +31,6 @@ inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
     const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
     return SearchResult::MakeFinal<false>(hand, kMaxMateLen, 1);
   } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
-    const auto proof_hand_after = AfterHand(n.Pos(), best_move, proof_hand);
     const auto len = MateLen::Make(1, MateLen::kFinalHandMax);
     return SearchResult::MakeFinal<true>(proof_hand, len, 1);
   }
