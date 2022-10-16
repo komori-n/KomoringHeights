@@ -3,6 +3,7 @@
 #include "../engine_option.hpp"
 
 using komori::EngineOption;
+using komori::ScoreCalculationMethod;
 
 TEST(EngineOptionTest, Init) {
   USI::OptionsMap o;
@@ -11,6 +12,7 @@ TEST(EngineOptionTest, Init) {
   EXPECT_NE(o.find("NodesLimit"), o.end());
   EXPECT_NE(o.find("PvInterval"), o.end());
   EXPECT_NE(o.find("RootIsAndNodeIfChecked"), o.end());
+  EXPECT_NE(o.find("ScoreCalculation"), o.end());
 }
 
 TEST(EngineOptionTest, Default) {
@@ -27,6 +29,7 @@ TEST(EngineOptionTest, Default) {
   EXPECT_EQ(op.nodes_limit, std::numeric_limits<std::uint64_t>::max());
   EXPECT_EQ(op.pv_interval, 1000);
   EXPECT_EQ(op.root_is_and_node_if_checked, true);
+  EXPECT_EQ(op.score_method, ScoreCalculationMethod::kPonanza);
 }
 
 TEST(EngineOptionTest, NoInitialization) {
@@ -39,4 +42,5 @@ TEST(EngineOptionTest, NoInitialization) {
   EXPECT_EQ(op.nodes_limit, std::numeric_limits<std::uint64_t>::max());
   EXPECT_EQ(op.pv_interval, std::numeric_limits<std::uint64_t>::max());
   EXPECT_EQ(op.root_is_and_node_if_checked, false);
+  EXPECT_EQ(op.score_method, ScoreCalculationMethod::kPonanza);
 }

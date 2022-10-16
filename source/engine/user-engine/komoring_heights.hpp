@@ -11,6 +11,7 @@
 #include "engine_option.hpp"
 #include "expansion_stack.hpp"
 #include "local_expansion.hpp"
+#include "score.hpp"
 #include "search_result.hpp"
 #include "tt.hpp"
 #include "usi_info.hpp"
@@ -87,7 +88,7 @@ class KomoringHeights {
   NodeState Search(const Position& n, bool is_root_or_node);
 
  private:
-  std::pair<NodeState, MateLen> SearchMainLoop(Node& n);
+  std::pair<NodeState, MateLen> SearchMainLoop(Node& n, bool is_root_or_node);
   SearchResult SearchEntry(Node& n, MateLen len, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool inc_flag);
 
@@ -97,6 +98,7 @@ class KomoringHeights {
   EngineOption option_;
 
   detail::SearchMonitor monitor_;
+  Score score_{};
   std::atomic_bool print_flag_{false};
 
   std::vector<Move> best_moves_;

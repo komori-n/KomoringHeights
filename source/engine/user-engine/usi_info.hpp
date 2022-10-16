@@ -19,6 +19,7 @@ enum class UsiInfoKey {
   kNps,       ///< 探索速度
   kHashfull,  ///< 置換表の使用率（千分率）
   kCurrMove,  ///< 現在の最善手
+  kScore,     ///< 現在の評価値
   kPv,        ///< PV（最善応手列）
   kString,    ///< 文字列
 };
@@ -67,7 +68,7 @@ class UsiInfo {
    */
   friend std::ostream& operator<<(std::ostream& os, const UsiInfo& usi_info) {
     constexpr const char* kKeyNames[] = {
-        "depth", "seldepth", "time", "nodes", "nps", "hashfull", "currmove", "pv", "string",
+        "depth", "seldepth", "time", "nodes", "nps", "hashfull", "currmove", "score", "pv", "string",
     };
 
     os << "info";

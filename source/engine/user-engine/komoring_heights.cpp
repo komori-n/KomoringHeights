@@ -76,6 +76,8 @@ void SearchMonitor::PopLimit() {
 
 UsiInfo KomoringHeights::CurrentInfo() const {
   UsiInfo usi_output = monitor_.GetInfo();
+  usi_output.Set(UsiInfoKey::kHashfull, tt_.Hashfull());
+  usi_output.Set(UsiInfoKey::kScore, score_.ToString());
 
   return usi_output;
 }
@@ -91,7 +93,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   Position& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
 
-  auto [state, len] = SearchMainLoop(node);
+  auto [state, len] = SearchMainLoop(node, is_root_or_node);
   bool proven = (state == NodeState::kProven);
 
   if (proven) {
@@ -168,11 +170,15 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   }
 }
 
-std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
+std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_root_or_node) {
   auto node_state{NodeState::kUnknown};
   auto len{kMaxMateLen};
   for (int i = 0; i < 128; ++i) {
     const auto result = SearchEntry(n, len, kInfinitePnDn, kInfinitePnDn);
+    // `result` が余詰探索による不詰だったとき、後から元の状態（詰み）に戻せるようにしておく
+    const auto old_score = score_;
+    score_ = Score::Make(option_.score_method, result, is_root_or_node);
+
     const auto info = CurrentInfo();
     sync_cout << info << len << " " << result << sync_endl;
 
@@ -192,6 +198,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       }
       if (node_state == NodeState::kProven) {
         len = MateLen::Make(len.Len() + 2, MateLen::kFinalHandMax);
+        score_ = old_score;
       }
       break;
     }

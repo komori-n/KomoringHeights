@@ -2,27 +2,93 @@
 #define KOMORI_ENGINE_OPTION_HPP_
 
 #include <limits>
+#include <map>
 #include <string>
 
 #include "../../usi.h"
+#include "score.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
 namespace detail {
 /**
+ * @brief look up 時にキーが存在しない時はデフォルト値を返す map。
+ *
+ * @tparam K キー
+ * @tparam V 値
+ */
+template <typename K, typename V>
+class DefaultMap : private std::map<K, V> {
+  using Base = std::map<K, V>;
+
+ public:
+  /**
+   * @brief コンストラクタ
+   */
+  explicit constexpr DefaultMap(K default_key,
+                                V default_value,
+                                std::initializer_list<typename Base::value_type> list) noexcept
+      : default_key_{default_key}, default_val_{default_value}, Base{std::move(list)} {}
+
+  /**
+   * @brief `key` に対応する値を取得する。`key` が存在しなければデフォルト値が返る。
+   *
+   * @param key キー
+   * @return `key` に対応する値。`key` が存在しなければデフォルト値。
+   */
+  V Get(const K& key) const {
+    if (const auto it = this->find(key); it != this->end()) {
+      return it->second;
+    } else {
+      return default_val_;
+    }
+  }
+
+  /// `map` の `key` 一覧。USIオプションの初期化時に必要
+  std::vector<K> Keys() const {
+    std::vector<K> keys;
+    keys.reserve(this->size());
+    for (const auto [key, value] : *this) {
+      keys.emplace_back(key);
+    }
+
+    return keys;
+  }
+
+  /// デフォルトキー。USIオプションの初期化時に必要
+  const K& DefaultKey() const { return default_key_; }
+
+ private:
+  const K default_key_;  ///< デフォルトのキー
+  const V default_val_;  ///< デフォルトの値
+};
+
+/// 評価値計算方法 `ScoreCalculationMethod` 用の Combo 定義。
+inline const DefaultMap<std::string, ScoreCalculationMethod> kScoreCalculationOption{
+    "Ponanza",
+    ScoreCalculationMethod::kPonanza,
+    {
+        {"None", ScoreCalculationMethod::kNone},
+        {"Ponanza", ScoreCalculationMethod::kPonanza},
+    },
+};
+
+/**
  * @brief オプション `o` から `name` の値を読み込む
+ * @tparam OutType 出力値の型。`s64` や `std::string` など。デフォルト値は `s64`。
  * @param o    エンジンオプション
  * @param name 読み込みキー
  * @return `name` に対応する値
  *
- * もし `o[name]` が存在しないなら 0 を返す。
+ * もし `o[name]` が存在しないなら `OutType{}` を返す。
  */
-inline s64 ReadOption(const USI::OptionsMap& o, const std::string& name) {
+template <typename OutType = s64>
+inline OutType ReadOption(const USI::OptionsMap& o, const std::string& name) {
   if (auto itr = o.find(name); itr != o.end()) {
     return itr->second;
   }
 
-  return 0;
+  return OutType{};
 }
 
 /**
@@ -55,6 +121,8 @@ struct EngineOption {
   std::uint64_t pv_interval;         ///< 探索進捗を表示する間隔[ms]。0 ならば全く出力しない。
   bool root_is_and_node_if_checked;  ///< 開始局面が王手されているとき、玉方手番として扱うフラグ。
 
+  ScoreCalculationMethod score_method;  ///< スコアの計算法
+
 #if defined(USE_DEEP_DFPN)
   Depth deep_dfpn_d;   ///< deep df-pn の D 値
   double deep_dfpn_e;  ///< deep df-pn の E 値
@@ -74,6 +142,9 @@ struct EngineOption {
     o["DeepDfpnPerMile"] << USI::Option(5, 0, 10000);
     o["DeepDfpnMaxVal"] << USI::Option(1000000, 1, INT64_MAX);
 #endif  // defined(USE_DEEP_DFPN)
+
+    o["ScoreCalculation"] << USI::Option(detail::kScoreCalculationOption.Keys(),
+                                         detail::kScoreCalculationOption.DefaultKey());
   }
 
   /**
@@ -98,6 +169,8 @@ struct EngineOption {
       deep_dfpn_e = 1.0;
     }
 #endif  // defined(USE_DEEP_DFPN)
+
+    score_method = detail::kScoreCalculationOption.Get(detail::ReadOption<std::string>(o, "ScoreCalculation"));
   }
 };
 }  // namespace komori
