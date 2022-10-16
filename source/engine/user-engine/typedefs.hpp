@@ -13,6 +13,19 @@
 #include "../../position.h"
 #include "../../types.h"
 
+#if defined(KOMORI_DEBUG)
+#define KOMORI_PRECONDITION(cond)                                                                                    \
+  do {                                                                                                               \
+    if (!(cond)) {                                                                                                   \
+      sync_cout << "info string ERROR! precondition " << #cond << " @L" << __LINE__ << ":" << __FILE__ << sync_endl; \
+      std::this_thread::sleep_for(std::chrono::seconds(1));                                                          \
+      std::terminate();                                                                                              \
+    }                                                                                                                \
+  } while (false)
+#else
+#define KOMORI_PRECONDITION(cond) (void)(cond)
+#endif
+
 /**
  * @namespace komori
  * @brief created by komori

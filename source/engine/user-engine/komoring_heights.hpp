@@ -87,6 +87,7 @@ class KomoringHeights {
   NodeState Search(const Position& n, bool is_root_or_node);
 
  private:
+  std::pair<NodeState, MateLen> SearchMainLoop(Node& n);
   SearchResult SearchEntry(Node& n, MateLen len, PnDn thpn = kInfinitePnDn, PnDn thdn = kInfinitePnDn);
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool inc_flag);
 

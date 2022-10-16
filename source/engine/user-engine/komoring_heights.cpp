@@ -91,34 +91,8 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   Position& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
 
-  bool proven = false;
-  MateLen len = kMaxMateLen;
-  for (int i = 0; i < 128; ++i) {
-    const auto result = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
-    auto info = CurrentInfo();
-    sync_cout << info << len << " " << result << sync_endl;
-
-    if (result.Pn() == 0) {
-      if (result.Len().Len() > len.Len()) {
-        sync_cout << info << "Failed to detect PV" << sync_endl;
-        break;
-      }
-      proven = true;
-      if (result.Len().Len() <= 1) {
-        break;
-      }
-
-      len = MateLen::Make(result.Len().Len() - 2, MateLen::kFinalHandMax);
-    } else {
-      if (result.Dn() == 0 && result.Len() < len) {
-        sync_cout << info << "Failed to detect PV" << sync_endl;
-      }
-      if (proven) {
-        len = MateLen::Make(len.Len() + 2, MateLen::kFinalHandMax);
-      }
-      break;
-    }
-  }
+  auto [state, len] = SearchMainLoop(node);
+  bool proven = (state == NodeState::kProven);
 
   if (proven) {
     bool retry = false;
@@ -192,6 +166,38 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   } else {
     return NodeState::kDisproven;
   }
+}
+
+std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
+  auto node_state{NodeState::kUnknown};
+  auto len{kMaxMateLen};
+  for (int i = 0; i < 128; ++i) {
+    const auto result = SearchEntry(n, len, kInfinitePnDn, kInfinitePnDn);
+    const auto info = CurrentInfo();
+    sync_cout << info << len << " " << result << sync_endl;
+
+    if (result.Pn() == 0) {
+      // len 以下の手数の詰みが帰ってくるはず
+      KOMORI_PRECONDITION(result.Len().Len() <= len.Len());
+
+      node_state = NodeState::kProven;
+      if (result.Len().Len() <= 1) {
+        break;
+      }
+
+      len = MateLen::Make(result.Len().Len() - 2, MateLen::kFinalHandMax);
+    } else {
+      if (result.Dn() == 0 && result.Len() < len) {
+        sync_cout << info << "Failed to detect PV" << sync_endl;
+      }
+      if (node_state == NodeState::kProven) {
+        len = MateLen::Make(len.Len() + 2, MateLen::kFinalHandMax);
+      }
+      break;
+    }
+  }
+
+  return {node_state, len};
 }
 
 SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, PnDn thdn) {
