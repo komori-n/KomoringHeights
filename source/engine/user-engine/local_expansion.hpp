@@ -356,7 +356,7 @@ class LocalExpansion {
     // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
     if (!mp_.empty()) {
       if (const auto& result = FrontResult(); result.GetFinalData().is_repetition) {
-        return SearchResult::MakeFinal<false, false>(n.OrHand(), len_, 1);
+        return SearchResult::MakeFinal<false, true>(n.OrHand(), len_, 1);
       }
     }
 
