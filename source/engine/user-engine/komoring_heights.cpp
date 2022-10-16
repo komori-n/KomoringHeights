@@ -135,10 +135,31 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
       for (const auto move : MovePicker{node}) {
         auto query = tt_.BuildChildQuery(node, move.move);
         const auto child_result = query.LookUp(len - 1, false);
-        if (child_result.Pn() == 0 && ((node.IsOrNode() && child_result.Len() + 1 < best_len) ||
-                                       (!node.IsOrNode() && child_result.Len() + 1 > best_len))) {
+        sync_cout << "info string " << move.move << " " << child_result << sync_endl;
+        if (child_result.Pn() != 0) {
+          if (!node.IsOrNode()) {
+            // 詰みを示せていない子が混じっている
+            best_len = len + 1;
+            break;
+          } else {
+            // 詰まない or 最短の詰みには関係ない
+            continue;
+          }
+        }
+
+        if (node.IsOrNode() && child_result.Len() < best_len) {
           best_move = move.move;
-          best_len = child_result.Len() + 1;
+          best_len = child_result.Len();
+        } else if (!node.IsOrNode() && child_result.Len() > best_len) {
+          best_move = move.move;
+          best_len = child_result.Len();
+        } else if (child_result.Len() == best_len) {
+          const auto child_result_prec = query.LookUp(len - 3, false);
+          sync_cout << "info string prec=" << child_result_prec << sync_endl;
+          if (child_result_prec.Dn() == 0) {
+            // move は厳密に best_len 手詰め。
+            best_move = move.move;
+          }
         }
       }
 
