@@ -6,10 +6,25 @@
 #include <string>
 
 #include "../../usi.h"
-#include "score.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
+/**
+ * @brief 評価値の計算方法。詰将棋エンジンでは評価値を計算する決まった方法がないので選べるようにしておく。
+ */
+enum class ScoreCalculationMethod {
+  kNone,     ///< 詰み／不詰が確定するまで評価値を表示しない
+  kPonanza,  ///< ポナンザ定数を用いた勝率 <-> 評価値変換
+};
+
+/**
+ * @brief 余詰探索の度合い。
+ */
+enum class PostSearchLevel {
+  kNone,       ///< 余詰探索なし
+  kMinLength,  ///< 最短手順を探す
+};
+
 namespace detail {
 /**
  * @brief look up 時にキーが存在しない時はデフォルト値を返す map。
@@ -73,6 +88,16 @@ inline const DefaultMap<std::string, ScoreCalculationMethod> kScoreCalculationOp
     },
 };
 
+/// 余詰探索方法 `PostSearchLevel` 用の Combo 定義。
+inline const DefaultMap<std::string, PostSearchLevel> kPostSearchLevelOption{
+    "MinLength",
+    PostSearchLevel::kNone,
+    {
+        {"None", PostSearchLevel::kNone},
+        {"MinLength", PostSearchLevel::kMinLength},
+    },
+};
+
 /**
  * @brief オプション `o` から `name` の値を読み込む
  * @tparam OutType 出力値の型。`s64` や `std::string` など。デフォルト値は `s64`。
@@ -122,6 +147,7 @@ struct EngineOption {
   bool root_is_and_node_if_checked;  ///< 開始局面が王手されているとき、玉方手番として扱うフラグ。
 
   ScoreCalculationMethod score_method;  ///< スコアの計算法
+  PostSearchLevel post_search_level;    ///< 余詰探索の度合い
 
 #if defined(USE_DEEP_DFPN)
   Depth deep_dfpn_d;   ///< deep df-pn の D 値
@@ -145,6 +171,8 @@ struct EngineOption {
 
     o["ScoreCalculation"] << USI::Option(detail::kScoreCalculationOption.Keys(),
                                          detail::kScoreCalculationOption.DefaultKey());
+    o["PostSearchLevel"] << USI::Option(detail::kPostSearchLevelOption.Keys(),
+                                        detail::kPostSearchLevelOption.DefaultKey());
   }
 
   /**
@@ -171,6 +199,7 @@ struct EngineOption {
 #endif  // defined(USE_DEEP_DFPN)
 
     score_method = detail::kScoreCalculationOption.Get(detail::ReadOption<std::string>(o, "ScoreCalculation"));
+    post_search_level = detail::kPostSearchLevelOption.Get(detail::ReadOption<std::string>(o, "PostSearchLevel"));
   }
 };
 }  // namespace komori

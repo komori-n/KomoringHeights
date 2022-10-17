@@ -3,6 +3,7 @@
 #include "../engine_option.hpp"
 
 using komori::EngineOption;
+using komori::PostSearchLevel;
 using komori::ScoreCalculationMethod;
 
 TEST(EngineOptionTest, Init) {
@@ -30,6 +31,7 @@ TEST(EngineOptionTest, Default) {
   EXPECT_EQ(op.pv_interval, 1000);
   EXPECT_EQ(op.root_is_and_node_if_checked, true);
   EXPECT_EQ(op.score_method, ScoreCalculationMethod::kPonanza);
+  EXPECT_EQ(op.post_search_level, PostSearchLevel::kMinLength);
 }
 
 TEST(EngineOptionTest, NoInitialization) {
@@ -43,4 +45,5 @@ TEST(EngineOptionTest, NoInitialization) {
   EXPECT_EQ(op.pv_interval, std::numeric_limits<std::uint64_t>::max());
   EXPECT_EQ(op.root_is_and_node_if_checked, false);
   EXPECT_EQ(op.score_method, ScoreCalculationMethod::kPonanza);
+  EXPECT_EQ(op.post_search_level, PostSearchLevel::kNone);
 }

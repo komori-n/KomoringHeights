@@ -1,18 +1,11 @@
 #ifndef KOMORI_SCORE_HPP_
 #define KOMORI_SCORE_HPP_
 
+#include "engine_option.hpp"
 #include "search_result.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
-/**
- * @brief 評価値の計算方法。詰将棋エンジンでは評価値を計算する決まった方法がないので選べるようにしておく。
- */
-enum class ScoreCalculationMethod {
-  kNone,     ///< 詰み／不詰が確定するまで評価値を表示しない
-  kPonanza,  ///< ポナンザ定数を用いた勝率 <-> 評価値変換
-};
-
 /**
  * @brief 現在の探索状況に基づく評価値っぽいものを計算する。
  */
