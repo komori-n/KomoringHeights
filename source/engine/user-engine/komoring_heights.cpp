@@ -115,14 +115,21 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
     const auto result = SearchEntry(n, len);
     score_ = Score::Make(option_.score_method, result, is_root_or_node);
 
-    const auto info = CurrentInfo();
-    sync_cout << info << len << " " << result << sync_endl;
+    auto info = CurrentInfo();
 
     if (result.Pn() == 0) {
       // len 以下の手数の詰みが帰ってくるはず
       KOMORI_PRECONDITION(result.Len().Len() <= len.Len());
-
       best_moves_ = GetMatePath(n, result.Len());
+
+      sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: mate in " << best_moves_.size()
+                << "(upper_bound:" << result.Len() << ")" << sync_endl;
+      std::ostringstream oss;
+      for (const auto move : best_moves_) {
+        oss << move << " ";
+      }
+      info.Set(UsiInfoKey::kPv, oss.str());
+      sync_cout << info << sync_endl;
       node_state = NodeState::kProven;
       if (result.Len().Len() <= 1) {
         break;
@@ -130,6 +137,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
 
       len = MateLen::Make(result.Len().Len() - 2, MateLen::kFinalHandMax);
     } else {
+      sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
       if (result.Dn() == 0 && result.Len() < len) {
         sync_cout << info << "Failed to detect PV" << sync_endl;
       }
