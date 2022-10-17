@@ -10,6 +10,7 @@ using komori::DefineNotEqualByEqual;
 using komori::Delta;
 using komori::Identity;
 using komori::kInfinitePnDn;
+using komori::OrdinalNumber;
 using komori::Phi;
 using komori::StepEffect;
 using komori::ToString;
@@ -85,6 +86,37 @@ TEST(PnDnTest, ToString) {
   EXPECT_EQ(ToString(kInfinitePnDn), "inf");
   EXPECT_EQ(ToString(kInfinitePnDn + 1), "invalid");
   EXPECT_EQ(ToString(334), "334");
+}
+
+TEST(OrdinalNumberTest, All) {
+  EXPECT_EQ(OrdinalNumber(1), "1st");
+  EXPECT_EQ(OrdinalNumber(2), "2nd");
+  EXPECT_EQ(OrdinalNumber(3), "3rd");
+  EXPECT_EQ(OrdinalNumber(4), "4th");
+  EXPECT_EQ(OrdinalNumber(5), "5th");
+  EXPECT_EQ(OrdinalNumber(10), "10th");
+  EXPECT_EQ(OrdinalNumber(11), "11th");
+  EXPECT_EQ(OrdinalNumber(12), "12th");
+  EXPECT_EQ(OrdinalNumber(13), "13th");
+  EXPECT_EQ(OrdinalNumber(14), "14th");
+  EXPECT_EQ(OrdinalNumber(20), "20th");
+  EXPECT_EQ(OrdinalNumber(21), "21st");
+  EXPECT_EQ(OrdinalNumber(22), "22nd");
+  EXPECT_EQ(OrdinalNumber(23), "23rd");
+  EXPECT_EQ(OrdinalNumber(24), "24th");
+  EXPECT_EQ(OrdinalNumber(100), "100th");
+  EXPECT_EQ(OrdinalNumber(101), "101st");
+  EXPECT_EQ(OrdinalNumber(102), "102nd");
+  EXPECT_EQ(OrdinalNumber(103), "103rd");
+  EXPECT_EQ(OrdinalNumber(104), "104th");
+  EXPECT_EQ(OrdinalNumber(111), "111th");
+  EXPECT_EQ(OrdinalNumber(112), "112th");
+  EXPECT_EQ(OrdinalNumber(113), "113th");
+  EXPECT_EQ(OrdinalNumber(120), "120th");
+  EXPECT_EQ(OrdinalNumber(121), "121st");
+  EXPECT_EQ(OrdinalNumber(122), "122nd");
+  EXPECT_EQ(OrdinalNumber(123), "123rd");
+  EXPECT_EQ(OrdinalNumber(124), "124th");
 }
 
 TEST(StepEffectTest, StepEffectTest) {

@@ -179,6 +179,32 @@ inline std::string ToString(PnDn val) {
 }
 
 /**
+ * @brief 整数 `i` に対し、序数（Ordinal Number）の文字列を返す
+ * @tparam Integer 整数型
+ * @param i 値
+ * @return `i` の序数表現（1st や 12th など）
+ */
+template <typename Integer>
+inline std::string OrdinalNumber(Integer i) noexcept {
+  static_assert(std::is_integral_v<Integer>);
+
+  if ((i / 10) % 10 == 1) {
+    return std::to_string(i) + "th";
+  }
+
+  switch (i % 10) {
+    case 1:
+      return std::to_string(i) + "st";
+    case 2:
+      return std::to_string(i) + "nd";
+    case 3:
+      return std::to_string(i) + "rd";
+    default:
+      return std::to_string(i) + "th";
+  }
+}
+
+/**
  * @brief `c` 側の `sq` にある `pt` の短い利きの `Bitboard` を返す
  * @param pt 駒種
  * @param c  プレイヤー
