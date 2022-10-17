@@ -92,6 +92,8 @@ class KomoringHeights {
   SearchResult SearchEntry(Node& n, MateLen len);
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool inc_flag);
 
+  std::vector<Move> GetMatePath(Node& n, MateLen len);
+
   void PrintIfNeeded(const Node& n);
 
   tt::TranspositionTable tt_;

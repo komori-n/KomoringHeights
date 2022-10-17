@@ -97,70 +97,6 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   bool proven = (state == NodeState::kProven);
 
   if (proven) {
-    bool retry = false;
-    while (len.Len() > 0) {
-      const auto [move, hand] = CheckMate1Ply(node);
-      if (move != MOVE_NONE) {
-        best_moves_.push_back(move);
-        node.DoMove(move);
-        break;
-      }
-
-      Move best_move = MOVE_NONE;
-      MateLen best_len = node.IsOrNode() ? kMaxMateLen : kZeroMateLen;
-      for (const auto move : MovePicker{node}) {
-        auto query = tt_.BuildChildQuery(node, move.move);
-        const auto child_result = query.LookUp(len - 1, false);
-        sync_cout << "info string " << move.move << " " << child_result << sync_endl;
-        if (child_result.Pn() != 0) {
-          if (!node.IsOrNode()) {
-            // 詰みを示せていない子が混じっている
-            best_len = len + 1;
-            break;
-          } else {
-            // 詰まない or 最短の詰みには関係ない
-            continue;
-          }
-        }
-
-        if (node.IsOrNode() && child_result.Len() < best_len) {
-          best_move = move.move;
-          best_len = child_result.Len();
-        } else if (!node.IsOrNode() && child_result.Len() > best_len) {
-          best_move = move.move;
-          best_len = child_result.Len();
-        } else if (child_result.Len() == best_len) {
-          const auto child_result_prec = query.LookUp(len - 3, false);
-          sync_cout << "info string prec=" << child_result_prec << sync_endl;
-          if (child_result_prec.Dn() == 0) {
-            // move は厳密に best_len 手詰め。
-            best_move = move.move;
-          }
-        }
-      }
-
-      if (best_move == MOVE_NONE || best_len.Len() > len.Len()) {
-        if (!retry) {
-          auto res = SearchEntry(node, len);
-          sync_cout << CurrentInfo() << "ex: " << res << sync_endl;
-          retry = true;
-          continue;
-        }
-      }
-      retry = false;
-      sync_cout << CurrentInfo() << node.GetDepth() << " " << best_move << " " << best_len << sync_endl;
-
-      if (best_move == MOVE_NONE) {
-        break;
-      }
-
-      len = len - 1;
-      node.DoMove(best_move);
-      best_moves_.push_back(best_move);
-    }
-
-    RollBack(node, best_moves_);
-
     if (best_moves_.size() % 2 != static_cast<int>(is_root_or_node)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
@@ -186,6 +122,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
       // len 以下の手数の詰みが帰ってくるはず
       KOMORI_PRECONDITION(result.Len().Len() <= len.Len());
 
+      best_moves_ = GetMatePath(n, result.Len());
       node_state = NodeState::kProven;
       if (result.Len().Len() <= 1) {
         break;
@@ -197,6 +134,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
         sync_cout << info << "Failed to detect PV" << sync_endl;
       }
       if (node_state == NodeState::kProven) {
+        best_moves_ = GetMatePath(n, len + 2);
         len = MateLen::Make(len.Len() + 2, MateLen::kFinalHandMax);
         score_ = old_score;
       }
@@ -304,6 +242,57 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   }
 
   return curr_result;
+}
+
+std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
+  std::vector<Move> best_moves;
+  while (len.Len() > 0) {
+    // 1手詰はTTに書かれていない可能性があるので先にチェックする
+    const auto [move, hand] = CheckMate1Ply(n);
+    if (move != MOVE_NONE) {
+      best_moves.push_back(move);
+      n.DoMove(move);
+      break;
+    }
+
+    SearchEntry(n, len);
+
+    // 子ノードの中から最善っぽい手を選ぶ
+    Move best_move = MOVE_NONE;
+    MateLen best_len = n.IsOrNode() ? kMaxMateLen : kZeroMateLen;
+    for (const auto move : MovePicker{n}) {
+      auto query = tt_.BuildChildQuery(n, move.move);
+      const auto child_result = query.LookUp(len - 1, false);
+      if (child_result.Pn() != 0) {
+        continue;
+      }
+
+      if (n.IsOrNode() && child_result.Len() < best_len) {
+        best_move = move.move;
+        best_len = child_result.Len();
+      } else if (!n.IsOrNode() && child_result.Len() > best_len) {
+        best_move = move.move;
+        best_len = child_result.Len();
+      } else if (child_result.Len() == best_len) {
+        const auto child_result_prec = query.LookUp(len - 3, false);
+        if (child_result_prec.Dn() == 0) {
+          // move は厳密に best_len 手詰め。
+          best_move = move.move;
+        }
+      }
+    }
+
+    if (best_move == MOVE_NONE) {
+      break;
+    }
+
+    len = len - 1;
+    n.DoMove(best_move);
+    best_moves.push_back(best_move);
+  }
+
+  RollBack(n, best_moves);
+  return best_moves;
 }
 
 void KomoringHeights::PrintIfNeeded(const Node& n) {
