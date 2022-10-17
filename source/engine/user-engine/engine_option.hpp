@@ -27,22 +27,24 @@ enum class PostSearchLevel {
 
 namespace detail {
 /**
- * @brief look up 時にキーが存在しない時はデフォルト値を返す map。
+ * @brief look up 時にキーが存在しない時はデフォルト値を返す ordered_map。
  *
  * @tparam K キー
  * @tparam V 値
+ *
+ * @note GUI側に渡すオプションに順序をつけたいので、ただの map ではなく ordered map として実装する。
  */
 template <typename K, typename V>
-class DefaultMap : private std::map<K, V> {
-  using Base = std::map<K, V>;
+class DefaultOrderedMap : private std::vector<std::pair<K, V>> {
+  using Base = std::vector<std::pair<K, V>>;
 
  public:
   /**
    * @brief コンストラクタ
    */
-  explicit constexpr DefaultMap(K default_key,
-                                V default_value,
-                                std::initializer_list<typename Base::value_type> list) noexcept
+  explicit constexpr DefaultOrderedMap(K default_key,
+                                       V default_value,
+                                       std::initializer_list<std::pair<K, V>> list) noexcept
       : default_key_{default_key}, default_val_{default_value}, Base{std::move(list)} {}
 
   /**
@@ -52,11 +54,13 @@ class DefaultMap : private std::map<K, V> {
    * @return `key` に対応する値。`key` が存在しなければデフォルト値。
    */
   V Get(const K& key) const {
-    if (const auto it = this->find(key); it != this->end()) {
-      return it->second;
-    } else {
-      return default_val_;
+    for (const auto& [k, v] : *this) {
+      if (k == key) {
+        return v;
+      }
     }
+
+    return default_val_;
   }
 
   /// `map` の `key` 一覧。USIオプションの初期化時に必要
@@ -79,7 +83,7 @@ class DefaultMap : private std::map<K, V> {
 };
 
 /// 評価値計算方法 `ScoreCalculationMethod` 用の Combo 定義。
-inline const DefaultMap<std::string, ScoreCalculationMethod> kScoreCalculationOption{
+inline const DefaultOrderedMap<std::string, ScoreCalculationMethod> kScoreCalculationOption{
     "Ponanza",
     ScoreCalculationMethod::kPonanza,
     {
@@ -89,7 +93,7 @@ inline const DefaultMap<std::string, ScoreCalculationMethod> kScoreCalculationOp
 };
 
 /// 余詰探索方法 `PostSearchLevel` 用の Combo 定義。
-inline const DefaultMap<std::string, PostSearchLevel> kPostSearchLevelOption{
+inline const DefaultOrderedMap<std::string, PostSearchLevel> kPostSearchLevelOption{
     "MinLength",
     PostSearchLevel::kNone,
     {
