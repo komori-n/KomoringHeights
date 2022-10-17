@@ -72,6 +72,8 @@ class Node {
   Hand OrHand() const { return Pos().hand_of(or_color_); }
   /// 現在の玉方の持ち駒
   Hand AndHand() const { return Pos().hand_of(~or_color_); }
+  /// 開始局面が OR Node かどうか
+  bool IsRootOrNode() const { return IsOrNode() ^ (GetDepth() % 2 == 1); }
 
   /// 現在の探索深さ
   Depth GetDepth() const { return depth_; }

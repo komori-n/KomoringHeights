@@ -13,6 +13,7 @@ TEST(NodeTest, PositionValues) {
   EXPECT_TRUE(n->IsOrNode());
   EXPECT_EQ(n->OrHand(), p.hand_of(WHITE));
   EXPECT_EQ(n->AndHand(), p.hand_of(BLACK));
+  EXPECT_TRUE(n->IsRootOrNode());
   EXPECT_EQ(n->GetDepth(), 4);
   EXPECT_EQ(n->GetKey(), p.key());
   EXPECT_EQ(n->BoardKey(), p.state()->board_key());
@@ -23,6 +24,16 @@ TEST(NodeTest, PositionValues) {
   EXPECT_EQ(n->BoardKeyAfter(m), p.board_key_after(m));
   EXPECT_EQ(n->PathKeyAfter(m), komori::PathKeyAfter(33, m, 4));
   EXPECT_EQ(n->OrHandAfter(m), komori::AfterHand(p, m, p.hand_of(WHITE)));
+}
+
+TEST(NodeTest, IsRootOrNode) {
+  TestNode n{"9/4k4/4S4/4+P4/9/9/9/9/9 w G2r2b3g3s4n4l17p 1", false};
+
+  EXPECT_FALSE(n->IsRootOrNode());
+
+  const Move m = make_move(SQ_52, SQ_61, W_KING);
+  n->DoMove(m);
+  EXPECT_FALSE(n->IsRootOrNode());
 }
 
 TEST(NodeTest, Repetitions) {

@@ -141,7 +141,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
 
       if (best_move == MOVE_NONE || best_len.Len() > len.Len()) {
         if (!retry) {
-          auto res = SearchEntry(node, len, kInfinitePnDn, kInfinitePnDn);
+          auto res = SearchEntry(node, len);
           sync_cout << CurrentInfo() << "ex: " << res << sync_endl;
           retry = true;
           continue;
@@ -174,9 +174,9 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
   auto node_state{NodeState::kUnknown};
   auto len{kMaxMateLen};
   for (int i = 0; i < 128; ++i) {
-    const auto result = SearchEntry(n, len, kInfinitePnDn, kInfinitePnDn);
     // `result` が余詰探索による不詰だったとき、後から元の状態（詰み）に戻せるようにしておく
     const auto old_score = score_;
+    const auto result = SearchEntry(n, len);
     score_ = Score::Make(option_.score_method, result, is_root_or_node);
 
     const auto info = CurrentInfo();
@@ -207,9 +207,24 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
   return {node_state, len};
 }
 
-SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len, PnDn thpn, PnDn thdn) {
+SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
+  SearchResult result{};
+  PnDn thpn = (len == kMaxMateLen) ? 1 : kInfinitePnDn;
+  PnDn thdn = (len == kMaxMateLen) ? 1 : kInfinitePnDn;
+
   expansion_list_.Emplace(tt_, n, len, true);
-  auto result = SearchImpl(n, thpn, thdn, len, false);
+  while (!monitor_.ShouldStop()) {
+    result = SearchImpl(n, thpn, thdn, len, false);
+    if (result.IsFinal()) {
+      break;
+    }
+
+    score_ = Score::Make(option_.score_method, result, n.IsRootOrNode());
+    // 反復深化のしきい値を適当に伸ばす
+    thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
+    thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
+    sync_cout << CurrentInfo() << " " << thpn << " " << thdn << sync_endl;
+  }
   expansion_list_.Pop();
 
   auto query = tt_.BuildQuery(n);
