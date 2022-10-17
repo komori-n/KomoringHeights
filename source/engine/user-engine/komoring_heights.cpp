@@ -315,7 +315,12 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
   auto usi_output = CurrentInfo();
   usi_output.Set(UsiInfoKey::kDepth, n.GetDepth());
 #if defined(KEEP_LAST_MOVE)
-  usi_output.Set(UsiInfoKey::kPv, n.Pos().moves_from_start());
+  const auto moves = n.Pos().moves_from_start();
+  usi_output.Set(UsiInfoKey::kPv, moves);
+  if (const auto p = moves.find_first_of(' '); p != std::string::npos) {
+    const auto best_move = moves.substr(0, p);
+    usi_output.Set(UsiInfoKey::kCurrMove, best_move);
+  }
 #endif
 
   sync_cout << usi_output << sync_endl;
