@@ -260,6 +260,7 @@ source/resource
 
 # coverage
 coverage-html/
+test_obj/
 cov.info
 
 # Doxygen

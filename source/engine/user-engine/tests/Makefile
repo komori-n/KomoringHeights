@@ -12,7 +12,7 @@ CXXFLAGS += -g -Wall -Wextra -pthread
 LDFLAGS += -lpthread
 LDFLAGS += -v --coverage
 LTOFLAGS = -flto
-OBJDIR = ../../../../obj/source/engine/user-engine/tests
+OBJDIR = ../../../../test_obj/source/engine/user-engine/tests
 
 INCLUDE = -I$(GTEST_DIR)/include/gtest/*.h \
           -I$(GTEST_DIR)/include/gtest/internal/*.h \
@@ -99,7 +99,7 @@ $(OBJDIR)/gtest_main.a : $(OBJDIR)/gtest-all.o $(OBJDIR)/gtest_main.o
 	$(AR) $(ARFLAGS) $@ $^
 
 coverage: test
-	lcov --rc lcov_branch_coverage=1 --directory ../../../../obj --base-directory . --capture -o cov.info
+	lcov --rc lcov_branch_coverage=1 --directory ../../../../test_obj --base-directory . --capture -o cov.info
 	lcov --rc lcov_branch_coverage=1 -e cov.info -o cov.info "**/user-engine/*"
 	lcov --rc lcov_branch_coverage=1 -r cov.info -o cov.info "**/tests/*"
 	genhtml --dark-mode --rc lcov_branch_coverage=1 cov.info -o coverage-html
