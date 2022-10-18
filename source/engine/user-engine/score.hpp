@@ -38,10 +38,16 @@ class Score {
       }
     } else {
       switch (method) {
+        case ScoreCalculationMethod::kDn:
+          score = Score(Kind::kUnknown, result.Dn());
+          break;
+        case ScoreCalculationMethod::kMinusPn:
+          score = Score(Kind::kUnknown, -static_cast<ScoreValue>(result.Pn()));
+          break;
         case ScoreCalculationMethod::kPonanza: {
           const double r = static_cast<double>(result.Dn()) / (result.Pn() + result.Dn());
           const double val_real = -kPonanza * std::log((1 - r) / r);
-          const ScoreValue val = std::clamp(static_cast<ScoreValue>(val_real), kMinValue, kMaxValue);
+          const ScoreValue val = static_cast<ScoreValue>(val_real);
           score = Score(Kind::kUnknown, val);
         } break;
         default:
@@ -87,9 +93,6 @@ class Score {
     kWin,      ///< （開始局面の手番から見て）勝ち
     kLose,     ///< （開始局面の手番から見て）負け
   };
-
-  static inline constexpr ScoreValue kMinValue = -32767;  ///< 評価値の最小値
-  static inline constexpr ScoreValue kMaxValue = 32767;   ///< 評価値の最大値
 
   /// コンストラクタ。`Make()` 以外では構築できないように private に隠しておく
   Score(Kind kind, int value) : kind_{kind}, value_{value} {}

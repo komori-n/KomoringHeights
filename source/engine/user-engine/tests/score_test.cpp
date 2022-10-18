@@ -20,6 +20,26 @@ TEST(ScoreTest, MakeUnknown_None) {
   EXPECT_EQ(s2.ToString(), "cp 0");
 }
 
+TEST(ScoreTest, MakeUnknown_Dn) {
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kMaxMateLen, 264, UnknownData{});
+
+  const auto s1 = Score::Make(ScoreCalculationMethod::kDn, result, true);
+  EXPECT_EQ(s1.ToString(), "cp 4");
+
+  const auto s2 = Score::Make(ScoreCalculationMethod::kDn, result, false);
+  EXPECT_EQ(s2.ToString(), "cp -4");
+}
+
+TEST(ScoreTest, MakeUnknown_MinusPn) {
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kMaxMateLen, 264, UnknownData{});
+
+  const auto s1 = Score::Make(ScoreCalculationMethod::kMinusPn, result, true);
+  EXPECT_EQ(s1.ToString(), "cp -33");
+
+  const auto s2 = Score::Make(ScoreCalculationMethod::kMinusPn, result, false);
+  EXPECT_EQ(s2.ToString(), "cp 33");
+}
+
 TEST(ScoreTest, MakeUnknown_Ponanza) {
   const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kMaxMateLen, 264, UnknownData{});
 
@@ -35,10 +55,14 @@ TEST(ScoreTest, MakeUnknown_Proven) {
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
   EXPECT_EQ(s1.ToString(), "mate 26");
+  EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kDn, result, true));
+  EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kMinusPn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kPonanza, result, true));
 
   const auto s2 = Score::Make(ScoreCalculationMethod::kNone, result, false);
   EXPECT_EQ(s2.ToString(), "mate -26");
+  EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kDn, result, false));
+  EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kMinusPn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kPonanza, result, false));
 }
 
@@ -47,10 +71,14 @@ TEST(ScoreTest, MakeUnknown_Disproven) {
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
   EXPECT_EQ(s1.ToString(), "mate -26");
+  EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kDn, result, true));
+  EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kMinusPn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kPonanza, result, true));
 
   const auto s2 = Score::Make(ScoreCalculationMethod::kNone, result, false);
   EXPECT_EQ(s2.ToString(), "mate 26");
+  EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kDn, result, false));
+  EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kMinusPn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kPonanza, result, false));
 }
 
@@ -59,9 +87,13 @@ TEST(ScoreTest, MakeUnknown_Repetition) {
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
   EXPECT_EQ(s1.ToString(), "mate -26");
+  EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kDn, result, true));
+  EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kMinusPn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kPonanza, result, true));
 
   const auto s2 = Score::Make(ScoreCalculationMethod::kNone, result, false);
   EXPECT_EQ(s2.ToString(), "mate 26");
+  EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kDn, result, false));
+  EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kMinusPn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kPonanza, result, false));
 }

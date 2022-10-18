@@ -14,6 +14,8 @@ namespace komori {
  */
 enum class ScoreCalculationMethod {
   kNone,     ///< 詰み／不詰が確定するまで評価値を表示しない
+  kDn,       ///< dnをそのまま評価値として出す
+  kMinusPn,  ///< -pnをそのまま評価値として出す
   kPonanza,  ///< ポナンザ定数を用いた勝率 <-> 評価値変換
 };
 
@@ -88,6 +90,8 @@ inline const DefaultOrderedMap<std::string, ScoreCalculationMethod> kScoreCalcul
     ScoreCalculationMethod::kPonanza,
     {
         {"None", ScoreCalculationMethod::kNone},
+        {"Dn", ScoreCalculationMethod::kDn},
+        {"MinusPn", ScoreCalculationMethod::kMinusPn},
         {"Ponanza", ScoreCalculationMethod::kPonanza},
     },
 };
