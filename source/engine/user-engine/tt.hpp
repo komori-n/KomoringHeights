@@ -27,6 +27,11 @@ constexpr inline std::uint32_t kAmountMax = std::numeric_limits<std::uint32_t>::
 /// Hashfull（ハッシュ使用率）を計算するために仕様するエントリ数。大きすぎると探索性能が低下する。
 constexpr std::size_t kHashfullCalcEntries = 10000;
 
+/// エントリを消すしきい値。
+constexpr std::size_t kGcThreshold = kClusterSize - 1;
+/// GCで消すエントリ数
+constexpr std::size_t kGcRemoveElementNum = 6;
+
 // forward declaration
 class TranspositionTable;
 
@@ -190,7 +195,8 @@ class Entry {
         break;
       }
 
-      ret = std::min(kAmountMax, ret + sub_entry.vals.amount);
+      const auto amount = sub_entry.vals.amount;
+      ret = std::min(kAmountMax, ret + amount);
     }
     return ret;
   }
@@ -240,6 +246,27 @@ class Entry {
   } vals_;
   std::array<SubEntry, kSubEntryNum> sub_entries_;
 };
+
+template <typename Iterator>
+inline void RemoveOne(Iterator begin, Iterator end) {
+  Iterator removed = end;
+  std::uint32_t removed_amount = std::numeric_limits<std::uint32_t>::max();
+  for (auto itr = begin; itr != end; ++itr) {
+    if (itr->IsNull()) {
+      continue;
+    }
+
+    const auto amount = itr->TotalAmount();
+    if (amount < removed_amount) {
+      removed = itr;
+      removed_amount = amount;
+    }
+  }
+
+  if (removed != end) {
+    removed->SetNull();
+  }
+}
 }  // namespace detail
 
 class Query {
@@ -505,7 +532,15 @@ class TranspositionTable {
     return static_cast<int>(used * 1000 / num_entries);
   }
 
-  void CollectGarbage() {}
+  std::size_t CollectGarbage() {
+    sync_cout << "info string collect garbage" << sync_endl;
+    rep_table_.CollectGarbage();
+
+    const auto removed_num = RemoveUnusedEntries();
+    Compact();
+
+    return removed_num;
+  }
 
  private:
   constexpr detail::Entry* HeadOf(Key board_key) {
@@ -515,6 +550,54 @@ class TranspositionTable {
     auto idx = (hash_low * entries_.size()) >> 32;
     return &entries_[idx];
   }
+
+  std::size_t RemoveUnusedEntries() {
+    std::size_t removed_num = 0;
+
+    // idx から kClusterSize 個の要素のうち使用中であるものの個数を数える
+    auto count_used = [&](std::size_t idx) {
+      std::size_t used = 0;
+      auto end = std::min(entries_.size(), idx + kClusterSize);
+      for (; idx < end; ++idx) {
+        if (!entries_[idx].IsNull()) {
+          ++used;
+        }
+      }
+
+      return used;
+    };
+
+    std::size_t i = 0;
+    std::size_t j = i + kClusterSize;
+    // [i, j) の範囲で使用中のエントリの個数
+    auto used_ij = count_used(0);
+    std::size_t end = entries_.size();
+    do {
+      if (used_ij >= kGcThreshold) {
+        // [i, j) の使用率が高すぎるのでエントリを適当に間引く
+        for (std::size_t k = 0; k < kGcRemoveElementNum; ++k) {
+          detail::RemoveOne(entries_.begin() + i, entries_.begin() + j);
+        }
+        i = j;
+        j = i + kClusterSize;
+        used_ij = count_used(i);
+      } else {
+        // (i, j) <-- (i + 1, j + 1) に更新する
+        // しゃくとり法で used の更新をしておく
+        if (!entries_[i++].IsNull()) {
+          used_ij--;
+        }
+
+        if (!entries_[j++].IsNull()) {
+          used_ij++;
+        }
+      }
+    } while (j < end);
+
+    return removed_num;
+  }
+
+  void Compact() {}
 
   std::vector<detail::Entry> entries_{};
   RepetitionTable rep_table_{};
