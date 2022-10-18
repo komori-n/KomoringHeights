@@ -151,8 +151,10 @@ class Entry {
           break;
         }
 
-        if (((kIsProven && len <= sub_entry.len) || (!kIsProven && len >= sub_entry.len)) &&
-            (hand != hand_ || ((kIsProven && sub_entry.pn > 0) || (!kIsProven && sub_entry.dn > 0)))) {
+        const bool is_len_superior = (kIsProven && len <= sub_entry.len) || (!kIsProven && len >= sub_entry.len);
+        const bool is_equal_to_given_hand_and_len = (hand == hand_) && (len == sub_entry.len);
+        const bool is_unknown = (sub_entry.pn > 0 && sub_entry.dn > 0);
+        if (is_len_superior && (!is_equal_to_given_hand_and_len || is_unknown)) {
           sub_entry.vals.is_used = false;
         } else {
           if (&*new_itr != &sub_entry) {

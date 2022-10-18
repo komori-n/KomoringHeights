@@ -272,7 +272,7 @@ TEST_F(EntryTest, Clear_Disproven) {
   LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
 
   // don't clear unrelated entry
-  entry_.Clear<false>(hand_p1_, MateLen16::Make(266, 3));
+  entry_.Clear<false>(hand_p1_, MateLen16::Make(262, 3));
   LookUp(hand_p1_, 264, MateLen16::Make(264, 3), true, kInfinitePnDn, 0, MateLen16::Make(264, 3), __LINE__);
 
   // clear proven entry
