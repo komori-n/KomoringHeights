@@ -126,7 +126,7 @@ class Entry {
 
     if (!inserted) {
       // 適当に消す
-      auto& sub_entry = sub_entries_[rand() % kSubEntryNum];
+      auto& sub_entry = SelectRemoveEntry();
       sub_entry = {{true, amount}, len, pn, dn};
     }
   }
@@ -210,6 +210,23 @@ class Entry {
     PnDn pn;
     PnDn dn;
   };
+
+  constexpr SubEntry& SelectRemoveEntry() {
+    std::uint32_t min_amount = std::numeric_limits<std::uint32_t>::max();
+    SubEntry* argmin_entry = nullptr;
+    for (auto& sub_entry : sub_entries_) {
+      if (!sub_entry.vals.is_used) {
+        return sub_entry;
+      }
+
+      if (sub_entry.vals.amount < min_amount) {
+        min_amount = sub_entry.vals.amount;
+        argmin_entry = &sub_entry;
+      }
+    }
+
+    return *argmin_entry;
+  }
 
   Key board_key_;
   Key parent_board_key_{kNullKey};
@@ -395,10 +412,21 @@ class Query {
       }
     }
 
-    const auto idx = rand() % kClusterSize;  // NOLINT
-    head_entry_[idx].Init(board_key_, hand);
-    head_entry_[idx].Update(depth_, pn, dn, len, amount);
-    return &head_entry_[idx];
+    // 空きエントリがないので、amount が最も小さいエントリを消す。
+    // `TotalAmount()` の計算が重いので上とは別ループにする。
+    std::uint32_t min_amount = std::numeric_limits<std::uint32_t>::max();
+    auto min_itr = begin_itr;
+    for (auto itr = begin_itr; itr != end_itr; ++itr) {
+      const auto amount = itr->TotalAmount();
+      if (amount < min_amount) {
+        min_amount = amount;
+        min_itr = itr;
+      }
+    }
+
+    min_itr->Init(board_key_, hand);
+    min_itr->Update(depth_, pn, dn, len, amount);
+    return min_itr;
   }
 
   constexpr detail::Entry* begin() { return head_entry_; }
