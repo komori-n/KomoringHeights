@@ -389,15 +389,19 @@ TEST_F(QueryTest, CreateUnknown) {
 }
 
 TEST_F(QueryTest, CreateRepetition) {
-  query_.SetResult(komori::SearchResult::MakeFinal<false, true>(hand_p1_, MateLen::Make(26, 4), 1));
-  const auto res_1 = query_.LookUp(MateLen::Make(26, 4), false);
-  ExpectBase(res_1, 1, 1, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
+  TestNode test_node{"4k4/9/4G4/9/9/9/9/9/9 b P2r2b3g4s4n4l17p 1", true};
+  auto query = tt_.BuildQuery(*test_node);
+  query.SetResult(komori::SearchResult::MakeFinal<false, true>(hand_p1_, MateLen::Make(26, 4), 1));
+  const auto res_1 = query.LookUp(MateLen::Make(26, 4), false);
+  ExpectBase(res_1, kInfinitePnDn, 0, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
+
+  tt_.Resize(1);
 
   komori::UnknownData unknown_data = {false, 264, hand_p1_, 445};
-  query_.SetResult(komori::SearchResult::MakeUnknown(33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data));
+  query.SetResult(komori::SearchResult::MakeUnknown(33, 4, hand_p1_, MateLen::Make(26, 4), 1, unknown_data));
 
-  query_.SetResult(komori::SearchResult::MakeFinal<false, true>(hand_p1_, MateLen::Make(26, 4), 1));
-  const auto res_2 = query_.LookUp(MateLen::Make(26, 4), false);
+  query.SetResult(komori::SearchResult::MakeFinal<false, true>(hand_p1_, MateLen::Make(26, 4), 1));
+  const auto res_2 = query.LookUp(MateLen::Make(26, 4), false);
 
   ExpectBase(res_2, kInfinitePnDn, 0, hand_p1_, MateLen::Make(26, 4), 1, __LINE__);
   ExpectFinal(res_2, true, __LINE__);

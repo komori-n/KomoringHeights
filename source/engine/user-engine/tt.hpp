@@ -372,10 +372,17 @@ class Query {
         hand_{hand},
         depth_{depth} {};
 
-  void SetRepetition(const SearchResult&) {
+  void SetRepetition(const SearchResult& result) {
+    if (path_key_ == kNullKey) {
+      return;
+    }
+
     rep_table_->Insert(path_key_);
     if (auto itr = Find()) {
       itr->SetRepeat();
+    } else {
+      auto new_itr = CreateEntry(1, 1, result.Len().To16(), result.GetHand(), result.Amount());
+      new_itr->SetRepeat();
     }
   }
 
