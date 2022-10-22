@@ -4,9 +4,7 @@
 
 using komori::ttv3::Entry;
 
-TEST(V3EntryTest, NullCheck) {
+TEST(V3EntryTest, DefaultConstructedInstanceIsNull) {
   Entry entry;
-
-  entry.SetNull();
   EXPECT_TRUE(entry.IsNull());
 }
