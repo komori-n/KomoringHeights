@@ -105,9 +105,27 @@ constexpr inline SearchAmount kFinalAmountMultiplication{10};
  *
  * また、詰み／不詰局面は他の局面よりも大事なのでなるべく消されづらくしたい。そのため、探索量に
  * 定数（kFinalAmountMultiplication）を掛けて実際の探索量よりも大きくなるようにしている。
+ *
+ * 探索量同士の比較には `AmountComparer` を用いる。`AmountComparer` はエントリの探索量に対し `operator<` に相当する
+ * 比較演算子を提供する構造体である。
  */
 class alignas(64) Entry {
  public:
+  /**
+   * @brief `Entry` に対する探索量に基づく比較器。
+   *
+   * 探索量が小さいエントリがより `less` になるような `<` に相当する演算子を提供する
+   */
+  struct AmountComparer {
+    /**
+     * @brief 2つのエントリの探索量が `lhs.amount < rhs.amount` かどうかを判定する
+     * @param lhs エントリ1
+     * @param rhs エントリ2
+     * @return エントリ1の探索量がエントリ2の探索量より少なければ `true`
+     */
+    constexpr bool operator()(const Entry& lhs, const Entry& rhs) const noexcept { return lhs.amount_ < rhs.amount_; }
+  };
+
   /// Default constructor(default)
   Entry() noexcept = default;
   /// Copy constructor(default)
