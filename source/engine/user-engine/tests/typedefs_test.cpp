@@ -48,12 +48,17 @@ using SaturatedAddTestTypes = ::testing::Types<std::uint8_t,
 TYPED_TEST_SUITE(SaturatedAddTest, SaturatedAddTestTypes);
 
 TYPED_TEST(SaturatedAddTest, Unsigned) {
+  constexpr TypeParam kMin = std::numeric_limits<TypeParam>::min();
+  constexpr TypeParam kMax = std::numeric_limits<TypeParam>::max();
+
   EXPECT_EQ(SaturatedAdd<TypeParam>(33, 4), 33 + 4);
-  EXPECT_EQ(SaturatedAdd<TypeParam>(std::numeric_limits<TypeParam>::max(), 1), std::numeric_limits<TypeParam>::max());
+  EXPECT_EQ(SaturatedAdd<TypeParam>(kMax, 1), kMax);
 
   if constexpr (std::is_signed_v<TypeParam>) {
-    EXPECT_EQ(SaturatedAdd<TypeParam>(std::numeric_limits<TypeParam>::min(), -1),
-              std::numeric_limits<TypeParam>::min());
+    EXPECT_EQ(SaturatedAdd<TypeParam>(-33, -4), -33 - 4);
+    EXPECT_EQ(SaturatedAdd<TypeParam>(kMin, kMax), kMin + kMax);
+    EXPECT_EQ(SaturatedAdd<TypeParam>(kMax, kMin), kMax + kMin);
+    EXPECT_EQ(SaturatedAdd<TypeParam>(kMin, -1), kMin);
   }
 }
 
