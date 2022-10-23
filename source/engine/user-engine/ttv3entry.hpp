@@ -1,5 +1,5 @@
-#ifndef KOMORI_TTV3_HPP_
-#define KOMORI_TTV3_HPP_
+#ifndef KOMORI_TTV3_ENTRY_HPP_
+#define KOMORI_TTV3_ENTRY_HPP_
 
 #include <cstdint>
 
@@ -387,4 +387,4 @@ static_assert(std::is_default_constructible<Entry>(), "`Entry` must be default c
 }  // namespace ttv3
 }  // namespace komori
 
-#endif  // KOMORI_TTV3_HPP_
+#endif  // KOMORI_TTV3_ENTRY_HPP_

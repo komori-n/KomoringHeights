@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../ttv3.hpp"
+#include "../ttv3entry.hpp"
 #include "test_lib.hpp"
 
 using komori::kInfiniteMateLen16;
