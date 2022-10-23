@@ -115,6 +115,64 @@ constexpr inline T SaturatedAdd(T lhs, T rhs) noexcept {
 }
 
 /**
+ * @brief `T` 型の値を掛け合わせる。ただし、計算結果が `T` 型で表現できない場合は上限値で丸める（符号なし型）
+ * @tparam T  掛け合わせる型（符号なし型）
+ * @param lhs `T` 型の値
+ * @param rhs `T` 型の値
+ * @return `lhs` と `rhs` を掛け合わせた値
+ */
+template <typename T, Constraints<std::enable_if_t<std::is_unsigned_v<T>>> = nullptr>
+constexpr inline T SaturatedMultiply(T lhs, T rhs) noexcept {
+  constexpr T kMax = std::numeric_limits<T>::max();
+
+  if (lhs == 0) {
+    return 0;
+  } else if (kMax / lhs < rhs) {
+    return kMax;
+  }
+
+  return lhs * rhs;
+}
+
+/**
+ * @brief `T` 型の値を掛け合わせる。ただし、計算結果が `T` 型で表現できない場合は上限値 or 下限値で丸める（符号つき型）
+ * @tparam T  掛け合わせる型（符号つき型）
+ * @param lhs `T` 型の値
+ * @param rhs `T` 型の値
+ * @return `lhs` と `rhs` を掛け合わせた値
+ */
+template <typename T, Constraints<std::enable_if_t<std::is_signed_v<T>>> = nullptr>
+constexpr inline T SaturatedMultiply(T lhs, T rhs) noexcept {
+  constexpr T kMax = std::numeric_limits<T>::max();
+  constexpr T kMin = std::numeric_limits<T>::min();
+
+  if (lhs == 0 || rhs == 0) {
+    return 0;
+  } else if (lhs > 0 && rhs > 0) {
+    if (kMax / lhs < rhs) {
+      return kMax;
+    }
+  } else if (lhs < 0 && rhs < 0) {
+    if (kMax / lhs > rhs) {
+      return kMax;
+    }
+  } else {
+    // lhs と rhs は片方が正、もう片方が負
+
+    if (rhs > 0) {
+      // lhs に正の要素を持ってくる
+      std::swap(lhs, rhs);
+    }
+
+    if (kMin / lhs > rhs) {
+      return kMin;
+    }
+  }
+
+  return lhs * rhs;
+}
+
+/**
  * @brief `operator==` から `operator!=` を自動定義するクラス。
  * @tparam T `operator==` が定義されたクラス
  *

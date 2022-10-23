@@ -13,6 +13,7 @@ using komori::kInfinitePnDn;
 using komori::OrdinalNumber;
 using komori::Phi;
 using komori::SaturatedAdd;
+using komori::SaturatedMultiply;
 using komori::StepEffect;
 using komori::ToString;
 
@@ -34,20 +35,20 @@ TYPED_TEST(TypesTest, Constraints) {
 
 namespace {
 template <typename T>
-class SaturatedAddTest : public ::testing::Test {};
-using SaturatedAddTestTypes = ::testing::Types<std::uint8_t,
-                                               std::uint16_t,
-                                               std::uint32_t,
-                                               std::uint64_t,
-                                               std::int8_t,
-                                               std::int16_t,
-                                               std::int32_t,
-                                               std::int64_t>;
+class SaturationTest : public ::testing::Test {};
+using SaturationTestTypes = ::testing::Types<std::uint8_t,
+                                             std::uint16_t,
+                                             std::uint32_t,
+                                             std::uint64_t,
+                                             std::int8_t,
+                                             std::int16_t,
+                                             std::int32_t,
+                                             std::int64_t>;
 }  // namespace
 
-TYPED_TEST_SUITE(SaturatedAddTest, SaturatedAddTestTypes);
+TYPED_TEST_SUITE(SaturationTest, SaturationTestTypes);
 
-TYPED_TEST(SaturatedAddTest, Unsigned) {
+TYPED_TEST(SaturationTest, SaturatedAdd) {
   constexpr TypeParam kMin = std::numeric_limits<TypeParam>::min();
   constexpr TypeParam kMax = std::numeric_limits<TypeParam>::max();
 
@@ -59,6 +60,25 @@ TYPED_TEST(SaturatedAddTest, Unsigned) {
     EXPECT_EQ(SaturatedAdd<TypeParam>(kMin, kMax), kMin + kMax);
     EXPECT_EQ(SaturatedAdd<TypeParam>(kMax, kMin), kMax + kMin);
     EXPECT_EQ(SaturatedAdd<TypeParam>(kMin, -1), kMin);
+  }
+}
+
+TYPED_TEST(SaturationTest, SaturatedMultiply) {
+  constexpr TypeParam kMin = std::numeric_limits<TypeParam>::min();
+  constexpr TypeParam kMax = std::numeric_limits<TypeParam>::max();
+
+  // 調子に乗って (33, 4) を渡すと int8_t のときにオーバーフローするので注意（一敗）
+  EXPECT_EQ(SaturatedMultiply<TypeParam>(3, 4), 3 * 4);
+  EXPECT_EQ(SaturatedMultiply<TypeParam>(0, 4), 0);
+  EXPECT_EQ(SaturatedMultiply<TypeParam>(kMax / 2, 3), kMax);
+
+  if constexpr (std::is_signed_v<TypeParam>) {
+    EXPECT_EQ(SaturatedMultiply<TypeParam>(-3, -4), (-3) * (-4));
+    EXPECT_EQ(SaturatedMultiply<TypeParam>(3, -4), 3 * (-4));
+    EXPECT_EQ(SaturatedMultiply<TypeParam>(-3, 4), (-3) * 4);
+    EXPECT_EQ(SaturatedMultiply<TypeParam>(kMin / 2, 3), kMin);
+    EXPECT_EQ(SaturatedMultiply<TypeParam>(3, kMin / 2), kMin);
+    EXPECT_EQ(SaturatedMultiply<TypeParam>(kMin / 2, -3), kMax);
   }
 }
 
