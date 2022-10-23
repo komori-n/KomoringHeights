@@ -49,6 +49,14 @@ using SearchAmount = std::uint32_t;
  *
  * 上記以外の関数をコールしたときの挙動は未定義なので注意すること。
  *
+ * ### 千日手判定
+ *
+ * 千日手は局面自体ではなく経路（path）に依存する概念なので、Entry 内で直接千日手状態を保存することはない。代わりに、
+ * 「千日手の可能性があるか」のフラグを保持する。このフラグの有無により千日手判定の別処理を行うかどうかを決める。
+ *
+ * `Init()` 直後は「千日手可能性フラグ」は立っていない。明示的に `SetPossibleRepetition()` をコールすることでのみ
+ * 千日手フラグを建てることができる。千日手フラグは `IsPossibleRepetition()` により取得できる。
+ *
  * ### 詰み／不詰の保存方法
  *
  * 余詰探索で「n手詰以下 m手詰み以上」という状態を扱いたいので、詰み、不詰、探索中情報を同時に持てるようにする。
@@ -149,6 +157,24 @@ class alignas(64) Entry {
    * `IsFor(board_key)` の条件に加え、`hand` が一致するかどうかの判定を行う。
    */
   constexpr bool IsFor(Key board_key, Hand hand) const noexcept { return board_key_ == board_key && hand_ == hand; }
+
+  /**
+   * @brief 千日手の可能性ありフラグの設定および pn/dn の再初期化を行う。
+   * @pre `!IsNull()`
+   */
+  constexpr void SetPossibleRepetition() noexcept {
+    repetition_state_ = RepetitionState::kPossibleRepetition;
+    // 千日手探索中の pn/dn は信用できないのでいったん初期化し直す
+    pn_ = dn_ = 1;
+  }
+
+  /**
+   * @brief 千日手可能性フラグが立っているかどうか判定する。
+   * @pre `!IsNull()`
+   */
+  constexpr bool IsPossibleRepetition() const noexcept {
+    return repetition_state_ == RepetitionState::kPossibleRepetition;
+  }
 
   /**
    * @brief 探索結果を書き込む（未解決局面）
@@ -281,8 +307,8 @@ class alignas(64) Entry {
  private:
   /// 「千日手の可能性」を表現するための列挙体
   enum class RepetitionState : std::uint8_t {
-    kNone,           ///< 千日手は未検出
-    kMayRepetition,  ///< 千日手検出済
+    kNone,                ///< 千日手は未検出
+    kPossibleRepetition,  ///< 千日手検出済
   };
 
   Hand hand_{kNullHand};  ///< 現局面の持ち駒（コンストラクト時は無効値をセット）

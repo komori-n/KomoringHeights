@@ -14,6 +14,21 @@ TEST(V3EntryTest, DefaultConstructedInstanceIsNull) {
   EXPECT_TRUE(entry.IsNull());
 }
 
+TEST(V3EntryTest, Init_PossibleRepetition) {
+  Entry entry;
+  entry.Init(0x334334, HAND_ZERO, 334, 1, 1, 1);
+
+  EXPECT_FALSE(entry.IsPossibleRepetition());
+}
+
+TEST(V3EntryTest, SetPossibleRepetition_PossibleRepetition) {
+  Entry entry;
+  entry.Init(0x334334, HAND_ZERO, 334, 1, 1, 1);
+  entry.SetPossibleRepetition();
+
+  EXPECT_TRUE(entry.IsPossibleRepetition());
+}
+
 TEST(V3EntryTest, IsFor) {
   Entry entry;
   const Key key{0x334334};
@@ -153,7 +168,7 @@ TEST(V3EntryTest, LookUp_PnDn_Proven) {
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
   entry.UpdateProven(len1, MOVE_NONE, 1);
-  entry.LookUp(hand2, depth1, len, pn, dn, use_old_child);
+  entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_EQ(pn, 0);
   EXPECT_EQ(dn, komori::kInfinitePnDn);
 }
@@ -172,7 +187,7 @@ TEST(V3EntryTest, LookUp_PnDn_Disproven) {
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
   entry.UpdateDisproven(len1, MOVE_NONE, 1);
-  entry.LookUp(hand2, depth1, len, pn, dn, use_old_child);
+  entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_EQ(pn, komori::kInfinitePnDn);
   EXPECT_EQ(dn, 0);
 }
@@ -197,6 +212,14 @@ TEST(V3EntryTest, Update_PnDn_Disproven) {
 
   entry.UpdateDisproven(len1, MOVE_NONE, 1);
   entry.UpdateUnknown(334, 33, 4, len2, 1);
+  EXPECT_EQ(entry.Pn(), 1);
+  EXPECT_EQ(entry.Dn(), 1);
+}
+
+TEST(V3EntryTest, SetPossibleRepetition_PnDn) {
+  Entry entry;
+  entry.Init(0x264, HAND_ZERO, 334, 33, 4, 1);
+  entry.SetPossibleRepetition();
   EXPECT_EQ(entry.Pn(), 1);
   EXPECT_EQ(entry.Dn(), 1);
 }
