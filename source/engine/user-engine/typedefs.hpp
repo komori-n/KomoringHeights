@@ -42,6 +42,18 @@ struct Identity {
   using type = T;  ///< `T` をそのまま返す。
 };
 
+namespace detail {
+/**
+ * @brief `Args...` を無視して`Type` に `std::nullptr_t` を定義するメタ関数
+ *
+ * 詳しくは `Constraints` のコメントを参照。
+ */
+template <typename... Args>
+struct ConstraintsImpl {
+  using Type = std::nullptr_t;  ///< `Args...` を無視して `std::nullptr_t` を定義する
+};
+}  // namespace detail
+
 /**
  * @brief SFINAE の制約を書くのに便利な型。
  * @tparam Args `std::enable_if_t` の列。
@@ -60,7 +72,47 @@ struct Identity {
  * ```
  */
 template <typename... Args>
-using Constraints = decltype(nullptr);
+using Constraints = typename detail::ConstraintsImpl<Args...>::Type;
+
+/**
+ * @brief `T` 型の値を足し合わせる。ただし、計算結果が `T` 型で表現できない場合は上限値で丸める（符号なし型）
+ * @tparam T  足し合わせる型（符号なし型）
+ * @param lhs `T` 型の値
+ * @param rhs `T` 型の値
+ * @return `lhs` と `rhs` を足し合わせた値
+ */
+template <typename T, Constraints<std::enable_if_t<std::is_unsigned_v<T>>> = nullptr>
+constexpr inline T SaturatedAdd(T lhs, T rhs) noexcept {
+  constexpr T kMax = std::numeric_limits<T>::max();
+  if (kMax - lhs < rhs) {
+    return kMax;
+  }
+  return lhs + rhs;
+}
+
+/**
+ * @brief `T` 型の値を足し合わせる。ただし、計算結果が `T` 型で表現できない場合は上限値 or 下限値で丸める（符号つき型）
+ * @tparam T  足し合わせる型（符号つき型）
+ * @param lhs `T` 型の値
+ * @param rhs `T` 型の値
+ * @return `lhs` と `rhs` を足し合わせた値
+ */
+template <typename T, Constraints<std::enable_if_t<std::is_signed_v<T>>> = nullptr>
+constexpr inline T SaturatedAdd(T lhs, T rhs) noexcept {
+  constexpr T kMax = std::numeric_limits<T>::max();
+  constexpr T kMin = std::numeric_limits<T>::min();
+
+  if (lhs > 0 && rhs > 0) {
+    if (kMax - lhs < rhs) {
+      return kMax;
+    }
+  } else if (lhs < 0 && rhs < 0) {
+    if (kMin - lhs > rhs) {
+      return kMin;
+    }
+  }
+  return lhs + rhs;
+}
 
 /**
  * @brief `operator==` から `operator!=` を自動定義するクラス。

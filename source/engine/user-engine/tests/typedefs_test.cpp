@@ -12,6 +12,7 @@ using komori::Identity;
 using komori::kInfinitePnDn;
 using komori::OrdinalNumber;
 using komori::Phi;
+using komori::SaturatedAdd;
 using komori::StepEffect;
 using komori::ToString;
 
@@ -29,6 +30,31 @@ TYPED_TEST(TypesTest, Identity) {
 
 TYPED_TEST(TypesTest, Constraints) {
   ::testing::StaticAssertTypeEq<Constraints<TypeParam>, std::nullptr_t>();
+}
+
+namespace {
+template <typename T>
+class SaturatedAddTest : public ::testing::Test {};
+using SaturatedAddTestTypes = ::testing::Types<std::uint8_t,
+                                               std::uint16_t,
+                                               std::uint32_t,
+                                               std::uint64_t,
+                                               std::int8_t,
+                                               std::int16_t,
+                                               std::int32_t,
+                                               std::int64_t>;
+}  // namespace
+
+TYPED_TEST_SUITE(SaturatedAddTest, SaturatedAddTestTypes);
+
+TYPED_TEST(SaturatedAddTest, Unsigned) {
+  EXPECT_EQ(SaturatedAdd<TypeParam>(33, 4), 33 + 4);
+  EXPECT_EQ(SaturatedAdd<TypeParam>(std::numeric_limits<TypeParam>::max(), 1), std::numeric_limits<TypeParam>::max());
+
+  if constexpr (std::is_signed_v<TypeParam>) {
+    EXPECT_EQ(SaturatedAdd<TypeParam>(std::numeric_limits<TypeParam>::min(), -1),
+              std::numeric_limits<TypeParam>::min());
+  }
 }
 
 namespace {
