@@ -8,6 +8,7 @@ using komori::kMinusZeroMateLen16;
 using komori::MateLen16;
 using komori::PnDn;
 using komori::ttv3::Entry;
+using komori::ttv3::SearchAmount;
 
 TEST(V3EntryTest, DefaultConstructedInstanceIsNull) {
   Entry entry;
@@ -306,4 +307,47 @@ TEST(V3EntryTest, LookUp_UseOldChild_Inferior) {
   use_old_child = false;
   entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
   EXPECT_FALSE(use_old_child);
+}
+
+TEST(V3EntryTest, Init_Amount) {
+  Entry entry;
+  const SearchAmount amount{334};
+  entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount);
+  EXPECT_EQ(entry.Amount(), amount);
+}
+
+TEST(V3EntryTest, UpdateUnknown_Amount) {
+  Entry entry;
+  const SearchAmount amount1{334};
+  const SearchAmount amount2{264};
+  entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
+  entry.UpdateUnknown(264, 26, 4, MateLen16::Make(33, 4), amount2);
+  EXPECT_EQ(entry.Amount(), amount1 + amount2);
+}
+
+TEST(V3EntryTest, UpdateUnknown_SaturatedAmount) {
+  Entry entry;
+  const SearchAmount amount1{334};
+  const SearchAmount amount2{std::numeric_limits<SearchAmount>::max()};
+  entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
+  entry.UpdateUnknown(264, 26, 4, MateLen16::Make(33, 4), amount2);
+  EXPECT_EQ(entry.Amount(), amount2);
+}
+
+TEST(V3EntryTest, UpdateProven_Amount) {
+  Entry entry;
+  const SearchAmount amount1{334};
+  const SearchAmount amount2{264};
+  entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
+  entry.UpdateProven(MateLen16::Make(33, 4), MOVE_NONE, amount2);
+  EXPECT_EQ(entry.Amount(), amount1 + amount2);
+}
+
+TEST(V3EntryTest, UpdateDisproven_Amount) {
+  Entry entry;
+  const SearchAmount amount1{334};
+  const SearchAmount amount2{264};
+  entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
+  entry.UpdateDisproven(MateLen16::Make(33, 4), MOVE_NONE, amount2);
+  EXPECT_EQ(entry.Amount(), amount1 + amount2);
 }

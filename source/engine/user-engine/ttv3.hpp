@@ -188,10 +188,10 @@ class alignas(64) Entry {
   constexpr void UpdateUnknown(Depth depth, PnDn pn, PnDn dn, MateLen16 len, SearchAmount amount) noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
     min_depth_ = std::min(min_depth_, depth16);
+    AddAmount(amount);
 
     // 明らかに詰み／不詰ならデータを更新しない
     if (len < proven_.len && disproven_.len < len) {
-      amount_ += amount;
       pn_ = pn;
       dn_ = dn;
     }
@@ -206,8 +206,8 @@ class alignas(64) Entry {
    * @pre `len` > `disproven_.len`
    */
   constexpr void UpdateProven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
+    AddAmount(amount);
     if (len < proven_.len) {
-      amount_ += amount;
       proven_.len = len;
       proven_.best_move = Move16{best_move};
     }
@@ -222,8 +222,8 @@ class alignas(64) Entry {
    * @pre `len` < `proven.len`
    */
   constexpr void UpdateDisproven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
+    AddAmount(amount);
     if (len > disproven_.len) {
-      amount_ += amount;
       disproven_.len = len;
       disproven_.best_move = Move16{best_move};
     }
@@ -292,6 +292,8 @@ class alignas(64) Entry {
   // <テスト用>
   // UpdateXxx() や LookUp() など、外部から変数が観測できないとテストの際にかなり不便なので、Getter を用意しておく。
 
+  /// 探索量
+  constexpr SearchAmount Amount() const noexcept { return amount_; }
   /// 最小距離
   constexpr Depth MinDepth() const noexcept { return static_cast<Depth>(min_depth_); }
   /// 詰み手数
@@ -305,6 +307,14 @@ class alignas(64) Entry {
   // </テスト用>
 
  private:
+  /**
+   * @brief 探索量に `amount` を加える
+   * @param amount 追加する探索量
+   *
+   * @note 加算方法を変える可能性が高い（例えば上限値を変えるなど）ので、関数化しておく。
+   */
+  constexpr void AddAmount(SearchAmount amount) noexcept { amount_ = SaturatedAdd(amount_, amount); }
+
   /// 「千日手の可能性」を表現するための列挙体
   enum class RepetitionState : std::uint8_t {
     kNone,                ///< 千日手は未検出
