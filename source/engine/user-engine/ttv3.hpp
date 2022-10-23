@@ -11,6 +11,11 @@ namespace ttv3 {
 /// 探索量。TTでエントリを消す際の判断に用いる。
 using SearchAmount = std::uint32_t;
 
+namespace detail {
+/// 詰み／不詰の探索量のボーナス。これを大きくすることで詰み／不詰エントリが消されづらくなる。
+constexpr inline SearchAmount kFinalAmountMultiplication{10};
+}  // namespace detail
+
 /**
  * @brief 局面の探索結果を保続するための基本クラス。
  *
@@ -88,6 +93,18 @@ using SearchAmount = std::uint32_t;
  * このように、`hand_` が現局面と一致しない局面の情報から詰み／不詰を導いたり、証明数や反証数の更新をすることができる。
  *
  * なお、1, 2 に関しては活用方法しだいで無限ループに陥る可能性があるので注意。
+ *
+ * ### 探索量
+ *
+ * Entry には探索量（amount）が格納されている。これは、置換表領域が不足したときに消すエントリを選ぶ際の基準にする。
+ * つまり、複数の削除候補のエントリがある場合、最も探索量の小さいエントリを消すことで削除による情報の損失を抑える。
+ *
+ * 古い詰将棋エンジンの Small Tree GC に似ているが、「探索量」は厳密に木のサイズをカウントすることはしない。これは、
+ * 木のサイズのカウントを行うと、二重カウント問題が発生したときに探索量がオーバーフローしてしまい正しく不要なエントリを
+ * 消せなくなってしまうためである。そのため、「探索量」は実際の木のサイズよりも値が小さくなるよう注意する必要がある。
+ *
+ * また、詰み／不詰局面は他の局面よりも大事なのでなるべく消されづらくしたい。そのため、探索量に
+ * 定数（kFinalAmountMultiplication）を掛けて実際の探索量よりも大きくなるようにしている。
  */
 class alignas(64) Entry {
  public:
@@ -206,7 +223,7 @@ class alignas(64) Entry {
    * @pre `len` > `disproven_.len`
    */
   constexpr void UpdateProven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
-    AddAmount(amount);
+    AddAmount(SaturatedMultiply(amount, detail::kFinalAmountMultiplication));
     if (len < proven_.len) {
       proven_.len = len;
       proven_.best_move = Move16{best_move};
@@ -222,7 +239,7 @@ class alignas(64) Entry {
    * @pre `len` < `proven.len`
    */
   constexpr void UpdateDisproven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
-    AddAmount(amount);
+    AddAmount(SaturatedMultiply(amount, detail::kFinalAmountMultiplication));
     if (len > disproven_.len) {
       disproven_.len = len;
       disproven_.best_move = Move16{best_move};
