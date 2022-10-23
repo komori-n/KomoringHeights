@@ -76,15 +76,15 @@ class MateLen16 : DefineNotEqualByEqual<MateLen16>, DefineComparisonOperatorsByE
   }
 
   /// 詰み手数に整数を加算する
-  friend inline MateLen16 operator+(const MateLen16& lhs, Depth d) {
+  friend constexpr inline MateLen16 operator+(const MateLen16& lhs, Depth d) {
     return MateLen16{static_cast<std::uint16_t>(lhs.len_plus_1_ + d), lhs.final_hand_};
   }
 
   /// 詰み手数に整数を加算する
-  friend inline MateLen16 operator+(Depth d, const MateLen16& rhs) { return rhs + d; }
+  friend constexpr inline MateLen16 operator+(Depth d, const MateLen16& rhs) { return rhs + d; }
 
   /// 詰み手数から整数を減算する
-  friend inline MateLen16 operator-(const MateLen16& lhs, Depth d) {
+  friend constexpr inline MateLen16 operator-(const MateLen16& lhs, Depth d) {
     return MateLen16{static_cast<std::uint16_t>(lhs.len_plus_1_ - d), lhs.final_hand_};
   }
 
@@ -101,6 +101,11 @@ class MateLen16 : DefineNotEqualByEqual<MateLen16>, DefineComparisonOperatorsByE
 constexpr inline MateLen16 kZeroMateLen16 = MateLen16::Make(0, 15);
 /// 詰み手数の最大値。
 constexpr inline MateLen16 kMaxMateLen16 = MateLen16::Make(kDepthMax, 0);
+
+/// -1手。
+constexpr inline MateLen16 kMinusZeroMateLen16 = MateLen16::Make(0, 15) - 1;
+/// +∞手
+constexpr inline MateLen16 kInfiniteMateLen16 = MateLen16::Make(kDepthMax + 1, 0);
 
 /**
  * @brief 駒余り手数を加味した詰み手数。

@@ -55,6 +55,15 @@ using SearchAmount = std::uint32_t;
  * すなわち、単純に pn/dn を持つのに加え、詰みの上界 `proven_` と不詰の下界 `disproven_` を保持する。これは、例えば
  * n手以下の詰みだと分かっている局面において、さらに探索を延長して n-1 手以下で詰まないことを示す際に用いる。
  *
+ * 整理すると、以下のようになる。
+ *
+ * - `proven_.len` 手以上：詰み
+ * - `disproven_.len` 手より大きく `proven_.len` 手未満：不明（探索中）
+ * - `disproven_.len` 手以下：不詰
+ *
+ * `Init()` 直後は、-0手不詰、+∞手詰みで初期化する。こうすることで、任意の非負有限手に対し不明（探索中）の状態に
+ * 設定できる。
+ *
  * 詰み手順の復元を容易にするために、詰み／不詰局面では最善手を保存する。もし最善手を保存しておかないと、詰み手順の
  * 復元時に追加の探索が必要になる場合がある。
  *
@@ -102,10 +111,10 @@ class alignas(64) Entry {
     hand_ = hand;
     amount_ = amount;
     board_key_ = board_key;
-    proven_.len = kMaxMateLen16;
+    proven_.len = kInfiniteMateLen16;
     // len を初期化すれば best_move の初期化は不要
     // proven_.best_move = MOVE_NONE;
-    disproven_.len = kZeroMateLen16;
+    disproven_.len = kMinusZeroMateLen16;
     // len を初期化すれば best_move の初期化は不要
     // disproven_.best_move = MOVE_NONE;
     pn_ = pn;
@@ -162,36 +171,37 @@ class alignas(64) Entry {
     }
   }
 
-  // unimplemented
-  // /**
-  //  * @brief 探索結果を書き込む（詰み局面）
-  //  * @param len       詰み手数
-  //  * @param best_move 最善手
-  //  * @param amount    探索量
-  //  * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
-  //  */
-  // constexpr void UpdateProven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
-  //   if (len < proven_.len) {
-  //     amount_ += amount;
-  //     proven_.len = len;
-  //     proven_.best_move = Move16{best_move};
-  //   }
-  // }
+  /**
+   * @brief 探索結果を書き込む（詰み局面）
+   * @param len       詰み手数
+   * @param best_move 最善手
+   * @param amount    探索量
+   * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
+   * @pre `len` > `disproven_.len`
+   */
+  constexpr void UpdateProven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
+    if (len < proven_.len) {
+      amount_ += amount;
+      proven_.len = len;
+      proven_.best_move = Move16{best_move};
+    }
+  }
 
-  // /**
-  //  * @brief 探索結果を書き込む（不詰局面）
-  //  * @param len       不詰手数
-  //  * @param best_move 最善手
-  //  * @param amount    探索量
-  //  * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
-  //  */
-  // constexpr void UpdateDisproven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
-  //   if (len > disproven_.len) {
-  //     amount_ += amount;
-  //     disproven_.len = len;
-  //     disproven_.best_move = Move16{best_move};
-  //   }
-  // }
+  /**
+   * @brief 探索結果を書き込む（不詰局面）
+   * @param len       不詰手数
+   * @param best_move 最善手
+   * @param amount    探索量
+   * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
+   * @pre `len` < `proven.len`
+   */
+  constexpr void UpdateDisproven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
+    if (len > disproven_.len) {
+      amount_ += amount;
+      disproven_.len = len;
+      disproven_.best_move = Move16{best_move};
+    }
+  }
 
   /**
    * @brief pn, dn などの探索情報を取得する
@@ -258,6 +268,14 @@ class alignas(64) Entry {
 
   /// 最小距離
   constexpr Depth MinDepth() const noexcept { return static_cast<Depth>(min_depth_); }
+  /// 詰み手数
+  constexpr MateLen16 ProvenLen() const noexcept { return proven_.len; }
+  /// 不詰手数
+  constexpr MateLen16 DisprovenLen() const noexcept { return disproven_.len; }
+  /// pn
+  constexpr PnDn Pn() const noexcept { return pn_; }
+  /// dn
+  constexpr PnDn Dn() const noexcept { return dn_; }
   // </テスト用>
 
  private:
