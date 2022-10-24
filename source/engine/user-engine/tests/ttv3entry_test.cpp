@@ -44,6 +44,14 @@ TEST(V3EntryTest, IsFor) {
   EXPECT_FALSE(entry.IsFor(key, MakeHand<PAWN, LANCE, LANCE>()));
 }
 
+TEST(V3EntryTest, GetHand) {
+  Entry entry;
+  const Key key{0x334334};
+  const Hand hand{MakeHand<PAWN, LANCE>()};
+  entry.Init(key, hand, 334, 1, 1, 1);
+  EXPECT_EQ(entry.GetHand(), hand);
+}
+
 TEST(V3EntryTest, InitMinDepth) {
   Entry entry;
   const Depth depth{334};
@@ -97,17 +105,20 @@ TEST(V3EntryTest, LookUp_PnDn_Exact) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand, depth1, 33, 4, 1);
-  entry.LookUp(hand, depth1, len, pn, dn, use_old_child);
+  const auto ret1 = entry.LookUp(hand, depth1, len, pn, dn, use_old_child);
+  EXPECT_TRUE(ret1);
   EXPECT_EQ(pn, 33);
   EXPECT_EQ(dn, 4);
 
   pn = dn = 1;
-  entry.LookUp(hand, depth2, len, pn, dn, use_old_child);
+  const auto ret2 = entry.LookUp(hand, depth2, len, pn, dn, use_old_child);
+  EXPECT_TRUE(ret2);
   EXPECT_EQ(pn, 33);
   EXPECT_EQ(dn, 4);
 
   pn = dn = 100;
-  entry.LookUp(hand, depth2, len, pn, dn, use_old_child);
+  const auto ret3 = entry.LookUp(hand, depth2, len, pn, dn, use_old_child);
+  EXPECT_FALSE(ret3);
   EXPECT_EQ(pn, 100);
   EXPECT_EQ(dn, 100);
 }
@@ -124,12 +135,14 @@ TEST(V3EntryTest, LookUp_PnDn_Superior) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
-  entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  const auto ret1 = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  EXPECT_TRUE(ret1);
   EXPECT_EQ(pn, 1);
   EXPECT_EQ(dn, 4);
 
   pn = dn = 1;
-  entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
+  const auto ret2 = entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
+  EXPECT_FALSE(ret2);
   EXPECT_EQ(pn, 1);
   EXPECT_EQ(dn, 1);
 }
@@ -146,12 +159,14 @@ TEST(V3EntryTest, LookUp_PnDn_Inferior) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
-  entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  const auto ret1 = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  EXPECT_TRUE(ret1);
   EXPECT_EQ(pn, 33);
   EXPECT_EQ(dn, 1);
 
   pn = dn = 1;
-  entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
+  const auto ret2 = entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
+  EXPECT_FALSE(ret2);
   EXPECT_EQ(pn, 1);
   EXPECT_EQ(dn, 1);
 }
@@ -170,7 +185,8 @@ TEST(V3EntryTest, LookUp_PnDn_Proven) {
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
   entry.UpdateProven(len1, MOVE_NONE, 1);
-  entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  const auto ret = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  EXPECT_TRUE(ret);
   EXPECT_EQ(pn, 0);
   EXPECT_EQ(dn, komori::kInfinitePnDn);
 }
@@ -189,7 +205,8 @@ TEST(V3EntryTest, LookUp_PnDn_Disproven) {
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
   entry.UpdateDisproven(len1, MOVE_NONE, 1);
-  entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  const auto ret = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  EXPECT_TRUE(ret);
   EXPECT_EQ(pn, komori::kInfinitePnDn);
   EXPECT_EQ(dn, 0);
 }

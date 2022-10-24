@@ -193,6 +193,11 @@ class alignas(64) Entry {
    */
   constexpr bool IsFor(Key board_key, Hand hand) const noexcept { return board_key_ == board_key && hand_ == hand; }
 
+  /// 探索量
+  constexpr SearchAmount Amount() const noexcept { return amount_; }
+  /// 現局面の持ち駒
+  constexpr Hand GetHand() const noexcept { return hand_; }
+
   /**
    * @brief 千日手の可能性ありフラグの設定および pn/dn の再初期化を行う。
    * @pre `!IsNull()`
@@ -272,11 +277,14 @@ class alignas(64) Entry {
    * @param pn     pn
    * @param dn     dn
    * @param use_old_child unproven old childフラグ
+   * @return 引数の値が更新されていれば `true`
    * @pre `IsFor(board_key)` （`board_key` は現局面の盤面ハッシュ）
    *
    * 置換表の肝の部分。本将棋エンジンとは異なり、優等局面、劣等局面の結果をチラ見しながら pn 値と dn 値を取得する。
+   * 外側のループ脱出の判断をできるだけ高速にしたいので、引数の値が更新されたかどうかを戻り値として戻す。
    */
-  constexpr void LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) noexcept {
+  constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) noexcept {
+    bool update = false;
     const auto depth16 = static_cast<std::int16_t>(depth);
     if (hand_ == hand) {
       // このタイミングで最小距離を更新しておかないと無限ループになる可能性があるので注意
@@ -291,14 +299,17 @@ class alignas(64) Entry {
         len = proven_.len;
         pn = 0;
         dn = kInfinitePnDn;
-        return;
+        return true;
       }
 
       if (hand_ == hand || min_depth_ >= depth16) {
-        dn = std::max(dn, dn_);
-        if (min_depth_ > depth16) {
-          // unproven old child の情報を使ったときはフラグを立てておく
-          use_old_child = true;
+        if (dn < dn_) {
+          update = true;
+          dn = dn_;
+          if (min_depth_ > depth16) {
+            // unproven old child の情報を使ったときはフラグを立てておく
+            use_old_child = true;
+          }
         }
       }
     }
@@ -311,24 +322,27 @@ class alignas(64) Entry {
         len = disproven_.len;
         pn = kInfinitePnDn;
         dn = 0;
-        return;
+        return true;
       }
 
       if (hand_ == hand || min_depth_ >= depth16) {
-        pn = std::max(pn, pn_);
-        if (min_depth_ > depth16) {
-          // unproven old child の情報を使ったときはフラグを立てておく
-          use_old_child = true;
+        if (pn < pn_) {
+          pn = pn_;
+          update = true;
+          if (min_depth_ > depth16) {
+            // unproven old child の情報を使ったときはフラグを立てておく
+            use_old_child = true;
+          }
         }
       }
     }
+
+    return update;
   }
 
   // <テスト用>
   // UpdateXxx() や LookUp() など、外部から変数が観測できないとテストの際にかなり不便なので、Getter を用意しておく。
 
-  /// 探索量
-  constexpr SearchAmount Amount() const noexcept { return amount_; }
   /// 最小距離
   constexpr Depth MinDepth() const noexcept { return static_cast<Depth>(min_depth_); }
   /// 詰み手数

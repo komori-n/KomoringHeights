@@ -7,8 +7,8 @@
 #include "typedefs.hpp"
 
 namespace komori {
-namespace detail {
 inline constexpr PnDn kPnDnUnit = 2;
+namespace detail {
 
 inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move) {
   PnDn pn = kPnDnUnit;
