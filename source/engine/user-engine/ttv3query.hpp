@@ -124,6 +124,9 @@ class Query {
     return LookUp<kCreateIfNotFound>(does_have_old_child, len, []() { return std::make_pair(kPnDnUnit, kPnDnUnit); });
   }
 
+  // テンプレート関数のカバレッジは悲しいことになるので取らない
+  // LCOV_EXCL_START
+
   /**
    * @brief クラスタから結果を集めてきて返す関数。
    * @tparam kCreateIfNotFound   もしエントリが見つからなかった場合、新規作成するかどうか
@@ -151,9 +154,6 @@ class Query {
     Entry* itr = cluster_.head_entry;
     bool found_exact = false;
 
-    // アンロールしているブランチをすべて通すのは険しいので、カバレッジ計測を無効にする
-    // LCOV_EXCL_START
-
     // Doxygen によるドキュメンテーションを無効にする
 #if !defined(DOXYGEN_SHOULD_SKIP_THIS)
 #define LOOKUP_UNROLL_IMPL(i)                                                                  \
@@ -180,7 +180,6 @@ class Query {
     KOMORI_TTV3_QUERY_UNROLL_CLUSTER(LOOKUP_UNROLL_IMPL);
 #undef LOOKUP_UNROLL_IMPL
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
-    // LCOV_EXCL_STOP
 
     if (found_exact) {
       UnknownData unknown_data{false, kNullKey, kNullHand, 0};
@@ -192,12 +191,13 @@ class Query {
     dn = std::max(dn, init_dn);
 
     if constexpr (kCreateIfNotFound) {
-      // unimplemented
+      CreateNewEntry(pn, dn);
     }
 
     const UnknownData unknown_data{true, kNullKey, kNullHand, 0};
     return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
   }
+  // LCOV_EXCL_STOP
 
   /**
    * @brief 探索結果 `result` をクラスタに書き込む
@@ -219,6 +219,41 @@ class Query {
   }
 
  private:
+  /**
+   * @brief クラスタから書き込み用のエントリを1つ選び (`pn`, `dn`) を保存する
+   * @return 新たに作成したエントリ
+   *
+   * クラスタ内に空きがある場合、それを用いて新規エントリを作る。もしクラスタ内に空きがないならば、探索量が最も小さい
+   * エントリを消して新規エントリを作る。
+   */
+  Entry* CreateNewEntry(PnDn pn, PnDn dn) noexcept {
+    Entry* itr = cluster_.head_entry;
+    Entry* min_amount_entry = cluster_.head_entry;
+    SearchAmount min_amount = std::numeric_limits<SearchAmount>::max();
+    // LCOV_EXCL_START
+#if !defined(DOXYGEN_SHOULD_SKIP_THIS)
+#define CREATE_ENTRY_IMPL(i)                           \
+  do {                                                 \
+    if (itr->IsNull()) {                               \
+      itr->Init(board_key_, hand_, depth_, pn, dn, 1); \
+      return itr;                                      \
+    }                                                  \
+    if (itr->Amount() < min_amount) {                  \
+      min_amount_entry = itr;                          \
+      min_amount = itr->Amount();                      \
+    }                                                  \
+    itr++;                                             \
+  } while (false)
+
+    KOMORI_TTV3_QUERY_UNROLL_CLUSTER(CREATE_ENTRY_IMPL);
+#undef CREATE_ENTRY_IMPL
+#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
+    // LCOV_EXCL_STOP
+
+    min_amount_entry->Init(board_key_, hand_, depth_, pn, dn, 1);
+    return min_amount_entry;
+  }
+
   /**
    * @brief 詰みの探索結果 `result` をクラスタに書き込む関数
    * @param result 探索結果（詰み）

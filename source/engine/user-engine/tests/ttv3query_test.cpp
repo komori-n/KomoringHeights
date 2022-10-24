@@ -192,3 +192,37 @@ TEST_F(V3QueryTest, LoopUp_Disproven) {
   EXPECT_EQ(result.GetHand(), hand);
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
 }
+
+TEST_F(V3QueryTest, LoopUp_CreationEmpty) {
+  const PnDn pn{33};
+  const PnDn dn{4};
+  const SearchAmount amount{334};
+
+  entries_[0].Init(board_key_, MakeHand<PAWN>(), depth_, pn, dn, amount);
+
+  bool does_have_old_child{false};
+  const auto result = query_.LookUp<true>(does_have_old_child, MateLen::Make(33, 4));
+
+  EXPECT_EQ(entries_[1].Pn(), kPnDnUnit);
+  EXPECT_EQ(entries_[1].Dn(), dn);
+  EXPECT_EQ(entries_[1].Amount(), 1);
+}
+
+TEST_F(V3QueryTest, LoopUp_CreationFull) {
+  const PnDn pn{33};
+  const PnDn dn{4};
+  const SearchAmount amount{334};
+
+  entries_[0].Init(board_key_, MakeHand<PAWN>(), depth_, pn, dn, amount);
+  for (std::size_t i = 1; i < Cluster::kSize; ++i) {
+    // entries_[8] の探索量が最小になるように初期化
+    entries_[i].Init(0x264, HAND_ZERO, 1, 1, 1, 1 + (8 - i) * (8 - i));
+  }
+
+  bool does_have_old_child{false};
+  const auto result = query_.LookUp<true>(does_have_old_child, MateLen::Make(33, 4));
+
+  EXPECT_EQ(entries_[8].Pn(), kPnDnUnit);
+  EXPECT_EQ(entries_[8].Dn(), dn);
+  EXPECT_EQ(entries_[8].Amount(), 1);
+}
