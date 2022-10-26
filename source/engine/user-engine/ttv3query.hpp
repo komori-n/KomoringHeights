@@ -191,7 +191,7 @@ class Query {
     dn = std::max(dn, init_dn);
 
     if constexpr (kCreateIfNotFound) {
-      CreateNewEntry(pn, dn);
+      CreateNewEntry(hand_, pn, dn, 1);
     }
 
     const UnknownData unknown_data{true, kNullKey, kNullHand, 0};
@@ -206,12 +206,12 @@ class Query {
    */
   void SetResult(const SearchResult& result) noexcept {
     if (result.Pn() == 0) {
-      SetProven(result);
+      SetFinal<true>(result);
     } else if (result.Dn() == 0) {
       if (result.GetFinalData().is_repetition) {
         SetRepetition(result);
       } else {
-        SetDisproven(result);
+        SetFinal<false>(result);
       }
     } else {
       SetUnknown(result);
@@ -220,29 +220,60 @@ class Query {
 
  private:
   /**
-   * @brief クラスタから書き込み用のエントリを1つ選び (`pn`, `dn`) を保存する
+   * @brief クラスタの中から (`board_key_`, `hand`) に一致するエントリを探す
+   * @param hand 持ち駒
+   * @return エントリが見つかった場合、それを返す。見つからなかった場合、`nullptr` を返す。
+   */
+  Entry* FindEntry(Hand hand) noexcept {
+    Entry* itr = cluster_.head_entry;
+
+#if !defined(DOXYGEN_SHOULD_SKIP_THIS)
+#define FIND_ENTRY_IMPL(i)              \
+  do {                                  \
+    if (itr->IsFor(board_key_, hand)) { \
+      return itr;                       \
+    }                                   \
+    itr++;                              \
+  } while (false)
+
+    KOMORI_TTV3_QUERY_UNROLL_CLUSTER(FIND_ENTRY_IMPL);
+#undef CREATE_ENTRY_IMPL
+#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
+
+    return nullptr;
+  }
+
+  /**
+   * @brief クラスタから持ち駒 `hand` の書き込み用のエントリを1つ選び (`pn`, `dn`) を保存する
+   * @param hand 持ち駒
+   * @param pn pn
+   * @param dn dn
+   * @param amount 探索量
    * @return 新たに作成したエントリ
    *
    * クラスタ内に空きがある場合、それを用いて新規エントリを作る。もしクラスタ内に空きがないならば、探索量が最も小さい
    * エントリを消して新規エントリを作る。
+   *
+   * 作成するエントリの持ち駒を `hand_` を直接使わずに `hand` を引数として受け取っている理由は、
+   * 詰み／不詰エントリを書き込むときに使用したいため。
    */
-  Entry* CreateNewEntry(PnDn pn, PnDn dn) noexcept {
+  Entry* CreateNewEntry(Hand hand, PnDn pn, PnDn dn, SearchAmount amount) noexcept {
     Entry* itr = cluster_.head_entry;
     Entry* min_amount_entry = cluster_.head_entry;
     SearchAmount min_amount = std::numeric_limits<SearchAmount>::max();
     // LCOV_EXCL_START
 #if !defined(DOXYGEN_SHOULD_SKIP_THIS)
-#define CREATE_ENTRY_IMPL(i)                           \
-  do {                                                 \
-    if (itr->IsNull()) {                               \
-      itr->Init(board_key_, hand_, depth_, pn, dn, 1); \
-      return itr;                                      \
-    }                                                  \
-    if (itr->Amount() < min_amount) {                  \
-      min_amount_entry = itr;                          \
-      min_amount = itr->Amount();                      \
-    }                                                  \
-    itr++;                                             \
+#define CREATE_ENTRY_IMPL(i)                               \
+  do {                                                     \
+    if (itr->IsNull()) {                                   \
+      itr->Init(board_key_, hand, depth_, pn, dn, amount); \
+      return itr;                                          \
+    }                                                      \
+    if (itr->Amount() < min_amount) {                      \
+      min_amount_entry = itr;                              \
+      min_amount = itr->Amount();                          \
+    }                                                      \
+    itr++;                                                 \
   } while (false)
 
     KOMORI_TTV3_QUERY_UNROLL_CLUSTER(CREATE_ENTRY_IMPL);
@@ -250,44 +281,62 @@ class Query {
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
     // LCOV_EXCL_STOP
 
-    min_amount_entry->Init(board_key_, hand_, depth_, pn, dn, 1);
+    min_amount_entry->Init(board_key_, hand, depth_, pn, dn, amount);
     return min_amount_entry;
   }
 
   /**
-   * @brief 詰みの探索結果 `result` をクラスタに書き込む関数
-   * @param result 探索結果（詰み）
-   * @note 未実装
+   * @brief 詰みまたは不詰の探索結果 `result` をクラスタに書き込む
+   * @tparam kIsProven true: 詰み／false: 不詰
+   * @param result 探索結果（詰み or 不詰）
    */
-  void SetProven(const SearchResult& result) noexcept {
-    // unimplemented
-  }
+  template <bool kIsProven>
+  void SetFinal(const SearchResult& result) noexcept {
+    const auto hand = result.GetHand();
+    auto entry = FindEntry(hand);
+    if (entry == nullptr) {
+      entry = CreateNewEntry(hand, 1, 1, 1);
+    }
 
-  /**
-   * @brief 不詰の探索結果 `result` をクラスタに書き込む関数
-   * @param result 探索結果（不詰）
-   * @note 未実装
-   */
-  void SetDisproven(const SearchResult& result) noexcept {
-    // unimplemented
+    const auto len = result.Len();
+    const auto amount = result.Amount();
+
+    if constexpr (kIsProven) {
+      entry->UpdateProven(len.To16(), MOVE_NONE, amount);
+    } else {
+      entry->UpdateDisproven(len.To16(), MOVE_NONE, amount);
+    }
   }
 
   /**
    * @brief 千日手の探索結果 `result` をクラスタに書き込む関数
    * @param result 探索結果（千日手）
-   * @note 未実装
    */
-  void SetRepetition(const SearchResult& result) noexcept {
-    // unimplemented
+  void SetRepetition(const SearchResult& /* result */) noexcept {
+    auto entry = FindEntry(hand_);
+    if (entry == nullptr) {
+      entry = CreateNewEntry(hand_, 1, 1, 1);
+    }
+
+    entry->SetPossibleRepetition();
+    rep_table_->Insert(path_key_);
   }
 
   /**
    * @brief 探索中の探索結果 `result` をクラスタに書き込む関数
    * @param result 探索結果（探索中）
-   * @note 未実装
    */
   void SetUnknown(const SearchResult& result) noexcept {
-    // unimplemented
+    const auto pn = result.Pn();
+    const auto dn = result.Dn();
+    const auto len = result.Len();
+    const auto amount = result.Amount();
+
+    if (auto entry = FindEntry(hand_)) {
+      entry->UpdateUnknown(depth_, pn, dn, len.To16(), amount);
+    } else {
+      CreateNewEntry(hand_, pn, dn, amount);
+    }
   }
 
   RepetitionTable* rep_table_;  ///< 千日手テーブル。千日手判定に用いる。

@@ -51,6 +51,7 @@ constexpr inline SearchAmount kFinalAmountMultiplication{10};
  * - Init()
  * - SetNull()
  * - IsNull()
+ * - IsFor(key, hand)
  *
  * 上記以外の関数をコールしたときの挙動は未定義なので注意すること。
  *
@@ -187,9 +188,10 @@ class alignas(64) Entry {
    * @param board_key 盤面ハッシュ値
    * @param hand      持ち駒
    * @return エントリが (`board_key`, `hand`) のものなら `true`
-   * @pre `!IsNull()`
    *
    * `IsFor(board_key)` の条件に加え、`hand` が一致するかどうかの判定を行う。
+   *
+   * @note エントリが無効かどうかは `hand` に格納されているので、無効状態でも正しく動作する
    */
   constexpr bool IsFor(Key board_key, Hand hand) const noexcept { return board_key_ == board_key && hand_ == hand; }
 

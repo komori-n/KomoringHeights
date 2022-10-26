@@ -5,12 +5,15 @@
 #include "../ttv3query.hpp"
 #include "test_lib.hpp"
 
+using komori::FinalData;
 using komori::kInfinitePnDn;
 using komori::kPnDnUnit;
 using komori::MateLen;
 using komori::MateLen16;
 using komori::PnDn;
 using komori::RepetitionTable;
+using komori::SearchResult;
+using komori::UnknownData;
 using komori::ttv3::Cluster;
 using komori::ttv3::Entry;
 using komori::ttv3::Query;
@@ -201,7 +204,7 @@ TEST_F(V3QueryTest, LoopUp_CreationEmpty) {
   entries_[0].Init(board_key_, MakeHand<PAWN>(), depth_, pn, dn, amount);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<true>(does_have_old_child, MateLen::Make(33, 4));
+  query_.LookUp<true>(does_have_old_child, MateLen::Make(33, 4));
 
   EXPECT_EQ(entries_[1].Pn(), kPnDnUnit);
   EXPECT_EQ(entries_[1].Dn(), dn);
@@ -220,9 +223,102 @@ TEST_F(V3QueryTest, LoopUp_CreationFull) {
   }
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<true>(does_have_old_child, MateLen::Make(33, 4));
+  query_.LookUp<true>(does_have_old_child, MateLen::Make(33, 4));
 
   EXPECT_EQ(entries_[8].Pn(), kPnDnUnit);
   EXPECT_EQ(entries_[8].Dn(), dn);
   EXPECT_EQ(entries_[8].Amount(), 1);
+}
+
+TEST_F(V3QueryTest, SetResult_UnknownNew) {
+  const PnDn pn{33};
+  const PnDn dn{4};
+  const SearchAmount amount{334};
+  const UnknownData unknown_data{};
+  const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen::Make(33, 4), amount, unknown_data);
+
+  query_.SetResult(result);
+  EXPECT_EQ(entries_[0].Pn(), pn);
+  EXPECT_EQ(entries_[0].Dn(), dn);
+  EXPECT_EQ(entries_[0].Amount(), amount);
+}
+
+TEST_F(V3QueryTest, SetResult_UnknownUpdate) {
+  for (std::size_t i = 0; i < Cluster::kSize; ++i) {
+    const PnDn pn{33 * (i + 1)};
+    const PnDn dn{4 * (i + 1)};
+    const SearchAmount amount{static_cast<SearchAmount>(334 * (i + 1))};
+    entries_[i].Init(board_key_, hand_, 334, 1, 1, 1);
+
+    const UnknownData unknown_data{};
+    const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen::Make(33, 4), amount, unknown_data);
+
+    query_.SetResult(result);
+    EXPECT_EQ(entries_[i].Pn(), pn) << i;
+    EXPECT_EQ(entries_[i].Dn(), dn) << i;
+    EXPECT_EQ(entries_[i].Amount(), 1 + amount) << i;
+
+    entries_[i].SetNull();
+  }
+}
+
+TEST_F(V3QueryTest, SetResult_ProvenNew) {
+  const auto hand = MakeHand<PAWN>();
+  const MateLen len = MateLen::Make(33, 4);
+  const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
+
+  query_.SetResult(result);
+  EXPECT_EQ(entries_[0].ProvenLen(), len.To16());
+}
+
+TEST_F(V3QueryTest, SetResult_ProvenUpdate) {
+  const auto hand = MakeHand<PAWN>();
+  const MateLen len = MateLen::Make(33, 4);
+  const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
+
+  entries_[2].Init(board_key_, hand, 334, 1, 1, 1);
+  query_.SetResult(result);
+  EXPECT_EQ(entries_[2].ProvenLen(), len.To16());
+}
+
+TEST_F(V3QueryTest, SetResult_DisprovenNew) {
+  const auto hand = MakeHand<PAWN, LANCE, LANCE, GOLD>();
+  const MateLen len = MateLen::Make(33, 4);
+  const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
+
+  query_.SetResult(result);
+  EXPECT_EQ(entries_[0].DisprovenLen(), len.To16());
+}
+
+TEST_F(V3QueryTest, SetResult_DisprovenUpdate) {
+  const auto hand = MakeHand<PAWN, LANCE, LANCE, GOLD>();
+  const MateLen len = MateLen::Make(33, 4);
+  const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
+
+  entries_[2].Init(board_key_, hand, 334, 1, 1, 1);
+  query_.SetResult(result);
+  EXPECT_EQ(entries_[2].DisprovenLen(), len.To16());
+}
+
+TEST_F(V3QueryTest, SetResult_RepetitionNew) {
+  const SearchAmount amount{334};
+  const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen::Make(33, 4), amount);
+
+  query_.SetResult(result);
+  EXPECT_EQ(entries_[0].Pn(), 1);
+  EXPECT_EQ(entries_[0].Dn(), 1);
+  EXPECT_EQ(entries_[0].Amount(), 1);
+  EXPECT_TRUE(rep_table_.Contains(path_key_));
+}
+
+TEST_F(V3QueryTest, SetResult_RepetitionUpdate) {
+  const SearchAmount amount{334};
+  const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen::Make(33, 4), amount);
+
+  entries_[2].Init(board_key_, hand_, 334, 1, 1, 1);
+  query_.SetResult(result);
+  EXPECT_EQ(entries_[2].Pn(), 1);
+  EXPECT_EQ(entries_[2].Dn(), 1);
+  EXPECT_EQ(entries_[2].Amount(), 1);
+  EXPECT_TRUE(rep_table_.Contains(path_key_));
 }
