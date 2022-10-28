@@ -214,6 +214,7 @@ class Query {
     dn = std::max(dn, init_dn);
 
     if constexpr (kCreateIfNotFound) {
+      // このエントリに対し費やした探索量は `amount` ではなく 1 なので注意。
       CreateNewEntry(hand_, pn, dn, 1);
     }
 
