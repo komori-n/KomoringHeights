@@ -35,3 +35,12 @@ TEST(RepetitionTable, Insert) {
   rep_table.Insert(334);
   EXPECT_TRUE(rep_table.Contains(334));
 }
+
+TEST(RepetitionTable, HashRate) {
+  RepetitionTable rep_table;
+  rep_table.SetTableSizeMax(2);
+  EXPECT_EQ(rep_table.HashRate(), 0.0);
+
+  rep_table.Insert(334);
+  EXPECT_GT(rep_table.HashRate(), 0.0);
+}

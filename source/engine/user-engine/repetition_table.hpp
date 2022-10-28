@@ -25,7 +25,7 @@ class RepetitionTable {
     }
   }
   /// 置換表に登録できる key の最大個数を設定する。
-  void SetTableSizeMax(std::size_t size_max) { size_max_ = size_max; }
+  void SetTableSizeMax(std::size_t size_max) { size_max_ = size_max + 1; }
 
   /// 置換表のうち古くなった部分を削除する。
   void CollectGarbage() {
@@ -54,6 +54,9 @@ class RepetitionTable {
     }
     return ret;
   }
+
+  /// 置換表のメモリ使用率を求める。
+  double HashRate() const { return static_cast<double>(Size()) / size_max_; }
 
  private:
   /// 内部で持つ `std::unordered_set` の個数。あまり多いと LookUp 時間が増大する。

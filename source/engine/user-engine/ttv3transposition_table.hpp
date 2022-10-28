@@ -16,6 +16,32 @@ namespace detail {
 constexpr inline double kNormalRepetitionRatio = 0.95;
 
 /**
+ * @brief Hashfull（ハッシュ使用率）を計算するために仕様するエントリ数。大きすぎると探索性能が低下する。
+ *
+ * ## サンプル数の考察（読まなくていい）
+ *
+ * N 個のエントリのうち K 個が使用中の状況で、この N 個から無作為に n 個のエントリを調べたとき、
+ * 使用中のエントリの個数 X は超幾何分布
+ *     P(X=k) = (K choose k) * ((N - K) choose (n - k)) / (N choose n)
+ * に従う。この確率変数 X は
+ *     n * K / N
+ * で分散
+ *     n * K * (N - K) * (N - n) / N^2 / (N - 1)
+ * である。よって、1 < n << N のとき、
+ *     Y := X / n
+ * とおくと、Y は平均
+ *     K / N =: p    # ハッシュ使用率
+ * で分散
+ *     K * (N - K) * (N - n) / N^2 / (N - 1) / n
+ *     = p * (1 - p) * (1 - n/N) / (1 - 1/N) / n
+ *     ~ p * (1 - p) / n
+ * となる。よって、n=10000 のとき、Y が K/N ± 0.01 の範囲の値を取る確率は少なく見積もってだいたい 95 %ぐらいとなる。
+ * 探索中の詰将棋エンジンのハッシュ使用率の値が 1% ずれていても実用上ほとんど影響ないと考えられるので、
+ * 実行速度とのバランスを考えて n=10000 というのはある程度妥当な数字だと言える。
+ */
+constexpr std::size_t kHashfullCalcEntries = 10000;
+
+/**
  * @brief 詰将棋エンジンの置換表本体
  * @tparam Query クエリクラス。単体テストしやすいように、外部から注入できるようにテンプレートパラメータにする。
  *
@@ -93,9 +119,8 @@ class TranspositionTableImpl {
     const auto new_num_entries = std::max(static_cast<std::uint64_t>(Cluster::kSize + 1), normal_bytes / sizeof(Entry));
     // 千日手テーブルに保存する要素数。最低でも 1 以上になるようにする
     // 千日手テーブルは `std::unordered_set` により実現されているので、N 個のエントリを保存するためには
-    // 2.5N * sizeof(Key) バイトが必要になる。（環境依存）
-    // そのため、少し余裕を見て `rep_bytes / sizeof(Key)` を3で割った値を上限として設定する。
-    const auto rep_num_entries = std::max(decltype(rep_bytes){1}, rep_bytes / 3 / sizeof(Key));
+    // 4N * sizeof(Key) バイト程度が必要になる。（環境依存）
+    const auto rep_num_entries = std::max(decltype(rep_bytes){1}, rep_bytes / 4 / sizeof(Key));
 
     cluster_head_num_ = new_num_entries - Cluster::kSize;
     entries_.resize(new_num_entries);
@@ -164,11 +189,19 @@ class TranspositionTableImpl {
   /**
    * @brief 置換表使用率（千分率）を計算する
    * @return 置換表使用率（千分率）
-   * @note 未実装
+   *
+   * 置換表全体のメモリ使用率を計算する。置換表は通常テーブルと千日手テーブルに分かれているため、それぞれの
+   * メモリ使用率を重み付けして足し合わせることで全体のメモリ使用量を見積もる。
+   *
+   * 通常テーブルのメモリ使用率を計算する際、置換表のサンプリングを行う。そのため、結果の計算にはそこそこの
+   * 計算コストがかかる。1秒に1回程度なら問題ないが、それ以上の頻度で呼び出すと性能劣化につながるので注意すること。
    */
   std::int32_t Hashfull() const {
-    // not implemented
-    return 0;
+    const auto normal_hash_rate = GetNormalTableHashRate();
+    const auto rep_hash_rate = rep_table_.HashRate();
+    // 通常テーブル : 千日手テーブル = kNormalRepetitionRatio : 1 - kNormalRepetitionRatio
+    const auto hash_rate = kNormalRepetitionRatio * normal_hash_rate + (1 - kNormalRepetitionRatio) * rep_hash_rate;
+    return static_cast<std::int32_t>(1000 * hash_rate);
   }
 
   /**
@@ -208,6 +241,37 @@ class TranspositionTableImpl {
     const Key hash_low = board_key & Key{0xffff'ffffULL};
     auto idx = (hash_low * cluster_head_num_) >> 32;
     return {&entries_[idx]};
+  }
+
+  /**
+   * @brief 通常テーブルのメモリ使用率を見積もる。
+   * @return メモリ使用率（通常テーブル）
+   *
+   * `entries_` の中からいくつかのエントリをサンプリングしてメモリ使用率を求める。
+   *
+   * @note `entries_` の最初と最後の `Cluster::kSize` 個の要素はクラスタ同士のオーバーラップが小さいので、
+   * 他の領域と比べて使用される確率が低い。
+   */
+  double GetNormalTableHashRate() const noexcept {
+    // entries_ の最初と最後はエントリ数が若干少ないので、真ん中から kHashfullCalcEntries 個のエントリを調べる
+    const std::size_t begin_idx = Cluster::kSize;
+    const std::size_t count_range_size = cluster_head_num_ - begin_idx;
+
+    std::size_t used_count = 0;
+    std::size_t idx = begin_idx;
+    for (std::size_t i = 0; i < kHashfullCalcEntries; ++i) {
+      if (!entries_[idx].IsNull()) {
+        used_count++;
+      }
+
+      // 連続領域をカウントすると偏りが出やすくなってしまうので、大きめの値を足す。
+      idx += 334;
+      if (idx > cluster_head_num_) {
+        idx -= count_range_size;
+      }
+    }
+
+    return static_cast<double>(used_count) / kHashfullCalcEntries;
   }
 
   /**

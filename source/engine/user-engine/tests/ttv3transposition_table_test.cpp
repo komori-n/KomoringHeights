@@ -8,6 +8,7 @@
 using komori::kDepthMax;
 using komori::RepetitionTable;
 using komori::ttv3::Cluster;
+using komori::ttv3::detail::kNormalRepetitionRatio;
 using komori::ttv3::detail::TranspositionTableImpl;
 
 namespace {
@@ -91,4 +92,32 @@ TEST_F(TranspositionTableTest, BuildQueryByKey_ClusterHasUniformDistribution) {
     cluster_ids.insert(cluster_id);
   }
   EXPECT_EQ(cluster_ids.size(), cluster_head_num);
+}
+
+TEST_F(TranspositionTableTest, Hashfull_EmptyAfterNewSearch) {
+  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+
+  query.rep_table.Insert(0x334);
+  for (auto itr = query.cluster.head_entry; itr != &*tt_.end(); ++itr) {
+    itr->Init(0x334, HAND_ZERO, 0, 1, 1, 1);
+  }
+
+  EXPECT_GT(tt_.Hashfull(), 0);
+  tt_.NewSearch();
+  EXPECT_EQ(tt_.Hashfull(), 0);
+}
+
+TEST_F(TranspositionTableTest, Hashfull_Full) {
+  // board_key = 0 を渡すことで先頭クラスタが取れるはず
+  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
+
+  query.rep_table.Insert(0x334);
+  for (auto itr = query.cluster.head_entry; itr != &*tt_.end(); ++itr) {
+    itr->Init(0x334, HAND_ZERO, 0, 1, 1, 1);
+  }
+
+  // RepetitionTable のハッシュ使用率は仕様がコロコロかわる気がするので生値を持ってくる
+  const auto expected_real = kNormalRepetitionRatio + (1.0 - kNormalRepetitionRatio) * query.rep_table.HashRate();
+  EXPECT_EQ(tt_.Hashfull(), static_cast<std::int32_t>(1000 * expected_real));
 }
