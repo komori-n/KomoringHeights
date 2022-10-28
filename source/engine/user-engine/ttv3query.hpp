@@ -143,7 +143,7 @@ class Query {
    * @return Look Up 結果
    */
   template <bool kCreateIfNotFound>
-  SearchResult LookUp(bool& does_have_old_child, MateLen len) {
+  SearchResult LookUp(bool& does_have_old_child, MateLen len) const {
     return LookUp<kCreateIfNotFound>(does_have_old_child, len, []() { return std::make_pair(kPnDnUnit, kPnDnUnit); });
   }
 
@@ -168,7 +168,7 @@ class Query {
    * 呼ばれるため、ループアンローリングなどの小手先の高速化でかなり全体の処理性能向上に貢献できる。
    */
   template <bool kCreateIfNotFound, typename InitialEvalFunc>
-  SearchResult LookUp(bool& does_have_old_child, MateLen len, InitialEvalFunc&& eval_func) {
+  SearchResult LookUp(bool& does_have_old_child, MateLen len, InitialEvalFunc&& eval_func) const {
     MateLen16 len16{len.To16()};
     PnDn pn = 1;
     PnDn dn = 1;
@@ -227,7 +227,7 @@ class Query {
    * @param result 探索結果
    * @note 実際の処理は `SetProven()`, `SetDisproven()`, `SetRepetition()`, `SetUnknown()` を参照。
    */
-  void SetResult(const SearchResult& result) noexcept {
+  void SetResult(const SearchResult& result) const noexcept {
     if (result.Pn() == 0) {
       SetFinal<true>(result);
     } else if (result.Dn() == 0) {
@@ -247,7 +247,7 @@ class Query {
    * @param hand 持ち駒
    * @return エントリが見つかった場合、それを返す。見つからなかった場合、`nullptr` を返す。
    */
-  Entry* FindEntry(Hand hand) noexcept {
+  Entry* FindEntry(Hand hand) const noexcept {
     Entry* itr = cluster_.head_entry;
 
 #if !defined(DOXYGEN_SHOULD_SKIP_THIS)
@@ -280,7 +280,7 @@ class Query {
    * 作成するエントリの持ち駒を `hand_` を直接使わずに `hand` を引数として受け取っている理由は、
    * 詰み／不詰エントリを書き込むときに使用したいため。
    */
-  Entry* CreateNewEntry(Hand hand, PnDn pn, PnDn dn, SearchAmount amount) noexcept {
+  Entry* CreateNewEntry(Hand hand, PnDn pn, PnDn dn, SearchAmount amount) const noexcept {
     Entry* itr = cluster_.head_entry;
     Entry* min_amount_entry = cluster_.head_entry;
     SearchAmount min_amount = std::numeric_limits<SearchAmount>::max();
@@ -314,7 +314,7 @@ class Query {
    * @param result 探索結果（詰み or 不詰）
    */
   template <bool kIsProven>
-  void SetFinal(const SearchResult& result) noexcept {
+  void SetFinal(const SearchResult& result) const noexcept {
     const auto hand = result.GetHand();
     auto entry = FindEntry(hand);
     if (entry == nullptr) {
@@ -335,7 +335,7 @@ class Query {
    * @brief 千日手の探索結果 `result` をクラスタに書き込む関数
    * @param result 探索結果（千日手）
    */
-  void SetRepetition(const SearchResult& /* result */) noexcept {
+  void SetRepetition(const SearchResult& /* result */) const noexcept {
     auto entry = FindEntry(hand_);
     if (entry == nullptr) {
       entry = CreateNewEntry(hand_, 1, 1, 1);
@@ -349,7 +349,7 @@ class Query {
    * @brief 探索中の探索結果 `result` をクラスタに書き込む関数
    * @param result 探索結果（探索中）
    */
-  void SetUnknown(const SearchResult& result) noexcept {
+  void SetUnknown(const SearchResult& result) const noexcept {
     const auto pn = result.Pn();
     const auto dn = result.Dn();
     const auto len = result.Len();
