@@ -8,6 +8,8 @@
 using komori::kDepthMax;
 using komori::RepetitionTable;
 using komori::ttv3::Cluster;
+using komori::ttv3::detail::kGcRemoveElementNum;
+using komori::ttv3::detail::kGcThreshold;
 using komori::ttv3::detail::kNormalRepetitionRatio;
 using komori::ttv3::detail::TranspositionTableImpl;
 
@@ -120,4 +122,55 @@ TEST_F(TranspositionTableTest, Hashfull_Full) {
   // RepetitionTable のハッシュ使用率は仕様がコロコロかわる気がするので生値を持ってくる
   const auto expected_real = kNormalRepetitionRatio + (1.0 - kNormalRepetitionRatio) * query.rep_table.HashRate();
   EXPECT_EQ(tt_.Hashfull(), static_cast<std::int32_t>(1000 * expected_real));
+}
+
+TEST_F(TranspositionTableTest, CollectGarbage_DoNothing) {
+  // board_key = 0 を渡すことで先頭クラスタが取れるはず
+  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
+
+  auto itr = query.cluster.head_entry;
+  for (std::size_t i = 0; i < kGcThreshold - 1; ++i) {
+    itr[i].Init(0x334, HAND_ZERO, 0, 1, 1, 1);
+  }
+  tt_.CollectGarbage();
+  for (std::size_t i = 0; i < kGcThreshold - 1; ++i) {
+    EXPECT_FALSE(itr[i].IsNull()) << i;
+  }
+}
+
+TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Increasing) {
+  // board_key = 0 を渡すことで先頭クラスタが取れるはず
+  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
+
+  auto itr = query.cluster.head_entry + 1;
+  for (std::size_t i = 0; i < kGcThreshold; ++i) {
+    itr[i].Init(0x334, HAND_ZERO, 0, 1, 1, 1 + i);
+  }
+  tt_.CollectGarbage();
+  for (std::size_t i = 0; i < kGcRemoveElementNum; ++i) {
+    EXPECT_TRUE(itr[i].IsNull()) << i;
+  }
+  for (std::size_t i = kGcRemoveElementNum; i < kGcThreshold; ++i) {
+    EXPECT_FALSE(itr[i].IsNull()) << i;
+  }
+}
+
+TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Decreasing) {
+  // board_key = 0 を渡すことで先頭クラスタが取れるはず
+  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
+
+  auto itr = query.cluster.head_entry + 334;
+  for (std::size_t i = 0; i < kGcThreshold; ++i) {
+    itr[i].Init(0x334, HAND_ZERO, 0, 1, 1, 1 + kGcThreshold - i);
+  }
+  tt_.CollectGarbage();
+  for (std::size_t i = 0; i < kGcThreshold - kGcRemoveElementNum; ++i) {
+    EXPECT_FALSE(itr[i].IsNull()) << i;
+  }
+  for (std::size_t i = kGcThreshold - kGcRemoveElementNum; i < kGcThreshold; ++i) {
+    EXPECT_TRUE(itr[i].IsNull()) << i;
+  }
 }

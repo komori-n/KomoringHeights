@@ -40,6 +40,29 @@ constexpr inline double kNormalRepetitionRatio = 0.95;
  * 実行速度とのバランスを考えて n=10000 というのはある程度妥当な数字だと言える。
  */
 constexpr std::size_t kHashfullCalcEntries = 10000;
+/// エントリを消すしきい値。
+constexpr std::size_t kGcThreshold = Cluster::kSize - 1;
+/// GCで消すエントリ数
+constexpr std::size_t kGcRemoveElementNum = 6;
+
+/**
+ * @brief [begin, end) の範囲内で使用中のエントリのうち最も探索量が小さいエントリを返す
+ * @param begin エントリの探索開始位置
+ * @param end  探索終了位置（`end` 自体は含まず）
+ * @return 見つけたエントリ
+ */
+inline Entry* GetMinAmountEntry(Entry* begin, Entry* end) noexcept {
+  Entry* ret = nullptr;
+  for (auto itr = begin; itr != end; itr++) {
+    if (!itr->IsNull()) {
+      if (ret == nullptr || ret->Amount() > itr->Amount()) {
+        ret = itr;
+      }
+    }
+  }
+
+  return ret;
+}
 
 /**
  * @brief 詰将棋エンジンの置換表本体
@@ -207,11 +230,12 @@ class TranspositionTableImpl {
   /**
    * @brief ガベージコレクションを実行する
    * @return 削除されたエントリ数
-   * @note 未実装
+   *
+   * 通常テーブルおよび千日手テーブルのうち、必要なさそうなエントリの削除を行う。
    */
-  std::size_t CollectGarbage() {
-    // not implemented
-    return 0;
+  void CollectGarbage() {
+    rep_table_.CollectGarbage();
+    RemoveUnusedEntries();
   }
 
   // <テスト用>
@@ -272,6 +296,50 @@ class TranspositionTableImpl {
     }
 
     return static_cast<double>(used_count) / kHashfullCalcEntries;
+  }
+
+  /**
+   * @brief 通常テーブルの中で、メモリ使用率が高いクラスタのエントリを間引く
+   *
+   * `kGcThreshold` 個以上のエントリが使用中のクラスタに対し、エントリの削除を行う。別の言い方をすると、
+   * この関数呼び出し終了後は、すべてのクラスタの使用中エントリ数は `kGcThreshold` 個未満にする。
+   */
+  void RemoveUnusedEntries() {
+    // start_idx から始まる cluster の末尾のインデックスを返す
+    auto cluster_end = [&](std::size_t start_idx) { return std::min(entries_.size(), start_idx + Cluster::kSize); };
+    // idx から Cluster::kSize 個の要素のうち使用中であるものの個数を数える
+    auto count_used = [&](std::size_t start_idx) {
+      const auto end_idx = cluster_end(start_idx);
+      const auto used_count = std::count_if(entries_.begin() + start_idx, entries_.begin() + end_idx,
+                                            [](const Entry& entry) { return !entry.IsNull(); });
+      return static_cast<std::size_t>(used_count);
+    };
+
+    std::size_t start_idx = 0;
+    auto used_in_range = count_used(0);
+    do {
+      if (used_in_range >= kGcThreshold) {
+        // [start_idx, cluster_end(start_idx)) の使用率が高すぎるのでエントリを適当に間引く
+        for (std::size_t k = 0; k < kGcRemoveElementNum; ++k) {
+          auto start_itr = entries_.begin() + start_idx;
+          auto end_itr = entries_.begin() + cluster_end(start_idx);
+          auto min_element = GetMinAmountEntry(&*start_itr, &*end_itr);
+          min_element->SetNull();
+        }
+        start_idx = cluster_end(start_idx);
+        used_in_range = count_used(start_idx);
+      } else {
+        // しゃくとり法で used_in_range の更新をしておく
+        if (!entries_[start_idx].IsNull()) {
+          used_in_range--;
+        }
+
+        if (!entries_[cluster_end(start_idx)].IsNull()) {
+          used_in_range++;
+        }
+        start_idx++;
+      }
+    } while (cluster_end(start_idx) < entries_.size());
   }
 
   /**
