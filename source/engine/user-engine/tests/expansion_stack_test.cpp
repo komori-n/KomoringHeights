@@ -5,7 +5,7 @@
 
 using komori::ExpansionStack;
 using komori::kMaxMateLen;
-using komori::tt::TranspositionTable;
+using komori::ttv3::TranspositionTable;
 
 TEST(ExpansionStackTest, Emplace) {
   TestNode n("4k4/9/9/9/9/9/9/9/9 b P2r2b4g4s4n4l17p 1", true);

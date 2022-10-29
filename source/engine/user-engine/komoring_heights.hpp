@@ -13,7 +13,7 @@
 #include "local_expansion.hpp"
 #include "score.hpp"
 #include "search_result.hpp"
-#include "tt.hpp"
+#include "ttv3transposition_table.hpp"
 #include "usi_info.hpp"
 
 namespace komori {
@@ -96,7 +96,7 @@ class KomoringHeights {
 
   void PrintIfNeeded(const Node& n);
 
-  tt::TranspositionTable tt_;
+  ttv3::TranspositionTable tt_;
   EngineOption option_;
 
   detail::SearchMonitor monitor_;

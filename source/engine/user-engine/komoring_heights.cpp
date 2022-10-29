@@ -3,7 +3,7 @@
 namespace komori {
 namespace {
 inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
-  const std::uint64_t entry_num = hash_mb * 1024 * 1024 / sizeof(tt::detail::Entry);
+  const std::uint64_t entry_num = hash_mb * 1024 * 1024 / sizeof(ttv3::Entry);
 
   return entry_num / 2 * 3;
 }
@@ -272,7 +272,8 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
     MateLen best_len = n.IsOrNode() ? kMaxMateLen : kZeroMateLen;
     for (const auto move : MovePicker{n}) {
       auto query = tt_.BuildChildQuery(n, move.move);
-      const auto child_result = query.LookUp(len - 1, false);
+      bool does_have_old_child = false;
+      const auto child_result = query.LookUp<false>(does_have_old_child, len - 1);
       if (child_result.Pn() != 0) {
         continue;
       }
@@ -284,7 +285,8 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
         best_move = move.move;
         best_len = child_result.Len();
       } else if (child_result.Len() == best_len) {
-        const auto child_result_prec = query.LookUp(len - 3, false);
+        bool does_have_old_child = false;
+        const auto child_result_prec = query.LookUp<false>(does_have_old_child, len - 3);
         if (child_result_prec.Dn() == 0) {
           // move は厳密に best_len 手詰め。
           best_move = move.move;
