@@ -128,8 +128,8 @@ TEST(V3EntryTest, LookUp_PnDn_Superior) {
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN, LANCE, LANCE, LANCE, GOLD>()};
   const Depth depth1{334};
-  const Depth depth2{264};
-  const Depth depth3{3304};
+  const Depth depth2{3304};
+  const Depth depth3{264};
   PnDn pn{1}, dn{1};
   MateLen16 len{MateLen16::Make(33, 4)};
   bool use_old_child{false};
@@ -152,8 +152,8 @@ TEST(V3EntryTest, LookUp_PnDn_Inferior) {
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN>()};
   const Depth depth1{334};
-  const Depth depth2{264};
-  const Depth depth3{3304};
+  const Depth depth2{3304};
+  const Depth depth3{264};
   PnDn pn{1}, dn{1};
   MateLen16 len{MateLen16::Make(33, 4)};
   bool use_old_child{false};
@@ -292,8 +292,8 @@ TEST(V3EntryTest, LookUp_UseOldChild_Superior) {
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN, LANCE, LANCE, LANCE, GOLD>()};
   const Depth depth1{334};
-  const Depth depth2{264};
-  const Depth depth3{2604};
+  const Depth depth2{2604};
+  const Depth depth3{264};
   PnDn pn{1}, dn{1};
   MateLen16 len{MateLen16::Make(33, 4)};
   bool use_old_child{false};
@@ -312,8 +312,8 @@ TEST(V3EntryTest, LookUp_UseOldChild_Inferior) {
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN>()};
   const Depth depth1{334};
-  const Depth depth2{264};
-  const Depth depth3{2604};
+  const Depth depth2{2604};
+  const Depth depth3{264};
   PnDn pn{1}, dn{1};
   MateLen16 len{MateLen16::Make(33, 4)};
   bool use_old_child{false};
