@@ -369,16 +369,3 @@ TEST(V3EntryTest, UpdateDisproven_Amount) {
   entry.UpdateDisproven(MateLen16::Make(33, 4), MOVE_NONE, amount2);
   EXPECT_EQ(entry.Amount(), amount1 + amount2 + kFinalAmountBonus);
 }
-
-TEST(V3EntryTest, AmountComparer) {
-  Entry entry1, entry2;
-  const SearchAmount amount1{264};
-  const SearchAmount amount2{334};
-  entry1.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
-  entry2.Init(0x264, HAND_ZERO, 264, 26, 4, amount2);
-
-  const Entry::AmountComparer comparer{};
-  EXPECT_TRUE(comparer(entry1, entry2));
-  EXPECT_FALSE(comparer(entry1, entry1));
-  EXPECT_FALSE(comparer(entry2, entry1));
-}
