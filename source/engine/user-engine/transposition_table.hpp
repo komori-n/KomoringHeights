@@ -159,10 +159,12 @@ class TranspositionTableImpl {
    * @brief 以前の探索結果をすべて消去する。
    */
   void NewSearch() {
-    for (auto& entry : entries_) {
-      entry.SetNull();
+    if (Hashfull() >= 50) {
+      for (auto& entry : entries_) {
+        entry.SetNull();
+      }
+      rep_table_.Clear();
     }
-    rep_table_.Clear();
   }
 
   /**
