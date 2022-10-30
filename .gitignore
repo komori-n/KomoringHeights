@@ -261,6 +261,7 @@ source/resource
 # coverage
 coverage-html/
 test_obj/
+debug_obj/
 cov.info
 
 # Doxygen

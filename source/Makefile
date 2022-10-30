@@ -88,7 +88,12 @@ COMPILER = clang++
 
 
 # 標準的なコンパイルオプション (standard compile options)
-CPPFLAGS   = -std=c++17 -fno-exceptions -fno-rtti -Wunused-variable -Wextra -Ofast -MMD -MP -fpermissive
+ifeq ($(DEBUG),OFF)
+  CPPFLAGS   = -std=c++17 -fno-exceptions -fno-rtti -Wunused-variable -Wextra -Ofast -MMD -MP -fpermissive
+else
+  CPPFLAGS   = -std=c++17 -fno-exceptions -Wunused-variable -Wextra -O0 -MMD -MP
+endif
+
 WCPPFLAGS  =
 LDFLAGS  = $(EXTRA_LDFLAGS)
 LIBS     =
@@ -168,13 +173,19 @@ ifeq ($(OS),Windows_NT)
 	TARGET = $(TARGETDIR)/KomoringHeights-by-gcc.exe
 else
 	CPPFLAGS += -D_LINUX
-	TARGET = $(TARGETDIR)/KomoringHeights-by-gcc
+	ifeq ($(DEBUG),OFF)
+		TARGET = $(TARGETDIR)/KomoringHeights-by-gcc
+	else
+		TARGET = $(TARGETDIR)/KomoringHeights-by-gcc-debug
+	endif
 endif
 
 # リンク時最適化。
 # CPPFLAGSとLDFLAGSの両方で-fltoを指定する必要がある。
 # cf. https://gcc.gnu.org/onlinedocs/gcc-6.3.0/gcc/Optimize-Options.html#Optimize-Options
-LTOFLAGS = -flto
+ifeq ($(DEBUG),OFF)
+	LTOFLAGS = -flto
+endif
 
 # MSYS2 clang++ で -flto 指定時にリンクを行えない問題の回避
 ifneq (,$(findstring clang++,$(COMPILER)))
@@ -187,7 +198,9 @@ endif
 CPPFLAGS  += -DUNICODE
 
 # stripの指示。(実行ファイルのサイズを小さく)
-LDFLAGS += -Wl,-s
+ifeq ($(DEBUG),OFF)
+	LDFLAGS += -Wl,-s
+endif
 
 # mingw64では-D_WIN64,-D_WIN32は環境に応じて自動で設定されるので指定すべきではない。
 # CPPFLAGS += -D_WIN64
@@ -196,7 +209,9 @@ LDFLAGS += -Wl,-s
 # CPPFLAGS   += -march=native
 
 # デバッグ情報を付加
-# CPPFLAGS  += -g3 -ggdb
+ifeq ($(DEBUG),ON)
+	CPPFLAGS  += -g3 -ggdb
+endif
 
 # OpenMPを使うときにCPPFLAGSとして指定するオプション
 # ※ 学習部ではOpenMpを用いるので、学習用のビルドではこのオプションを指定する。
@@ -248,7 +263,11 @@ CPPFLAGS += -DNO_EXCEPTIONS
 LDFLAGS += -lpthread
 LDFLAGS += -v
 
-OBJDIR   = ../obj
+ifeq ($(DEBUG),OFF)
+	OBJDIR   = ../obj
+else
+	OBJDIR   = ../debug_obj
+endif
 ifeq "$(strip $(OBJDIR))" ""
 	OBJDIR = ..
 endif
@@ -533,7 +552,7 @@ all: clean $(TARGET)
 .PHONY : all normal evallearn tournament prof profgen profuse pgo clean
 
 $(TARGET): $(OBJECTS) $(LIBS)
-	$(COMPILER) -o $@ $^ $(LDFLAGS) $(CPPFLAGS)
+	$(COMPILER) -o $@ $^ $(CPPFLAGS) $(LDFLAGS)
 
 $(OBJDIR)/%.o: %.cpp
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
