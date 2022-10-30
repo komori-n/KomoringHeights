@@ -171,7 +171,6 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
     // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
     thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
-    sync_cout << CurrentInfo() << " " << thpn << " " << thdn << sync_endl;
   }
   expansion_list_.Pop();
 
