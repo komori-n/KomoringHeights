@@ -9,7 +9,7 @@ using komori::MateLen16;
 using komori::PnDn;
 using komori::ttv3::Entry;
 using komori::ttv3::SearchAmount;
-using komori::ttv3::detail::kFinalAmountMultiplication;
+using komori::ttv3::detail::kFinalAmountBonus;
 
 TEST(V3EntryTest, DefaultConstructedInstanceIsNull) {
   Entry entry;
@@ -358,7 +358,7 @@ TEST(V3EntryTest, UpdateProven_Amount) {
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
   entry.UpdateProven(MateLen16::Make(33, 4), MOVE_NONE, amount2);
-  EXPECT_EQ(entry.Amount(), amount1 + kFinalAmountMultiplication * amount2);
+  EXPECT_EQ(entry.Amount(), amount1 + amount2 + kFinalAmountBonus);
 }
 
 TEST(V3EntryTest, UpdateDisproven_Amount) {
@@ -367,7 +367,7 @@ TEST(V3EntryTest, UpdateDisproven_Amount) {
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
   entry.UpdateDisproven(MateLen16::Make(33, 4), MOVE_NONE, amount2);
-  EXPECT_EQ(entry.Amount(), amount1 + kFinalAmountMultiplication * amount2);
+  EXPECT_EQ(entry.Amount(), amount1 + amount2 + kFinalAmountBonus);
 }
 
 TEST(V3EntryTest, AmountComparer) {

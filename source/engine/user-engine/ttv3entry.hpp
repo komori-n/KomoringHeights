@@ -13,7 +13,7 @@ using SearchAmount = std::uint32_t;
 
 namespace detail {
 /// 詰み／不詰の探索量のボーナス。これを大きくすることで詰み／不詰エントリが消されづらくなる。
-constexpr inline SearchAmount kFinalAmountMultiplication{10};
+constexpr inline SearchAmount kFinalAmountBonus{1000};
 }  // namespace detail
 
 /**
@@ -105,7 +105,7 @@ constexpr inline SearchAmount kFinalAmountMultiplication{10};
  * 消せなくなってしまうためである。そのため、「探索量」は実際の木のサイズよりも値が小さくなるよう注意する必要がある。
  *
  * また、詰み／不詰局面は他の局面よりも大事なのでなるべく消されづらくしたい。そのため、探索量に
- * 定数（kFinalAmountMultiplication）を掛けて実際の探索量よりも大きくなるようにしている。
+ * 定数（kFinalAmountBonus）を足して実際の探索量よりも大きくなるようにしている。
  *
  * 探索量同士の比較には `AmountComparer` を用いる。`AmountComparer` はエントリの探索量に対し `operator<` に相当する
  * 比較演算子を提供する構造体である。
@@ -248,7 +248,7 @@ class alignas(64) Entry {
    * @pre `len` > `disproven_.len`
    */
   constexpr void UpdateProven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
-    AddAmount(SaturatedMultiply(amount, detail::kFinalAmountMultiplication));
+    AddAmount(SaturatedAdd(amount, detail::kFinalAmountBonus));
     if (len < proven_.len) {
       proven_.len = len;
       proven_.best_move = Move16{best_move};
@@ -264,7 +264,7 @@ class alignas(64) Entry {
    * @pre `len` < `proven.len`
    */
   constexpr void UpdateDisproven(MateLen16 len, Move best_move, SearchAmount amount) noexcept {
-    AddAmount(SaturatedMultiply(amount, detail::kFinalAmountMultiplication));
+    AddAmount(SaturatedAdd(amount, detail::kFinalAmountBonus));
     if (len > disproven_.len) {
       disproven_.len = len;
       disproven_.best_move = Move16{best_move};
