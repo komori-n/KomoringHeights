@@ -180,7 +180,8 @@ class Query {
 #if !defined(DOXYGEN_SHOULD_SKIP_THIS)
 #define LOOKUP_UNROLL_IMPL(i)                                                                  \
   do {                                                                                         \
-    if (!itr->IsNull() && itr->IsFor(board_key_)) {                                            \
+    /* `IsFor()` -> `IsNull()` の順で呼び出すことで2%高速化 */                    \
+    if (itr->IsFor(board_key_) && !itr->IsNull()) {                                            \
       if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {                    \
         amount = std::max(amount, itr->Amount());                                              \
         if (pn == 0) {                                                                         \
