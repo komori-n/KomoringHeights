@@ -1,3 +1,6 @@
+/**
+ * @file ttentry.hpp
+ */
 #ifndef KOMORI_TTENTRY_HPP_
 #define KOMORI_TTENTRY_HPP_
 

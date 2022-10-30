@@ -1,3 +1,6 @@
+/**
+ * @file score.hpp
+ */
 #ifndef KOMORI_SCORE_HPP_
 #define KOMORI_SCORE_HPP_
 

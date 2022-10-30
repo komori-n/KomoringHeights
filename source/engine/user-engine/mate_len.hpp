@@ -1,3 +1,6 @@
+/**
+ * @file mate_len.hpp
+ */
 #ifndef KOMORI_MATE_LEN_HPP_
 #define KOMORI_MATE_LEN_HPP_
 

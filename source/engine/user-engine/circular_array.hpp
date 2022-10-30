@@ -1,3 +1,6 @@
+/**
+ * @file circular_array.hpp
+ */
 #ifndef KOMORI_CIRCULAR_ARRAY_HPP_
 #define KOMORI_CIRCULAR_ARRAY_HPP_
 

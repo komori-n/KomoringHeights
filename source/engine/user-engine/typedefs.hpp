@@ -1,3 +1,6 @@
+/**
+ * @file typedefs.hpp
+ */
 #ifndef KOMORI_TYPEDEFS_HPP_
 #define KOMORI_TYPEDEFS_HPP_
 
@@ -26,11 +29,20 @@
 #define KOMORI_PRECONDITION(cond) (void)(cond)
 #endif
 
-/**
- * @namespace komori
- * @brief created by komori
- */
+/// Komoring Heights
 namespace komori {
+// <namespaceコメント>
+// Doxygen で名前空間を認識してもらうためにはコメントをつける必要がある。
+// 各名前空間に対するコメントはどのヘッダに書いても良い。コメント位置を迷わないようにするためにすべてここに書いておく。
+/// Detail
+namespace detail {}  // namespace detail
+/// TranspositionTable
+namespace tt {
+/// Detail
+namespace detail {}  // namespace detail
+}  // namespace tt
+// </namespaceコメント>
+
 /**
  * @brief `T` をそのまま返すメタ関数。
  * @tparam T 型

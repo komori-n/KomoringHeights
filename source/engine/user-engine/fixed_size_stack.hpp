@@ -1,3 +1,6 @@
+/**
+ * @file fixed_size_stack.hpp
+ */
 #ifndef KOMORI_FIXED_SIZE_STACK_HPP_
 #define KOMORI_FIXED_SIZE_STACK_HPP_
 

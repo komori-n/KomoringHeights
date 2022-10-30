@@ -1,3 +1,6 @@
+/**
+ * @file local_expansion.hpp
+ */
 #ifndef KOMORI_LOCAL_EXPANSION_HPP_
 #define KOMORI_LOCAL_EXPANSION_HPP_
 

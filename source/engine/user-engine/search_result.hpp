@@ -1,3 +1,6 @@
+/**
+ * @file search_result.hpp
+ */
 #ifndef KOMORI_SEARCH_RESULT_HPP_
 #define KOMORI_SEARCH_RESULT_HPP_
 

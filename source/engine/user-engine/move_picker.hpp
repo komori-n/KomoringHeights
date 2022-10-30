@@ -1,3 +1,6 @@
+/**
+ * @file move_picker.hpp
+ */
 #ifndef KOMORI_MOVE_PICKER_HPP_
 #define KOMORI_MOVE_PICKER_HPP_
 

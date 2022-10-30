@@ -1,5 +1,8 @@
-﻿#ifndef KOMORI_KOMORI_NEW_KH_HPP_
-#define KOMORI_KOMORI_NEW_KH_HPP_
+﻿/**
+ * @file komoring_heights.hpp
+ */
+#ifndef KOMORI_KOMORING_HEIGHTS_HPP_
+#define KOMORI_KOMORING_HEIGHTS_HPP_
 
 #include <algorithm>
 #include <chrono>
@@ -112,4 +115,4 @@ class KomoringHeights {
 };
 }  // namespace komori
 
-#endif  // KOMORI_KOMORI_NEW_KH_HPP_
+#endif  // KOMORI_KOMORING_HEIGHTS_HPP_

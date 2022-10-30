@@ -1,3 +1,6 @@
+/**
+ * @file initial_estimation.hpp
+ */
 #ifndef KOMORI_PNDN_ESTIMATION_HPP_
 #define KOMORI_PNDN_ESTIMATION_HPP_
 

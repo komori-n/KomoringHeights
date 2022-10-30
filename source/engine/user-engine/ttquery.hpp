@@ -1,7 +1,6 @@
 /**
  * @file ttquery.hpp
  */
-
 #ifndef KOMORI_TTQUERY_HPP_
 #define KOMORI_TTQUERY_HPP_
 

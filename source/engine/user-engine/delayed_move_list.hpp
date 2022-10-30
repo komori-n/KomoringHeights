@@ -1,3 +1,6 @@
+/**
+ * @file delayed_move_list.hpp
+ */
 #ifndef KOMORI_DELAYED_LIST_HPP_
 #define KOMORI_DELAYED_LIST_HPP_
 

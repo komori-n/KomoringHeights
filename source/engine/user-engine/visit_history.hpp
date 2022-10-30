@@ -1,3 +1,6 @@
+/**
+ * @file visit_history.hpp
+ */
 #ifndef KOMORI_VISIT_HISTORY_HPP_
 #define KOMORI_VISIT_HISTORY_HPP_
 

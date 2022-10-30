@@ -1,3 +1,6 @@
+/**
+ * @file hands.hpp
+ */
 #ifndef KOMORI_PROOF_HAND_HPP_
 #define KOMORI_PROOF_HAND_HPP_
 

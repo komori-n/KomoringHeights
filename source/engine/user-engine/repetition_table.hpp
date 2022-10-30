@@ -1,3 +1,6 @@
+/**
+ * @file repetition_table.hpp
+ */
 #ifndef KOMORI_REPETITION_TABLE_HPP_
 #define KOMORI_REPETITION_TABLE_HPP_
 

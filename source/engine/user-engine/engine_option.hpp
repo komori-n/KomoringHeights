@@ -1,3 +1,6 @@
+/**
+ * @file engine_option.hpp
+ */
 #ifndef KOMORI_ENGINE_OPTION_HPP_
 #define KOMORI_ENGINE_OPTION_HPP_
 

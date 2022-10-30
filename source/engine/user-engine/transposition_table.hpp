@@ -1,3 +1,6 @@
+/**
+ * @file transposition_table.hpp
+ */
 #ifndef KOMORI_TRANSPOSITION_TABLE_HPP_
 #define KOMORI_TRANSPOSITION_TABLE_HPP_
 

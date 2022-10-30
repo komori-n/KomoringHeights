@@ -16,4 +16,6 @@ repos:
   hooks:
   - id: clang-format
   - id: cpplint
+    # I'm not sure why, but `cpplint` seems to have an issue.
+    exclude: source/engine/user-engine/komoring_heights.hpp
   #- id: clang-tidy

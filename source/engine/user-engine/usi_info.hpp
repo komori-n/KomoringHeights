@@ -1,3 +1,6 @@
+/**
+ * @file usi_info.hpp
+ */
 #ifndef KOMORI_USI_HPP_
 #define KOMORI_USI_HPP_
 

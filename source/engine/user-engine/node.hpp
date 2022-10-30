@@ -1,3 +1,6 @@
+/**
+ * @file node.hpp
+ */
 #ifndef KOMORI_NODE_HPP_
 #define KOMORI_NODE_HPP_
 

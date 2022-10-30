@@ -1,3 +1,6 @@
+/**
+ * @file bitset.hpp
+ */
 #ifndef KOMORI_BITSET_HPP_
 #define KOMORI_BITSET_HPP_
 

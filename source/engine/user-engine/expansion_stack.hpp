@@ -1,3 +1,6 @@
+/**
+ * @file expansion_stack.hpp
+ */
 #ifndef KOMORI_EXPANSION_STACK_HPP_
 #define KOMORI_EXPANSION_STACK_HPP_
 
