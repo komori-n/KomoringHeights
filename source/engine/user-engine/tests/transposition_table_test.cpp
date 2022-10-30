@@ -2,16 +2,16 @@
 
 #include <unordered_set>
 
-#include "../ttv3transposition_table.hpp"
+#include "../transposition_table.hpp"
 #include "test_lib.hpp"
 
 using komori::kDepthMax;
 using komori::RepetitionTable;
-using komori::ttv3::Cluster;
-using komori::ttv3::detail::kGcRemoveElementNum;
-using komori::ttv3::detail::kGcThreshold;
-using komori::ttv3::detail::kNormalRepetitionRatio;
-using komori::ttv3::detail::TranspositionTableImpl;
+using komori::tt::Cluster;
+using komori::tt::detail::kGcRemoveElementNum;
+using komori::tt::detail::kGcThreshold;
+using komori::tt::detail::kNormalRepetitionRatio;
+using komori::tt::detail::TranspositionTableImpl;
 
 namespace {
 struct QueryMock {

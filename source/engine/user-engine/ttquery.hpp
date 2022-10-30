@@ -1,18 +1,18 @@
 /**
- * @file ttv3query.hpp
+ * @file ttquery.hpp
  */
 
-#ifndef KOMORI_TTV3_QUERY_HPP_
-#define KOMORI_TTV3_QUERY_HPP_
+#ifndef KOMORI_TTQUERY_HPP_
+#define KOMORI_TTQUERY_HPP_
 
 #include "initial_estimation.hpp"
 #include "repetition_table.hpp"
 #include "search_result.hpp"
-#include "ttv3entry.hpp"
+#include "ttentry.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
-namespace ttv3 {
+namespace tt {
 /**
  * @brief `Query` の読み書きで使用する `Entry` の連続領域を指す構造体
  *
@@ -22,7 +22,7 @@ namespace ttv3 {
  * ## 実装詳細
  *
  * 連続なエントリを管理する。クラスタサイズ（`kSize`）はコンパイル時定数なので、領域へのアクセスはマクロにより
- * ループアンロールできる。（詳しくは `KOMORI_TTV3_QUERY_UNROLL_CLUSTER` を参照）
+ * ループアンロールできる。（詳しくは `KOMORI_TTQUERY_UNROLL_CLUSTER` を参照）
  * この `kSize` 個のエントリは他のクラスと一部を共有する可能性がある。
  *
  * クラスタサイズが定数なので、構造体内では領域の先頭へのポインタだけを保持する。
@@ -53,25 +53,25 @@ struct Cluster {
  * @note よくやるテンプレート+lambda式ではなくマクロを用いてループ展開を行う理由は、ループの途中で early return
  * できるようにするため。
  */
-#define KOMORI_TTV3_QUERY_UNROLL_CLUSTER(func) \
-  do {                                         \
-    static_assert(Cluster::kSize == 16);       \
-    func(0);                                   \
-    func(1);                                   \
-    func(2);                                   \
-    func(3);                                   \
-    func(4);                                   \
-    func(5);                                   \
-    func(6);                                   \
-    func(7);                                   \
-    func(8);                                   \
-    func(9);                                   \
-    func(10);                                  \
-    func(11);                                  \
-    func(12);                                  \
-    func(13);                                  \
-    func(14);                                  \
-    func(15);                                  \
+#define KOMORI_TTQUERY_UNROLL_CLUSTER(func) \
+  do {                                      \
+    static_assert(Cluster::kSize == 16);    \
+    func(0);                                \
+    func(1);                                \
+    func(2);                                \
+    func(3);                                \
+    func(4);                                \
+    func(5);                                \
+    func(6);                                \
+    func(7);                                \
+    func(8);                                \
+    func(9);                                \
+    func(10);                               \
+    func(11);                               \
+    func(12);                               \
+    func(13);                               \
+    func(14);                               \
+    func(15);                               \
   } while (false)
 
 /**
@@ -200,7 +200,7 @@ class Query {
     itr++;                                                                                     \
   } while (false)
 
-    KOMORI_TTV3_QUERY_UNROLL_CLUSTER(LOOKUP_UNROLL_IMPL);
+    KOMORI_TTQUERY_UNROLL_CLUSTER(LOOKUP_UNROLL_IMPL);
 #undef LOOKUP_UNROLL_IMPL
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
 
@@ -260,7 +260,7 @@ class Query {
     itr++;                              \
   } while (false)
 
-    KOMORI_TTV3_QUERY_UNROLL_CLUSTER(FIND_ENTRY_IMPL);
+    KOMORI_TTQUERY_UNROLL_CLUSTER(FIND_ENTRY_IMPL);
 #undef CREATE_ENTRY_IMPL
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
 
@@ -300,7 +300,7 @@ class Query {
     itr++;                                                 \
   } while (false)
 
-    KOMORI_TTV3_QUERY_UNROLL_CLUSTER(CREATE_ENTRY_IMPL);
+    KOMORI_TTQUERY_UNROLL_CLUSTER(CREATE_ENTRY_IMPL);
 #undef CREATE_ENTRY_IMPL
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
     // LCOV_EXCL_STOP
@@ -372,9 +372,9 @@ class Query {
 };
 
 // このヘッダ外では使えないようにしておく
-#undef KOMORI_TTV3_QUERY_UNROLL_CLUSTER
+#undef KOMORI_TTQUERY_UNROLL_CLUSTER
 
-}  // namespace ttv3
+}  // namespace tt
 }  // namespace komori
 
-#endif  // KOMORI_TTV3_QUERY_HPP_
+#endif  // KOMORI_TTQUERY_HPP_

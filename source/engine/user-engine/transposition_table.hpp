@@ -1,16 +1,16 @@
-#ifndef KOMORI_TTV3_TRANSPOSITION_TABLE_HPP_
-#define KOMORI_TTV3_TRANSPOSITION_TABLE_HPP_
+#ifndef KOMORI_TRANSPOSITION_TABLE_HPP_
+#define KOMORI_TRANSPOSITION_TABLE_HPP_
 
 #include <vector>
 
 #include "node.hpp"
 #include "repetition_table.hpp"
-#include "ttv3entry.hpp"
-#include "ttv3query.hpp"
+#include "ttentry.hpp"
+#include "ttquery.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
-namespace ttv3 {
+namespace tt {
 namespace detail {
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合。
 constexpr inline double kNormalRepetitionRatio = 0.95;
@@ -363,7 +363,7 @@ class TranspositionTableImpl {
  * @brief 置換表の本体。詳しい実装は `detail::TranspositionTableImpl` を参照。
  */
 using TranspositionTable = detail::TranspositionTableImpl<Query>;
-}  // namespace ttv3
+}  // namespace tt
 }  // namespace komori
 
-#endif  // KOMORI_TTV3_TRANSPOSITION_TABLE_HPP_
+#endif  // KOMORI_TRANSPOSITION_TABLE_HPP_

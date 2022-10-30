@@ -65,7 +65,7 @@ class LocalExpansionTest : public ::testing::Test {
  protected:
   void SetUp() override { tt_.Resize(1); }
 
-  komori::ttv3::TranspositionTable tt_;
+  komori::tt::TranspositionTable tt_;
 };
 }  // namespace
 

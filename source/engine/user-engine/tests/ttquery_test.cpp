@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "../ttv3query.hpp"
+#include "../ttquery.hpp"
 #include "test_lib.hpp"
 
 using komori::FinalData;
@@ -14,10 +14,10 @@ using komori::PnDn;
 using komori::RepetitionTable;
 using komori::SearchResult;
 using komori::UnknownData;
-using komori::ttv3::Cluster;
-using komori::ttv3::Entry;
-using komori::ttv3::Query;
-using komori::ttv3::SearchAmount;
+using komori::tt::Cluster;
+using komori::tt::Entry;
+using komori::tt::Query;
+using komori::tt::SearchAmount;
 
 namespace {
 class V3QueryTest : public ::testing::Test {

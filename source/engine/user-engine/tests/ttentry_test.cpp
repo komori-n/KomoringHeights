@@ -1,15 +1,15 @@
 #include <gtest/gtest.h>
 
-#include "../ttv3entry.hpp"
+#include "../ttentry.hpp"
 #include "test_lib.hpp"
 
 using komori::kInfiniteMateLen16;
 using komori::kMinusZeroMateLen16;
 using komori::MateLen16;
 using komori::PnDn;
-using komori::ttv3::Entry;
-using komori::ttv3::SearchAmount;
-using komori::ttv3::detail::kFinalAmountBonus;
+using komori::tt::Entry;
+using komori::tt::SearchAmount;
+using komori::tt::detail::kFinalAmountBonus;
 
 TEST(V3EntryTest, DefaultConstructedInstanceIsNull) {
   Entry entry;

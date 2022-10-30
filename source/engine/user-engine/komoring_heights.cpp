@@ -3,7 +3,7 @@
 namespace komori {
 namespace {
 inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
-  const std::uint64_t entry_num = hash_mb * 1024 * 1024 / sizeof(ttv3::Entry);
+  const std::uint64_t entry_num = hash_mb * 1024 * 1024 / sizeof(tt::Entry);
 
   return entry_num / 2 * 3;
 }

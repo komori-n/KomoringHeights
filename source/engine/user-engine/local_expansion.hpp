@@ -12,7 +12,7 @@
 #include "initial_estimation.hpp"
 #include "move_picker.hpp"
 #include "node.hpp"
-#include "ttv3transposition_table.hpp"
+#include "transposition_table.hpp"
 
 namespace komori {
 namespace detail {
@@ -57,7 +57,7 @@ class LocalExpansion {
   }
 
  public:
-  LocalExpansion(ttv3::TranspositionTable& tt,
+  LocalExpansion(tt::TranspositionTable& tt,
                  const Node& n,
                  MateLen len,
                  bool first_search,
@@ -424,7 +424,7 @@ class LocalExpansion {
   const MateLen len_;
 
   std::array<SearchResult, kMaxCheckMovesPerNode> results_;
-  std::array<ttv3::Query, kMaxCheckMovesPerNode> queries_;
+  std::array<tt::Query, kMaxCheckMovesPerNode> queries_;
 
   bool does_have_old_child_{false};
 
