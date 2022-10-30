@@ -118,7 +118,7 @@ TEST(V3EntryTest, LookUp_PnDn_Exact) {
 
   pn = dn = 100;
   const auto ret3 = entry.LookUp(hand, depth2, len, pn, dn, use_old_child);
-  EXPECT_FALSE(ret3);
+  EXPECT_TRUE(ret3);
   EXPECT_EQ(pn, 100);
   EXPECT_EQ(dn, 100);
 }

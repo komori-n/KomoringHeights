@@ -250,11 +250,12 @@ class alignas(64) Entry {
    * @param pn     pn
    * @param dn     dn
    * @param use_old_child unproven old childフラグ
-   * @return 引数の値が更新されていれば `true`
+   * @return 引数の値が更新されているか `IsFor(board_key_, hand_)` なエントリが存在すれば `true`
    * @pre `IsFor(board_key)` （`board_key` は現局面の盤面ハッシュ）
    *
    * 置換表の肝の部分。本将棋エンジンとは異なり、優等局面、劣等局面の結果をチラ見しながら pn 値と dn 値を取得する。
-   * 外側のループ脱出の判断をできるだけ高速にしたいので、引数の値が更新されたかどうかを戻り値として戻す。
+   * 外側のループ脱出の判断をできるだけ高速にしたいので、引数の値が更新されたときと現局面に一致するエントリを見つけた
+   * ときは `true` を返す。
    */
   constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) noexcept {
     bool update = false;
@@ -310,7 +311,7 @@ class alignas(64) Entry {
       }
     }
 
-    return update;
+    return update || hand_ == hand;
   }
 
   // <テスト用>
