@@ -27,7 +27,8 @@ TEST(SearchResultTest, ConstructUnknown) {
 }
 
 TEST(SearchResultTest, MakeProven) {
-  const auto result = SearchResult::MakeFinal<true>(MakeHand<PAWN, SILVER>(), MateLen::Make(33, 4), 20);
+  const auto best_move = make_move(SQ_33, SQ_34, B_PAWN);
+  const auto result = SearchResult::MakeFinal<true>(MakeHand<PAWN, SILVER>(), MateLen::Make(33, 4), 20, best_move);
 
   EXPECT_EQ(result.Pn(), 0);
   EXPECT_EQ(result.Dn(), komori::kInfinitePnDn);
@@ -36,10 +37,12 @@ TEST(SearchResultTest, MakeProven) {
   EXPECT_EQ(result.Amount(), 20);
   EXPECT_TRUE(result.IsFinal());
   EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().best_move, best_move);
 }
 
 TEST(SearchResultTest, MakeDisproven) {
-  const auto result = SearchResult::MakeFinal<false>(MakeHand<GOLD, GOLD>(), MateLen::Make(33, 4), 30);
+  const auto best_move = make_move(SQ_33, SQ_34, B_PAWN);
+  const auto result = SearchResult::MakeFinal<false>(MakeHand<GOLD, GOLD>(), MateLen::Make(33, 4), 30, best_move);
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
@@ -48,10 +51,13 @@ TEST(SearchResultTest, MakeDisproven) {
   EXPECT_EQ(result.Amount(), 30);
   EXPECT_TRUE(result.IsFinal());
   EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().best_move, best_move);
 }
 
 TEST(SearchResultTest, MakeRepetition) {
-  const auto result = SearchResult::MakeFinal<false, true>(MakeHand<ROOK, BISHOP>(), MateLen::Make(33, 4), 40);
+  const auto best_move = make_move(SQ_33, SQ_34, B_PAWN);
+  const auto result =
+      SearchResult::MakeFinal<false, true>(MakeHand<ROOK, BISHOP>(), MateLen::Make(33, 4), 40, best_move);
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
@@ -60,6 +66,7 @@ TEST(SearchResultTest, MakeRepetition) {
   EXPECT_EQ(result.Amount(), 40);
   EXPECT_TRUE(result.IsFinal());
   EXPECT_TRUE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().best_move, best_move);
 }
 
 TEST(SearchResultTest, InitUnknown) {
@@ -80,8 +87,9 @@ TEST(SearchResultTest, InitUnknown) {
 }
 
 TEST(SearchResultTest, InitProven) {
+  const auto best_move = make_move(SQ_33, SQ_34, B_PAWN);
   SearchResult result{};
-  result.InitFinal<true>(MakeHand<PAWN, SILVER>(), MateLen::Make(33, 4), 20);
+  result.InitFinal<true>(MakeHand<PAWN, SILVER>(), MateLen::Make(33, 4), 20, best_move);
 
   EXPECT_EQ(result.Pn(), 0);
   EXPECT_EQ(result.Dn(), komori::kInfinitePnDn);
@@ -89,11 +97,13 @@ TEST(SearchResultTest, InitProven) {
   EXPECT_EQ(result.Len(), (MateLen::Make(33, 4)));
   EXPECT_EQ(result.Amount(), 20);
   EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().best_move, best_move);
 }
 
 TEST(SearchResultTest, InitDisproven) {
+  const auto best_move = make_move(SQ_33, SQ_34, B_PAWN);
   SearchResult result{};
-  result.InitFinal<false>(MakeHand<GOLD, GOLD>(), MateLen::Make(33, 4), 30);
+  result.InitFinal<false>(MakeHand<GOLD, GOLD>(), MateLen::Make(33, 4), 30, best_move);
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
@@ -101,11 +111,13 @@ TEST(SearchResultTest, InitDisproven) {
   EXPECT_EQ(result.Len(), (MateLen::Make(33, 4)));
   EXPECT_EQ(result.Amount(), 30);
   EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().best_move, best_move);
 }
 
 TEST(SearchResultTest, InitRepetition) {
+  const auto best_move = make_move(SQ_33, SQ_34, B_PAWN);
   SearchResult result{};
-  result.InitFinal<false, true>(MakeHand<ROOK, BISHOP>(), MateLen::Make(33, 4), 40);
+  result.InitFinal<false, true>(MakeHand<ROOK, BISHOP>(), MateLen::Make(33, 4), 40, best_move);
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
@@ -113,6 +125,7 @@ TEST(SearchResultTest, InitRepetition) {
   EXPECT_EQ(result.Len(), (MateLen::Make(33, 4)));
   EXPECT_EQ(result.Amount(), 40);
   EXPECT_TRUE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().best_move, best_move);
 }
 
 TEST(SearchResultTest, Phi) {

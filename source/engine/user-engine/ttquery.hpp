@@ -325,9 +325,9 @@ class Query {
     const auto amount = result.Amount();
 
     if constexpr (kIsProven) {
-      entry->UpdateProven(len.To16(), MOVE_NONE, amount);
+      entry->UpdateProven(len.To16(), result.GetFinalData().best_move, amount);
     } else {
-      entry->UpdateDisproven(len.To16(), MOVE_NONE, amount);
+      entry->UpdateDisproven(len.To16(), result.GetFinalData().best_move, amount);
     }
   }
 
