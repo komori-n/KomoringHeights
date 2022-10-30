@@ -169,7 +169,7 @@ TEST_F(V3QueryTest, LoopUp_UnknownInferior) {
 TEST_F(V3QueryTest, LoopUp_Proven) {
   const auto hand = MakeHand<PAWN>();
   entries_[0].Init(board_key_, hand, depth_, 1, 1, 1);
-  entries_[0].UpdateProven(MateLen16::Make(26, 4), MOVE_NONE, 1);
+  entries_[0].UpdateProven(MateLen16::Make(26, 4), 1);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
@@ -184,7 +184,7 @@ TEST_F(V3QueryTest, LoopUp_Proven) {
 TEST_F(V3QueryTest, LoopUp_Disproven) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, LANCE>();
   entries_[0].Init(board_key_, hand, depth_, 1, 1, 1);
-  entries_[0].UpdateDisproven(MateLen16::Make(330, 4), MOVE_NONE, 1);
+  entries_[0].UpdateDisproven(MateLen16::Make(330, 4), 1);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));

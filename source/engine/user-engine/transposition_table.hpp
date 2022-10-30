@@ -142,11 +142,12 @@ class TranspositionTableImpl {
     const auto normal_bytes = static_cast<std::uint64_t>(static_cast<double>(new_bytes) * kNormalRepetitionRatio);
     const auto rep_bytes = new_bytes - normal_bytes;
     // 通常テーブルに保存する要素数。最低でも `Cluster::kSize + 1` 以上になるようにする
-    const auto new_num_entries = std::max(static_cast<std::uint64_t>(Cluster::kSize + 1), normal_bytes / sizeof(Entry));
+    const auto new_num_entries =
+        std::max(static_cast<std::uint64_t>(Cluster::kSize + 1), normal_bytes / alignof(Entry));
     // 千日手テーブルに保存する要素数。最低でも 1 以上になるようにする
     // 千日手テーブルは `std::unordered_set` により実現されているので、N 個のエントリを保存するためには
     // 4N * sizeof(Key) バイト程度が必要になる。（環境依存）
-    const auto rep_num_entries = std::max(decltype(rep_bytes){1}, rep_bytes / 4 / sizeof(Key));
+    const auto rep_num_entries = std::max(decltype(rep_bytes){1}, rep_bytes / 4 / alignof(Key));
 
     cluster_head_num_ = new_num_entries - Cluster::kSize;
     entries_.resize(new_num_entries);

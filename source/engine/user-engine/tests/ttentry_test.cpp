@@ -184,7 +184,7 @@ TEST(V3EntryTest, LookUp_PnDn_Proven) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
-  entry.UpdateProven(len1, MOVE_NONE, 1);
+  entry.UpdateProven(len1, 1);
   const auto ret = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_TRUE(ret);
   EXPECT_EQ(pn, 0);
@@ -204,7 +204,7 @@ TEST(V3EntryTest, LookUp_PnDn_Disproven) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
-  entry.UpdateDisproven(len1, MOVE_NONE, 1);
+  entry.UpdateDisproven(len1, 1);
   const auto ret = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_TRUE(ret);
   EXPECT_EQ(pn, komori::kInfinitePnDn);
@@ -217,7 +217,7 @@ TEST(V3EntryTest, Update_PnDn_Proven) {
   const MateLen16 len2{MateLen16::Make(334, 0)};
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
 
-  entry.UpdateProven(len1, MOVE_NONE, 1);
+  entry.UpdateProven(len1, 1);
   entry.UpdateUnknown(334, 33, 4, len2, 1);
   EXPECT_EQ(entry.Pn(), 1);
   EXPECT_EQ(entry.Dn(), 1);
@@ -229,7 +229,7 @@ TEST(V3EntryTest, Update_PnDn_Disproven) {
   const MateLen16 len2{MateLen16::Make(26, 4)};
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
 
-  entry.UpdateDisproven(len1, MOVE_NONE, 1);
+  entry.UpdateDisproven(len1, 1);
   entry.UpdateUnknown(334, 33, 4, len2, 1);
   EXPECT_EQ(entry.Pn(), 1);
   EXPECT_EQ(entry.Dn(), 1);
@@ -255,13 +255,13 @@ TEST(V3EntryTest, UpdateProven_ProvenLen) {
   const MateLen16 len2{MateLen16::Make(334, 0)};
   const MateLen16 len3{MateLen16::Make(26, 4)};
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
-  entry.UpdateProven(len1, MOVE_NONE, 1);
+  entry.UpdateProven(len1, 1);
   EXPECT_EQ(entry.ProvenLen(), len1);
 
-  entry.UpdateProven(len2, MOVE_NONE, 1);
+  entry.UpdateProven(len2, 1);
   EXPECT_EQ(entry.ProvenLen(), len1);
 
-  entry.UpdateProven(len3, MOVE_NONE, 1);
+  entry.UpdateProven(len3, 1);
   EXPECT_EQ(entry.ProvenLen(), len3);
 }
 
@@ -277,13 +277,13 @@ TEST(V3EntryTest, UpdateProven_DisprovenLen) {
   const MateLen16 len2{MateLen16::Make(26, 4)};
   const MateLen16 len3{MateLen16::Make(334, 0)};
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
-  entry.UpdateDisproven(len1, MOVE_NONE, 1);
+  entry.UpdateDisproven(len1, 1);
   EXPECT_EQ(entry.DisprovenLen(), len1);
 
-  entry.UpdateDisproven(len2, MOVE_NONE, 1);
+  entry.UpdateDisproven(len2, 1);
   EXPECT_EQ(entry.DisprovenLen(), len1);
 
-  entry.UpdateDisproven(len3, MOVE_NONE, 1);
+  entry.UpdateDisproven(len3, 1);
   EXPECT_EQ(entry.DisprovenLen(), len3);
 }
 
@@ -357,7 +357,7 @@ TEST(V3EntryTest, UpdateProven_Amount) {
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
-  entry.UpdateProven(MateLen16::Make(33, 4), MOVE_NONE, amount2);
+  entry.UpdateProven(MateLen16::Make(33, 4), amount2);
   EXPECT_EQ(entry.Amount(), amount1 + amount2 + kFinalAmountBonus);
 }
 
@@ -366,6 +366,6 @@ TEST(V3EntryTest, UpdateDisproven_Amount) {
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
-  entry.UpdateDisproven(MateLen16::Make(33, 4), MOVE_NONE, amount2);
+  entry.UpdateDisproven(MateLen16::Make(33, 4), amount2);
   EXPECT_EQ(entry.Amount(), amount1 + amount2 + kFinalAmountBonus);
 }

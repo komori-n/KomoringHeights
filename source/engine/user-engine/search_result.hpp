@@ -21,7 +21,6 @@ struct UnknownData {
 /// 結論が出てたノード（Final）の探索結果
 struct FinalData {
   bool is_repetition;  ///< 千日手による final かどうか
-  Move best_move;      ///< 最善手（不明や合法手なしなら MOVE_NONE）
 };
 
 /**
@@ -64,17 +63,16 @@ class SearchResult {
    * @param hand           攻め方の持ち駒
    * @param len            探索時の残り手数
    * @param amount         探索量
-   * @param best_move      最善手（デフォルト：`MOVE_NONE`）
    *
    * `kIsProven` と `kIsRepetition` を同時に `true` にすることはできない。
    */
   template <bool kIsProven, bool kIsRepetition = false>
-  static constexpr SearchResult MakeFinal(Hand hand, MateLen len, std::uint32_t amount, Move best_move = MOVE_NONE) {
+  static constexpr SearchResult MakeFinal(Hand hand, MateLen len, std::uint32_t amount) {
     static_assert(!(kIsProven && kIsRepetition));
 
     const auto pn = kIsProven ? 0 : kInfinitePnDn;
     const auto dn = kIsProven ? kInfinitePnDn : 0;
-    return {pn, dn, hand, len, amount, FinalData{kIsRepetition, best_move}};
+    return {pn, dn, hand, len, amount, FinalData{kIsRepetition}};
   }
 
   /// 領域を事前確保できるようにするために、デフォルト構築可能にする。
@@ -130,7 +128,7 @@ class SearchResult {
    * `kIsProven` と `kIsRepetition` を同時に `true` にすることはできない。
    */
   template <bool kIsProven, bool kIsRepetition = false>
-  constexpr void InitFinal(Hand hand, MateLen len, std::uint32_t amount, Move best_move = MOVE_NONE) {
+  constexpr void InitFinal(Hand hand, MateLen len, std::uint32_t amount) {
     static_assert(!(kIsProven && kIsRepetition));
 
     pn_ = kIsProven ? 0 : kInfinitePnDn;
@@ -138,7 +136,7 @@ class SearchResult {
     hand_ = hand;
     len_ = len;
     amount_ = amount;
-    final_data_ = FinalData{kIsRepetition, best_move};
+    final_data_ = FinalData{kIsRepetition};
   }
 
   /// `result` を出力ストリームへ出力する。
