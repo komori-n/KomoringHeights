@@ -340,7 +340,7 @@ TEST(V3EntryTest, UpdateUnknown_Amount) {
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
   entry.UpdateUnknown(264, 26, 4, MateLen16::Make(33, 4), amount2);
-  EXPECT_EQ(entry.Amount(), amount1 + amount2);
+  EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2);
 }
 
 TEST(V3EntryTest, UpdateUnknown_SaturatedAmount) {
@@ -358,7 +358,7 @@ TEST(V3EntryTest, UpdateProven_Amount) {
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
   entry.UpdateProven(MateLen16::Make(33, 4), amount2);
-  EXPECT_EQ(entry.Amount(), amount1 + amount2 + kFinalAmountBonus);
+  EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
 }
 
 TEST(V3EntryTest, UpdateDisproven_Amount) {
@@ -367,5 +367,5 @@ TEST(V3EntryTest, UpdateDisproven_Amount) {
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
   entry.UpdateDisproven(MateLen16::Make(33, 4), amount2);
-  EXPECT_EQ(entry.Amount(), amount1 + amount2 + kFinalAmountBonus);
+  EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
 }

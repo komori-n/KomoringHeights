@@ -335,7 +335,7 @@ class alignas(64) Entry {
    *
    * @note 加算方法を変える可能性が高い（例えば上限値を変えるなど）ので、関数化しておく。
    */
-  constexpr void AddAmount(SearchAmount amount) noexcept { amount_ = SaturatedAdd(amount_, amount); }
+  constexpr void AddAmount(SearchAmount amount) noexcept { amount_ = SaturatedAdd(amount_ / 2, amount); }
 
   /// 「千日手の可能性」を表現するための列挙体
   enum class RepetitionState : std::uint8_t {

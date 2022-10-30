@@ -256,7 +256,7 @@ TEST_F(V3QueryTest, SetResult_UnknownUpdate) {
     query_.SetResult(result);
     EXPECT_EQ(entries_[i].Pn(), pn) << i;
     EXPECT_EQ(entries_[i].Dn(), dn) << i;
-    EXPECT_EQ(entries_[i].Amount(), 1 + amount) << i;
+    EXPECT_EQ(entries_[i].Amount(), 1 / 2 + amount) << i;
 
     entries_[i].SetNull();
   }
