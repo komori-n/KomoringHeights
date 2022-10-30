@@ -152,14 +152,14 @@ class TranspositionTableImpl {
     entries_.resize(new_num_entries);
     entries_.shrink_to_fit();
     rep_table_.SetTableSizeMax(rep_num_entries);
-    NewSearch();
+    NewSearch(true);
   }
 
   /**
    * @brief 以前の探索結果をすべて消去する。
    */
-  void NewSearch() {
-    if (Hashfull() >= 50) {
+  void NewSearch(bool force_clean = false) {
+    if (force_clean || Hashfull() >= 50) {
       for (auto& entry : entries_) {
         entry.SetNull();
       }
