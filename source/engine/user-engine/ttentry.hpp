@@ -276,14 +276,12 @@ class alignas(64) Entry {
         return true;
       }
 
-      if (hand_ == hand || min_depth_ <= depth16) {
-        if (dn < dn_) {
-          update = true;
-          dn = dn_;
-          if (min_depth_ < depth16) {
-            // unproven old child の情報を使ったときはフラグを立てておく
-            use_old_child = true;
-          }
+      if (min_depth_ <= depth16 && dn < dn_) {
+        dn = dn_;
+        update = true;
+        if (min_depth_ < depth16) {
+          // unproven old child の情報を使ったときはフラグを立てておく
+          use_old_child = true;
         }
       }
     }
@@ -299,14 +297,12 @@ class alignas(64) Entry {
         return true;
       }
 
-      if (hand_ == hand || min_depth_ <= depth16) {
-        if (pn < pn_) {
-          pn = pn_;
-          update = true;
-          if (min_depth_ < depth16) {
-            // unproven old child の情報を使ったときはフラグを立てておく
-            use_old_child = true;
-          }
+      if (min_depth_ <= depth16 && pn < pn_) {
+        pn = pn_;
+        update = true;
+        if (min_depth_ < depth16) {
+          // unproven old child の情報を使ったときはフラグを立てておく
+          use_old_child = true;
         }
       }
     }
