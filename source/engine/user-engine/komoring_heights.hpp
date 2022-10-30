@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file komoring_heights.hpp
  */
 #ifndef KOMORI_KOMORING_HEIGHTS_HPP_

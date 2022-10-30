@@ -1,4 +1,4 @@
-﻿#include "komoring_heights.hpp"
+#include "komoring_heights.hpp"
 
 namespace komori {
 namespace {

@@ -1,4 +1,4 @@
-﻿#include <cmath>
+#include <cmath>
 #include <condition_variable>
 #include <mutex>
 
