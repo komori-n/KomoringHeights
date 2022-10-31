@@ -221,6 +221,28 @@ class Query {
     const UnknownData unknown_data{true, kNullKey, kNullHand, 0};
     return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
   }
+
+  /**
+   * @brief 詰み／不詰手数専用の LookUp()
+   * @return pair<最長不詰手数、最短詰み手数>
+   *
+   * 現局面の最長不詰手数および最短詰み手数を得る関数。LookUp() を単純に使うと、詰み手数と不詰手数を同時に得るのは
+   * 難しいため、専用関数として提供する。詰み探索終了後の手順の復元に用いることを想定している。
+   */
+  constexpr std::pair<MateLen, MateLen> FinalRange() const noexcept {
+    MateLen16 disproven_len = kMinusZeroMateLen16;
+    MateLen16 proven_len = kInfiniteMateLen16;
+
+    // 頻繁に呼ばれる関数ではないのでアンローリングせずに普通に for 文で回す
+    for (std::size_t i = 0; i < Cluster::kSize; ++i) {
+      auto itr = cluster_.head_entry + i;
+      if (itr->IsFor(board_key_) && !itr->IsNull()) {
+        itr->UpdateFinalRange(hand_, disproven_len, proven_len);
+      }
+    }
+
+    return {MateLen::From(disproven_len), MateLen::From(proven_len)};
+  }
   // LCOV_EXCL_STOP
 
   /**

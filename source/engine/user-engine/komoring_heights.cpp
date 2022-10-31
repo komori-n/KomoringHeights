@@ -269,26 +269,19 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
     // 子ノードの中から最善っぽい手を選ぶ
     Move best_move = MOVE_NONE;
     MateLen best_len = n.IsOrNode() ? kMaxMateLen : kZeroMateLen;
+    MateLen best_disproven_len = kZeroMateLen;
     for (const auto move : MovePicker{n}) {
-      auto query = tt_.BuildChildQuery(n, move.move);
-      bool does_have_old_child = false;
-      const auto child_result = query.LookUp<false>(does_have_old_child, len - 1);
-      if (child_result.Pn() != 0) {
-        continue;
-      }
-
-      if (n.IsOrNode() && child_result.Len() < best_len) {
+      const auto query = tt_.BuildChildQuery(n, move.move);
+      const auto [disproven_len, proven_len] = query.FinalRange();
+      if (n.IsOrNode() && proven_len < best_len) {
         best_move = move.move;
-        best_len = child_result.Len();
-      } else if (!n.IsOrNode() && child_result.Len() > best_len) {
-        best_move = move.move;
-        best_len = child_result.Len();
-      } else if (child_result.Len() == best_len) {
-        bool does_have_old_child = false;
-        const auto child_result_prec = query.LookUp<false>(does_have_old_child, len - 3);
-        if (child_result_prec.Dn() == 0) {
-          // move は厳密に best_len 手詰め。
+        best_len = proven_len;
+        best_disproven_len = disproven_len;
+      } else if (!n.IsOrNode()) {
+        if (proven_len > best_len || (proven_len == best_len && best_disproven_len < disproven_len)) {
           best_move = move.move;
+          best_len = proven_len;
+          best_disproven_len = disproven_len;
         }
       }
     }

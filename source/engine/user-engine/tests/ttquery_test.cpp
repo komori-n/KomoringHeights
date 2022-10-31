@@ -230,6 +230,22 @@ TEST_F(V3QueryTest, LoopUp_CreationFull) {
   EXPECT_EQ(entries_[8].Amount(), 1);
 }
 
+TEST_F(V3QueryTest, FinalRange) {
+  const auto len1 = MateLen::Make(33, 4);
+  const auto len2 = MateLen::Make(26, 4);
+  entries_[0].Init(board_key_, MakeHand<PAWN>(), 1, 1, 1, 1);
+  entries_[0].UpdateProven(len1.To16(), 1);
+  entries_[1].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>(), 1, 1, 1, 1);
+  entries_[1].UpdateDisproven(len2.To16(), 1);
+
+  entries_[2].Init(board_key_, HAND_ZERO, 1, 1, 1, 1);
+  entries_[2].SetNull();
+
+  const auto [disproven_len, proven_len] = query_.FinalRange();
+  EXPECT_EQ(disproven_len, len2);
+  EXPECT_EQ(proven_len, len1);
+}
+
 TEST_F(V3QueryTest, SetResult_UnknownNew) {
   const PnDn pn{33};
   const PnDn dn{4};

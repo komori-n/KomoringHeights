@@ -300,6 +300,34 @@ class alignas(64) Entry {
     return false;
   }
 
+  /**
+   * @brief 詰み／不詰手数専用の LookUp()
+   * @param hand          現局面の持ち駒
+   * @param disproven_len 現在の不詰手数
+   * @param proven_len    現在の詰み手数
+   * @pre disproven_len < proven_len
+   * @pre IsFor(board_key_)
+   *
+   * 詰み／不詰手数に特化した LookUp。探索結果結果の読み出しに用いる。
+   *
+   * 以下の 2 つの変数 `disproven_len`、`proven_len` を受け取り、これらを更新して返す。
+   *
+   * - 高々 `proven_len` 手で詰み
+   * - 少なくとも `disproven_len` 手で詰まない
+   */
+  constexpr void UpdateFinalRange(Hand hand, MateLen16& disproven_len, MateLen16& proven_len) const noexcept {
+    const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
+    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+
+    if (is_inferior) {
+      disproven_len = std::max(disproven_len, disproven_len_);
+    }
+
+    if (is_superior) {
+      proven_len = std::min(proven_len, proven_len_);
+    }
+  }
+
   // <テスト用>
   // UpdateXxx() や LookUp() など、外部から変数が観測できないとテストの際にかなり不便なので、Getter を用意しておく。
 
