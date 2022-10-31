@@ -20,7 +20,7 @@ using komori::tt::Query;
 using komori::tt::SearchAmount;
 
 namespace {
-class V3QueryTest : public ::testing::Test {
+class QueryTest : public ::testing::Test {
  protected:
   void SetUp() override {
     entries_.resize(Cluster::kSize);
@@ -41,7 +41,7 @@ class V3QueryTest : public ::testing::Test {
 };
 }  // namespace
 
-TEST_F(V3QueryTest, LoopUp_None) {
+TEST_F(QueryTest, LoopUp_None) {
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
 
@@ -49,7 +49,7 @@ TEST_F(V3QueryTest, LoopUp_None) {
   EXPECT_EQ(result.Dn(), kPnDnUnit);
 }
 
-TEST_F(V3QueryTest, LoopUp_UnknownExact) {
+TEST_F(QueryTest, LoopUp_UnknownExact) {
   for (std::size_t i = 0; i < Cluster::kSize; ++i) {
     const PnDn pn{33 * (i + 1)};
     const PnDn dn{4 * (i + 1)};
@@ -68,7 +68,7 @@ TEST_F(V3QueryTest, LoopUp_UnknownExact) {
   }
 }
 
-TEST_F(V3QueryTest, LoopUp_UnknownExactRepetition) {
+TEST_F(QueryTest, LoopUp_UnknownExactRepetition) {
   rep_table_.Insert(path_key_);
 
   const PnDn pn{33};
@@ -87,7 +87,7 @@ TEST_F(V3QueryTest, LoopUp_UnknownExactRepetition) {
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
 }
 
-TEST_F(V3QueryTest, LoopUp_UnknownExactNoRepetition) {
+TEST_F(QueryTest, LoopUp_UnknownExactNoRepetition) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
@@ -104,7 +104,7 @@ TEST_F(V3QueryTest, LoopUp_UnknownExactNoRepetition) {
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
 }
 
-TEST_F(V3QueryTest, LoopUp_DifferentBoardKey) {
+TEST_F(QueryTest, LoopUp_DifferentBoardKey) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
@@ -119,7 +119,7 @@ TEST_F(V3QueryTest, LoopUp_DifferentBoardKey) {
   EXPECT_EQ(result.Amount(), 1);
 }
 
-TEST_F(V3QueryTest, LoopUp_DifferentHand) {
+TEST_F(QueryTest, LoopUp_DifferentHand) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
@@ -134,7 +134,7 @@ TEST_F(V3QueryTest, LoopUp_DifferentHand) {
   EXPECT_EQ(result.Amount(), 1);
 }
 
-TEST_F(V3QueryTest, LoopUp_UnknownSuperior) {
+TEST_F(QueryTest, LoopUp_UnknownSuperior) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
@@ -149,7 +149,7 @@ TEST_F(V3QueryTest, LoopUp_UnknownSuperior) {
   EXPECT_EQ(result.Amount(), amount);
 }
 
-TEST_F(V3QueryTest, LoopUp_UnknownInferior) {
+TEST_F(QueryTest, LoopUp_UnknownInferior) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
@@ -166,7 +166,7 @@ TEST_F(V3QueryTest, LoopUp_UnknownInferior) {
   entries_[0].SetNull();
 }
 
-TEST_F(V3QueryTest, LoopUp_Proven) {
+TEST_F(QueryTest, LoopUp_Proven) {
   const auto hand = MakeHand<PAWN>();
   entries_[0].Init(board_key_, hand, depth_, 1, 1, 1);
   entries_[0].UpdateProven(MateLen16::Make(26, 4), 1);
@@ -181,7 +181,7 @@ TEST_F(V3QueryTest, LoopUp_Proven) {
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
 }
 
-TEST_F(V3QueryTest, LoopUp_Disproven) {
+TEST_F(QueryTest, LoopUp_Disproven) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, LANCE>();
   entries_[0].Init(board_key_, hand, depth_, 1, 1, 1);
   entries_[0].UpdateDisproven(MateLen16::Make(330, 4), 1);
@@ -196,7 +196,7 @@ TEST_F(V3QueryTest, LoopUp_Disproven) {
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
 }
 
-TEST_F(V3QueryTest, LoopUp_CreationEmpty) {
+TEST_F(QueryTest, LoopUp_CreationEmpty) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
@@ -211,7 +211,7 @@ TEST_F(V3QueryTest, LoopUp_CreationEmpty) {
   EXPECT_EQ(entries_[1].Amount(), 1);
 }
 
-TEST_F(V3QueryTest, LoopUp_CreationFull) {
+TEST_F(QueryTest, LoopUp_CreationFull) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
@@ -230,7 +230,7 @@ TEST_F(V3QueryTest, LoopUp_CreationFull) {
   EXPECT_EQ(entries_[8].Amount(), 1);
 }
 
-TEST_F(V3QueryTest, FinalRange) {
+TEST_F(QueryTest, FinalRange) {
   const auto len1 = MateLen::Make(33, 4);
   const auto len2 = MateLen::Make(26, 4);
   entries_[0].Init(board_key_, MakeHand<PAWN>(), 1, 1, 1, 1);
@@ -246,7 +246,7 @@ TEST_F(V3QueryTest, FinalRange) {
   EXPECT_EQ(proven_len, len1);
 }
 
-TEST_F(V3QueryTest, SetResult_UnknownNew) {
+TEST_F(QueryTest, SetResult_UnknownNew) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
@@ -259,7 +259,7 @@ TEST_F(V3QueryTest, SetResult_UnknownNew) {
   EXPECT_EQ(entries_[0].Amount(), amount);
 }
 
-TEST_F(V3QueryTest, SetResult_UnknownUpdate) {
+TEST_F(QueryTest, SetResult_UnknownUpdate) {
   for (std::size_t i = 0; i < Cluster::kSize; ++i) {
     const PnDn pn{33 * (i + 1)};
     const PnDn dn{4 * (i + 1)};
@@ -278,7 +278,7 @@ TEST_F(V3QueryTest, SetResult_UnknownUpdate) {
   }
 }
 
-TEST_F(V3QueryTest, SetResult_ProvenNew) {
+TEST_F(QueryTest, SetResult_ProvenNew) {
   const auto hand = MakeHand<PAWN>();
   const MateLen len = MateLen::Make(33, 4);
   const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
@@ -287,7 +287,7 @@ TEST_F(V3QueryTest, SetResult_ProvenNew) {
   EXPECT_EQ(entries_[0].ProvenLen(), len.To16());
 }
 
-TEST_F(V3QueryTest, SetResult_ProvenUpdate) {
+TEST_F(QueryTest, SetResult_ProvenUpdate) {
   const auto hand = MakeHand<PAWN>();
   const MateLen len = MateLen::Make(33, 4);
   const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
@@ -297,7 +297,7 @@ TEST_F(V3QueryTest, SetResult_ProvenUpdate) {
   EXPECT_EQ(entries_[2].ProvenLen(), len.To16());
 }
 
-TEST_F(V3QueryTest, SetResult_DisprovenNew) {
+TEST_F(QueryTest, SetResult_DisprovenNew) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, GOLD>();
   const MateLen len = MateLen::Make(33, 4);
   const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
@@ -306,7 +306,7 @@ TEST_F(V3QueryTest, SetResult_DisprovenNew) {
   EXPECT_EQ(entries_[0].DisprovenLen(), len.To16());
 }
 
-TEST_F(V3QueryTest, SetResult_DisprovenUpdate) {
+TEST_F(QueryTest, SetResult_DisprovenUpdate) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, GOLD>();
   const MateLen len = MateLen::Make(33, 4);
   const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
@@ -316,7 +316,7 @@ TEST_F(V3QueryTest, SetResult_DisprovenUpdate) {
   EXPECT_EQ(entries_[2].DisprovenLen(), len.To16());
 }
 
-TEST_F(V3QueryTest, SetResult_RepetitionNew) {
+TEST_F(QueryTest, SetResult_RepetitionNew) {
   const SearchAmount amount{334};
   const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen::Make(33, 4), amount);
 
@@ -327,7 +327,7 @@ TEST_F(V3QueryTest, SetResult_RepetitionNew) {
   EXPECT_TRUE(rep_table_.Contains(path_key_));
 }
 
-TEST_F(V3QueryTest, SetResult_RepetitionUpdate) {
+TEST_F(QueryTest, SetResult_RepetitionUpdate) {
   const SearchAmount amount{334};
   const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen::Make(33, 4), amount);
 

@@ -11,19 +11,19 @@ using komori::tt::Entry;
 using komori::tt::SearchAmount;
 using komori::tt::detail::kFinalAmountBonus;
 
-TEST(V3EntryTest, DefaultConstructedInstanceIsNull) {
+TEST(EntryTest, DefaultConstructedInstanceIsNull) {
   Entry entry;
   EXPECT_TRUE(entry.IsNull());
 }
 
-TEST(V3EntryTest, Init_PossibleRepetition) {
+TEST(EntryTest, Init_PossibleRepetition) {
   Entry entry;
   entry.Init(0x334334, HAND_ZERO, 334, 1, 1, 1);
 
   EXPECT_FALSE(entry.IsPossibleRepetition());
 }
 
-TEST(V3EntryTest, SetPossibleRepetition_PossibleRepetition) {
+TEST(EntryTest, SetPossibleRepetition_PossibleRepetition) {
   Entry entry;
   entry.Init(0x334334, HAND_ZERO, 334, 1, 1, 1);
   entry.SetPossibleRepetition();
@@ -31,7 +31,7 @@ TEST(V3EntryTest, SetPossibleRepetition_PossibleRepetition) {
   EXPECT_TRUE(entry.IsPossibleRepetition());
 }
 
-TEST(V3EntryTest, IsFor) {
+TEST(EntryTest, IsFor) {
   Entry entry;
   const Key key{0x334334};
   const Hand hand{MakeHand<PAWN, LANCE>()};
@@ -44,7 +44,7 @@ TEST(V3EntryTest, IsFor) {
   EXPECT_FALSE(entry.IsFor(key, MakeHand<PAWN, LANCE, LANCE>()));
 }
 
-TEST(V3EntryTest, GetHand) {
+TEST(EntryTest, GetHand) {
   Entry entry;
   const Key key{0x334334};
   const Hand hand{MakeHand<PAWN, LANCE>()};
@@ -52,14 +52,14 @@ TEST(V3EntryTest, GetHand) {
   EXPECT_EQ(entry.GetHand(), hand);
 }
 
-TEST(V3EntryTest, InitMinDepth) {
+TEST(EntryTest, InitMinDepth) {
   Entry entry;
   const Depth depth{334};
   entry.Init(0x264, HAND_ZERO, depth, 1, 1, 1);
   EXPECT_EQ(entry.MinDepth(), depth);
 }
 
-TEST(V3EntryTest, UpdateUnknown_MinDepth) {
+TEST(EntryTest, UpdateUnknown_MinDepth) {
   Entry entry;
   // depth1 と depth2 を両方せっとしたら小さい方が MinDepth() になる
   const Depth depth1{334};
@@ -74,7 +74,7 @@ TEST(V3EntryTest, UpdateUnknown_MinDepth) {
   EXPECT_EQ(entry.MinDepth(), depth2);
 }
 
-TEST(V3EntryTest, LookUp_MinDepth) {
+TEST(EntryTest, LookUp_MinDepth) {
   Entry entry;
   const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
   const Depth depth1{334};
@@ -95,7 +95,7 @@ TEST(V3EntryTest, LookUp_MinDepth) {
   EXPECT_EQ(entry.MinDepth(), depth2);  // depth は最小値
 }
 
-TEST(V3EntryTest, LookUp_PnDn_Exact) {
+TEST(EntryTest, LookUp_PnDn_Exact) {
   Entry entry;
   const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
   const Depth depth1{334};
@@ -123,7 +123,7 @@ TEST(V3EntryTest, LookUp_PnDn_Exact) {
   EXPECT_EQ(dn, 100);
 }
 
-TEST(V3EntryTest, LookUp_PnDn_Superior) {
+TEST(EntryTest, LookUp_PnDn_Superior) {
   Entry entry;
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN, LANCE, LANCE, LANCE, GOLD>()};
@@ -153,7 +153,7 @@ TEST(V3EntryTest, LookUp_PnDn_Superior) {
   EXPECT_EQ(dn, 1);
 }
 
-TEST(V3EntryTest, LookUp_PnDn_Inferior) {
+TEST(EntryTest, LookUp_PnDn_Inferior) {
   Entry entry;
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN>()};
@@ -183,7 +183,7 @@ TEST(V3EntryTest, LookUp_PnDn_Inferior) {
   EXPECT_EQ(dn, 1);
 }
 
-TEST(V3EntryTest, LookUp_PnDn_Proven) {
+TEST(EntryTest, LookUp_PnDn_Proven) {
   Entry entry;
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN, LANCE, LANCE, LANCE, GOLD>()};
@@ -211,7 +211,7 @@ TEST(V3EntryTest, LookUp_PnDn_Proven) {
   EXPECT_EQ(dn, komori::kInfinitePnDn);
 }
 
-TEST(V3EntryTest, LookUp_PnDn_Disproven) {
+TEST(EntryTest, LookUp_PnDn_Disproven) {
   Entry entry;
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<LANCE>()};
@@ -237,7 +237,7 @@ TEST(V3EntryTest, LookUp_PnDn_Disproven) {
   EXPECT_EQ(dn, 0);
 }
 
-TEST(V3EntryTest, Update_PnDn_Proven) {
+TEST(EntryTest, Update_PnDn_Proven) {
   Entry entry;
   const MateLen16 len1{MateLen16::Make(33, 4)};
   const MateLen16 len2{MateLen16::Make(334, 0)};
@@ -249,7 +249,7 @@ TEST(V3EntryTest, Update_PnDn_Proven) {
   EXPECT_EQ(entry.Dn(), 1);
 }
 
-TEST(V3EntryTest, Update_PnDn_Disproven) {
+TEST(EntryTest, Update_PnDn_Disproven) {
   Entry entry;
   const MateLen16 len1{MateLen16::Make(33, 4)};
   const MateLen16 len2{MateLen16::Make(26, 4)};
@@ -261,7 +261,7 @@ TEST(V3EntryTest, Update_PnDn_Disproven) {
   EXPECT_EQ(entry.Dn(), 1);
 }
 
-TEST(V3EntryTest, SetPossibleRepetition_PnDn) {
+TEST(EntryTest, SetPossibleRepetition_PnDn) {
   Entry entry;
   entry.Init(0x264, HAND_ZERO, 334, 33, 4, 1);
   entry.SetPossibleRepetition();
@@ -269,13 +269,13 @@ TEST(V3EntryTest, SetPossibleRepetition_PnDn) {
   EXPECT_EQ(entry.Dn(), 1);
 }
 
-TEST(V3EntryTest, Init_ProvenLen) {
+TEST(EntryTest, Init_ProvenLen) {
   Entry entry;
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
   EXPECT_EQ(entry.ProvenLen(), kInfiniteMateLen16);
 }
 
-TEST(V3EntryTest, UpdateProven_ProvenLen) {
+TEST(EntryTest, UpdateProven_ProvenLen) {
   Entry entry;
   const MateLen16 len1{MateLen16::Make(33, 4)};
   const MateLen16 len2{MateLen16::Make(334, 0)};
@@ -291,13 +291,13 @@ TEST(V3EntryTest, UpdateProven_ProvenLen) {
   EXPECT_EQ(entry.ProvenLen(), len3);
 }
 
-TEST(V3EntryTest, Init_DisprovenLen) {
+TEST(EntryTest, Init_DisprovenLen) {
   Entry entry;
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
   EXPECT_EQ(entry.DisprovenLen(), kMinusZeroMateLen16);
 }
 
-TEST(V3EntryTest, UpdateProven_DisprovenLen) {
+TEST(EntryTest, UpdateProven_DisprovenLen) {
   Entry entry;
   const MateLen16 len1{MateLen16::Make(33, 4)};
   const MateLen16 len2{MateLen16::Make(26, 4)};
@@ -313,7 +313,7 @@ TEST(V3EntryTest, UpdateProven_DisprovenLen) {
   EXPECT_EQ(entry.DisprovenLen(), len3);
 }
 
-TEST(V3EntryTest, LookUp_UseOldChild_Superior) {
+TEST(EntryTest, LookUp_UseOldChild_Superior) {
   Entry entry;
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN, LANCE, LANCE, LANCE, GOLD>()};
@@ -333,7 +333,7 @@ TEST(V3EntryTest, LookUp_UseOldChild_Superior) {
   EXPECT_FALSE(use_old_child);
 }
 
-TEST(V3EntryTest, LookUp_UseOldChild_Inferior) {
+TEST(EntryTest, LookUp_UseOldChild_Inferior) {
   Entry entry;
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN>()};
@@ -353,14 +353,14 @@ TEST(V3EntryTest, LookUp_UseOldChild_Inferior) {
   EXPECT_FALSE(use_old_child);
 }
 
-TEST(V3EntryTest, Init_Amount) {
+TEST(EntryTest, Init_Amount) {
   Entry entry;
   const SearchAmount amount{334};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount);
   EXPECT_EQ(entry.Amount(), amount);
 }
 
-TEST(V3EntryTest, UpdateUnknown_Amount) {
+TEST(EntryTest, UpdateUnknown_Amount) {
   Entry entry;
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
@@ -369,7 +369,7 @@ TEST(V3EntryTest, UpdateUnknown_Amount) {
   EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2);
 }
 
-TEST(V3EntryTest, UpdateUnknown_SaturatedAmount) {
+TEST(EntryTest, UpdateUnknown_SaturatedAmount) {
   Entry entry;
   const SearchAmount amount1{334};
   const SearchAmount amount2{std::numeric_limits<SearchAmount>::max()};
@@ -378,7 +378,7 @@ TEST(V3EntryTest, UpdateUnknown_SaturatedAmount) {
   EXPECT_EQ(entry.Amount(), amount2);
 }
 
-TEST(V3EntryTest, UpdateProven_Amount) {
+TEST(EntryTest, UpdateProven_Amount) {
   Entry entry;
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
@@ -387,7 +387,7 @@ TEST(V3EntryTest, UpdateProven_Amount) {
   EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
 }
 
-TEST(V3EntryTest, UpdateDisproven_Amount) {
+TEST(EntryTest, UpdateDisproven_Amount) {
   Entry entry;
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
@@ -396,7 +396,7 @@ TEST(V3EntryTest, UpdateDisproven_Amount) {
   EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
 }
 
-TEST(V3EntryTest, UpdateFinalRange_Superior) {
+TEST(EntryTest, UpdateFinalRange_Superior) {
   Entry entry;
   const MateLen16 len = MateLen16::Make(33, 4);
   entry.Init(0x264, MakeHand<PAWN, LANCE, LANCE, GOLD>(), 264, 1, 1, 1);
@@ -413,7 +413,7 @@ TEST(V3EntryTest, UpdateFinalRange_Superior) {
   EXPECT_EQ(disproven_len, len + 1);
 }
 
-TEST(V3EntryTest, UpdateFinalRange_Inferior) {
+TEST(EntryTest, UpdateFinalRange_Inferior) {
   Entry entry;
   const MateLen16 len = MateLen16::Make(33, 4);
   entry.Init(0x264, HAND_ZERO, 264, 1, 1, 1);
