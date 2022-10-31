@@ -274,7 +274,8 @@ class alignas(64) Entry {
    * が成り立つので LookUpUnknown() はそれほど必要ではないが、実際には優等局面・劣等局面よりも一致局面のほうが
    * 頻繁に現れ、かつ容易に一致局面かどうかの判定ができるため、別処理にしたほうが高速化できる。
    */
-  constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) noexcept {
+  constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child)
+      const noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
 
     // 1. 現局面とエントリが一致
@@ -331,7 +332,11 @@ class alignas(64) Entry {
    * @param dn       dn
    * @return 必ず `true`
    */
-  constexpr bool LookUpExact(std::int16_t depth16, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) noexcept {
+  constexpr bool LookUpExact(std::int16_t depth16,
+                             MateLen16& len,
+                             PnDn& pn,
+                             PnDn& dn,
+                             bool& use_old_child) const noexcept {
     if (len >= proven_len_) {
       len = proven_len_;
       pn = 0;
@@ -367,7 +372,7 @@ class alignas(64) Entry {
                                 MateLen16& len,
                                 PnDn& pn,
                                 PnDn& dn,
-                                bool& use_old_child) noexcept {
+                                bool& use_old_child) const noexcept {
     if (len >= proven_len_) {
       // 優等局面は高々 `proven_len_` 手詰み。
       len = proven_len_;
@@ -399,7 +404,7 @@ class alignas(64) Entry {
                                 MateLen16& len,
                                 PnDn& pn,
                                 PnDn& dn,
-                                bool& use_old_child) noexcept {
+                                bool& use_old_child) const noexcept {
     // LookUpしたい局面は Entry に保存されている局面の劣等局面
     if (len <= disproven_len_) {
       // 劣等局面は少なくとも `disproven_len_` 手不詰。
@@ -438,9 +443,9 @@ class alignas(64) Entry {
   PnDn pn_;  ///< pn値
   PnDn dn_;  ///< dn値
 
-  Key parent_board_key_;              ///< 親局面の盤面ハッシュ値
-  Hand parent_hand_;                  ///< 親局面の持ち駒
-  std::int16_t min_depth_;            ///< 最小探索深さ
+  Key parent_board_key_;            ///< 親局面の盤面ハッシュ値
+  Hand parent_hand_;                ///< 親局面の持ち駒
+  mutable std::int16_t min_depth_;  ///< 最小探索深さ。`LookUp()` 中に書き換える可能性があるので mutable。
   RepetitionState repetition_state_;  ///< 現局面が千日手の可能性があるか
 
   std::uint64_t secret_;  ///< 秘密の値
