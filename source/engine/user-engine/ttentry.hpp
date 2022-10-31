@@ -172,7 +172,10 @@ class alignas(64) Entry {
    *
    * @note エントリが無効かどうかは `hand` に格納されているので、無効状態でも正しく動作する
    */
-  constexpr bool IsFor(Key board_key, Hand hand) const noexcept { return board_key_ == board_key && hand_ == hand; }
+  constexpr bool IsFor(Key board_key, Hand hand) const noexcept {
+    // hand を先にチェックしたほうが微妙に高速
+    return hand_ == hand && board_key_ == board_key;
+  }
 
   /// 探索量
   constexpr SearchAmount Amount() const noexcept { return amount_; }
@@ -256,58 +259,44 @@ class alignas(64) Entry {
    * 置換表の肝の部分。本将棋エンジンとは異なり、優等局面、劣等局面の結果をチラ見しながら pn 値と dn 値を取得する。
    * 外側のループ脱出の判断をできるだけ高速にしたいので、引数の値が更新されたときと現局面に一致するエントリを見つけた
    * ときは `true` を返す。
+   *
+   * ## 実装詳細
+   *
+   * 探索中にとても頻繁に呼ばれる関数なので限界まで高速化したい。そのため、シンプルな処理ながら関数の実装は
+   * 長めになっている。実装の本体は次の3つの関数に分割されている。
+   *
+   * - LookUpExact():  現局面とエントリが一致
+   * - LookUpInferior(): 現局面が劣等局面
+   * - LookUpSuperior(): 現局面が優等局面
+   *
+   * 細かいことを言うと、
+   *     現局面とエントリが一致 <=> 現局面が優等局面 ∧ 現局面が劣等局面
+   * が成り立つので LookUpUnknown() はそれほど必要ではないが、実際には優等局面・劣等局面よりも一致局面のほうが
+   * 頻繁に現れ、かつ容易に一致局面かどうかの判定ができるため、別処理にしたほうが高速化できる。
    */
   constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) noexcept {
-    bool update = false;
     const auto depth16 = static_cast<std::int16_t>(depth);
+
+    // 1. 現局面とエントリが一致
     if (hand_ == hand) {
-      // このタイミングで最小距離を更新しておかないと無限ループになる可能性があるので注意
-      min_depth_ = std::min(min_depth_, depth16);
+      return LookUpExact(depth16, len, pn, dn, use_old_child);
     }
 
-    // LookUpしたい局面は Entry に保存されている局面の優等局面
-    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
-    if (is_superior) {
-      if (len >= proven_len_) {
-        // 優等局面は高々 `proven_len_` 手詰み。
-        len = proven_len_;
-        pn = 0;
-        dn = kInfinitePnDn;
-        return true;
-      }
-
-      if (min_depth_ <= depth16 && dn < dn_) {
-        dn = dn_;
-        update = true;
-        if (min_depth_ < depth16) {
-          // unproven old child の情報を使ったときはフラグを立てておく
-          use_old_child = true;
-        }
-      }
-    }
-
-    // LookUpしたい局面は Entry に保存されている局面の劣等局面
+    // 2. 現局面が劣等局面
     const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
     if (is_inferior) {
-      if (len <= disproven_len_) {
-        // 劣等局面は少なくとも `disproven_len_` 手不詰。
-        len = disproven_len_;
-        pn = kInfinitePnDn;
-        dn = 0;
-        return true;
-      }
-
-      if (min_depth_ <= depth16 && pn < pn_) {
-        pn = pn_;
-        update = true;
-        if (min_depth_ < depth16) {
-          // unproven old child の情報を使ったときはフラグを立てておく
-          use_old_child = true;
-        }
-      }
+      // 劣等かつ優等な局面は一致局面だけ。つまり 3. の if 文は省略できる。
+      return LookUpInferior(depth16, len, pn, dn, use_old_child);
     }
 
-    return update || hand_ == hand;
+    // 3. 現局面が優等局面
+    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+    if (is_superior) {
+      return LookUpSuperior(depth16, len, pn, dn, use_old_child);
+    }
+
+    // 優等でも劣等でもない局面。何もせずに返る
+    return false;
   }
 
   // <テスト用>
@@ -333,6 +322,105 @@ class alignas(64) Entry {
    * @note 加算方法を変える可能性が高い（例えば上限値を変えるなど）ので、関数化しておく。
    */
   constexpr void AddAmount(SearchAmount amount) noexcept { amount_ = SaturatedAdd(amount_ / 2, amount); }
+
+  /**
+   * @brief 現局面とエントリが一致しているときの LookUp
+   * @param depth16  探索深さ
+   * @param len      見つけたい詰み手数
+   * @param pn       pn
+   * @param dn       dn
+   * @return 必ず `true`
+   */
+  constexpr bool LookUpExact(std::int16_t depth16, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) noexcept {
+    if (len >= proven_len_) {
+      len = proven_len_;
+      pn = 0;
+      dn = kInfinitePnDn;
+    } else if (len <= disproven_len_) {
+      len = disproven_len_;
+      pn = kInfinitePnDn;
+      dn = 0;
+    } else {
+      min_depth_ = std::min(min_depth_, depth16);
+      if (pn < pn_ || dn < dn_) {
+        pn = std::max(pn, pn_);
+        dn = std::max(dn, dn_);
+        if (min_depth_ < depth16) {
+          use_old_child = true;
+        }
+      }
+    }
+
+    // 現局面のエントリを見つけたときは必ず `true`
+    return true;
+  }
+
+  /**
+   * @brief 現局面が優等局面のときの LookUp
+   * @param depth16  探索深さ
+   * @param len      見つけたい詰み手数
+   * @param pn       pn
+   * @param dn       dn
+   * @return pn/dn を更新したら `true`
+   */
+  constexpr bool LookUpSuperior(std::int16_t depth16,
+                                MateLen16& len,
+                                PnDn& pn,
+                                PnDn& dn,
+                                bool& use_old_child) noexcept {
+    if (len >= proven_len_) {
+      // 優等局面は高々 `proven_len_` 手詰み。
+      len = proven_len_;
+      pn = 0;
+      dn = kInfinitePnDn;
+      return true;
+    }
+
+    if (min_depth_ <= depth16 && dn < dn_) {
+      dn = dn_;
+      if (min_depth_ < depth16) {
+        // unproven old child の情報を使ったときはフラグを立てておく
+        use_old_child = true;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * @brief 現局面が劣等局面のときの LookUp
+   * @param depth16  探索深さ
+   * @param len      見つけたい詰み手数
+   * @param pn       pn
+   * @param dn       dn
+   * @return pn/dn を更新したら `true`
+   */
+  constexpr bool LookUpInferior(std::int16_t depth16,
+                                MateLen16& len,
+                                PnDn& pn,
+                                PnDn& dn,
+                                bool& use_old_child) noexcept {
+    // LookUpしたい局面は Entry に保存されている局面の劣等局面
+    if (len <= disproven_len_) {
+      // 劣等局面は少なくとも `disproven_len_` 手不詰。
+      len = disproven_len_;
+      pn = kInfinitePnDn;
+      dn = 0;
+      return true;
+    }
+
+    if (min_depth_ <= depth16 && pn < pn_) {
+      pn = pn_;
+      if (min_depth_ < depth16) {
+        // unproven old child の情報を使ったときはフラグを立てておく
+        use_old_child = true;
+      }
+
+      return true;
+    }
+
+    return false;
+  }
 
   /// 「千日手の可能性」を表現するための列挙体
   enum class RepetitionState : std::uint8_t {

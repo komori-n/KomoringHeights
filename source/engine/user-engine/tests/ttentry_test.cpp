@@ -140,9 +140,15 @@ TEST(V3EntryTest, LookUp_PnDn_Superior) {
   EXPECT_EQ(pn, 1);
   EXPECT_EQ(dn, 4);
 
-  pn = dn = 1;
-  const auto ret2 = entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
+  pn = dn = 100;
+  const auto ret2 = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_FALSE(ret2);
+  EXPECT_EQ(pn, 100);
+  EXPECT_EQ(dn, 100);
+
+  pn = dn = 1;
+  const auto ret3 = entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
+  EXPECT_FALSE(ret3);
   EXPECT_EQ(pn, 1);
   EXPECT_EQ(dn, 1);
 }
@@ -164,9 +170,15 @@ TEST(V3EntryTest, LookUp_PnDn_Inferior) {
   EXPECT_EQ(pn, 33);
   EXPECT_EQ(dn, 1);
 
-  pn = dn = 1;
-  const auto ret2 = entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
+  pn = dn = 100;
+  const auto ret2 = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_FALSE(ret2);
+  EXPECT_EQ(pn, 100);
+  EXPECT_EQ(dn, 100);
+
+  pn = dn = 1;
+  const auto ret3 = entry.LookUp(hand2, depth3, len, pn, dn, use_old_child);
+  EXPECT_FALSE(ret3);
   EXPECT_EQ(pn, 1);
   EXPECT_EQ(dn, 1);
 }
@@ -185,8 +197,16 @@ TEST(V3EntryTest, LookUp_PnDn_Proven) {
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
   entry.UpdateProven(len1, 1);
-  const auto ret = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  // 現局面と一致
+  const auto ret = entry.LookUp(hand1, depth2, len, pn, dn, use_old_child);
   EXPECT_TRUE(ret);
+  EXPECT_EQ(pn, 0);
+  EXPECT_EQ(dn, komori::kInfinitePnDn);
+
+  // 優等局面（内部的には上の処理と別関数なのでテストが2つほしい）
+  pn = dn = 1;
+  const auto ret2 = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  EXPECT_TRUE(ret2);
   EXPECT_EQ(pn, 0);
   EXPECT_EQ(dn, komori::kInfinitePnDn);
 }
@@ -205,8 +225,14 @@ TEST(V3EntryTest, LookUp_PnDn_Disproven) {
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
   entry.UpdateDisproven(len1, 1);
-  const auto ret = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  const auto ret = entry.LookUp(hand1, depth2, len, pn, dn, use_old_child);
   EXPECT_TRUE(ret);
+  EXPECT_EQ(pn, komori::kInfinitePnDn);
+  EXPECT_EQ(dn, 0);
+
+  pn = dn = 1;
+  const auto ret2 = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
+  EXPECT_TRUE(ret2);
   EXPECT_EQ(pn, komori::kInfinitePnDn);
   EXPECT_EQ(dn, 0);
 }
