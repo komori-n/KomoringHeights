@@ -18,6 +18,11 @@ repos:
   - id: cpplint
 - repo: local
   hooks:
+  - id: gen-docs
+    name: gen-docs
+    entry: source/engine/user-engine/tests/generate-docs
+    language: script
+    pass_filenames: false
   - id: run-coverage
     name: run-coverage
     entry: source/engine/user-engine/tests/run-coverage
