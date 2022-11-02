@@ -18,6 +18,9 @@
 #include "type_traits.hpp"
 
 #if defined(KOMORI_DEBUG)
+/**
+ * @brief `cond` が `true` かどうかをチェックするデバッグ用マクロ
+ */
 #define KOMORI_PRECONDITION(cond)                                                                                    \
   do {                                                                                                               \
     if (!(cond)) {                                                                                                   \
@@ -27,7 +30,8 @@
     }                                                                                                                \
   } while (false)
 #else
-#define KOMORI_PRECONDITION(cond) (void)(cond)
+/// 本番ビルド用
+#define KOMORI_PRECONDITION(cond) ConsumeValues({cond})
 #endif
 
 /// Komoring Heights

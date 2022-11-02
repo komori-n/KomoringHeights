@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include "../type_traits.hpp"
 
 using komori::Constraints;
+using komori::ConsumeValues;
 using komori::DefineComparisonOperatorsByLess;
 using komori::DefineNotEqualByEqual;
 using komori::Identity;
@@ -70,4 +72,23 @@ TEST(DefineComparisonOperatorsByLess, GreaterEq) {
   EXPECT_TRUE(a >= a);
   EXPECT_FALSE(a >= b);
   EXPECT_TRUE(b >= a);
+}
+
+namespace {
+using TestArray = std::array<bool, 5>;
+template <std::size_t... Indices>
+void Set(TestArray& arr) noexcept {
+  ConsumeValues({(arr[Indices] = true)...});
+}
+}  // namespace
+
+TEST(ConsumeValues, Test) {
+  TestArray arr{};
+  Set<1, 2, 4>(arr);
+
+  EXPECT_FALSE(arr[0]);
+  EXPECT_TRUE(arr[1]);
+  EXPECT_TRUE(arr[2]);
+  EXPECT_FALSE(arr[3]);
+  EXPECT_TRUE(arr[4]);
 }

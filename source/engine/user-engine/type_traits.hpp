@@ -95,6 +95,44 @@ struct DefineComparisonOperatorsByLess {
   constexpr friend bool operator>=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs)) { return !(lhs < rhs); }
 };
 
+namespace detail {
+/**
+ * @brief 任意の値でコンストラクトできる空構造体。 `ConsumeValue()` で用いる。
+ *
+ * 引数に任意の型の値を渡してコンストラクトできる。この構造体自体は中身が空で、特に何もしない。
+ */
+struct Anything {
+  /**
+   * @brief 任意の型でコンストラクトできるコンストラクタ。虚無に値を捨てる。
+   * @tparam T 型
+   */
+  template <typename T>
+  constexpr Anything(T&&) noexcept {}  // NOLINT
+};
+}  // namespace detail
+
+/**
+ * @brief 任意の値を虚無に送る関数
+ *
+ * `Anything` 型の初期化子リストを引数に取り、何もしない関数。`Anything` 型は任意の値でコンストラクト可能なので、
+ * この関数は任意の値を捨てるために用いることができる。
+ *
+ * 例えば、式 expr の評価だけして結果をどこかへ捨てたい場合、
+ *
+ * ```cpp
+ * ConsumeValues({expr});
+ * ```
+ *
+ * と書ける。また、式が複数個ある場合は、
+ *
+ * ```cpp
+ * ConsumeValues({expr1, expr2, ...});
+ * ```
+ *
+ * と書く。
+ */
+constexpr inline void ConsumeValues(std::initializer_list<detail::Anything>) noexcept {}
+
 // LCOV_EXCL_STOP
 
 }  // namespace komori
