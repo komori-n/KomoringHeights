@@ -139,7 +139,7 @@ class LocalExpansion {
   bool FrontIsFirstVisit() const { return FrontResult().GetUnknownData().is_first_visit; }
   BitSet64 FrontSumMask() const {
     const auto& result = FrontResult();
-    return BitSet64{~result.GetUnknownData().secret};
+    return result.GetUnknownData().sum_mask;
   }
 
   SearchResult CurrentResult(const Node& n) const {
@@ -404,7 +404,7 @@ class LocalExpansion {
     const std::uint32_t amount = result.Amount() + mp_.size() / 2;
     const auto or_hand = n.OrHand();
 
-    UnknownData unknown_data{false, kNullKey, kNullHand, ~sum_mask_.Value()};
+    UnknownData unknown_data{false, kNullKey, kNullHand, sum_mask_};
     return SearchResult::MakeUnknown(GetPn(), GetDn(), or_hand, len_, amount, unknown_data);
   }
 

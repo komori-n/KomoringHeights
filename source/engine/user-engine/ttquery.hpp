@@ -175,6 +175,7 @@ class Query {
 
     Entry* itr = cluster_.head_entry;
     bool found_exact = false;
+    BitSet64 sum_mask = BitSet64::Full();
 
     // Doxygen によるドキュメンテーションを無効にする
 #if !defined(DOXYGEN_SHOULD_SKIP_THIS)
@@ -194,6 +195,7 @@ class Query {
           }                                                                              \
                                                                                          \
           found_exact = true;                                                            \
+          sum_mask = itr->SumMask();                                                     \
         }                                                                                \
       }                                                                                  \
     }                                                                                    \
@@ -205,7 +207,7 @@ class Query {
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
 
     if (found_exact) {
-      UnknownData unknown_data{false, kNullKey, kNullHand, 0};
+      UnknownData unknown_data{false, kNullKey, kNullHand, sum_mask};
       return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
     }
 
@@ -218,7 +220,7 @@ class Query {
       CreateNewEntry(hand_, pn, dn, 1);
     }
 
-    const UnknownData unknown_data{true, kNullKey, kNullHand, 0};
+    const UnknownData unknown_data{true, kNullKey, kNullHand, BitSet64::Full()};
     return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
   }
 
@@ -295,6 +297,7 @@ class Query {
    * @param pn pn
    * @param dn dn
    * @param amount 探索量
+   * @param sum_mask δ値を和で計算する子の集合（デフォルトは `BitSet64::Full()`）
    * @return 新たに作成したエントリ
    *
    * クラスタ内に空きがある場合、それを用いて新規エントリを作る。もしクラスタ内に空きがないならば、探索量が最も小さい
@@ -303,31 +306,37 @@ class Query {
    * 作成するエントリの持ち駒を `hand_` を直接使わずに `hand` を引数として受け取っている理由は、
    * 詰み／不詰エントリを書き込むときに使用したいため。
    */
-  Entry* CreateNewEntry(Hand hand, PnDn pn, PnDn dn, SearchAmount amount) const noexcept {
+  Entry* CreateNewEntry(Hand hand,
+                        PnDn pn,
+                        PnDn dn,
+                        SearchAmount amount,
+                        BitSet64 sum_mask = BitSet64::Full()) const noexcept {
     Entry* itr = cluster_.head_entry;
     Entry* min_amount_entry = cluster_.head_entry;
     SearchAmount min_amount = std::numeric_limits<SearchAmount>::max();
     // LCOV_EXCL_START
 #if !defined(DOXYGEN_SHOULD_SKIP_THIS)
-#define CREATE_ENTRY_IMPL(i)                               \
-  do {                                                     \
-    if (itr->IsNull()) {                                   \
-      itr->Init(board_key_, hand, depth_, pn, dn, amount); \
-      return itr;                                          \
-    }                                                      \
-    if (itr->Amount() < min_amount) {                      \
-      min_amount_entry = itr;                              \
-      min_amount = itr->Amount();                          \
-    }                                                      \
-    itr++;                                                 \
+#define CREATE_ENTRY_IMPL(i)                                \
+  do {                                                      \
+    if (itr->IsNull()) {                                    \
+      itr->Init(board_key_, hand);                          \
+      itr->UpdateUnknown(depth_, pn, dn, amount, sum_mask); \
+      return itr;                                           \
+    }                                                       \
+    if (itr->Amount() < min_amount) {                       \
+      min_amount_entry = itr;                               \
+      min_amount = itr->Amount();                           \
+    }                                                       \
+    itr++;                                                  \
   } while (false)
 
     KOMORI_TTQUERY_UNROLL_CLUSTER(CREATE_ENTRY_IMPL);
 #undef CREATE_ENTRY_IMPL
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
-    // LCOV_EXCL_STOP
+        // LCOV_EXCL_STOP
 
-    min_amount_entry->Init(board_key_, hand, depth_, pn, dn, amount);
+    min_amount_entry->Init(board_key_, hand);
+    min_amount_entry->UpdateUnknown(depth_, pn, dn, amount, sum_mask);
     return min_amount_entry;
   }
 
@@ -375,13 +384,13 @@ class Query {
   void SetUnknown(const SearchResult& result) const noexcept {
     const auto pn = result.Pn();
     const auto dn = result.Dn();
-    const auto len = result.Len();
     const auto amount = result.Amount();
+    const auto sum_mask = result.GetUnknownData().sum_mask;
 
     if (auto entry = FindEntry(hand_)) {
-      entry->UpdateUnknown(depth_, pn, dn, MateLen16{len}, amount);
+      entry->UpdateUnknown(depth_, pn, dn, amount, sum_mask);
     } else {
-      CreateNewEntry(hand_, pn, dn, amount);
+      CreateNewEntry(hand_, pn, dn, amount, sum_mask);
     }
   }
 

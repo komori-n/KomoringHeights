@@ -6,6 +6,7 @@
 
 #include <cstdint>
 
+#include "bitset.hpp"
 #include "mate_len.hpp"
 #include "typedefs.hpp"
 
@@ -106,6 +107,14 @@ constexpr inline SearchAmount kFinalAmountBonus{1000};
  *
  * また、詰み／不詰局面は他の局面よりも大事なのでなるべく消されづらくしたい。そのため、探索量に
  * 定数（kFinalAmountBonus）を足して実際の探索量よりも大きくなるようにしている。
+ *
+ * ### SumMask
+ *
+ * 詰将棋探索では、pn/dn の二重カウントによる発散を防ぐために、δ値の和を取るべき箇所を max で代用したい場面がある。
+ * SumMask は、現局面の子ノードのうちδ値を和で計算すべき子の集合を表す。この値は UpdateUnknown() で更新される。
+ *
+ * SumMask のデフォルト値は `BitSet64::Full()` である。すなわち、初期状態はすべての子のδ値を和で計算する。
+ * この値は探索部に依存する値なので、このファイル内で初期化を行っているのは本当は良くない。
  */
 class alignas(64) Entry {
  public:
@@ -126,28 +135,24 @@ class alignas(64) Entry {
    * @brief エントリの初期化を行う
    * @param board_key 盤面ハッシュ値
    * @param hand      持ち駒
-   * @param depth     探索深さ
-   * @param pn        pn
-   * @param dn        dn
-   * @param amount    探索量
    */
-  constexpr void Init(Key board_key, Hand hand, Depth depth, PnDn pn, PnDn dn, SearchAmount amount) noexcept {
+  constexpr void Init(Key board_key, Hand hand) noexcept {
     // 高速化のために初期化をサボれるところではサボる
-
     hand_ = hand;
-    amount_ = amount;
+    amount_ = 1;
     board_key_ = board_key;
     proven_len_ = kDepthMaxPlus1MateLen16;
     disproven_len_ = kMinus1MateLen16;
 
-    pn_ = pn;
-    dn_ = dn;
+    pn_ = 1;
+    dn_ = 1;
+    min_depth_ = static_cast<std::int16_t>(kDepthMax);
+    repetition_state_ = RepetitionState::kNone;
+
+    parent_hand_ = kNullHand;
     // parent_hand に無効値が入っていれば parent_board_key の初期化は不要
     // parent_board_key_ = kNullKey;
-    parent_hand_ = kNullHand;
-    min_depth_ = static_cast<std::int16_t>(depth);
-    repetition_state_ = RepetitionState::kNone;
-    secret_ = 0;
+    sum_mask_ = BitSet64::Full();
   }
 
   /// エントリに無効値を設定する
@@ -181,6 +186,8 @@ class alignas(64) Entry {
   constexpr SearchAmount Amount() const noexcept { return amount_; }
   /// 現局面の持ち駒
   constexpr Hand GetHand() const noexcept { return hand_; }
+  /// δ値を和で計算すべき子の集合
+  constexpr BitSet64 SumMask() const noexcept { return sum_mask_; }
 
   /**
    * @brief 千日手の可能性ありフラグの設定および pn/dn の再初期化を行う。
@@ -205,20 +212,17 @@ class alignas(64) Entry {
    * @param depth  探索深さ
    * @param pn     pn
    * @param dn     dn
-   * @param len    探索中の詰み手数
    * @param amount 探索量
+   * @param sum_mask δ値を和で計算する子の集合
    * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
    */
-  constexpr void UpdateUnknown(Depth depth, PnDn pn, PnDn dn, MateLen16 len, SearchAmount amount) noexcept {
+  constexpr void UpdateUnknown(Depth depth, PnDn pn, PnDn dn, SearchAmount amount, BitSet64 sum_mask) noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
     min_depth_ = std::min(min_depth_, depth16);
+    pn_ = pn;
+    dn_ = dn;
+    sum_mask_ = sum_mask;
     AddAmount(amount);
-
-    // 明らかに詰み／不詰ならデータを更新しない
-    if (len < proven_len_ && disproven_len_ < len) {
-      pn_ = pn;
-      dn_ = dn;
-    }
   }
 
   /**
@@ -471,12 +475,12 @@ class alignas(64) Entry {
   PnDn pn_;  ///< pn値
   PnDn dn_;  ///< dn値
 
-  Key parent_board_key_;            ///< 親局面の盤面ハッシュ値
-  Hand parent_hand_;                ///< 親局面の持ち駒
   mutable std::int16_t min_depth_;  ///< 最小探索深さ。`LookUp()` 中に書き換える可能性があるので mutable。
   RepetitionState repetition_state_;  ///< 現局面が千日手の可能性があるか
 
-  std::uint64_t secret_;  ///< 秘密の値
+  Hand parent_hand_;      ///< 親局面の持ち駒
+  Key parent_board_key_;  ///< 親局面の盤面ハッシュ値
+  BitSet64 sum_mask_{};   ///< δ値を和で計算する子の集合
 };
 
 static_assert(sizeof(Entry) <= 64, "The size of `Entry` must be less than or equal to 64 bytes.");

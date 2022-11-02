@@ -3,6 +3,7 @@
 #include "../search_result.hpp"
 #include "test_lib.hpp"
 
+using komori::BitSet64;
 using komori::FinalData;
 using komori::MateLen;
 using komori::SearchResult;
@@ -10,7 +11,7 @@ using komori::SearchResultComparer;
 using komori::UnknownData;
 
 TEST(SearchResultTest, ConstructUnknown) {
-  const UnknownData unknown_data{true, 334, MakeHand<PAWN, LANCE>(), 445};
+  const UnknownData unknown_data{true, 334, MakeHand<PAWN, LANCE>(), BitSet64{445}};
   const auto result = SearchResult::MakeUnknown(33, 4, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
 
   EXPECT_EQ(result.Pn(), 33);
@@ -22,7 +23,7 @@ TEST(SearchResultTest, ConstructUnknown) {
   EXPECT_TRUE(result.GetUnknownData().is_first_visit);
   EXPECT_EQ(result.GetUnknownData().parent_board_key, 334);
   EXPECT_EQ(result.GetUnknownData().parent_hand, (MakeHand<PAWN, LANCE>()));
-  EXPECT_EQ(result.GetUnknownData().secret, 445);
+  EXPECT_EQ(result.GetUnknownData().sum_mask, BitSet64{445});
 }
 
 TEST(SearchResultTest, MakeProven) {
@@ -63,7 +64,7 @@ TEST(SearchResultTest, MakeRepetition) {
 
 TEST(SearchResultTest, InitUnknown) {
   SearchResult result{};
-  const UnknownData unknown_data{true, 334, MakeHand<PAWN, LANCE>(), 445};
+  const UnknownData unknown_data{true, 334, MakeHand<PAWN, LANCE>(), BitSet64{445}};
   result.InitUnknown(33, 4, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
 
   EXPECT_EQ(result.Pn(), 33);
@@ -75,7 +76,7 @@ TEST(SearchResultTest, InitUnknown) {
   EXPECT_TRUE(result.GetUnknownData().is_first_visit);
   EXPECT_EQ(result.GetUnknownData().parent_board_key, 334);
   EXPECT_EQ(result.GetUnknownData().parent_hand, (MakeHand<PAWN, LANCE>()));
-  EXPECT_EQ(result.GetUnknownData().secret, 445);
+  EXPECT_EQ(result.GetUnknownData().sum_mask, BitSet64{445});
 }
 
 TEST(SearchResultTest, InitProven) {
@@ -131,7 +132,7 @@ TEST(SearchResultTest, Delta) {
 TEST(SearchResultComparerTest, OrNode) {
   SearchResultComparer sr_comparer{true};
 
-  const UnknownData unknown_data{true, 334, MakeHand<PAWN, LANCE>(), 445};
+  const UnknownData unknown_data{true, 334, MakeHand<PAWN, LANCE>(), BitSet64{445}};
   const auto u1 = SearchResult::MakeUnknown(33, 4, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
   const auto u2 = SearchResult::MakeUnknown(26, 4, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
   const auto u3 = SearchResult::MakeUnknown(33, 5, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);

@@ -4,14 +4,12 @@
 
 using komori::BitSet64;
 
-TEST(BitSet, Full) {
-  EXPECT_EQ(BitSet64::Full().Value(), std::numeric_limits<std::uint64_t>::max());
+TEST(BitSet, None) {
+  EXPECT_EQ(BitSet64::None().Value(), 0);
 }
 
-TEST(BitSet, DefaultConstructor) {
-  BitSet64 bs{};
-
-  EXPECT_EQ(bs.Value(), 0);
+TEST(BitSet, Full) {
+  EXPECT_EQ(BitSet64::Full().Value(), std::numeric_limits<std::uint64_t>::max());
 }
 
 TEST(BitSet, Constructors) {
@@ -35,8 +33,16 @@ TEST(BitSet, Operators) {
   EXPECT_EQ(bs_rref.Value(), 334);
 }
 
+TEST(BitSet, Equal) {
+  BitSet64 bs1{334};
+  BitSet64 bs2{264};
+
+  EXPECT_EQ(bs1, bs1);
+  EXPECT_NE(bs1, bs2);
+}
+
 TEST(BitSet, Set) {
-  BitSet64 bs;
+  BitSet64 bs{0};
 
   EXPECT_FALSE(bs.Test(10));
   bs.Set(10);
@@ -48,7 +54,7 @@ TEST(BitSet, Set) {
 }
 
 TEST(BitSet, Reset) {
-  BitSet64 bs;
+  BitSet64 bs{0};
 
   bs.Set(10);
   EXPECT_TRUE(bs.Test(10));
@@ -61,7 +67,7 @@ TEST(BitSet, Reset) {
 }
 
 TEST(BitSet, Test) {
-  BitSet64 bs;
+  BitSet64 bs{0};
 
   bs.Set(10);
   EXPECT_TRUE(bs.Test(10));

@@ -5,6 +5,7 @@
 #include "../ttquery.hpp"
 #include "test_lib.hpp"
 
+using komori::BitSet64;
 using komori::FinalData;
 using komori::kInfinitePnDn;
 using komori::kPnDnUnit;
@@ -47,21 +48,25 @@ TEST_F(QueryTest, LoopUp_None) {
 
   EXPECT_EQ(result.Pn(), kPnDnUnit);
   EXPECT_EQ(result.Dn(), kPnDnUnit);
+  EXPECT_EQ(result.GetUnknownData().sum_mask, BitSet64::Full());
 }
 
 TEST_F(QueryTest, LoopUp_UnknownExact) {
   for (std::size_t i = 0; i < Cluster::kSize; ++i) {
     const PnDn pn{33 * (i + 1)};
     const PnDn dn{4 * (i + 1)};
+    const BitSet64 bs{0x334 * (i + 1)};
     const SearchAmount amount{334};
 
-    entries_[i].Init(board_key_, hand_, depth_, pn, dn, amount);
+    entries_[i].Init(board_key_, hand_);
+    entries_[i].UpdateUnknown(depth_, pn, dn, amount, bs);
 
     bool does_have_old_child{false};
     const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
     EXPECT_EQ(result.Pn(), pn) << i;
     EXPECT_EQ(result.Dn(), dn) << i;
+    EXPECT_EQ(result.GetUnknownData().sum_mask, bs) << i;
     EXPECT_EQ(result.Amount(), entries_[i].Amount()) << i;
 
     entries_[i].SetNull();
@@ -73,11 +78,10 @@ TEST_F(QueryTest, LoopUp_UnknownExactRepetition) {
 
   const PnDn pn{33};
   const PnDn dn{4};
-  const SearchAmount amount{334};
 
-  entries_[0].Init(board_key_, hand_, depth_, pn, dn, amount);
+  entries_[0].Init(board_key_, hand_);
   entries_[0].SetPossibleRepetition();
-  entries_[0].UpdateUnknown(board_key_, pn, dn, MateLen16{334}, 1);
+  entries_[0].UpdateUnknown(depth_, pn, dn, 1, BitSet64::Full());
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
@@ -92,9 +96,10 @@ TEST_F(QueryTest, LoopUp_UnknownExactNoRepetition) {
   const PnDn dn{4};
   const SearchAmount amount{334};
 
-  entries_[0].Init(board_key_, hand_, depth_, pn, dn, amount);
+  entries_[0].Init(board_key_, hand_);
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
   entries_[0].SetPossibleRepetition();
-  entries_[0].UpdateUnknown(board_key_, pn, dn, MateLen16{334}, 1);
+  entries_[0].UpdateUnknown(board_key_, pn, dn, 1, BitSet64::Full());
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
@@ -109,7 +114,8 @@ TEST_F(QueryTest, LoopUp_DifferentBoardKey) {
   const PnDn dn{4};
   const SearchAmount amount{334};
 
-  entries_[0].Init(board_key_ ^ 0x01, hand_, depth_, pn, dn, amount);
+  entries_[0].Init(board_key_ ^ 0x01, hand_);
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
@@ -124,7 +130,8 @@ TEST_F(QueryTest, LoopUp_DifferentHand) {
   const PnDn dn{4};
   const SearchAmount amount{334};
 
-  entries_[0].Init(board_key_, MakeHand<GOLD>(), depth_, pn, dn, amount);
+  entries_[0].Init(board_key_, MakeHand<GOLD>());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
@@ -139,7 +146,8 @@ TEST_F(QueryTest, LoopUp_UnknownSuperior) {
   const PnDn dn{4};
   const SearchAmount amount{334};
 
-  entries_[0].Init(board_key_, MakeHand<PAWN>(), depth_, pn, dn, amount);
+  entries_[0].Init(board_key_, MakeHand<PAWN>());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
@@ -154,7 +162,8 @@ TEST_F(QueryTest, LoopUp_UnknownInferior) {
   const PnDn dn{4};
   const SearchAmount amount{334};
 
-  entries_[0].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>(), depth_, pn, dn, amount);
+  entries_[0].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
@@ -168,7 +177,7 @@ TEST_F(QueryTest, LoopUp_UnknownInferior) {
 
 TEST_F(QueryTest, LoopUp_Proven) {
   const auto hand = MakeHand<PAWN>();
-  entries_[0].Init(board_key_, hand, depth_, 1, 1, 1);
+  entries_[0].Init(board_key_, hand);
   entries_[0].UpdateProven(MateLen16{264}, 1);
 
   bool does_have_old_child{false};
@@ -183,7 +192,7 @@ TEST_F(QueryTest, LoopUp_Proven) {
 
 TEST_F(QueryTest, LoopUp_Disproven) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, LANCE>();
-  entries_[0].Init(board_key_, hand, depth_, 1, 1, 1);
+  entries_[0].Init(board_key_, hand);
   entries_[0].UpdateDisproven(MateLen16{3340}, 1);
 
   bool does_have_old_child{false};
@@ -201,13 +210,15 @@ TEST_F(QueryTest, LoopUp_CreationEmpty) {
   const PnDn dn{4};
   const SearchAmount amount{334};
 
-  entries_[0].Init(board_key_, MakeHand<PAWN>(), depth_, pn, dn, amount);
+  entries_[0].Init(board_key_, MakeHand<PAWN>());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
 
   bool does_have_old_child{false};
   query_.LookUp<true>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(entries_[1].Pn(), kPnDnUnit);
   EXPECT_EQ(entries_[1].Dn(), dn);
+  EXPECT_EQ(entries_[1].SumMask(), BitSet64::Full());
   EXPECT_EQ(entries_[1].Amount(), 1);
 }
 
@@ -216,10 +227,12 @@ TEST_F(QueryTest, LoopUp_CreationFull) {
   const PnDn dn{4};
   const SearchAmount amount{334};
 
-  entries_[0].Init(board_key_, MakeHand<PAWN>(), depth_, pn, dn, amount);
+  entries_[0].Init(board_key_, MakeHand<PAWN>());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
   for (std::size_t i = 1; i < Cluster::kSize; ++i) {
     // entries_[8] の探索量が最小になるように初期化
-    entries_[i].Init(0x264, HAND_ZERO, 1, 1, 1, 1 + (8 - i) * (8 - i));
+    entries_[i].Init(0x264, HAND_ZERO);
+    entries_[i].UpdateUnknown(1, 1, 1, 1 + (8 - i) * (8 - i), BitSet64::Full());
   }
 
   bool does_have_old_child{false};
@@ -233,12 +246,12 @@ TEST_F(QueryTest, LoopUp_CreationFull) {
 TEST_F(QueryTest, FinalRange) {
   const auto len1 = MateLen{334};
   const auto len2 = MateLen{264};
-  entries_[0].Init(board_key_, MakeHand<PAWN>(), 1, 1, 1, 1);
+  entries_[0].Init(board_key_, MakeHand<PAWN>());
   entries_[0].UpdateProven(MateLen16{len1}, 1);
-  entries_[1].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>(), 1, 1, 1, 1);
+  entries_[1].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>());
   entries_[1].UpdateDisproven(MateLen16{len2}, 1);
 
-  entries_[2].Init(board_key_, HAND_ZERO, 1, 1, 1, 1);
+  entries_[2].Init(board_key_, HAND_ZERO);
   entries_[2].SetNull();
 
   const auto [disproven_len, proven_len] = query_.FinalRange();
@@ -264,7 +277,7 @@ TEST_F(QueryTest, SetResult_UnknownUpdate) {
     const PnDn pn{33 * (i + 1)};
     const PnDn dn{4 * (i + 1)};
     const SearchAmount amount{static_cast<SearchAmount>(334 * (i + 1))};
-    entries_[i].Init(board_key_, hand_, 334, 1, 1, 1);
+    entries_[i].Init(board_key_, hand_);
 
     const UnknownData unknown_data{};
     const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen{334}, amount, unknown_data);
@@ -292,7 +305,7 @@ TEST_F(QueryTest, SetResult_ProvenUpdate) {
   const MateLen len = MateLen{334};
   const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
 
-  entries_[2].Init(board_key_, hand, 334, 1, 1, 1);
+  entries_[2].Init(board_key_, hand);
   query_.SetResult(result);
   EXPECT_EQ(entries_[2].ProvenLen(), MateLen16{len});
 }
@@ -311,7 +324,7 @@ TEST_F(QueryTest, SetResult_DisprovenUpdate) {
   const MateLen len = MateLen{334};
   const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
 
-  entries_[2].Init(board_key_, hand, 334, 1, 1, 1);
+  entries_[2].Init(board_key_, hand);
   query_.SetResult(result);
   EXPECT_EQ(entries_[2].DisprovenLen(), MateLen16{len});
 }
@@ -331,7 +344,7 @@ TEST_F(QueryTest, SetResult_RepetitionUpdate) {
   const SearchAmount amount{334};
   const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen{334}, amount);
 
-  entries_[2].Init(board_key_, hand_, 334, 1, 1, 1);
+  entries_[2].Init(board_key_, hand_);
   query_.SetResult(result);
   EXPECT_EQ(entries_[2].Pn(), 1);
   EXPECT_EQ(entries_[2].Dn(), 1);

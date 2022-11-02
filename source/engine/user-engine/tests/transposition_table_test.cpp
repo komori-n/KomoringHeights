@@ -5,6 +5,7 @@
 #include "../transposition_table.hpp"
 #include "test_lib.hpp"
 
+using komori::BitSet64;
 using komori::kDepthMax;
 using komori::RepetitionTable;
 using komori::tt::Cluster;
@@ -101,7 +102,7 @@ TEST_F(TranspositionTableTest, Hashfull_EmptyAfterNewSearch) {
 
   query.rep_table.Insert(0x334);
   for (auto itr = query.cluster.head_entry; itr != &*tt_.end(); ++itr) {
-    itr->Init(0x334, HAND_ZERO, 0, 1, 1, 1);
+    itr->Init(0x334, HAND_ZERO);
   }
 
   EXPECT_GT(tt_.Hashfull(), 0);
@@ -116,7 +117,7 @@ TEST_F(TranspositionTableTest, Hashfull_Full) {
 
   query.rep_table.Insert(0x334);
   for (auto itr = query.cluster.head_entry; itr != &*tt_.end(); ++itr) {
-    itr->Init(0x334, HAND_ZERO, 0, 1, 1, 1);
+    itr->Init(0x334, HAND_ZERO);
   }
 
   // RepetitionTable のハッシュ使用率は仕様がコロコロかわる気がするので生値を持ってくる
@@ -131,7 +132,7 @@ TEST_F(TranspositionTableTest, CollectGarbage_DoNothing) {
 
   auto itr = query.cluster.head_entry;
   for (std::size_t i = 0; i < kGcThreshold - 1; ++i) {
-    itr[i].Init(0x334, HAND_ZERO, 0, 1, 1, 1);
+    itr[i].Init(0x334, HAND_ZERO);
   }
   tt_.CollectGarbage();
   for (std::size_t i = 0; i < kGcThreshold - 1; ++i) {
@@ -146,7 +147,8 @@ TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Increasing) {
 
   auto itr = query.cluster.head_entry + 1;
   for (std::size_t i = 0; i < kGcThreshold; ++i) {
-    itr[i].Init(0x334, HAND_ZERO, 0, 1, 1, 1 + i);
+    itr[i].Init(0x334, HAND_ZERO);
+    itr[i].UpdateUnknown(0, 1, 1, 1 + i, BitSet64::Full());
   }
   tt_.CollectGarbage();
   for (std::size_t i = 0; i < kGcRemoveElementNum; ++i) {
@@ -164,7 +166,8 @@ TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Decreasing) {
 
   auto itr = query.cluster.head_entry + 334;
   for (std::size_t i = 0; i < kGcThreshold; ++i) {
-    itr[i].Init(0x334, HAND_ZERO, 0, 1, 1, 1 + kGcThreshold - i);
+    itr[i].Init(0x334, HAND_ZERO);
+    itr[i].UpdateUnknown(0, 1, 1, 1 + kGcThreshold - i, BitSet64::Full());
   }
   tt_.CollectGarbage();
   for (std::size_t i = 0; i < kGcThreshold - kGcRemoveElementNum; ++i) {
