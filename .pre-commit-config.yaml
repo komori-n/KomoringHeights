@@ -18,6 +18,11 @@ repos:
   - id: cpplint
 - repo: local
   hooks:
+  - id: run-coverage
+    name: run-coverage
+    entry: source/engine/user-engine/tests/run-coverage
+    language: script
+    pass_filenames: false
   - id: run-clang-tidy
     name: run-clang-tidy
     entry: source/engine/user-engine/tests/run-clang-tidy
