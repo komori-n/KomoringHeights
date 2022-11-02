@@ -107,6 +107,7 @@ class BitSet : DefineNotEqualByEqual<BitSet<T>> {
   /** クラス内部の整数の生値を返す。 */
   constexpr ValueType Value() const noexcept { return val_; }
 
+  /** `lhs` と `rhs` が等しいか */
   friend constexpr bool operator==(const BitSet& lhs, const BitSet& rhs) noexcept { return lhs.val_ == rhs.val_; }
 
  private:
