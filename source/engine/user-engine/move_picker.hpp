@@ -43,7 +43,7 @@ class MovePicker {
   explicit MovePicker(const Node& n, bool ordering = false) {
     bool judge_check = false;
     ExtMove* last = nullptr;
-    bool or_node = n.IsOrNode();
+    const bool or_node = n.IsOrNode();
     if (or_node) {
       if (n.Pos().in_check()) {
         last = generateMoves<EVASIONS_ALL>(n.Pos(), move_list_.data());
@@ -60,7 +60,7 @@ class MovePicker {
     last = std::remove_if(move_list_.data(), last, [&](const auto& m) {
       return (judge_check && !n.Pos().gives_check(m.move)) || !n.Pos().legal(m.move);
     });
-    size_ = last - &move_list_[0];
+    size_ = last - move_list_.data();
 
     // オーダリング情報を付加したほうが定数倍速くなる
     if (ordering) {

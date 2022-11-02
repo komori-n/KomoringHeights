@@ -59,7 +59,7 @@ class RepetitionTable {
   }
 
   /// 置換表のメモリ使用率を求める。
-  double HashRate() const { return static_cast<double>(Size()) / size_max_; }
+  double HashRate() const { return static_cast<double>(Size()) / static_cast<double>(size_max_); }
 
  private:
   /// 内部で持つ `std::unordered_set` の個数。あまり多いと LookUp 時間が増大する。

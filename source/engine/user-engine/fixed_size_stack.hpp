@@ -13,7 +13,7 @@ namespace komori {
 /**
  * @brief サイズ固定のスタック。
  * @tparam T 保存する要素の型（デフォルト構築可能かつトリビアルデストラクト可能）
- * @tparam N 保存可能な添字の最大個数（`N`>0）
+ * @tparam kSize 保存可能な添字の最大個数（`kSize`>0）
  * @internal 命名を `StackStack` にしようと思ったけど意味不明なのでやめた
  *
  * `Push()` および `Pop()` により要素を追加および削除ができるスタック。動的メモリ確保は行わず、`std::array` にて
@@ -22,12 +22,12 @@ namespace komori {
  * スタックは配列の手前から順に詰める形で実現されている。`operator[]` で要素を取得するときに使う添字は、古い順に
  * 0, 1, ... と振られている。同様に、イテレータ (`begin()` `end()`) は、古い順に要素を返す。
  *
- * @note テンプレートパラメータ `N` でサイズの上限を指定できるが、高速化のために範囲チェックは一切行っていない。
+ * @note テンプレートパラメータ `kSize` でサイズの上限を指定できるが、高速化のために範囲チェックは一切行っていない。
  */
-template <typename T, std::size_t N>
+template <typename T, std::size_t kSize>
 class FixedSizeStack {
  public:
-  static_assert(N > 0, "N shall be greater than 0");
+  static_assert(kSize > 0, "kSize shall be greater than 0");
   static_assert(std::is_default_constructible_v<T>, "T shall be default constructible");
   static_assert(std::is_trivially_destructible_v<T>, "T shall be trivially destructible");
 
@@ -65,8 +65,8 @@ class FixedSizeStack {
   constexpr const T& operator[](std::uint32_t i) const { return data_[i]; }
 
  private:
-  std::array<T, N> data_;  ///< スタックを保存する領域
-  std::uint32_t len_{0};   ///< スタックに現在格納されている要素数
+  std::array<T, kSize> data_;  ///< スタックを保存する領域
+  std::uint32_t len_{0};       ///< スタックに現在格納されている要素数
 };
 }  // namespace komori
 

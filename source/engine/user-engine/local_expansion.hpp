@@ -43,7 +43,7 @@ inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
 class LocalExpansion {
  private:
   auto MakeComparer() const {
-    SearchResultComparer sr_comparer{or_node_};
+    const SearchResultComparer sr_comparer{or_node_};
     return [this, sr_comparer](std::size_t i_raw, std::size_t j_raw) -> bool {
       const auto& left_result = results_[i_raw];
       const auto& right_result = results_[j_raw];
@@ -59,6 +59,7 @@ class LocalExpansion {
   }
 
  public:
+  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   LocalExpansion(tt::TranspositionTable& tt,
                  const Node& n,
                  MateLen len,
@@ -404,7 +405,7 @@ class LocalExpansion {
     const std::uint32_t amount = result.Amount() + mp_.size() / 2;
     const auto or_hand = n.OrHand();
 
-    UnknownData unknown_data{false, kNullKey, kNullHand, sum_mask_};
+    const UnknownData unknown_data{false, kNullKey, kNullHand, sum_mask_};
     return SearchResult::MakeUnknown(GetPn(), GetDn(), or_hand, len_, amount, unknown_data);
   }
 

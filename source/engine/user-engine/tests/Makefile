@@ -69,7 +69,7 @@ DEPENDS  = $(OBJECTS:.o=.d)
 LIBS    = $(OBJDIR)/gtest.a
 
 all: $(TARGET)
-.PHONY : all test coverage clean docs
+.PHONY : all check test coverage clean docs
 
 test: $(TARGET)
 	rm -rf $(OBJECTS:.o=.gcda)
@@ -97,6 +97,13 @@ $(OBJDIR)/gtest.a : $(OBJDIR)/gtest-all.o
 
 $(OBJDIR)/gtest_main.a : $(OBJDIR)/gtest-all.o $(OBJDIR)/gtest_main.o
 	$(AR) $(ARFLAGS) $@ $^
+
+check:
+	clang-tidy --extra-arg='--std=c++17' \
+        --extra-arg="$(INCLUDE)" \
+        --extra-arg="-DUSER_ENGINE" \
+        --header-filter=".hpp" \
+        ../komoring_heights.cpp
 
 coverage: test
 	lcov --rc lcov_branch_coverage=1 --directory ../../../../test_obj --base-directory . --capture -o cov.info

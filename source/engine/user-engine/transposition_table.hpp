@@ -12,8 +12,7 @@
 #include "ttquery.hpp"
 #include "typedefs.hpp"
 
-namespace komori {
-namespace tt {
+namespace komori::tt {
 namespace detail {
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合。
 constexpr inline double kNormalRepetitionRatio = 0.95;
@@ -311,16 +310,18 @@ class TranspositionTableImpl {
    */
   void RemoveUnusedEntries() {
     // start_idx から始まる cluster の末尾のインデックスを返す
-    auto cluster_end = [&](std::size_t start_idx) { return std::min(entries_.size(), start_idx + Cluster::kSize); };
+    auto cluster_end = [&](std::ptrdiff_t start_idx) {
+      return static_cast<std::ptrdiff_t>(std::min(entries_.size(), start_idx + Cluster::kSize));
+    };
     // idx から Cluster::kSize 個の要素のうち使用中であるものの個数を数える
-    auto count_used = [&](std::size_t start_idx) {
+    auto count_used = [&](std::ptrdiff_t start_idx) {
       const auto end_idx = cluster_end(start_idx);
       const auto used_count = std::count_if(entries_.begin() + start_idx, entries_.begin() + end_idx,
                                             [](const Entry& entry) { return !entry.IsNull(); });
       return static_cast<std::size_t>(used_count);
     };
 
-    std::size_t start_idx = 0;
+    std::ptrdiff_t start_idx = 0;
     auto used_in_range = count_used(0);
     do {
       if (used_in_range >= kGcThreshold) {
@@ -344,7 +345,7 @@ class TranspositionTableImpl {
         }
         start_idx++;
       }
-    } while (cluster_end(start_idx) < entries_.size());
+    } while (cluster_end(start_idx) < static_cast<std::ptrdiff_t>(entries_.size()));
   }
 
   /**
@@ -368,7 +369,6 @@ class TranspositionTableImpl {
  * @brief 置換表の本体。詳しい実装は `detail::TranspositionTableImpl` を参照。
  */
 using TranspositionTable = detail::TranspositionTableImpl<Query>;
-}  // namespace tt
-}  // namespace komori
+}  // namespace komori::tt
 
 #endif  // KOMORI_TRANSPOSITION_TABLE_HPP_

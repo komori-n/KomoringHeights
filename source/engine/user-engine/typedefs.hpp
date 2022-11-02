@@ -36,7 +36,7 @@
 
 /// Komoring Heights
 namespace komori {
-// <namespaceコメント>
+// <namespaceコメント> NOLINTBEGIN
 // Doxygen で名前空間を認識してもらうためにはコメントをつける必要がある。
 // 各名前空間に対するコメントはどのヘッダに書いても良い。コメント位置を迷わないようにするためにすべてここに書いておく。
 /// Detail
@@ -46,7 +46,7 @@ namespace tt {
 /// Detail
 namespace detail {}  // namespace detail
 }  // namespace tt
-// </namespaceコメント>
+// </namespaceコメント> NOLINTEND
 
 /**
  * @brief `T` 型の値を足し合わせる。ただし、計算結果が `T` 型で表現できない場合は上限値で丸める（符号なし型）
@@ -222,7 +222,7 @@ inline std::string ToString(PnDn val) {
  * @return `i` の序数表現（1st や 12th など）
  */
 template <typename Integer>
-inline std::string OrdinalNumber(Integer i) noexcept {
+inline std::string OrdinalNumber(Integer i) {
   static_assert(std::is_integral_v<Integer>);
 
   if ((i / 10) % 10 == 1) {

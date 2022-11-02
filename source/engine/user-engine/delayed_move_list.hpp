@@ -111,11 +111,7 @@ class DelayedMoveList {
     const auto to = to_sq(move);
 
     if (is_drop(move)) {
-      if (n.IsOrNode()) {
-        return false;
-      } else {
-        return true;
-      }
+      return !n.IsOrNode();
     } else {
       const Square from = from_sq(move);
       const Piece moved_piece = n.Pos().piece_on(from);

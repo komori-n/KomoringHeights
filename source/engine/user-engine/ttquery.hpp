@@ -10,8 +10,7 @@
 #include "ttentry.hpp"
 #include "typedefs.hpp"
 
-namespace komori {
-namespace tt {
+namespace komori::tt {
 /**
  * @brief `Query` の読み書きで使用する `Entry` の連続領域を指す構造体
  *
@@ -147,7 +146,7 @@ class Query {
   }
 
   // テンプレート関数のカバレッジは悲しいことになるので取らない
-  // LCOV_EXCL_START
+  // LCOV_EXCL_START NOLINTBEGIN
 
   /**
    * @brief クラスタから結果を集めてきて返す関数。
@@ -207,7 +206,7 @@ class Query {
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
 
     if (found_exact) {
-      UnknownData unknown_data{false, kNullKey, kNullHand, sum_mask};
+      const UnknownData unknown_data{false, kNullKey, kNullHand, sum_mask};
       return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
     }
 
@@ -245,7 +244,7 @@ class Query {
 
     return {MateLen{disproven_len}, MateLen{proven_len}};
   }
-  // LCOV_EXCL_STOP
+  // LCOV_EXCL_STOP NOLINTEND
 
   /**
    * @brief 探索結果 `result` をクラスタに書き込む
@@ -272,10 +271,10 @@ class Query {
    * @param hand 持ち駒
    * @return エントリが見つかった場合、それを返す。見つからなかった場合、`nullptr` を返す。
    */
-  Entry* FindEntry(Hand hand) const noexcept {
+  Entry* FindEntry(Hand hand) const noexcept {  // NOLINT
     Entry* itr = cluster_.head_entry;
 
-#if !defined(DOXYGEN_SHOULD_SKIP_THIS)
+#if !defined(DOXYGEN_SHOULD_SKIP_THIS)  // NOLINTBEGIN
 #define FIND_ENTRY_IMPL(i)              \
   do {                                  \
     if (itr->IsFor(board_key_, hand)) { \
@@ -286,7 +285,7 @@ class Query {
 
     KOMORI_TTQUERY_UNROLL_CLUSTER(FIND_ENTRY_IMPL);
 #undef CREATE_ENTRY_IMPL
-#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
+#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS) //NOLINTEND
 
     return nullptr;
   }
@@ -305,7 +304,7 @@ class Query {
    *
    * 作成するエントリの持ち駒を `hand_` を直接使わずに `hand` を引数として受け取っている理由は、
    * 詰み／不詰エントリを書き込むときに使用したいため。
-   */
+   */ // NOLINTNEXTLINE
   Entry* CreateNewEntry(Hand hand,
                         PnDn pn,
                         PnDn dn,
@@ -315,7 +314,7 @@ class Query {
     Entry* min_amount_entry = cluster_.head_entry;
     SearchAmount min_amount = std::numeric_limits<SearchAmount>::max();
     // LCOV_EXCL_START
-#if !defined(DOXYGEN_SHOULD_SKIP_THIS)
+#if !defined(DOXYGEN_SHOULD_SKIP_THIS)  // NOLINTBEGIN
 #define CREATE_ENTRY_IMPL(i)                                \
   do {                                                      \
     if (itr->IsNull()) {                                    \
@@ -332,7 +331,7 @@ class Query {
 
     KOMORI_TTQUERY_UNROLL_CLUSTER(CREATE_ENTRY_IMPL);
 #undef CREATE_ENTRY_IMPL
-#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
+#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS) // NOLINTEND
         // LCOV_EXCL_STOP
 
     min_amount_entry->Init(board_key_, hand);
@@ -405,7 +404,6 @@ class Query {
 // このヘッダ外では使えないようにしておく
 #undef KOMORI_TTQUERY_UNROLL_CLUSTER
 
-}  // namespace tt
-}  // namespace komori
+}  // namespace komori::tt
 
 #endif  // KOMORI_TTQUERY_HPP_

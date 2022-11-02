@@ -106,7 +106,7 @@ class Node {
   /// `move` で1手進める
   void DoMove(Move move) {
     path_key_ = PathKeyAfter(move);
-    visit_history.Visit(BoardKey(), this->OrHand());
+    visit_history_.Visit(BoardKey(), this->OrHand());
     Pos().do_move(move, st_info_.emplace());
     depth_++;
   }
@@ -118,7 +118,7 @@ class Node {
     depth_--;
     Pos().undo_move(last_move);
     st_info_.pop();
-    visit_history.Leave(BoardKey(), this->OrHand());
+    visit_history_.Leave(BoardKey(), this->OrHand());
     path_key_ = PathKeyBefore(last_move);
   }
 
@@ -165,36 +165,36 @@ class Node {
   }
 
   /// 現局面が千日手かどうか
-  bool IsRepetition() const { return visit_history.Contains(BoardKey(), this->OrHand()); }
+  bool IsRepetition() const { return visit_history_.Contains(BoardKey(), this->OrHand()); }
 
   /// `move` をすると千日手になるかどうか
   bool IsRepetitionAfter(Move move) const {
-    return visit_history.Contains(BoardKeyAfter(move), this->OrHandAfter(move));
+    return visit_history_.Contains(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
   /// 現局面が千日手または劣等局面か
-  bool IsRepetitionOrInferior() const { return visit_history.IsInferior(BoardKey(), this->OrHand()); }
+  bool IsRepetitionOrInferior() const { return visit_history_.IsInferior(BoardKey(), this->OrHand()); }
 
   /// `move` をすると千日手または劣等局面になるかどうか
   bool IsRepetitionOrInferiorAfter(Move move) const {
-    return visit_history.IsInferior(BoardKeyAfter(move), this->OrHandAfter(move));
+    return visit_history_.IsInferior(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
   /// 現局面が千日手または優等局面か
-  bool IsRepetitionOrSuperior() const { return visit_history.IsSuperior(BoardKey(), this->OrHand()); }
+  bool IsRepetitionOrSuperior() const { return visit_history_.IsSuperior(BoardKey(), this->OrHand()); }
 
   /// `move` をすると千日手または優等局面になるかどうか
   bool IsRepetitionOrSuperiorAfter(Move move) const {
-    return visit_history.IsSuperior(BoardKeyAfter(move), this->OrHandAfter(move));
+    return visit_history_.IsSuperior(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
   /// (`board_key`, `hand`) が経路に含まれているかどうか
   bool ContainsInPath(Key board_key, Hand hand) const {
-    return visit_history.Contains(board_key, hand) || (BoardKey() == board_key && OrHand() == hand);
+    return visit_history_.Contains(board_key, hand) || (BoardKey() == board_key && OrHand() == hand);
   }
 
   /// (`board_key`, *) が経路に含まれているかどうか
-  bool ContainsInPath(Key board_key) const { return visit_history.Contains(board_key) || BoardKey() == board_key; }
+  bool ContainsInPath(Key board_key) const { return visit_history_.Contains(board_key) || BoardKey() == board_key; }
 
  private:
   /// `move` 直前の経路ハッシュ値
@@ -204,7 +204,7 @@ class Node {
   std::reference_wrapper<Position> n_;
   Color or_color_;                   ///< OR node（攻め方）の手番
   Depth depth_{};                    ///< root から数えた探索深さ
-  VisitHistory visit_history{};      ///< 千日手・優等局面の一覧
+  VisitHistory visit_history_{};     ///< 千日手・優等局面の一覧
   std::stack<StateInfo> st_info_{};  ///< do_move で必要な一時領域
   Key path_key_{};                   ///< 経路ハッシュ値。差分計算により求める。
 };

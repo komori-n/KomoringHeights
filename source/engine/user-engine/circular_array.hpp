@@ -12,21 +12,21 @@
 
 namespace komori {
 /**
- * @brief 長さ `N` 、型 `T` の循環配列。
+ * @brief 長さ `kSize` 、型 `T` の循環配列。
  * @tparam T 格納する値の型
- * @tparam N 循環配列の長さ（`N` > 0）
+ * @tparam kSize 循環配列の長さ（`kSize` > 0）
  *
- * 添字が mod `N` で循環する配列。例えば、 `i`, `i+N`, `i+2*N`, ... へのアクセスはすべて等価。
+ * 添字が mod `kSize` で循環する配列。例えば、 `i`, `i+kSize`, `i+2*kSize`, ... へのアクセスはすべて等価。
  */
-template <typename T, std::size_t N>
+template <typename T, std::size_t kSize>
 class CircularArray {
-  static_assert(N > 0, "N must be positive");
+  static_assert(kSize > 0, "kSize must be positive");
 
  public:
-  /** `i % N` 番目の値を取得する。 */
-  constexpr T& operator[](const std::size_t i) noexcept { return data_[i % N]; }
-  /** `i % N` 番目の値を取得する。 */
-  constexpr const T& operator[](const std::size_t i) const noexcept { return data_[i % N]; }
+  /** `i % kSize` 番目の値を取得する。 */
+  constexpr T& operator[](const std::size_t i) noexcept { return data_[i % kSize]; }
+  /** `i % kSize` 番目の値を取得する。 */
+  constexpr const T& operator[](const std::size_t i) const noexcept { return data_[i % kSize]; }
 
   /**
    * @brief 全要素をデフォルトコンストラクタで初期化する。
@@ -43,7 +43,7 @@ class CircularArray {
 
  private:
   /** Actual data array */
-  std::array<T, N> data_;
+  std::array<T, kSize> data_;
 };
 }  // namespace komori
 

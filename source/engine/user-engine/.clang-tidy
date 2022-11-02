@@ -3,6 +3,7 @@ Checks: >
   *,
   -*,
   bugprone-*,
+  cppcoreguidelines-*
   google-*,
   misc-*,
   modernize-*,
@@ -10,30 +11,17 @@ Checks: >
   portability-*,
   readability-*,
   -bugprone-easily-swappable-parameters,
-  -readability-function-cognitive-complexity,
-  -readability-identifier-length,
   -misc-no-recursion,
-  -google-readability-braces-around-statements,
-  -google-readability-namespace-comments,
-  -google-runtime-references,
-  -misc-non-private-member-variables-in-classes,
-  -modernize-return-braced-init-list,
-  -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
-  -modernize-redundant-void-arg,
-  -performance-move-const-arg,
-  -readability-braces-around-statements,
-  -readability-magic-numbers,
-  -readability-named-parameter,
-  -readability-redundant-declaration,
-  -readability-qualified-auto,
-  -readability-else-after-return,
-  -readability-convert-member-functions-to-static,
-  -readability-simplify-boolean-expr,
-  -readability-implicit-bool-conversion,
-  -misc-redundant-expression,
   -modernize-use-nodiscard,
-  -modernize-use-auto
+  -modernize-use-trailing-return-type,
+  -readability-convert-member-functions-to-static,
+  -readability-else-after-return,
+  -readability-identifier-length,
+  -readability-named-parameter,
+  -readability-magic-numbers,
+  -readability-qualified-auto,
+
 # Turn all the warnings from the checks above into errors.
 WarningsAsErrors: "*"
 
@@ -68,12 +56,6 @@ CheckOptions:
       value: CamelCase,
     }
   - { key: readability-identifier-naming.ConstexprVariablePrefix, value: k }
-  - { key: readability-identifier-naming.GlobalConstantCase, value: CamelCase }
-  - { key: readability-identifier-naming.GlobalConstantPrefix, value: k }
-  - { key: readability-identifier-naming.MemberConstantCase, value: CamelCase }
-  - { key: readability-identifier-naming.MemberConstantPrefix, value: k }
-  - { key: readability-identifier-naming.StaticConstantCase, value: CamelCase }
-  - { key: readability-identifier-naming.StaticConstantPrefix, value: k }
   - {
       key: readability-implicit-bool-conversion.AllowIntegerConditions,
       value: 1,
@@ -82,5 +64,5 @@ CheckOptions:
       key: readability-implicit-bool-conversion.AllowPointerConditions,
       value: 1,
     }
-  - { key: readability-function-size.NestingThreshold, value: 5 }
-  - { key: readability-function-size.StatementThreshold, value: 100 }
+  - { key: readability-function-size.NestingThreshold, value: 7 }
+  - { key: readability-function-size.StatementThreshold, value: 300 }

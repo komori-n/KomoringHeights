@@ -115,7 +115,7 @@ class SearchResult {
     hand_ = hand;
     len_ = len;
     amount_ = amount;
-    unknown_data_ = std::move(unknown_data);
+    unknown_data_ = unknown_data;
   }
 
   /**

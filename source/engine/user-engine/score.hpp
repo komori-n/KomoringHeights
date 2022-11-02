@@ -36,22 +36,22 @@ class Score : DefineNotEqualByEqual<Score> {
     if (result.IsFinal()) {
       // 開始局面の手番を基準に評価値を計算しなければならない
       if (result.Pn() == 0) {
-        score = Score(Kind::kWin, result.Len().Len());
+        score = Score(Kind::kWin, static_cast<ScoreValue>(result.Len().Len()));
       } else {
-        score = Score(Kind::kLose, result.Len().Len());
+        score = Score(Kind::kLose, static_cast<ScoreValue>(result.Len().Len()));
       }
     } else {
       switch (method) {
         case ScoreCalculationMethod::kDn:
-          score = Score(Kind::kUnknown, result.Dn());
+          score = Score(Kind::kUnknown, static_cast<ScoreValue>(result.Dn()));
           break;
         case ScoreCalculationMethod::kMinusPn:
           score = Score(Kind::kUnknown, -static_cast<ScoreValue>(result.Pn()));
           break;
         case ScoreCalculationMethod::kPonanza: {
-          const double r = static_cast<double>(result.Dn()) / (result.Pn() + result.Dn());
+          const double r = static_cast<double>(result.Dn()) / static_cast<double>(result.Pn() + result.Dn());
           const double val_real = -kPonanza * std::log((1 - r) / r);
-          const ScoreValue val = static_cast<ScoreValue>(val_real);
+          const auto val = static_cast<ScoreValue>(val_real);
           score = Score(Kind::kUnknown, val);
         } break;
         default:
@@ -78,11 +78,11 @@ class Score : DefineNotEqualByEqual<Score> {
   Score operator-() const {
     switch (kind_) {
       case Kind::kWin:
-        return Score(Kind::kLose, value_);
+        return Score{Kind::kLose, value_};
       case Kind::kLose:
-        return Score(Kind::kWin, value_);
+        return Score{Kind::kWin, value_};
       default:
-        return Score(Kind::kUnknown, -value_);
+        return Score{Kind::kUnknown, -value_};
     }
   }
 
@@ -100,7 +100,7 @@ class Score : DefineNotEqualByEqual<Score> {
   };
 
   /// コンストラクタ。`Make()` 以外では構築できないように private に隠しておく
-  Score(Kind kind, int value) : kind_{kind}, value_{value} {}
+  Score(Kind kind, ScoreValue value) : kind_{kind}, value_{value} {}
 
   Kind kind_{Kind::kUnknown};  ///< 評価値諸別
   ScoreValue value_{};         ///< 評価値（kUnknown） or 詰み手数（kWin/kLose）

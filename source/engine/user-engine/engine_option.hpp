@@ -47,10 +47,8 @@ class DefaultOrderedMap : private std::vector<std::pair<K, V>> {
   /**
    * @brief コンストラクタ
    */
-  explicit constexpr DefaultOrderedMap(K default_key,
-                                       V default_value,
-                                       std::initializer_list<std::pair<K, V>> list) noexcept
-      : default_key_{default_key}, default_val_{default_value}, Base{std::move(list)} {}
+  explicit constexpr DefaultOrderedMap(K default_key, V default_value, std::initializer_list<std::pair<K, V>> list)
+      : default_key_{std::move(default_key)}, default_val_{std::move(default_value)}, Base{std::move(list)} {}
 
   /**
    * @brief `key` に対応する値を取得する。`key` が存在しなければデフォルト値が返る。
@@ -72,7 +70,7 @@ class DefaultOrderedMap : private std::vector<std::pair<K, V>> {
   std::vector<K> Keys() const {
     std::vector<K> keys;
     keys.reserve(this->size());
-    for (const auto [key, value] : *this) {
+    for (const auto& [key, value] : *this) {
       keys.emplace_back(key);
     }
 
@@ -88,7 +86,7 @@ class DefaultOrderedMap : private std::vector<std::pair<K, V>> {
 };
 
 /// 評価値計算方法 `ScoreCalculationMethod` 用の Combo 定義。
-inline const DefaultOrderedMap<std::string, ScoreCalculationMethod> kScoreCalculationOption{
+inline const DefaultOrderedMap<std::string, ScoreCalculationMethod> score_caluclation_option{
     "Ponanza",
     ScoreCalculationMethod::kPonanza,
     {
@@ -100,7 +98,7 @@ inline const DefaultOrderedMap<std::string, ScoreCalculationMethod> kScoreCalcul
 };
 
 /// 余詰探索方法 `PostSearchLevel` 用の Combo 定義。
-inline const DefaultOrderedMap<std::string, PostSearchLevel> kPostSearchLevelOption{
+inline const DefaultOrderedMap<std::string, PostSearchLevel> post_search_level{
     "MinLength",
     PostSearchLevel::kNone,
     {
@@ -150,6 +148,7 @@ inline constexpr std::uint64_t MakeInfIfNotPositive(std::uint64_t val) {
  * このクラスでは、探索開始時に `Reload()` をコールすることでエンジンオプションをメンバ変数に読み込む。
  */
 struct EngineOption {
+  // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
   std::uint64_t hash_mb;  ///< ハッシュサイズ[MB]
   int threads;            ///< スレッド数
 
@@ -159,6 +158,7 @@ struct EngineOption {
 
   ScoreCalculationMethod score_method;  ///< スコアの計算法
   PostSearchLevel post_search_level;    ///< 余詰探索の度合い
+  // NOLINTEND(misc-non-private-member-variables-in-classes)
 
 #if defined(USE_DEEP_DFPN)
   Depth deep_dfpn_d;   ///< deep df-pn の D 値
@@ -180,10 +180,9 @@ struct EngineOption {
     o["DeepDfpnMaxVal"] << USI::Option(1000000, 1, INT64_MAX);
 #endif  // defined(USE_DEEP_DFPN)
 
-    o["ScoreCalculation"] << USI::Option(detail::kScoreCalculationOption.Keys(),
-                                         detail::kScoreCalculationOption.DefaultKey());
-    o["PostSearchLevel"] << USI::Option(detail::kPostSearchLevelOption.Keys(),
-                                        detail::kPostSearchLevelOption.DefaultKey());
+    o["ScoreCalculation"] << USI::Option(detail::score_caluclation_option.Keys(),
+                                         detail::score_caluclation_option.DefaultKey());
+    o["PostSearchLevel"] << USI::Option(detail::post_search_level.Keys(), detail::post_search_level.DefaultKey());
   }
 
   /**
@@ -196,7 +195,7 @@ struct EngineOption {
 
     nodes_limit = detail::MakeInfIfNotPositive(detail::ReadOption(o, "NodesLimit"));
     pv_interval = detail::MakeInfIfNotPositive(detail::ReadOption(o, "PvInterval"));
-    root_is_and_node_if_checked = detail::ReadOption(o, "RootIsAndNodeIfChecked");
+    root_is_and_node_if_checked = (detail::ReadOption(o, "RootIsAndNodeIfChecked") != 0);
 
 #if defined(USE_DEEP_DFPN)
     if (auto val = detail::ReadOption(o, "DeepDfpnPerMile"); val > 0) {
@@ -209,8 +208,8 @@ struct EngineOption {
     }
 #endif  // defined(USE_DEEP_DFPN)
 
-    score_method = detail::kScoreCalculationOption.Get(detail::ReadOption<std::string>(o, "ScoreCalculation"));
-    post_search_level = detail::kPostSearchLevelOption.Get(detail::ReadOption<std::string>(o, "PostSearchLevel"));
+    score_method = detail::score_caluclation_option.Get(detail::ReadOption<std::string>(o, "ScoreCalculation"));
+    post_search_level = detail::post_search_level.Get(detail::ReadOption<std::string>(o, "PostSearchLevel"));
   }
 };
 }  // namespace komori

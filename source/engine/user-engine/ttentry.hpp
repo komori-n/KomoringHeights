@@ -10,8 +10,7 @@
 #include "mate_len.hpp"
 #include "typedefs.hpp"
 
-namespace komori {
-namespace tt {
+namespace komori::tt {
 /// 探索量。TTでエントリを消す際の判断に用いる。
 using SearchAmount = std::uint32_t;
 
@@ -486,7 +485,6 @@ class alignas(64) Entry {
 static_assert(sizeof(Entry) <= 64, "The size of `Entry` must be less than or equal to 64 bytes.");
 static_assert(alignof(Entry) == 64, "`Entry` must be aligned as 64 bytes.");
 static_assert(std::is_default_constructible<Entry>(), "`Entry` must be default constructible");
-}  // namespace tt
-}  // namespace komori
+}  // namespace komori::tt
 
 #endif  // KOMORI_TTENTRY_HPP_

@@ -17,9 +17,9 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move)
   PnDn pn = kPnDnUnit;
   PnDn dn = kPnDnUnit;
 
-  Color us = n.side_to_move();
-  Color them = ~us;
-  Square to = to_sq(move);
+  const Color us = n.side_to_move();
+  const Color them = ~us;
+  const Square to = to_sq(move);
   auto attack_support = n.attackers_to(us, to).pop_count();
   auto defence_support = n.attackers_to(them, to).pop_count();
 
@@ -46,10 +46,10 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move)
 }
 
 inline std::pair<PnDn, PnDn> InitialPnDnPlusAndNode(const Position& n, Move move) {
-  Color us = n.side_to_move();
-  Color them = ~us;
-  Square to = to_sq(move);
-  Square king_sq = n.king_square(us);
+  const Color us = n.side_to_move();
+  const Color them = ~us;
+  const Square to = to_sq(move);
+  const Square king_sq = n.king_square(us);
 
   if (n.piece_on(to) != NO_PIECE) {
     // コマを取る手は探索を優先する
@@ -84,7 +84,7 @@ inline std::pair<PnDn, PnDn> InitialPnDn(const Node& n, Move move) {
   // 評価関数の設計は GPS 将棋を参考にした。
   // https://gps.tanaka.ecc.u-tokyo.ac.jp/cgi-bin/viewvc.cgi/trunk/osl/std/osl/checkmate/libertyEstimator.h?view=markup
 
-  bool or_node = n.IsOrNode();
+  const bool or_node = n.IsOrNode();
   if (or_node) {
     return detail::InitialPnDnPlusOrNode(n.Pos(), move);
   } else {
@@ -144,7 +144,7 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
  * @return false  move に対するδ値は max で計上すべき
  */
 inline bool IsSumDeltaNode(const Node& n, Move move) {
-  bool or_node = n.IsOrNode();
+  const bool or_node = n.IsOrNode();
   if (is_drop(move)) {
     // 駒打ち
     if (or_node) {

@@ -90,11 +90,11 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   best_moves_.clear();
   // </初期化>
 
-  Position& nn = const_cast<Position&>(n);
+  auto& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
 
   auto [state, len] = SearchMainLoop(node, is_root_or_node);
-  bool proven = (state == NodeState::kProven);
+  const bool proven = (state == NodeState::kProven);
 
   if (proven) {
     if (best_moves_.size() % 2 != static_cast<int>(is_root_or_node)) {
@@ -205,7 +205,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     monitor_.ResetNextGc();
   }
 
-  while (!monitor_.ShouldStop() && !(curr_result.Pn() >= thpn || curr_result.Dn() >= thdn)) {
+  while (!monitor_.ShouldStop() && (curr_result.Pn() < thpn && curr_result.Dn() < thdn)) {
     // local_expansion.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     const auto best_move = local_expansion.BestMove();
