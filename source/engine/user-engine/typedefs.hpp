@@ -207,10 +207,10 @@ struct DefineNotEqualByEqual {
 };
 
 /**
- * @brief `operator==` および `operator<` から各種演算子を自動定義するクラス。
- * @tparam T `operator==` および `operator<` が定義されたクラス
+ * @brief `operator<` から各種演算子を自動定義するクラス。
+ * @tparam T `operator<` が定義されたクラス
  *
- * `operator==` および `operator<` の定義から以下の演算子を自動定義する。
+ * `operator<` の定義から以下の演算子を自動定義する。
  *
  * - `operator<=`
  * - `operator>`
@@ -219,12 +219,9 @@ struct DefineNotEqualByEqual {
  * 詳しくは `DefineNotEqualByEauyl` も参照のこと。
  */
 template <typename T>
-struct DefineComparisonOperatorsByEqualAndLess {
-  /// `lhs <= rhs` を判定する（`operator==` および `operator<` からの自動定義）
-  constexpr friend bool operator<=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs) && noexcept(lhs == rhs)) {
-    return lhs < rhs || lhs == rhs;
-  }
-
+struct DefineComparisonOperatorsByLess {
+  /// `lhs <= rhs` を判定する（`operator<` からの自動定義）
+  constexpr friend bool operator<=(const T& lhs, const T& rhs) noexcept(noexcept(lhs < rhs)) { return !(rhs < lhs); }
   /// `lhs > rhs` を判定する（`operator==` および `operator<` からの自動定義）
   constexpr friend bool operator>(const T& lhs, const T& rhs) noexcept(noexcept(rhs < lhs)) { return rhs < lhs; }
   /// `lhs >= rhs` を判定する（`operator==` および `operator<` からの自動定義）

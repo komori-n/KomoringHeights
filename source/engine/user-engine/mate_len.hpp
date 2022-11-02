@@ -18,7 +18,7 @@ namespace detail {
  * @note 初期値として「0手よりも小さい手数」を表現したいので、実際の手数に 1 を加えた値を保持する。
  */
 template <typename T>
-class MateLenImpl : DefineNotEqualByEqual<MateLenImpl<T>>, DefineComparisonOperatorsByEqualAndLess<MateLenImpl<T>> {
+class MateLenImpl : DefineNotEqualByEqual<MateLenImpl<T>>, DefineComparisonOperatorsByLess<MateLenImpl<T>> {
   /**
    * @brief 任意の整数型を基底に持つ `MateLenImpl` をフレンド指定する。
    * @tparam S 整数型

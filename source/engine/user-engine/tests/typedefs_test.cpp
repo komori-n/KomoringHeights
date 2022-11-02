@@ -5,7 +5,7 @@
 
 using komori::Clamp;
 using komori::Constraints;
-using komori::DefineComparisonOperatorsByEqualAndLess;
+using komori::DefineComparisonOperatorsByLess;
 using komori::DefineNotEqualByEqual;
 using komori::Delta;
 using komori::Identity;
@@ -83,7 +83,7 @@ TYPED_TEST(SaturationTest, SaturatedMultiply) {
 }
 
 namespace {
-struct Hoge : DefineNotEqualByEqual<Hoge>, DefineComparisonOperatorsByEqualAndLess<Hoge> {
+struct Hoge : DefineNotEqualByEqual<Hoge>, DefineComparisonOperatorsByLess<Hoge> {
   int val;
 
   explicit Hoge(int val) : val{val} {}
