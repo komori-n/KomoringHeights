@@ -41,7 +41,7 @@ namespace detail {
  */
 template <typename K, typename V>
 class DefaultOrderedMap : private std::vector<std::pair<K, V>> {
-  using Base = std::vector<std::pair<K, V>>;
+  using Base = std::vector<std::pair<K, V>>;  ///< Base class
 
  public:
   /**

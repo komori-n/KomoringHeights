@@ -12,7 +12,8 @@ namespace komori {
 /**
  * @brief 現在の探索状況に基づく評価値っぽいものを計算する。
  */
-class Score {
+class Score : DefineNotEqualByEqual<Score> {
+  /// 内部で用いる整数型
   using ScoreValue = std::int32_t;
 
  public:
@@ -85,6 +86,7 @@ class Score {
     }
   }
 
+  /// `lhs` と `rhs` が等しいかどうか
   friend bool operator==(const Score& lhs, const Score& rhs) noexcept {
     return lhs.kind_ == rhs.kind_ && lhs.value_ == rhs.value_;
   }
