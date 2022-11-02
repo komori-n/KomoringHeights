@@ -78,9 +78,12 @@ class LocalExpansion {
       if (n.IsRepetitionOrInferiorAfter(move.move)) {
         result.InitFinal<false, true>(hand_after, len, 1);
       } else {
-        const auto min_len = or_node_ ? MateLen{1} : MateLen{2};
-        if (len_ < min_len) {
-          result.InitFinal<false>(hand_after, min_len - 1, 1);
+        // 子局面が OR node  -> 1手詰以上
+        // 子局面が AND node -> 0手詰以上
+        const auto min_len = or_node_ ? MateLen{0} : MateLen{1};
+        if (len_ - 1 < min_len) {
+          // どう見ても詰まない
+          result.InitFinal<false>(hand_after, min_len, 1);
           goto CHILD_LOOP_END;
         }
 
@@ -337,18 +340,10 @@ class LocalExpansion {
         }
       }
 
-      const auto proof_hand = set.Get(n.Pos());
-
       // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
       amount += std::max(mp_.size(), std::size_t{1}) - 1;
 
-      // @fixme この if 文本当にいる？
-      if (idx_.empty()) {
-        mate_len = MateLen{0};
-        if (mate_len > len_) {
-          return SearchResult::MakeFinal<false>(n.OrHand(), mate_len, amount);
-        }
-      }
+      const auto proof_hand = set.Get(n.Pos());
       return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
     }
   }

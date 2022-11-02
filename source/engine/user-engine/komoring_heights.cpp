@@ -209,14 +209,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     // local_expansion.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     const auto best_move = local_expansion.BestMove();
-    // 現局面で `BestMove` が存在するということは、0 手詰みではない。
-    // よって、OR Node では最低 1 手詰、AND Node では最低 2 手詰である。
-    const auto min_len = n.IsOrNode() ? MateLen{1} : MateLen{2};
-    if (len < min_len) {
-      local_expansion.UpdateBestChild(SearchResult::MakeFinal<false>(n.OrHandAfter(best_move), min_len - 1, 1));
-      curr_result = local_expansion.CurrentResult(n);
-      continue;
-    }
     const bool is_first_search = local_expansion.FrontIsFirstVisit();
     const BitSet64 sum_mask = local_expansion.FrontSumMask();
     const auto [child_thpn, child_thdn] = local_expansion.PnDnThresholds(thpn, thdn);
