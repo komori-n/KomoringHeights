@@ -5,9 +5,10 @@
 #define KOMORI_CIRCULAR_ARRAY_HPP_
 
 #include <array>
+#include <cstdint>
 #include <type_traits>
 
-#include "typedefs.hpp"
+#include "type_traits.hpp"
 
 namespace komori {
 /**

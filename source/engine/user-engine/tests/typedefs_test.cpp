@@ -4,11 +4,7 @@
 #include "test_lib.hpp"
 
 using komori::Clamp;
-using komori::Constraints;
-using komori::DefineComparisonOperatorsByLess;
-using komori::DefineNotEqualByEqual;
 using komori::Delta;
-using komori::Identity;
 using komori::kInfinitePnDn;
 using komori::OrdinalNumber;
 using komori::Phi;
@@ -16,22 +12,6 @@ using komori::SaturatedAdd;
 using komori::SaturatedMultiply;
 using komori::StepEffect;
 using komori::ToString;
-
-namespace {
-template <typename T>
-class TypesTest : public ::testing::Test {};
-using TypesTestTypes = ::testing::Types<int, komori::NodeTag<false>>;
-}  // namespace
-
-TYPED_TEST_SUITE(TypesTest, TypesTestTypes);
-
-TYPED_TEST(TypesTest, Identity) {
-  ::testing::StaticAssertTypeEq<TypeParam, typename Identity<TypeParam>::type>();
-}
-
-TYPED_TEST(TypesTest, Constraints) {
-  ::testing::StaticAssertTypeEq<Constraints<TypeParam>, std::nullptr_t>();
-}
 
 namespace {
 template <typename T>
@@ -80,41 +60,6 @@ TYPED_TEST(SaturationTest, SaturatedMultiply) {
     EXPECT_EQ(SaturatedMultiply<TypeParam>(3, kMin / 2), kMin);
     EXPECT_EQ(SaturatedMultiply<TypeParam>(kMin / 2, -3), kMax);
   }
-}
-
-namespace {
-struct Hoge : DefineNotEqualByEqual<Hoge>, DefineComparisonOperatorsByLess<Hoge> {
-  int val;
-
-  explicit Hoge(int val) : val{val} {}
-
-  friend bool operator==(const Hoge& lhs, const Hoge& rhs) { return lhs.val == rhs.val; }
-
-  friend bool operator<(const Hoge& lhs, const Hoge& rhs) { return lhs.val < rhs.val; }
-};
-}  // namespace
-
-TEST(DefineOperators, DefineNotEqualByEqualTest) {
-  Hoge a{0}, b{1};
-
-  // not equal
-  EXPECT_TRUE(a != b);
-  EXPECT_FALSE(a != a);
-
-  // less than or equal to
-  EXPECT_TRUE(a <= b);
-  EXPECT_TRUE(a <= a);
-  EXPECT_FALSE(b <= a);
-
-  // greater than
-  EXPECT_TRUE(b > a);
-  EXPECT_FALSE(b > b);
-  EXPECT_FALSE(a > b);
-
-  // greater than or equal to
-  EXPECT_TRUE(b >= a);
-  EXPECT_TRUE(b >= b);
-  EXPECT_FALSE(a >= b);
 }
 
 TEST(PnDnTest, ClampTest) {

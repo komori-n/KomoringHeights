@@ -9,7 +9,7 @@
 #include <numeric>
 #include <type_traits>
 
-#include "typedefs.hpp"
+#include "type_traits.hpp"
 
 namespace komori {
 /**
