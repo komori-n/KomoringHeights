@@ -32,10 +32,9 @@ namespace detail {
 inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
   if (!DoesHaveMatePossibility(n.Pos())) {
     const auto hand = HandSet{DisproofHandTag{}}.Get(n.Pos());
-    return SearchResult::MakeFinal<false>(hand, kMaxMateLen, 1);
+    return SearchResult::MakeFinal<false>(hand, kDepthMaxMateLen, 1);
   } else if (auto [best_move, proof_hand] = CheckMate1Ply(n); proof_hand != kNullHand) {
-    const auto len = MateLen::Make(1, MateLen::kFinalHandMax);
-    return SearchResult::MakeFinal<true>(proof_hand, len, 1);
+    return SearchResult::MakeFinal<true>(proof_hand, MateLen{1}, 1);
   }
   return std::nullopt;
 }
@@ -79,10 +78,9 @@ class LocalExpansion {
       if (n.IsRepetitionOrInferiorAfter(move.move)) {
         result.InitFinal<false, true>(hand_after, len, 1);
       } else {
-        const auto min_len =
-            or_node_ ? MateLen::Make(1, MateLen::kFinalHandMax) : MateLen::Make(2, MateLen::kFinalHandMax);
+        const auto min_len = or_node_ ? MateLen{1} : MateLen{2};
         if (len_ < min_len) {
-          result.InitFinal<false>(hand_after, (min_len - 1).Prec(), 1);
+          result.InitFinal<false>(hand_after, min_len - 1, 1);
           goto CHILD_LOOP_END;
         }
 
@@ -320,7 +318,7 @@ class LocalExpansion {
       const auto& result = FrontResult();
       const auto best_move = mp_[idx_[0]];
       const auto proof_hand = BeforeHand(n.Pos(), best_move, result.GetHand());
-      const auto mate_len = std::min(result.Len() + 1, kMaxMateLen);
+      const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
       const auto amount = result.Amount();
 
       return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
@@ -335,7 +333,7 @@ class LocalExpansion {
         set.Update(result.GetHand());
         amount = std::max(amount, result.Amount());
         if (MateLen{result.Len()} + 1 > mate_len) {
-          mate_len = std::min(MateLen{result.Len()} + 1, kMaxMateLen);
+          mate_len = std::min(MateLen{result.Len()} + 1, kDepthMaxMateLen);
         }
       }
 
@@ -344,10 +342,11 @@ class LocalExpansion {
       // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
       amount += std::max(mp_.size(), std::size_t{1}) - 1;
 
+      // @fixme この if 文本当にいる？
       if (idx_.empty()) {
-        mate_len = MateLen::Make(0, MateLen::kFinalHandMax);
+        mate_len = MateLen{0};
         if (mate_len > len_) {
-          return SearchResult::MakeFinal<false>(n.OrHand(), mate_len.Prec(), amount);
+          return SearchResult::MakeFinal<false>(n.OrHand(), mate_len, amount);
         }
       }
       return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
@@ -366,7 +365,7 @@ class LocalExpansion {
     if (or_node_) {
       // 子局面の反証駒の極大集合を計算する
       HandSet set{DisproofHandTag{}};
-      MateLen mate_len = kMaxMateLen;
+      MateLen mate_len = kDepthMaxMateLen;
       std::uint32_t amount = 1;
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
@@ -385,7 +384,7 @@ class LocalExpansion {
     } else {
       const auto& result = FrontResult();
       auto disproof_hand = result.GetHand();
-      const auto mate_len = std::min(result.Len() + 1, kMaxMateLen);
+      const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
       const auto amount = result.Amount();
 
       // 駒打ちならその駒を持っていないといけない

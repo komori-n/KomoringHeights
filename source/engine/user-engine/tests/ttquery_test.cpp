@@ -43,7 +43,7 @@ class QueryTest : public ::testing::Test {
 
 TEST_F(QueryTest, LoopUp_None) {
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), kPnDnUnit);
   EXPECT_EQ(result.Dn(), kPnDnUnit);
@@ -58,7 +58,7 @@ TEST_F(QueryTest, LoopUp_UnknownExact) {
     entries_[i].Init(board_key_, hand_, depth_, pn, dn, amount);
 
     bool does_have_old_child{false};
-    const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+    const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
     EXPECT_EQ(result.Pn(), pn) << i;
     EXPECT_EQ(result.Dn(), dn) << i;
@@ -77,10 +77,10 @@ TEST_F(QueryTest, LoopUp_UnknownExactRepetition) {
 
   entries_[0].Init(board_key_, hand_, depth_, pn, dn, amount);
   entries_[0].SetPossibleRepetition();
-  entries_[0].UpdateUnknown(board_key_, pn, dn, MateLen16::Make(33, 4), 1);
+  entries_[0].UpdateUnknown(board_key_, pn, dn, MateLen16{334}, 1);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
@@ -94,10 +94,10 @@ TEST_F(QueryTest, LoopUp_UnknownExactNoRepetition) {
 
   entries_[0].Init(board_key_, hand_, depth_, pn, dn, amount);
   entries_[0].SetPossibleRepetition();
-  entries_[0].UpdateUnknown(board_key_, pn, dn, MateLen16::Make(33, 4), 1);
+  entries_[0].UpdateUnknown(board_key_, pn, dn, MateLen16{334}, 1);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), pn);
   EXPECT_EQ(result.Dn(), dn);
@@ -112,7 +112,7 @@ TEST_F(QueryTest, LoopUp_DifferentBoardKey) {
   entries_[0].Init(board_key_ ^ 0x01, hand_, depth_, pn, dn, amount);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), kPnDnUnit);
   EXPECT_EQ(result.Dn(), kPnDnUnit);
@@ -127,7 +127,7 @@ TEST_F(QueryTest, LoopUp_DifferentHand) {
   entries_[0].Init(board_key_, MakeHand<GOLD>(), depth_, pn, dn, amount);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), kPnDnUnit);
   EXPECT_EQ(result.Dn(), kPnDnUnit);
@@ -142,7 +142,7 @@ TEST_F(QueryTest, LoopUp_UnknownSuperior) {
   entries_[0].Init(board_key_, MakeHand<PAWN>(), depth_, pn, dn, amount);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), kPnDnUnit);
   EXPECT_EQ(result.Dn(), dn);
@@ -157,7 +157,7 @@ TEST_F(QueryTest, LoopUp_UnknownInferior) {
   entries_[0].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>(), depth_, pn, dn, amount);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), pn);
   EXPECT_EQ(result.Dn(), kPnDnUnit);
@@ -169,14 +169,14 @@ TEST_F(QueryTest, LoopUp_UnknownInferior) {
 TEST_F(QueryTest, LoopUp_Proven) {
   const auto hand = MakeHand<PAWN>();
   entries_[0].Init(board_key_, hand, depth_, 1, 1, 1);
-  entries_[0].UpdateProven(MateLen16::Make(26, 4), 1);
+  entries_[0].UpdateProven(MateLen16{264}, 1);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), 0);
   EXPECT_EQ(result.Dn(), kInfinitePnDn);
-  EXPECT_EQ(result.Len(), MateLen::Make(26, 4));
+  EXPECT_EQ(result.Len(), MateLen{264});
   EXPECT_EQ(result.GetHand(), hand);
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
 }
@@ -184,14 +184,14 @@ TEST_F(QueryTest, LoopUp_Proven) {
 TEST_F(QueryTest, LoopUp_Disproven) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, LANCE>();
   entries_[0].Init(board_key_, hand, depth_, 1, 1, 1);
-  entries_[0].UpdateDisproven(MateLen16::Make(330, 4), 1);
+  entries_[0].UpdateDisproven(MateLen16{3340}, 1);
 
   bool does_have_old_child{false};
-  const auto result = query_.LookUp<false>(does_have_old_child, MateLen::Make(33, 4));
+  const auto result = query_.LookUp<false>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(result.Pn(), kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
-  EXPECT_EQ(result.Len(), MateLen::Make(330, 4));
+  EXPECT_EQ(result.Len(), MateLen{3340});
   EXPECT_EQ(result.GetHand(), hand);
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
 }
@@ -204,7 +204,7 @@ TEST_F(QueryTest, LoopUp_CreationEmpty) {
   entries_[0].Init(board_key_, MakeHand<PAWN>(), depth_, pn, dn, amount);
 
   bool does_have_old_child{false};
-  query_.LookUp<true>(does_have_old_child, MateLen::Make(33, 4));
+  query_.LookUp<true>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(entries_[1].Pn(), kPnDnUnit);
   EXPECT_EQ(entries_[1].Dn(), dn);
@@ -223,7 +223,7 @@ TEST_F(QueryTest, LoopUp_CreationFull) {
   }
 
   bool does_have_old_child{false};
-  query_.LookUp<true>(does_have_old_child, MateLen::Make(33, 4));
+  query_.LookUp<true>(does_have_old_child, MateLen{334});
 
   EXPECT_EQ(entries_[8].Pn(), kPnDnUnit);
   EXPECT_EQ(entries_[8].Dn(), dn);
@@ -231,12 +231,12 @@ TEST_F(QueryTest, LoopUp_CreationFull) {
 }
 
 TEST_F(QueryTest, FinalRange) {
-  const auto len1 = MateLen::Make(33, 4);
-  const auto len2 = MateLen::Make(26, 4);
+  const auto len1 = MateLen{334};
+  const auto len2 = MateLen{264};
   entries_[0].Init(board_key_, MakeHand<PAWN>(), 1, 1, 1, 1);
-  entries_[0].UpdateProven(len1.To16(), 1);
+  entries_[0].UpdateProven(MateLen16{len1}, 1);
   entries_[1].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>(), 1, 1, 1, 1);
-  entries_[1].UpdateDisproven(len2.To16(), 1);
+  entries_[1].UpdateDisproven(MateLen16{len2}, 1);
 
   entries_[2].Init(board_key_, HAND_ZERO, 1, 1, 1, 1);
   entries_[2].SetNull();
@@ -251,7 +251,7 @@ TEST_F(QueryTest, SetResult_UnknownNew) {
   const PnDn dn{4};
   const SearchAmount amount{334};
   const UnknownData unknown_data{};
-  const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen::Make(33, 4), amount, unknown_data);
+  const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen{334}, amount, unknown_data);
 
   query_.SetResult(result);
   EXPECT_EQ(entries_[0].Pn(), pn);
@@ -267,7 +267,7 @@ TEST_F(QueryTest, SetResult_UnknownUpdate) {
     entries_[i].Init(board_key_, hand_, 334, 1, 1, 1);
 
     const UnknownData unknown_data{};
-    const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen::Make(33, 4), amount, unknown_data);
+    const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen{334}, amount, unknown_data);
 
     query_.SetResult(result);
     EXPECT_EQ(entries_[i].Pn(), pn) << i;
@@ -280,45 +280,45 @@ TEST_F(QueryTest, SetResult_UnknownUpdate) {
 
 TEST_F(QueryTest, SetResult_ProvenNew) {
   const auto hand = MakeHand<PAWN>();
-  const MateLen len = MateLen::Make(33, 4);
+  const MateLen len = MateLen{334};
   const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
 
   query_.SetResult(result);
-  EXPECT_EQ(entries_[0].ProvenLen(), len.To16());
+  EXPECT_EQ(entries_[0].ProvenLen(), MateLen16{len});
 }
 
 TEST_F(QueryTest, SetResult_ProvenUpdate) {
   const auto hand = MakeHand<PAWN>();
-  const MateLen len = MateLen::Make(33, 4);
+  const MateLen len = MateLen{334};
   const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
 
   entries_[2].Init(board_key_, hand, 334, 1, 1, 1);
   query_.SetResult(result);
-  EXPECT_EQ(entries_[2].ProvenLen(), len.To16());
+  EXPECT_EQ(entries_[2].ProvenLen(), MateLen16{len});
 }
 
 TEST_F(QueryTest, SetResult_DisprovenNew) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, GOLD>();
-  const MateLen len = MateLen::Make(33, 4);
+  const MateLen len = MateLen{334};
   const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
 
   query_.SetResult(result);
-  EXPECT_EQ(entries_[0].DisprovenLen(), len.To16());
+  EXPECT_EQ(entries_[0].DisprovenLen(), MateLen16{len});
 }
 
 TEST_F(QueryTest, SetResult_DisprovenUpdate) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, GOLD>();
-  const MateLen len = MateLen::Make(33, 4);
+  const MateLen len = MateLen{334};
   const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
 
   entries_[2].Init(board_key_, hand, 334, 1, 1, 1);
   query_.SetResult(result);
-  EXPECT_EQ(entries_[2].DisprovenLen(), len.To16());
+  EXPECT_EQ(entries_[2].DisprovenLen(), MateLen16{len});
 }
 
 TEST_F(QueryTest, SetResult_RepetitionNew) {
   const SearchAmount amount{334};
-  const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen::Make(33, 4), amount);
+  const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen{334}, amount);
 
   query_.SetResult(result);
   EXPECT_EQ(entries_[0].Pn(), 1);
@@ -329,7 +329,7 @@ TEST_F(QueryTest, SetResult_RepetitionNew) {
 
 TEST_F(QueryTest, SetResult_RepetitionUpdate) {
   const SearchAmount amount{334};
-  const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen::Make(33, 4), amount);
+  const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen{334}, amount);
 
   entries_[2].Init(board_key_, hand_, 334, 1, 1, 1);
   query_.SetResult(result);

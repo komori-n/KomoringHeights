@@ -5,254 +5,166 @@
 #define KOMORI_MATE_LEN_HPP_
 
 #include <algorithm>
+#include <ostream>
 
 #include "typedefs.hpp"
 
 namespace komori {
-class MateLen;
+namespace detail {
+/**
+ * @brief `MateLen` と `MateLen16` の実装本体。中身はほぼ同じなので一箇所にまとめる。
+ * @tparam T 16ビット以上の符号なし整数型
+ *
+ * @note 初期値として「0手よりも小さい手数」を表現したいので、実際の手数に 1 を加えた値を保持する。
+ */
+template <typename T>
+class MateLenImpl : DefineNotEqualByEqual<MateLenImpl<T>>, DefineComparisonOperatorsByEqualAndLess<MateLenImpl<T>> {
+  /**
+   * @brief 任意の整数型を基底に持つ `MateLenImpl` をフレンド指定する。
+   * @tparam S 整数型
+   *
+   * コンストラクト時に `len_plus_1_` に直接アクセスするために必要。`Len()` は -1 手を 0 手に切り上げてしまうので、
+   * friend 指定なしだと実装がやや難しい。
+   */
+  template <typename S>
+  friend class MateLenImpl;
+
+  static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>, "T must be an integer");
+  static_assert(sizeof(T) >= 2, "The size of T must be greater than or equal to 2");
+
+ public:
+  /**
+   * @brief `len` 手詰み（不詰）で初期化する
+   * @param len 詰み（不詰）手数
+   */
+  constexpr explicit MateLenImpl(T len) noexcept : len_plus_1_{static_cast<T>(len + 1)} {}
+  /**
+   * @brief 他の整数を基底に持つ `len` から初期化する
+   * @tparam S  整数型
+   * @param len 詰み（不詰）手数
+   */
+  template <typename S>
+  constexpr explicit MateLenImpl(const MateLenImpl<S>& len) noexcept : len_plus_1_{static_cast<T>(len.len_plus_1_)} {}
+  /// Default constructor(default)
+  MateLenImpl() noexcept = default;
+  /// Copy constructor(default)
+  constexpr MateLenImpl(const MateLenImpl&) noexcept = default;
+  /// Move constructor(default)
+  constexpr MateLenImpl(MateLenImpl&&) noexcept = default;
+  /// Copy assign operator(default)
+  constexpr MateLenImpl& operator=(const MateLenImpl&) noexcept = default;
+  /// Move assign operator(default)
+  constexpr MateLenImpl& operator=(MateLenImpl&&) noexcept = default;
+  /// Destructor(default)
+  ~MateLenImpl() = default;
+
+  /// 詰み手数を返す
+  constexpr T Len() const noexcept { return std::max<T>(len_plus_1_, 1) - 1; }
+
+  /// `lhs` と `rhs` が同じ手数かどうか
+  friend constexpr bool operator==(const MateLenImpl& lhs, const MateLenImpl& rhs) noexcept {
+    return lhs.len_plus_1_ == rhs.len_plus_1_;
+  }
+
+  /// `lhs` より `rhs` のほうが大きい手数かどうか
+  friend constexpr bool operator<(const MateLenImpl& lhs, const MateLenImpl& rhs) noexcept {
+    return lhs.len_plus_1_ < rhs.len_plus_1_;
+  }
+
+  /// `lhs` に `rhs` を加えた手数
+  friend constexpr MateLenImpl operator+(const MateLenImpl& lhs, const T& rhs) noexcept {
+    return MateLenImpl{DirectConstructTag{}, static_cast<T>(lhs.len_plus_1_ + rhs)};
+  }
+
+  /// `lhs` に `rhs` を加えた手数
+  friend constexpr MateLenImpl operator+(const T& lhs, const MateLenImpl& rhs) noexcept { return rhs + lhs; }
+
+  /// `lhs` から `rhs` を引いた手数
+  friend constexpr MateLenImpl operator-(const MateLenImpl& lhs, const T& rhs) noexcept {
+    return MateLenImpl{DirectConstructTag{}, static_cast<T>(lhs.len_plus_1_ - rhs)};
+  }
+
+  /// 出力ストリームへの出力
+  friend std::ostream& operator<<(std::ostream& os, const MateLenImpl len) {
+    if (len.len_plus_1_ > 0) {
+      return os << len.len_plus_1_ - 1;
+    } else {
+      return os << -1;
+    }
+  }
+
+ private:
+  /// `len_plus_1` からコンストラクトすることを示すタグ
+  struct DirectConstructTag {};
+  /**
+   * @brief `len_plus_1` から直接構築するためのコンストラクタ
+   * @param len_plus_1 詰み／不詰手数 + 1
+   */
+  constexpr MateLenImpl(DirectConstructTag, T len_plus_1) : len_plus_1_{len_plus_1} {}
+
+  /// 詰み／不詰手数 + 1。「0手より小さい手」を初期値として使いたいので 1 を加える。
+  T len_plus_1_;
+};
+}  // namespace detail
 
 /**
- * @brief 駒余り手数を加味した詰み手数（16 bit版）。
+ * @brief 詰み／不詰手数
  *
- * 詰み手数を定義する。同じ手数で詰む局面同士に対し、攻め方の駒余り枚数に応じて全順序が定義されている。具体的には、
- * より手数が短く、駒余り枚数が多いほど「小さく」なるように演算子 `<` を定義している。
+ * `kZeroMateLen` 以上 `kDepthMaxMateLen` 手以下の詰み手数を管理する。内部的には -1 手詰め（`kMinus1MateLen`）を
+ * 表現できるようになっている。
  *
- * ```cpp
- * EXPECT_TRUE(MateLen16::Make(26, 4) < MateLen16::Make(33, 4));
- * EXPECT_TRUE(MateLen16::Make(33, 4) < MateLen16::Make(33, 3));
+ * 範囲外の初期値がほしい場合は、`kMinus1MateLen` や `kDepthMaxPlus1MateLen` を用いる。
+ */
+using MateLen = detail::MateLenImpl<std::uint32_t>;
+/// 詰み／不詰手数（`MateLen` の16ビット版）
+
+/**
+ * @brief 詰み／不詰手数（`MateLen` の16ビット版）
+ *
+ * 実はエンジン全体で `MateLen16` を使ってもパフォーマンス的にはそれほど影響ないのだが、いつか最終局面の駒あまり枚数を
+ * 考慮したくなった時に差が出るかもしれないので、型をちゃんと使い分ける。
+ */
+using MateLen16 = detail::MateLenImpl<std::uint16_t>;
+
+/**
+ * @brief 0手詰め／0手不詰（MateLenの最小値）
+ */
+inline constexpr MateLen kZeroMateLen = MateLen{0};
+/**
+ * @brief 最大手数の詰み／最大手数の不詰（MateLenの最大値）
+ */
+inline constexpr MateLen kDepthMaxMateLen = MateLen{kDepthMax};
+/**
+ * @brief -1手詰め／-1手不詰（範囲外値）
+ *
+ * `kZeroMateLen` よりも小さな値を表す特別な定数。探索中に用いてはならず、変数の初期値としてのみ用いる。配列の中から
+ * 最も大きな詰み手数を調べたい場合に用いる。
+ *
+ * ```c++
+ * MateLen max_len = kMinus1MateLen;
+ * for (const auto& len : len_list) {  // len_list 内の値は [kZeroMateLen, kDepthMaxMateLen] の範囲
+ *   max_len = std::max(max_len, len);
+ * }
  * ```
- *
- * 置換表領域を節約するために、16 bit 整数に詰め込む。そのため、駒余り枚数は [0, 16) の範囲に丸められる。
  */
-class MateLen16 : DefineNotEqualByEqual<MateLen16>, DefineComparisonOperatorsByEqualAndLess<MateLen16> {
- public:
-  /// `MateLen::To16()` で `Make()` を介さずに直接 `MateLen16` インスタンスを作ってもらうため `friend` にする。
-  friend MateLen;
-
-  /**
-   * @brief `MateLen16` インスタンスを構築する。
-   * @tparam T          整数型
-   * @param len         手数
-   * @param final_hand  最終局面の駒余り枚数
-   * @return `MateLen16` インスタンス
-   *
-   * `MateLen16` インスタンスを構築する。`MateLen16` のコンストラクタは private に隠されているため、
-   * インスタンスを構築するためにはこの関数を使う必要がある。
-   *
-   * 利用者側での `std::uint16_t` への煩わしい型変換をなくすために、template で型を受け取るインターフェースに
-   * なっている。ただし、第2引数は `komori::Identity` を用いて不要な型推論を抑制している。
-   */
-  template <typename T>
-  static constexpr MateLen16 Make(const T& len, const typename Identity<T>::type& final_hand) {
-    return {static_cast<std::uint16_t>(len + 1), std::min(static_cast<std::uint16_t>(final_hand), std::uint16_t{15})};
-  }
-  /**
-   * @brief 置換表の初期化を簡単にするため、デフォルト構築可能にする。
-   *
-   * デフォルト構築後は内部状態が未定義状態となるので注意。
-   */
-  MateLen16() = default;
-
-  /// 手数
-  constexpr std::uint16_t Len() const { return len_plus_1_ - 1; }
-  /// 最終局面における駒余り枚数
-  constexpr std::uint16_t FinalHand() const { return final_hand_; }
-
-  /// `lhs` と `rhs` が等しいかどうか判定する
-  constexpr friend bool operator==(const MateLen16& lhs, const MateLen16& rhs) noexcept {
-    return lhs.len_plus_1_ == rhs.len_plus_1_ && lhs.final_hand_ == rhs.final_hand_;
-  }
-
-  /**
-   * @brief `lhs` が `rhs` よりも小さいかどうかを判定する。
-   * @param lhs 詰み手数
-   * @param rhs 詰み手数
-   * @return `lhs` が `rhs` と比べて小さいかどうか
-   * @note 最終局面の駒余り枚数は多ければ多いほど詰み手数が「小さく」扱われる。
-   */
-  constexpr friend bool operator<(const MateLen16& lhs, const MateLen16& rhs) noexcept {
-    if (lhs.len_plus_1_ != rhs.len_plus_1_) {
-      return lhs.len_plus_1_ < rhs.len_plus_1_;
-    }
-
-    return lhs.final_hand_ > rhs.final_hand_;
-  }
-
-  /// 詰み手数に整数を加算する
-  friend constexpr inline MateLen16 operator+(const MateLen16& lhs, Depth d) {
-    return MateLen16{static_cast<std::uint16_t>(lhs.len_plus_1_ + d), lhs.final_hand_};
-  }
-
-  /// 詰み手数に整数を加算する
-  friend constexpr inline MateLen16 operator+(Depth d, const MateLen16& rhs) { return rhs + d; }
-
-  /// 詰み手数から整数を減算する
-  friend constexpr inline MateLen16 operator-(const MateLen16& lhs, Depth d) {
-    return MateLen16{static_cast<std::uint16_t>(lhs.len_plus_1_ - d), lhs.final_hand_};
-  }
-
- private:
-  /// コンストラクタ。外部から直接構築できないように private に隠す。
-  constexpr MateLen16(std::uint16_t len_plus_1, std::uint16_t final_hand)
-      : len_plus_1_{len_plus_1}, final_hand_{final_hand} {}
-
-  std::uint16_t len_plus_1_ : 12;  ///< 詰み手数 + 1([0, 4096))。詰み手数に1を足すことで 0手詰めが若干扱いやすくなる。
-  std::uint16_t final_hand_ : 4;  ///< 詰み局面における駒余り枚数([0, 16))
-};
-
-/// 詰み手数の最小値。
-constexpr inline MateLen16 kZeroMateLen16 = MateLen16::Make(0, 15);
-/// 詰み手数の最大値。
-constexpr inline MateLen16 kMaxMateLen16 = MateLen16::Make(kDepthMax, 0);
-
-/// -1手。
-constexpr inline MateLen16 kMinusZeroMateLen16 = MateLen16::Make(0, 15) - 1;
-/// +∞手
-constexpr inline MateLen16 kInfiniteMateLen16 = MateLen16::Make(kDepthMax + 1, 0);
-
+inline constexpr MateLen kMinus1MateLen = kZeroMateLen - 1;
 /**
- * @brief 駒余り手数を加味した詰み手数。
+ * @brief 詰み／不詰手数の最大値 + 1（範囲外値）
  *
- * 基本的な機能は `MateLen16` と同様。探索中は `std::uint16_t` に詰め込まれた `MateLen16` を使うより、
- * この型を使ったほうが高速に動作する。
- *
- * `MateLen16` から `MateLen` へ変換するためには、`MateLen::From` を使用する。一方、`MateLen` から `MateLen16` へ
- * 変換するためには、`To16()` を用いる。
+ * `kDepthMaxMateLen` よりも大きな値を表す特別な定数。探索中に用いてはならず、変数の初期値としてのみ用いる。
+ * 詳しくは `kMinus1MateLen` も参照。
  */
-class MateLen : DefineNotEqualByEqual<MateLen>, DefineComparisonOperatorsByEqualAndLess<MateLen> {
- public:
-  /// 最終局面の持ち駒枚数の最大値。
-  static constexpr inline std::uint32_t kFinalHandMax = 38;
-  /**
-   * @brief `MateLen` インスタンスを構築する。
-   *
-   * @param len         手数
-   * @param final_hand  最終局面の駒余り枚数
-   * @return `MateLen` インスタンス
-   */
-  static constexpr MateLen Make(std::uint32_t len, std::uint32_t final_hand) { return {len + 1, final_hand}; }
+inline constexpr MateLen kDepthMaxPlus1MateLen = kDepthMaxMateLen + 1;
 
-  /// `MateLen16` から `MateLen` インスタンスを構築する。
-  static constexpr MateLen From(const MateLen16& mate_len16) {
-    return {mate_len16.len_plus_1_, mate_len16.final_hand_};
-  }
+/// `kZeroMateLen` の 16 ビット版
+inline constexpr MateLen16 kZeroMateLen16 = MateLen16{kZeroMateLen};
+/// `kDepthMaxMateLen` の 16 ビット版
+inline constexpr MateLen16 kDepthMaxMateLen16 = MateLen16{kDepthMaxMateLen};
+/// `kMinus1MateLen` の 16 ビット版
+inline constexpr MateLen16 kMinus1MateLen16 = MateLen16{kMinus1MateLen};
+/// `kDepthMaxPlus1MateLen` の 16 ビット版
+inline constexpr MateLen16 kDepthMaxPlus1MateLen16 = MateLen16{kDepthMaxPlus1MateLen};
 
-  /// `MateLen16` と仕様を合わせるためデフォルト構築可能にする。
-  MateLen() = default;
-
-  /// 手数
-  constexpr std::uint32_t Len() const { return len_plus_1_ - 1; }
-  /// 最終局面における駒余り枚数
-  constexpr std::uint32_t FinalHand() const { return final_hand_; }
-
-  /**
-   * @brief `MateLen16` へ変換する。
-   * @return `MateLen16` インスタンス
-   * @note 内部変数の型が異なるので、情報が落ちることがある。
-   */
-  constexpr MateLen16 To16() const {
-    const auto len_16 = static_cast<std::uint16_t>(len_plus_1_);
-    const auto final_16 = static_cast<std::uint16_t>(final_hand_);
-
-    return {len_16, std::min(final_16, std::uint16_t{15})};
-  }
-
-  /**
-   * @brief `*this < len` なる `len` のうち最小のものを返す。
-   * @return `*this` より大きい最小の要素
-   */
-  constexpr MateLen Succ() const {
-    if (final_hand_ == 0) {
-      return {len_plus_1_ + 1, kFinalHandMax};
-    } else {
-      return {len_plus_1_, final_hand_ - 1};
-    }
-  }
-
-  /**
-   * @brief `*this < len` なる `len` のうち最小のものを返す。ただし、`this->Len() % 2 == len.Len() % 2` である。
-   * @return `*this` より大きい最小の要素
-   */
-  constexpr MateLen Succ2() const {
-    if (final_hand_ == 0) {
-      return {len_plus_1_ + 2, kFinalHandMax};
-    } else {
-      return {len_plus_1_, final_hand_ - 1};
-    }
-  }
-
-  /**
-   * @brief `len < *this` なる `len` のうち最大のものを返す。
-   * @return `*this` より小さい最大の要素
-   */
-  constexpr MateLen Prec() const {
-    if (final_hand_ == kFinalHandMax) {
-      return {len_plus_1_ - 1, 0};
-    } else {
-      return {len_plus_1_, final_hand_ + 1};
-    }
-  }
-
-  /**
-   * @brief `len < *this` なる `len` のうち最大のものを返す。ただし、`this->Len() % 2 == len.Len() % 2` である。
-   * @return `*this` より小さい最大の要素
-   */
-  constexpr MateLen Prec2() const {
-    if (final_hand_ == kFinalHandMax) {
-      return {len_plus_1_ - 2, 0};
-    } else {
-      return {len_plus_1_, final_hand_ + 1};
-    }
-  }
-
-  /// `lhs` と `rhs` が等しいかどうか判定する
-  constexpr friend bool operator==(const MateLen& lhs, const MateLen& rhs) {
-    return lhs.len_plus_1_ == rhs.len_plus_1_ && lhs.final_hand_ == rhs.final_hand_;
-  }
-
-  /// `lhs` が `rhs` がより小さいか判定する
-  constexpr friend bool operator<(const MateLen& lhs, const MateLen& rhs) {
-    if (lhs.len_plus_1_ != rhs.len_plus_1_) {
-      return lhs.len_plus_1_ < rhs.len_plus_1_;
-    }
-
-    return lhs.final_hand_ > rhs.final_hand_;
-  }
-
-  /// 詰み手数に整数を加算する
-  friend inline MateLen operator+(const MateLen& lhs, Depth d) { return {lhs.len_plus_1_ + d, lhs.final_hand_}; }
-  /// 詰み手数に整数を加算する
-  friend inline MateLen operator+(Depth d, const MateLen& rhs) { return rhs + d; }
-  /// 詰み手数から整数を減算する
-  friend inline MateLen operator-(const MateLen& lhs, Depth d) { return {lhs.len_plus_1_ - d, lhs.final_hand_}; }
-
- private:
-  /// コンストラクタ。外部から直接構築できないように private に隠す。
-  constexpr MateLen(std::uint32_t len_plus_1, std::uint32_t final_hand)
-      : len_plus_1_{len_plus_1}, final_hand_{final_hand} {}
-
-  std::uint32_t len_plus_1_;  ///< 詰み手数 + 1。詰み手数に1を足すことで 0手詰めが若干扱いやすくなる。
-  std::uint32_t final_hand_;  ///< 詰み局面における駒余り枚数
-};
-
-/// 詰み手数の最小値。
-constexpr inline MateLen kZeroMateLen = MateLen::Make(0, MateLen::kFinalHandMax);
-/// 詰み手数の最大値。
-constexpr inline MateLen kMaxMateLen = MateLen::Make(kDepthMax, 0);
-
-/**
- * @brief `MateLen16` or `MateLen` を出力ストリームに出力する。
- * @tparam ML `MateLen16` または `MateLen`
- * @param os  output stream
- * @param mate_len 詰み手数
- * @return output stream
- */
-template <typename ML,
-          Constraints<std::enable_if_t<std::is_same_v<ML, MateLen16> || std::is_same_v<ML, MateLen>>> = nullptr>
-inline std::ostream& operator<<(std::ostream& os, const ML& mate_len) {
-  os << mate_len.Len() << "(" << mate_len.FinalHand() << ")";
-  return os;
-}
 }  // namespace komori
 
 #endif  // KOMORI_MATE_LEN_HPP_

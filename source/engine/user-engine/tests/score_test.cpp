@@ -2,7 +2,7 @@
 
 #include "../score.hpp"
 
-using komori::kMaxMateLen;
+using komori::kDepthMaxMateLen;
 using komori::kNullKey;
 using komori::MateLen;
 using komori::Score;
@@ -11,7 +11,7 @@ using komori::SearchResult;
 using komori::UnknownData;
 
 TEST(ScoreTest, MakeUnknown_None) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kDepthMaxMateLen, 264, UnknownData{});
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
   EXPECT_EQ(s1.ToString(), "cp 0");
@@ -21,7 +21,7 @@ TEST(ScoreTest, MakeUnknown_None) {
 }
 
 TEST(ScoreTest, MakeUnknown_Dn) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kDepthMaxMateLen, 264, UnknownData{});
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kDn, result, true);
   EXPECT_EQ(s1.ToString(), "cp 4");
@@ -31,7 +31,7 @@ TEST(ScoreTest, MakeUnknown_Dn) {
 }
 
 TEST(ScoreTest, MakeUnknown_MinusPn) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kDepthMaxMateLen, 264, UnknownData{});
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kMinusPn, result, true);
   EXPECT_EQ(s1.ToString(), "cp -33");
@@ -41,7 +41,7 @@ TEST(ScoreTest, MakeUnknown_MinusPn) {
 }
 
 TEST(ScoreTest, MakeUnknown_Ponanza) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kDepthMaxMateLen, 264, UnknownData{});
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kPonanza, result, true);
   EXPECT_EQ(s1.ToString(), "cp -1266");
@@ -51,48 +51,48 @@ TEST(ScoreTest, MakeUnknown_Ponanza) {
 }
 
 TEST(ScoreTest, MakeUnknown_Proven) {
-  const SearchResult result = SearchResult::MakeFinal<true>(HAND_ZERO, MateLen::Make(26, 4), 1);
+  const SearchResult result = SearchResult::MakeFinal<true>(HAND_ZERO, MateLen{264}, 1);
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
-  EXPECT_EQ(s1.ToString(), "mate 26");
+  EXPECT_EQ(s1.ToString(), "mate 264");
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kDn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kMinusPn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kPonanza, result, true));
 
   const auto s2 = Score::Make(ScoreCalculationMethod::kNone, result, false);
-  EXPECT_EQ(s2.ToString(), "mate -26");
+  EXPECT_EQ(s2.ToString(), "mate -264");
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kDn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kMinusPn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kPonanza, result, false));
 }
 
 TEST(ScoreTest, MakeUnknown_Disproven) {
-  const SearchResult result = SearchResult::MakeFinal<false>(HAND_ZERO, MateLen::Make(26, 4), 1);
+  const SearchResult result = SearchResult::MakeFinal<false>(HAND_ZERO, MateLen{264}, 1);
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
-  EXPECT_EQ(s1.ToString(), "mate -26");
+  EXPECT_EQ(s1.ToString(), "mate -264");
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kDn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kMinusPn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kPonanza, result, true));
 
   const auto s2 = Score::Make(ScoreCalculationMethod::kNone, result, false);
-  EXPECT_EQ(s2.ToString(), "mate 26");
+  EXPECT_EQ(s2.ToString(), "mate 264");
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kDn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kMinusPn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kPonanza, result, false));
 }
 
 TEST(ScoreTest, MakeUnknown_Repetition) {
-  const SearchResult result = SearchResult::MakeFinal<false, true>(HAND_ZERO, MateLen::Make(26, 4), 1);
+  const SearchResult result = SearchResult::MakeFinal<false, true>(HAND_ZERO, MateLen{264}, 1);
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
-  EXPECT_EQ(s1.ToString(), "mate -26");
+  EXPECT_EQ(s1.ToString(), "mate -264");
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kDn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kMinusPn, result, true));
   EXPECT_EQ(s1, Score::Make(ScoreCalculationMethod::kPonanza, result, true));
 
   const auto s2 = Score::Make(ScoreCalculationMethod::kNone, result, false);
-  EXPECT_EQ(s2.ToString(), "mate 26");
+  EXPECT_EQ(s2.ToString(), "mate 264");
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kDn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kMinusPn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kPonanza, result, false));

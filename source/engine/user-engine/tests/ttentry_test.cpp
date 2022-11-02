@@ -3,8 +3,8 @@
 #include "../ttentry.hpp"
 #include "test_lib.hpp"
 
-using komori::kInfiniteMateLen16;
-using komori::kMinusZeroMateLen16;
+using komori::kDepthMaxPlus1MateLen16;
+using komori::kMinus1MateLen16;
 using komori::MateLen16;
 using komori::PnDn;
 using komori::tt::Entry;
@@ -66,11 +66,11 @@ TEST(EntryTest, UpdateUnknown_MinDepth) {
   const Depth depth2{264};
 
   entry.Init(0x264, HAND_ZERO, depth1, 1, 1, 1);
-  entry.UpdateUnknown(depth2, 1, 1, MateLen16::Make(33, 4), 1);
+  entry.UpdateUnknown(depth2, 1, 1, MateLen16{334}, 1);
   EXPECT_EQ(entry.MinDepth(), depth2);
 
   entry.Init(0x264, HAND_ZERO, depth2, 1, 1, 1);
-  entry.UpdateUnknown(depth1, 1, 1, MateLen16::Make(33, 4), 1);
+  entry.UpdateUnknown(depth1, 1, 1, MateLen16{334}, 1);
   EXPECT_EQ(entry.MinDepth(), depth2);
 }
 
@@ -81,7 +81,7 @@ TEST(EntryTest, LookUp_MinDepth) {
   const Depth depth2{264};
   const Depth depth3{2640};
   PnDn pn{1}, dn{1};
-  MateLen16 len{MateLen16::Make(33, 4)};
+  MateLen16 len{334};
   bool use_old_child{false};
 
   entry.Init(0x264, hand, depth1, 1, 1, 1);
@@ -101,7 +101,7 @@ TEST(EntryTest, LookUp_PnDn_Exact) {
   const Depth depth1{334};
   const Depth depth2{2604};
   PnDn pn{1}, dn{1};
-  MateLen16 len{MateLen16::Make(33, 4)};
+  MateLen16 len{334};
   bool use_old_child{false};
 
   entry.Init(0x264, hand, depth1, 33, 4, 1);
@@ -131,7 +131,7 @@ TEST(EntryTest, LookUp_PnDn_Superior) {
   const Depth depth2{3304};
   const Depth depth3{264};
   PnDn pn{1}, dn{1};
-  MateLen16 len{MateLen16::Make(33, 4)};
+  MateLen16 len{334};
   bool use_old_child{false};
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
@@ -161,7 +161,7 @@ TEST(EntryTest, LookUp_PnDn_Inferior) {
   const Depth depth2{3304};
   const Depth depth3{264};
   PnDn pn{1}, dn{1};
-  MateLen16 len{MateLen16::Make(33, 4)};
+  MateLen16 len{334};
   bool use_old_child{false};
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
@@ -187,8 +187,8 @@ TEST(EntryTest, LookUp_PnDn_Proven) {
   Entry entry;
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<PAWN, LANCE, LANCE, LANCE, GOLD>()};
-  const MateLen16 len1{MateLen16::Make(26, 4)};
-  const MateLen16 len2{MateLen16::Make(33, 4)};
+  const MateLen16 len1{264};
+  const MateLen16 len2{334};
   const Depth depth1{334};
   const Depth depth2{2604};
   PnDn pn{1}, dn{1};
@@ -215,8 +215,8 @@ TEST(EntryTest, LookUp_PnDn_Disproven) {
   Entry entry;
   const Hand hand1{MakeHand<PAWN, LANCE, LANCE>()};
   const Hand hand2{MakeHand<LANCE>()};
-  const MateLen16 len1{MateLen16::Make(33, 4)};
-  const MateLen16 len2{MateLen16::Make(26, 4)};
+  const MateLen16 len1{334};
+  const MateLen16 len2{264};
   const Depth depth1{2604};
   const Depth depth2{334};
   PnDn pn{1}, dn{1};
@@ -239,8 +239,8 @@ TEST(EntryTest, LookUp_PnDn_Disproven) {
 
 TEST(EntryTest, Update_PnDn_Proven) {
   Entry entry;
-  const MateLen16 len1{MateLen16::Make(33, 4)};
-  const MateLen16 len2{MateLen16::Make(334, 0)};
+  const MateLen16 len1{334};
+  const MateLen16 len2{3340};
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
 
   entry.UpdateProven(len1, 1);
@@ -251,8 +251,8 @@ TEST(EntryTest, Update_PnDn_Proven) {
 
 TEST(EntryTest, Update_PnDn_Disproven) {
   Entry entry;
-  const MateLen16 len1{MateLen16::Make(33, 4)};
-  const MateLen16 len2{MateLen16::Make(26, 4)};
+  const MateLen16 len1{334};
+  const MateLen16 len2{264};
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
 
   entry.UpdateDisproven(len1, 1);
@@ -272,14 +272,14 @@ TEST(EntryTest, SetPossibleRepetition_PnDn) {
 TEST(EntryTest, Init_ProvenLen) {
   Entry entry;
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
-  EXPECT_EQ(entry.ProvenLen(), kInfiniteMateLen16);
+  EXPECT_EQ(entry.ProvenLen(), kDepthMaxPlus1MateLen16);
 }
 
 TEST(EntryTest, UpdateProven_ProvenLen) {
   Entry entry;
-  const MateLen16 len1{MateLen16::Make(33, 4)};
-  const MateLen16 len2{MateLen16::Make(334, 0)};
-  const MateLen16 len3{MateLen16::Make(26, 4)};
+  const MateLen16 len1{334};
+  const MateLen16 len2{3340};
+  const MateLen16 len3{264};
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
   entry.UpdateProven(len1, 1);
   EXPECT_EQ(entry.ProvenLen(), len1);
@@ -294,14 +294,14 @@ TEST(EntryTest, UpdateProven_ProvenLen) {
 TEST(EntryTest, Init_DisprovenLen) {
   Entry entry;
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
-  EXPECT_EQ(entry.DisprovenLen(), kMinusZeroMateLen16);
+  EXPECT_EQ(entry.DisprovenLen(), kMinus1MateLen16);
 }
 
 TEST(EntryTest, UpdateProven_DisprovenLen) {
   Entry entry;
-  const MateLen16 len1{MateLen16::Make(33, 4)};
-  const MateLen16 len2{MateLen16::Make(26, 4)};
-  const MateLen16 len3{MateLen16::Make(334, 0)};
+  const MateLen16 len1{334};
+  const MateLen16 len2{264};
+  const MateLen16 len3{3340};
   entry.Init(0x264, HAND_ZERO, 334, 1, 1, 1);
   entry.UpdateDisproven(len1, 1);
   EXPECT_EQ(entry.DisprovenLen(), len1);
@@ -321,7 +321,7 @@ TEST(EntryTest, LookUp_UseOldChild_Superior) {
   const Depth depth2{2604};
   const Depth depth3{264};
   PnDn pn{1}, dn{1};
-  MateLen16 len{MateLen16::Make(33, 4)};
+  MateLen16 len{334};
   bool use_old_child{false};
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
@@ -341,7 +341,7 @@ TEST(EntryTest, LookUp_UseOldChild_Inferior) {
   const Depth depth2{2604};
   const Depth depth3{264};
   PnDn pn{1}, dn{1};
-  MateLen16 len{MateLen16::Make(33, 4)};
+  MateLen16 len{334};
   bool use_old_child{false};
 
   entry.Init(0x264, hand1, depth1, 33, 4, 1);
@@ -365,7 +365,7 @@ TEST(EntryTest, UpdateUnknown_Amount) {
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
-  entry.UpdateUnknown(264, 26, 4, MateLen16::Make(33, 4), amount2);
+  entry.UpdateUnknown(264, 26, 4, MateLen16{334}, amount2);
   EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2);
 }
 
@@ -374,7 +374,7 @@ TEST(EntryTest, UpdateUnknown_SaturatedAmount) {
   const SearchAmount amount1{334};
   const SearchAmount amount2{std::numeric_limits<SearchAmount>::max()};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
-  entry.UpdateUnknown(264, 26, 4, MateLen16::Make(33, 4), amount2);
+  entry.UpdateUnknown(264, 26, 4, MateLen16{334}, amount2);
   EXPECT_EQ(entry.Amount(), amount2);
 }
 
@@ -383,7 +383,7 @@ TEST(EntryTest, UpdateProven_Amount) {
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
-  entry.UpdateProven(MateLen16::Make(33, 4), amount2);
+  entry.UpdateProven(MateLen16{334}, amount2);
   EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
 }
 
@@ -392,21 +392,21 @@ TEST(EntryTest, UpdateDisproven_Amount) {
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO, 264, 26, 4, amount1);
-  entry.UpdateDisproven(MateLen16::Make(33, 4), amount2);
+  entry.UpdateDisproven(MateLen16{334}, amount2);
   EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
 }
 
 TEST(EntryTest, UpdateFinalRange_Superior) {
   Entry entry;
-  const MateLen16 len = MateLen16::Make(33, 4);
+  const MateLen16 len{334};
   entry.Init(0x264, MakeHand<PAWN, LANCE, LANCE, GOLD>(), 264, 1, 1, 1);
   entry.UpdateDisproven(len, 1);
 
-  MateLen16 disproven_len = kMinusZeroMateLen16;
-  MateLen16 proven_len = kInfiniteMateLen16;
+  MateLen16 disproven_len = kMinus1MateLen16;
+  MateLen16 proven_len = kDepthMaxPlus1MateLen16;
   entry.UpdateFinalRange(MakeHand<PAWN, LANCE>(), disproven_len, proven_len);
   EXPECT_EQ(disproven_len, len);
-  EXPECT_EQ(proven_len, kInfiniteMateLen16);
+  EXPECT_EQ(proven_len, kDepthMaxPlus1MateLen16);
 
   disproven_len = len + 1;
   entry.UpdateFinalRange(MakeHand<PAWN, LANCE>(), disproven_len, proven_len);
@@ -415,14 +415,14 @@ TEST(EntryTest, UpdateFinalRange_Superior) {
 
 TEST(EntryTest, UpdateFinalRange_Inferior) {
   Entry entry;
-  const MateLen16 len = MateLen16::Make(33, 4);
+  const MateLen16 len{334};
   entry.Init(0x264, HAND_ZERO, 264, 1, 1, 1);
   entry.UpdateProven(len, 1);
 
-  MateLen16 disproven_len = kMinusZeroMateLen16;
-  MateLen16 proven_len = kInfiniteMateLen16;
+  MateLen16 disproven_len = kMinus1MateLen16;
+  MateLen16 proven_len = kDepthMaxPlus1MateLen16;
   entry.UpdateFinalRange(MakeHand<PAWN, LANCE>(), disproven_len, proven_len);
-  EXPECT_EQ(disproven_len, kMinusZeroMateLen16);
+  EXPECT_EQ(disproven_len, kMinus1MateLen16);
   EXPECT_EQ(proven_len, len);
 
   proven_len = len - 1;

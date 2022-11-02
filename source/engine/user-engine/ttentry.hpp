@@ -137,8 +137,8 @@ class alignas(64) Entry {
     hand_ = hand;
     amount_ = amount;
     board_key_ = board_key;
-    proven_len_ = kInfiniteMateLen16;
-    disproven_len_ = kMinusZeroMateLen16;
+    proven_len_ = kDepthMaxPlus1MateLen16;
+    disproven_len_ = kMinus1MateLen16;
 
     pn_ = pn;
     dn_ = dn;

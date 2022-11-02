@@ -108,7 +108,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
 
 std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_root_or_node) {
   auto node_state{NodeState::kUnknown};
-  auto len{kMaxMateLen};
+  auto len{kDepthMaxMateLen};
 
   const int max_loop_cnt = option_.post_search_level == PostSearchLevel::kNone ? 1 : 128;
   for (int i = 0; i < max_loop_cnt; ++i) {
@@ -137,7 +137,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
         break;
       }
 
-      len = MateLen::Make(result.Len().Len() - 2, MateLen::kFinalHandMax);
+      len = result.Len() - 2;
     } else {
       sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
       if (result.Dn() == 0 && result.Len() < len) {
@@ -145,7 +145,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
       }
       if (node_state == NodeState::kProven) {
         best_moves_ = GetMatePath(n, len + 2);
-        len = MateLen::Make(len.Len() + 2, MateLen::kFinalHandMax);
+        len = len + 2;
         score_ = old_score;
       }
       break;
@@ -157,8 +157,8 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
 
 SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   SearchResult result{};
-  PnDn thpn = (len == kMaxMateLen) ? 1 : kInfinitePnDn;
-  PnDn thdn = (len == kMaxMateLen) ? 1 : kInfinitePnDn;
+  PnDn thpn = (len == kDepthMaxMateLen) ? 1 : kInfinitePnDn;
+  PnDn thdn = (len == kDepthMaxMateLen) ? 1 : kInfinitePnDn;
 
   expansion_list_.Emplace(tt_, n, len, true);
   while (!monitor_.ShouldStop()) {
@@ -211,10 +211,9 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     const auto best_move = local_expansion.BestMove();
     // 現局面で `BestMove` が存在するということは、0 手詰みではない。
     // よって、OR Node では最低 1 手詰、AND Node では最低 2 手詰である。
-    const auto min_len =
-        n.IsOrNode() ? MateLen::Make(1, MateLen::kFinalHandMax) : MateLen::Make(2, MateLen::kFinalHandMax);
+    const auto min_len = n.IsOrNode() ? MateLen{1} : MateLen{2};
     if (len < min_len) {
-      local_expansion.UpdateBestChild(SearchResult::MakeFinal<false>(n.OrHandAfter(best_move), min_len, 1));
+      local_expansion.UpdateBestChild(SearchResult::MakeFinal<false>(n.OrHandAfter(best_move), min_len - 1, 1));
       curr_result = local_expansion.CurrentResult(n);
       continue;
     }
@@ -268,7 +267,7 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
 
     // 子ノードの中から最善っぽい手を選ぶ
     Move best_move = MOVE_NONE;
-    MateLen best_len = n.IsOrNode() ? kMaxMateLen : kZeroMateLen;
+    MateLen best_len = n.IsOrNode() ? kDepthMaxMateLen : kZeroMateLen;
     MateLen best_disproven_len = kZeroMateLen;
     for (const auto move : MovePicker{n}) {
       const auto query = tt_.BuildChildQuery(n, move.move);

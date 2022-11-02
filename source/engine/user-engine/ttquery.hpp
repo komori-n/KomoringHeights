@@ -168,7 +168,7 @@ class Query {
    */
   template <bool kCreateIfNotFound, typename InitialEvalFunc>
   SearchResult LookUp(bool& does_have_old_child, MateLen len, InitialEvalFunc&& eval_func) const {
-    MateLen16 len16{len.To16()};
+    MateLen16 len16{len};
     PnDn pn = 1;
     PnDn dn = 1;
     SearchAmount amount = 1;
@@ -178,26 +178,26 @@ class Query {
 
     // Doxygen によるドキュメンテーションを無効にする
 #if !defined(DOXYGEN_SHOULD_SKIP_THIS)
-#define LOOKUP_UNROLL_IMPL(i)                                                                  \
-  do {                                                                                         \
-    /* `IsFor()` -> `IsNull()` の順で呼び出すことで2%高速化 */                    \
-    if (itr->IsFor(board_key_) && !itr->IsNull()) {                                            \
-      if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {                    \
-        amount = std::max(amount, itr->Amount());                                              \
-        if (pn == 0) {                                                                         \
-          return SearchResult::MakeFinal<true>(itr->GetHand(), MateLen::From(len16), amount);  \
-        } else if (dn == 0) {                                                                  \
-          return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen::From(len16), amount); \
-        } else if (itr->IsFor(board_key_, hand_)) {                                            \
-          if (itr->IsPossibleRepetition() && rep_table_->Contains(path_key_)) {                \
-            return SearchResult::MakeFinal<false, true>(hand_, len, amount);                   \
-          }                                                                                    \
-                                                                                               \
-          found_exact = true;                                                                  \
-        }                                                                                      \
-      }                                                                                        \
-    }                                                                                          \
-    itr++;                                                                                     \
+#define LOOKUP_UNROLL_IMPL(i)                                                            \
+  do {                                                                                   \
+    /* `IsFor()` -> `IsNull()` の順で呼び出すことで2%高速化 */              \
+    if (itr->IsFor(board_key_) && !itr->IsNull()) {                                      \
+      if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {              \
+        amount = std::max(amount, itr->Amount());                                        \
+        if (pn == 0) {                                                                   \
+          return SearchResult::MakeFinal<true>(itr->GetHand(), MateLen{len16}, amount);  \
+        } else if (dn == 0) {                                                            \
+          return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen{len16}, amount); \
+        } else if (itr->IsFor(board_key_, hand_)) {                                      \
+          if (itr->IsPossibleRepetition() && rep_table_->Contains(path_key_)) {          \
+            return SearchResult::MakeFinal<false, true>(hand_, len, amount);             \
+          }                                                                              \
+                                                                                         \
+          found_exact = true;                                                            \
+        }                                                                                \
+      }                                                                                  \
+    }                                                                                    \
+    itr++;                                                                               \
   } while (false)
 
     KOMORI_TTQUERY_UNROLL_CLUSTER(LOOKUP_UNROLL_IMPL);
@@ -230,8 +230,8 @@ class Query {
    * 難しいため、専用関数として提供する。詰み探索終了後の手順の復元に用いることを想定している。
    */
   constexpr std::pair<MateLen, MateLen> FinalRange() const noexcept {
-    MateLen16 disproven_len = kMinusZeroMateLen16;
-    MateLen16 proven_len = kInfiniteMateLen16;
+    MateLen16 disproven_len = kMinus1MateLen16;
+    MateLen16 proven_len = kDepthMaxPlus1MateLen16;
 
     // 頻繁に呼ばれる関数ではないのでアンローリングせずに普通に for 文で回す
     for (std::size_t i = 0; i < Cluster::kSize; ++i) {
@@ -241,7 +241,7 @@ class Query {
       }
     }
 
-    return {MateLen::From(disproven_len), MateLen::From(proven_len)};
+    return {MateLen{disproven_len}, MateLen{proven_len}};
   }
   // LCOV_EXCL_STOP
 
@@ -348,9 +348,9 @@ class Query {
     const auto amount = result.Amount();
 
     if constexpr (kIsProven) {
-      entry->UpdateProven(len.To16(), amount);
+      entry->UpdateProven(MateLen16{len}, amount);
     } else {
-      entry->UpdateDisproven(len.To16(), amount);
+      entry->UpdateDisproven(MateLen16{len}, amount);
     }
   }
 
@@ -379,7 +379,7 @@ class Query {
     const auto amount = result.Amount();
 
     if (auto entry = FindEntry(hand_)) {
-      entry->UpdateUnknown(depth_, pn, dn, len.To16(), amount);
+      entry->UpdateUnknown(depth_, pn, dn, MateLen16{len}, amount);
     } else {
       CreateNewEntry(hand_, pn, dn, amount);
     }

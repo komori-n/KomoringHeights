@@ -4,7 +4,7 @@
 #include "test_lib.hpp"
 
 using komori::ExpansionStack;
-using komori::kMaxMateLen;
+using komori::kDepthMaxMateLen;
 using komori::tt::TranspositionTable;
 
 TEST(ExpansionStackTest, Emplace) {
@@ -13,7 +13,7 @@ TEST(ExpansionStackTest, Emplace) {
   tt.Resize(1);
   ExpansionStack expansion_list;
 
-  auto& expansion = expansion_list.Emplace(tt, *n, kMaxMateLen, false);
+  auto& expansion = expansion_list.Emplace(tt, *n, kDepthMaxMateLen, false);
   EXPECT_EQ(&expansion, &expansion_list.Current());
 }
 
@@ -23,10 +23,10 @@ TEST(ExpansionStackTest, Pop) {
   tt.Resize(1);
   ExpansionStack expansion_list;
 
-  auto& e1 = expansion_list.Emplace(tt, *n, kMaxMateLen, false);
+  auto& e1 = expansion_list.Emplace(tt, *n, kDepthMaxMateLen, false);
 
   n->DoMove(make_move_drop(PAWN, SQ_52, BLACK));
-  auto& e2 = expansion_list.Emplace(tt, *n, kMaxMateLen, false);
+  auto& e2 = expansion_list.Emplace(tt, *n, kDepthMaxMateLen, false);
   EXPECT_EQ(&e2, &expansion_list.Current());
 
   expansion_list.Pop();
@@ -39,7 +39,7 @@ TEST(ExpansionStackTest, Current) {
   tt.Resize(1);
   ExpansionStack expansion_list;
 
-  auto& expansion = expansion_list.Emplace(tt, *n, kMaxMateLen, false);
+  auto& expansion = expansion_list.Emplace(tt, *n, kDepthMaxMateLen, false);
   EXPECT_EQ(&expansion, &expansion_list.Current());
   EXPECT_EQ(&expansion, &const_cast<const ExpansionStack&>(expansion_list).Current());
 }

@@ -12,68 +12,67 @@ template <typename MateLen>
 class MateLenTest : public ::testing::Test {};
 
 using TestTypes = ::testing::Types<MateLen16, MateLen>;
-};  // namespace
+}  // namespace
 
 TYPED_TEST_SUITE(MateLenTest, TestTypes);
 
-TYPED_TEST(MateLenTest, Construct) {
-  TypeParam mate_len = TypeParam::Make(33, 4);
-  EXPECT_EQ(mate_len.Len(), 33);
-  EXPECT_EQ(mate_len.FinalHand(), 4);
-}
-
 TYPED_TEST(MateLenTest, OperatorEqual) {
-  TypeParam m1 = TypeParam::Make(33, 4);
-  TypeParam m2 = TypeParam::Make(26, 4);
-  TypeParam m3 = TypeParam::Make(33, 3);
+  const TypeParam m1{334};
+  const TypeParam m2{264};
+
   EXPECT_TRUE(m1 == m1);
   EXPECT_FALSE(m1 == m2);
-  EXPECT_FALSE(m1 == m3);
 }
 
 TYPED_TEST(MateLenTest, OperatorLess) {
-  TypeParam m1 = TypeParam::Make(33, 4);
-  TypeParam m2 = TypeParam::Make(26, 4);
-  TypeParam m3 = TypeParam::Make(33, 3);
-  EXPECT_FALSE(m1 < m2);
-  EXPECT_TRUE(m1 < m3);
+  const TypeParam m1{264};
+  const TypeParam m2{334};
+  EXPECT_TRUE(m1 < m2);
+  EXPECT_FALSE(m2 < m1);
+  EXPECT_FALSE(m1 < m1);
 }
 
 TYPED_TEST(MateLenTest, OperatorPlus) {
-  TypeParam m1 = TypeParam::Make(26, 4);
-  EXPECT_EQ(m1 + 7, (TypeParam::Make(33, 4)));
-  EXPECT_EQ(7 + m1, (TypeParam::Make(33, 4)));
+  const TypeParam m1{264};
+  EXPECT_EQ(m1 + 70, TypeParam{334});
+  EXPECT_EQ(70 + m1, TypeParam{334});
 }
 
 TYPED_TEST(MateLenTest, OperatorMinus) {
-  TypeParam m1 = TypeParam::Make(33, 4);
-  EXPECT_EQ(m1 - 7, (TypeParam::Make(26, 4)));
+  const TypeParam m1{334};
+  EXPECT_EQ(m1 - 70, TypeParam{264});
 }
 
 TYPED_TEST(MateLenTest, OutputOperator) {
-  TypeParam m = TypeParam::Make(33, 4);
-  std::ostringstream oss;
-  oss << m;
-  EXPECT_EQ(oss.str(), "33(4)");
+  const TypeParam m1{334};
+  const TypeParam m2{komori::kMinus1MateLen16};
+
+  std::ostringstream oss1;
+  oss1 << m1;
+  EXPECT_EQ(oss1.str(), "334");
+
+  std::ostringstream oss2;
+  oss2 << m2;
+  EXPECT_EQ(oss2.str(), "-1");
 }
 
-TEST(MateLen, Convert16) {
-  MateLen16 m1 = MateLen16::Make(33, 4);
-  MateLen expected = MateLen::Make(33, 4);
-  EXPECT_EQ((MateLen::From(m1)), expected);
-  EXPECT_EQ((MateLen::From(m1).To16()), m1);
+TYPED_TEST(MateLenTest, ConvertOtherType) {
+  using OtherType = std::conditional_t<std::is_same_v<TypeParam, MateLen>, MateLen16, MateLen>;
+
+  const TypeParam m1{334};
+  const OtherType m2{m1};
+
+  EXPECT_EQ(m2.Len(), 334);
 }
 
-TEST(MateLen, Succ) {
-  EXPECT_EQ((MateLen::Make(33, 4).Succ()), (MateLen::Make(33, 3)));
-  EXPECT_EQ((MateLen::Make(33, 0).Succ()), (MateLen::Make(34, MateLen::kFinalHandMax)));
-  EXPECT_EQ((MateLen::Make(33, 4).Succ2()), (MateLen::Make(33, 3)));
-  EXPECT_EQ((MateLen::Make(33, 0).Succ2()), (MateLen::Make(35, MateLen::kFinalHandMax)));
-}
+TEST(MateLen, Constants) {
+  EXPECT_EQ(komori::kZeroMateLen.Len(), 0);
+  EXPECT_EQ(komori::kDepthMaxMateLen.Len(), komori::kDepthMax);
+  EXPECT_EQ((komori::kMinus1MateLen + 2).Len(), 1);
+  EXPECT_EQ(komori::kDepthMaxPlus1MateLen.Len(), komori::kDepthMax + 1);
 
-TEST(MateLen, Prec) {
-  EXPECT_EQ((MateLen::Make(33, 4).Prec()), (MateLen::Make(33, 5)));
-  EXPECT_EQ((MateLen::Make(33, MateLen::kFinalHandMax).Prec()), (MateLen::Make(32, 0)));
-  EXPECT_EQ((MateLen::Make(33, 4).Prec2()), (MateLen::Make(33, 5)));
-  EXPECT_EQ((MateLen::Make(33, MateLen::kFinalHandMax).Prec2()), (MateLen::Make(31, 0)));
+  EXPECT_EQ(komori::kZeroMateLen16.Len(), 0);
+  EXPECT_EQ(komori::kDepthMaxMateLen16.Len(), komori::kDepthMax);
+  EXPECT_EQ((komori::kMinus1MateLen16 + 2).Len(), 1);
+  EXPECT_EQ(komori::kDepthMaxPlus1MateLen16.Len(), komori::kDepthMax + 1);
 }
