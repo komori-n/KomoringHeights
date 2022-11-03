@@ -148,7 +148,7 @@ TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Increasing) {
   auto itr = query.cluster.head_entry + 1;
   for (std::size_t i = 0; i < kGcThreshold; ++i) {
     itr[i].Init(0x334, HAND_ZERO);
-    itr[i].UpdateUnknown(0, 1, 1, 1 + i, BitSet64::Full());
+    itr[i].UpdateUnknown(0, 1, 1, 1 + i, BitSet64::Full(), 0, HAND_ZERO);
   }
   tt_.CollectGarbage();
   for (std::size_t i = 0; i < kGcRemoveElementNum; ++i) {
@@ -167,7 +167,7 @@ TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Decreasing) {
   auto itr = query.cluster.head_entry + 334;
   for (std::size_t i = 0; i < kGcThreshold; ++i) {
     itr[i].Init(0x334, HAND_ZERO);
-    itr[i].UpdateUnknown(0, 1, 1, 1 + kGcThreshold - i, BitSet64::Full());
+    itr[i].UpdateUnknown(0, 1, 1, 1 + kGcThreshold - i, BitSet64::Full(), 0, HAND_ZERO);
   }
   tt_.CollectGarbage();
   for (std::size_t i = 0; i < kGcThreshold - kGcRemoveElementNum; ++i) {

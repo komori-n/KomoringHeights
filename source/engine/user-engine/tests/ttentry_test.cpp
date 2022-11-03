@@ -53,17 +53,34 @@ TEST(EntryTest, GetHand) {
   EXPECT_EQ(entry.GetHand(), hand);
 }
 
+TEST(EntryTest, Init_MinDepth) {
+  Entry entry;
+  entry.Init(0x334, HAND_ZERO);
+  EXPECT_EQ(entry.MinDepth(), komori::kDepthMax);
+
+  const auto depth = 334;
+  entry.Init(0x334, HAND_ZERO, depth);
+  EXPECT_EQ(entry.MinDepth(), depth);
+}
+
 TEST(EntryTest, Init_SumMask) {
   Entry entry;
   entry.Init(0x334, HAND_ZERO);
   EXPECT_EQ(entry.SumMask(), BitSet64::Full());
 }
 
+TEST(EntryTest, Init_Parent) {
+  Entry entry;
+  entry.Init(0x334, HAND_ZERO);
+  EXPECT_EQ(entry.GetParentBoardKey(), komori::kNullKey);
+  EXPECT_EQ(entry.GetParentHand(), komori::kNullHand);
+}
+
 TEST(EntryTest, UpdateUnknown_SumMask) {
   Entry entry;
   const BitSet64 bs{334};
   entry.Init(0x334, HAND_ZERO);
-  entry.UpdateUnknown(0, 1, 1, 1, bs);
+  entry.UpdateUnknown(0, 1, 1, 1, bs, 0, HAND_ZERO);
   EXPECT_EQ(entry.SumMask(), bs);
 }
 
@@ -74,14 +91,25 @@ TEST(EntryTest, UpdateUnknown_MinDepth) {
   const Depth depth2{264};
 
   entry.Init(0x264, HAND_ZERO);
-  entry.UpdateUnknown(depth1, 1, 1, 1, BitSet64::Full());
-  entry.UpdateUnknown(depth2, 1, 1, 1, BitSet64::Full());
+  entry.UpdateUnknown(depth1, 1, 1, 1, BitSet64::Full(), 0, HAND_ZERO);
+  entry.UpdateUnknown(depth2, 1, 1, 1, BitSet64::Full(), 0, HAND_ZERO);
   EXPECT_EQ(entry.MinDepth(), depth2);
 
   entry.Init(0x264, HAND_ZERO);
-  entry.UpdateUnknown(depth2, 1, 1, 1, BitSet64::Full());
-  entry.UpdateUnknown(depth1, 1, 1, 1, BitSet64::Full());
+  entry.UpdateUnknown(depth2, 1, 1, 1, BitSet64::Full(), 0, HAND_ZERO);
+  entry.UpdateUnknown(depth1, 1, 1, 1, BitSet64::Full(), 0, HAND_ZERO);
   EXPECT_EQ(entry.MinDepth(), depth2);
+}
+
+TEST(EntryTest, UpdateUnknown_Parent) {
+  Entry entry;
+  const Key board_key{0x3304};
+  const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
+  entry.Init(0x264, HAND_ZERO);
+  entry.UpdateUnknown(334, 1, 1, 1, BitSet64::Full(), board_key, hand);
+
+  EXPECT_EQ(entry.GetParentBoardKey(), board_key);
+  EXPECT_EQ(entry.GetParentHand(), hand);
 }
 
 TEST(EntryTest, LookUp_MinDepth) {
@@ -95,7 +123,7 @@ TEST(EntryTest, LookUp_MinDepth) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand);
-  entry.UpdateUnknown(depth1, 1, 1, 1, BitSet64::Full());
+  entry.UpdateUnknown(depth1, 1, 1, 1, BitSet64::Full(), 0, HAND_ZERO);
   entry.LookUp(MakeHand<PAWN, LANCE>(), depth2, len, pn, dn, use_old_child);
   EXPECT_EQ(entry.MinDepth(), depth1);  // 劣等局面では depth を更新しない
 
@@ -116,7 +144,7 @@ TEST(EntryTest, LookUp_PnDn_Exact) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand);
-  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full());
+  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full(), 0, HAND_ZERO);
   const auto ret1 = entry.LookUp(hand, depth1, len, pn, dn, use_old_child);
   EXPECT_TRUE(ret1);
   EXPECT_EQ(pn, 33);
@@ -147,7 +175,7 @@ TEST(EntryTest, LookUp_PnDn_Superior) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand1);
-  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full());
+  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full(), 0, HAND_ZERO);
   const auto ret1 = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_TRUE(ret1);
   EXPECT_EQ(pn, 1);
@@ -178,7 +206,7 @@ TEST(EntryTest, LookUp_PnDn_Inferior) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand1);
-  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full());
+  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full(), 0, HAND_ZERO);
   const auto ret1 = entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_TRUE(ret1);
   EXPECT_EQ(pn, 33);
@@ -252,7 +280,7 @@ TEST(EntryTest, LookUp_PnDn_Disproven) {
 TEST(EntryTest, SetPossibleRepetition_PnDn) {
   Entry entry;
   entry.Init(0x264, HAND_ZERO);
-  entry.UpdateUnknown(334, 33, 4, 1, BitSet64::Full());
+  entry.UpdateUnknown(334, 33, 4, 1, BitSet64::Full(), 0, HAND_ZERO);
   entry.SetPossibleRepetition();
   EXPECT_EQ(entry.Pn(), 1);
   EXPECT_EQ(entry.Dn(), 1);
@@ -314,7 +342,7 @@ TEST(EntryTest, LookUp_UseOldChild_Superior) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand1);
-  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full());
+  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full(), 0, HAND_ZERO);
   entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_TRUE(use_old_child);
 
@@ -335,7 +363,7 @@ TEST(EntryTest, LookUp_UseOldChild_Inferior) {
   bool use_old_child{false};
 
   entry.Init(0x264, hand1);
-  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full());
+  entry.UpdateUnknown(depth1, 33, 4, 1, BitSet64::Full(), 0, HAND_ZERO);
   entry.LookUp(hand2, depth2, len, pn, dn, use_old_child);
   EXPECT_TRUE(use_old_child);
 
@@ -348,7 +376,7 @@ TEST(EntryTest, UpdateUnknown_Amount) {
   Entry entry;
   const SearchAmount amount{334};
   entry.Init(0x264, HAND_ZERO);
-  entry.UpdateUnknown(264, 26, 4, amount, BitSet64::Full());
+  entry.UpdateUnknown(264, 26, 4, amount, BitSet64::Full(), 0, HAND_ZERO);
   EXPECT_EQ(entry.Amount(), 1 / 2 + amount);
 }
 
@@ -356,7 +384,7 @@ TEST(EntryTest, UpdateUnknown_SaturatedAmount) {
   Entry entry;
   const SearchAmount amount{std::numeric_limits<SearchAmount>::max()};
   entry.Init(0x264, HAND_ZERO);
-  entry.UpdateUnknown(264, 26, 4, amount, BitSet64::Full());
+  entry.UpdateUnknown(264, 26, 4, amount, BitSet64::Full(), 0, HAND_ZERO);
   EXPECT_EQ(entry.Amount(), amount);
 }
 
@@ -365,7 +393,7 @@ TEST(EntryTest, UpdateProven_Amount) {
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO);
-  entry.UpdateUnknown(264, 26, 4, amount1, BitSet64::Full());
+  entry.UpdateUnknown(264, 26, 4, amount1, BitSet64::Full(), 0, HAND_ZERO);
   entry.UpdateProven(MateLen16{334}, amount2);
   EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
 }
@@ -375,7 +403,7 @@ TEST(EntryTest, UpdateDisproven_Amount) {
   const SearchAmount amount1{334};
   const SearchAmount amount2{264};
   entry.Init(0x264, HAND_ZERO);
-  entry.UpdateUnknown(264, 26, 4, amount1, BitSet64::Full());
+  entry.UpdateUnknown(264, 26, 4, amount1, BitSet64::Full(), 0, HAND_ZERO);
   entry.UpdateDisproven(MateLen16{334}, amount2);
   EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
 }

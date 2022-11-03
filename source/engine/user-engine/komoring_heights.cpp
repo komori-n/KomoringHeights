@@ -237,7 +237,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     expansion_list_.Pop();
     n.UndoMove();
 
-    local_expansion.UpdateBestChild(child_result);
+    local_expansion.UpdateBestChild(child_result, n.GetBoardKeyHandPair());
     curr_result = local_expansion.CurrentResult(n);
   }
 

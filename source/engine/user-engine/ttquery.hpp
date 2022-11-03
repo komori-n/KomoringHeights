@@ -4,6 +4,9 @@
 #ifndef KOMORI_TTQUERY_HPP_
 #define KOMORI_TTQUERY_HPP_
 
+#include <optional>
+
+#include "board_key_hand_pair.hpp"
 #include "initial_estimation.hpp"
 #include "repetition_table.hpp"
 #include "search_result.hpp"
@@ -204,6 +207,24 @@ class Query {
     const UnknownData unknown_data{true, BitSet64::Full()};
     return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
   }
+  // LCOV_EXCL_STOP NOLINTEND
+
+  /**
+   * @brief 置換表に保存された現局面の親局面を取得する
+   * @return 現局面の親局面
+   */
+  constexpr std::optional<BoardKeyHandPair> LookUpParent() const noexcept {
+    if (const auto entry = FindEntry(hand_)) {
+      const auto parent_board_key = entry->GetParentBoardKey();
+      const auto parent_hand = entry->GetParentHand();
+
+      if (parent_hand != kNullHand) {
+        return BoardKeyHandPair{parent_board_key, parent_hand};
+      }
+    }
+
+    return std::nullopt;
+  }
 
   /**
    * @brief 詰み／不詰手数専用の LookUp()
@@ -226,14 +247,15 @@ class Query {
 
     return {MateLen{disproven_len}, MateLen{proven_len}};
   }
-  // LCOV_EXCL_STOP NOLINTEND
 
   /**
    * @brief 探索結果 `result` をクラスタに書き込む
    * @param result 探索結果
+   * @param parent_key_hand_pair 親局面の盤面ハッシュ値と持ち駒のペア
    * @note 実際の処理は `SetProven()`, `SetDisproven()`, `SetRepetition()`, `SetUnknown()` を参照。
    */
-  void SetResult(const SearchResult& result) const noexcept {
+  void SetResult(const SearchResult& result,
+                 BoardKeyHandPair parent_key_hand_pair = BoardKeyHandPair{kNullKey, kNullHand}) const noexcept {
     if (result.Pn() == 0) {
       SetFinal<true>(result);
     } else if (result.Dn() == 0) {
@@ -243,7 +265,7 @@ class Query {
         SetFinal<false>(result);
       }
     } else {
-      SetUnknown(result);
+      SetUnknown(result, parent_key_hand_pair);
     }
   }
 
@@ -273,12 +295,8 @@ class Query {
   }
 
   /**
-   * @brief クラスタから持ち駒 `hand` の書き込み用のエントリを1つ選び (`pn`, `dn`) を保存する
+   * @brief クラスタから持ち駒 `hand` の書き込み用のエントリを1つ選び現局面用に初期化し直す
    * @param hand 持ち駒
-   * @param pn pn
-   * @param dn dn
-   * @param amount 探索量
-   * @param sum_mask δ値を和で計算する子の集合（デフォルトは `BitSet64::Full()`）
    * @return 新たに作成したエントリ
    *
    * クラスタ内に空きがある場合、それを用いて新規エントリを作る。もしクラスタ内に空きがないならば、探索量が最も小さい
@@ -287,28 +305,23 @@ class Query {
    * 作成するエントリの持ち駒を `hand_` を直接使わずに `hand` を引数として受け取っている理由は、
    * 詰み／不詰エントリを書き込むときに使用したいため。
    */ // NOLINTNEXTLINE
-  Entry* CreateNewEntry(Hand hand,
-                        PnDn pn,
-                        PnDn dn,
-                        SearchAmount amount,
-                        BitSet64 sum_mask = BitSet64::Full()) const noexcept {
+  Entry* CreateNewEntry(Hand hand) const noexcept {
     Entry* itr = cluster_.head_entry;
     Entry* min_amount_entry = cluster_.head_entry;
     SearchAmount min_amount = std::numeric_limits<SearchAmount>::max();
     // LCOV_EXCL_START
 #if !defined(DOXYGEN_SHOULD_SKIP_THIS)  // NOLINTBEGIN
-#define CREATE_ENTRY_IMPL(i)                                \
-  do {                                                      \
-    if (itr->IsNull()) {                                    \
-      itr->Init(board_key_, hand);                          \
-      itr->UpdateUnknown(depth_, pn, dn, amount, sum_mask); \
-      return itr;                                           \
-    }                                                       \
-    if (itr->Amount() < min_amount) {                       \
-      min_amount_entry = itr;                               \
-      min_amount = itr->Amount();                           \
-    }                                                       \
-    itr++;                                                  \
+#define CREATE_ENTRY_IMPL(i)               \
+  do {                                     \
+    if (itr->IsNull()) {                   \
+      itr->Init(board_key_, hand, depth_); \
+      return itr;                          \
+    }                                      \
+    if (itr->Amount() < min_amount) {      \
+      min_amount_entry = itr;              \
+      min_amount = itr->Amount();          \
+    }                                      \
+    itr++;                                 \
   } while (false)
 
     KOMORI_TTQUERY_UNROLL_CLUSTER(CREATE_ENTRY_IMPL);
@@ -316,8 +329,7 @@ class Query {
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS) // NOLINTEND
         // LCOV_EXCL_STOP
 
-    min_amount_entry->Init(board_key_, hand);
-    min_amount_entry->UpdateUnknown(depth_, pn, dn, amount, sum_mask);
+    min_amount_entry->Init(board_key_, hand, depth_);
     return min_amount_entry;
   }
 
@@ -331,7 +343,7 @@ class Query {
     const auto hand = result.GetHand();
     auto entry = FindEntry(hand);
     if (entry == nullptr) {
-      entry = CreateNewEntry(hand, 1, 1, 1);
+      entry = CreateNewEntry(hand);
     }
 
     const auto len = result.Len();
@@ -351,7 +363,7 @@ class Query {
   void SetRepetition(const SearchResult& /* result */) const noexcept {
     auto entry = FindEntry(hand_);
     if (entry == nullptr) {
-      entry = CreateNewEntry(hand_, 1, 1, 1);
+      entry = CreateNewEntry(hand_);
     }
 
     entry->SetPossibleRepetition();
@@ -362,17 +374,18 @@ class Query {
    * @brief 探索中の探索結果 `result` をクラスタに書き込む関数
    * @param result 探索結果（探索中）
    */
-  void SetUnknown(const SearchResult& result) const noexcept {
+  void SetUnknown(const SearchResult& result, BoardKeyHandPair parent_key_hand_pair) const noexcept {
     const auto pn = result.Pn();
     const auto dn = result.Dn();
     const auto amount = result.Amount();
     const auto sum_mask = result.GetUnknownData().sum_mask;
+    const auto [parent_board_key, parent_hand] = parent_key_hand_pair;
 
-    if (auto entry = FindEntry(hand_)) {
-      entry->UpdateUnknown(depth_, pn, dn, amount, sum_mask);
-    } else {
-      CreateNewEntry(hand_, pn, dn, amount, sum_mask);
+    auto entry = FindEntry(hand_);
+    if (entry == nullptr) {
+      entry = CreateNewEntry(hand_);
     }
+    entry->UpdateUnknown(depth_, pn, dn, amount, sum_mask, parent_board_key, parent_hand);
   }
 
   RepetitionTable* rep_table_;  ///< 千日手テーブル。千日手判定に用いる。

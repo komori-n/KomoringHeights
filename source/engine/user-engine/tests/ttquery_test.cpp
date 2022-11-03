@@ -61,7 +61,7 @@ TEST_F(QueryTest, LoopUp_UnknownExact) {
     const SearchAmount amount{334};
 
     entries_[i].Init(board_key_, hand_);
-    entries_[i].UpdateUnknown(depth_, pn, dn, amount, bs);
+    entries_[i].UpdateUnknown(depth_, pn, dn, amount, bs, 0, HAND_ZERO);
 
     bool does_have_old_child{false};
     const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -83,7 +83,7 @@ TEST_F(QueryTest, LoopUp_UnknownExactRepetition) {
 
   entries_[0].Init(board_key_, hand_);
   entries_[0].SetPossibleRepetition();
-  entries_[0].UpdateUnknown(depth_, pn, dn, 1, BitSet64::Full());
+  entries_[0].UpdateUnknown(depth_, pn, dn, 1, BitSet64::Full(), 0, HAND_ZERO);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -99,9 +99,9 @@ TEST_F(QueryTest, LoopUp_UnknownExactNoRepetition) {
   const SearchAmount amount{334};
 
   entries_[0].Init(board_key_, hand_);
-  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full(), 0, HAND_ZERO);
   entries_[0].SetPossibleRepetition();
-  entries_[0].UpdateUnknown(board_key_, pn, dn, 1, BitSet64::Full());
+  entries_[0].UpdateUnknown(board_key_, pn, dn, 1, BitSet64::Full(), 0, HAND_ZERO);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -117,7 +117,7 @@ TEST_F(QueryTest, LoopUp_DifferentBoardKey) {
   const SearchAmount amount{334};
 
   entries_[0].Init(board_key_ ^ 0x01, hand_);
-  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full(), 0, HAND_ZERO);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -133,7 +133,7 @@ TEST_F(QueryTest, LoopUp_DifferentHand) {
   const SearchAmount amount{334};
 
   entries_[0].Init(board_key_, MakeHand<GOLD>());
-  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full(), 0, HAND_ZERO);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -149,7 +149,7 @@ TEST_F(QueryTest, LoopUp_UnknownSuperior) {
   const SearchAmount amount{334};
 
   entries_[0].Init(board_key_, MakeHand<PAWN>());
-  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full(), 0, HAND_ZERO);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -165,7 +165,7 @@ TEST_F(QueryTest, LoopUp_UnknownInferior) {
   const SearchAmount amount{334};
 
   entries_[0].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>());
-  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full());
+  entries_[0].UpdateUnknown(depth_, pn, dn, amount, BitSet64::Full(), 0, HAND_ZERO);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -205,6 +205,29 @@ TEST_F(QueryTest, LoopUp_Disproven) {
   EXPECT_EQ(result.Len(), MateLen{3340});
   EXPECT_EQ(result.GetHand(), hand);
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
+}
+
+TEST_F(QueryTest, LookUpParent_Empty) {
+  const auto parent_key_hand_pair = query_.LookUpParent();
+  EXPECT_EQ(parent_key_hand_pair, std::nullopt);
+}
+
+TEST_F(QueryTest, LookUpParent_NoData) {
+  entries_[3].Init(board_key_, hand_);
+  const auto parent_key_hand_pair = query_.LookUpParent();
+  EXPECT_EQ(parent_key_hand_pair, std::nullopt);
+}
+
+TEST_F(QueryTest, LookUpParent_Exact) {
+  const Key board_key{0x3304};
+  const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
+
+  entries_[5].Init(board_key_, hand_);
+  entries_[5].UpdateUnknown(264, 1, 1, 1, BitSet64::Full(), board_key, hand);
+  const auto parent_key_hand_pair = query_.LookUpParent();
+  ASSERT_NE(parent_key_hand_pair, std::nullopt);
+  EXPECT_EQ(parent_key_hand_pair->board_key, board_key);
+  EXPECT_EQ(parent_key_hand_pair->hand, hand);
 }
 
 TEST_F(QueryTest, FinalRange) {
@@ -263,7 +286,7 @@ TEST_F(QueryTest, SetResult_UnknownOverwrite) {
   for (std::size_t i = 0; i < Cluster::kSize; ++i) {
     // entries_[8] の探索量が最小になるように初期化
     entries_[i].Init(0x264, HAND_ZERO);
-    entries_[i].UpdateUnknown(1, 1, 1, 1 + (8 - i) * (8 - i), BitSet64::Full());
+    entries_[i].UpdateUnknown(1, 1, 1, 1 + (8 - i) * (8 - i), BitSet64::Full(), 0, HAND_ZERO);
   }
 
   const UnknownData unknown_data{};

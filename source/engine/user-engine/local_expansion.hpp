@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "bitset.hpp"
+#include "board_key_hand_pair.hpp"
 #include "delayed_move_list.hpp"
 #include "fixed_size_stack.hpp"
 #include "hands.hpp"
@@ -152,12 +153,12 @@ class LocalExpansion {
     }
   }
 
-  void UpdateBestChild(const SearchResult& search_result) {
+  void UpdateBestChild(const SearchResult& search_result, BoardKeyHandPair key_hand_pair) {
     const auto old_i_raw = idx_[0];
     auto& query = queries_[old_i_raw];
     auto& result = results_[old_i_raw];
     result = search_result;
-    query.SetResult(search_result);
+    query.SetResult(search_result, key_hand_pair);
 
     if (search_result.Delta(or_node_) == 0 && delayed_move_list_.Next(old_i_raw)) {
       // 後回しにした手があるならそれを復活させる

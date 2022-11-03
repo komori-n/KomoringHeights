@@ -134,8 +134,9 @@ class alignas(64) Entry {
    * @brief エントリの初期化を行う
    * @param board_key 盤面ハッシュ値
    * @param hand      持ち駒
+   * @param depth     現在の探索深さ（デフォルト： `kDepthMax`）
    */
-  constexpr void Init(Key board_key, Hand hand) noexcept {
+  constexpr void Init(Key board_key, Hand hand, Depth depth = kDepthMax) noexcept {
     // 高速化のために初期化をサボれるところではサボる
     hand_ = hand;
     amount_ = 1;
@@ -145,12 +146,11 @@ class alignas(64) Entry {
 
     pn_ = 1;
     dn_ = 1;
-    min_depth_ = static_cast<std::int16_t>(kDepthMax);
+    min_depth_ = static_cast<std::int16_t>(depth);
     repetition_state_ = RepetitionState::kNone;
 
     parent_hand_ = kNullHand;
-    // parent_hand に無効値が入っていれば parent_board_key の初期化は不要
-    // parent_board_key_ = kNullKey;
+    parent_board_key_ = kNullKey;
     sum_mask_ = BitSet64::Full();
   }
 
@@ -185,6 +185,10 @@ class alignas(64) Entry {
   constexpr SearchAmount Amount() const noexcept { return amount_; }
   /// 現局面の持ち駒
   constexpr Hand GetHand() const noexcept { return hand_; }
+  /// 親局面の盤面ハッシュ値
+  constexpr Key GetParentBoardKey() const noexcept { return parent_board_key_; }
+  /// 親局面の持ち駒
+  constexpr Hand GetParentHand() const noexcept { return parent_hand_; }
   /// δ値を和で計算すべき子の集合
   constexpr BitSet64 SumMask() const noexcept { return sum_mask_; }
 
@@ -213,13 +217,23 @@ class alignas(64) Entry {
    * @param dn     dn
    * @param amount 探索量
    * @param sum_mask δ値を和で計算する子の集合
+   * @param parent_board_key 親局面の盤面ハッシュ値
+   * @param parent_hand 親局面の攻め方の持ち駒
    * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
    */
-  constexpr void UpdateUnknown(Depth depth, PnDn pn, PnDn dn, SearchAmount amount, BitSet64 sum_mask) noexcept {
+  constexpr void UpdateUnknown(Depth depth,
+                               PnDn pn,
+                               PnDn dn,
+                               SearchAmount amount,
+                               BitSet64 sum_mask,
+                               Key parent_board_key,
+                               Hand parent_hand) noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
     min_depth_ = std::min(min_depth_, depth16);
     pn_ = pn;
     dn_ = dn;
+    parent_board_key_ = parent_board_key;
+    parent_hand_ = parent_hand;
     sum_mask_ = sum_mask;
     AddAmount(amount);
   }
