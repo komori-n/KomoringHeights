@@ -93,8 +93,7 @@ class LocalExpansion {
         }
 
         query = tt.BuildChildQuery(n, move.move);
-        result =
-            query.LookUp<false>(does_have_old_child_, len - 1, [&n, &move]() { return InitialPnDn(n, move.move); });
+        result = query.LookUp(does_have_old_child_, len - 1, [&n, &move]() { return InitialPnDn(n, move.move); });
 
         if (!result.IsFinal() && !or_node_ && first_search && result.GetUnknownData().is_first_visit) {
           nn.DoMove(move.move);

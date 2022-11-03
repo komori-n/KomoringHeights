@@ -133,24 +133,11 @@ class Query {
   /// Destructor
   ~Query() noexcept = default;
 
-  /**
-   * @brief `LookUp()` の初期値関数なし版。
-   * @tparam kCreateIfNotFound   もしエントリが見つからなかった場合、新規作成するかどうか
-   * @param does_have_old_child  unproven old child の結果を使った場合 `true` が書かれる変数
-   * @param len 探している詰み手数
-   * @return Look Up 結果
-   */
-  template <bool kCreateIfNotFound>
-  SearchResult LookUp(bool& does_have_old_child, MateLen len) const {
-    return LookUp<kCreateIfNotFound>(does_have_old_child, len, []() { return std::make_pair(kPnDnUnit, kPnDnUnit); });
-  }
-
   // テンプレート関数のカバレッジは悲しいことになるので取らない
   // LCOV_EXCL_START NOLINTBEGIN
 
   /**
    * @brief クラスタから結果を集めてきて返す関数。
-   * @tparam kCreateIfNotFound   もしエントリが見つからなかった場合、新規作成するかどうか
    * @tparam InitialEvalFunc 初期値関数の型
    * @param does_have_old_child  unproven old child の結果を使った場合 `true` が書かれる変数
    * @param len 探している詰み手数
@@ -165,7 +152,7 @@ class Query {
    * @note 詰将棋エンジンで最も最適化の効果がある関数。1回1回の呼び出し時間は大したことがないが、探索中にたくさん
    * 呼ばれるため、ループアンローリングなどの小手先の高速化でかなり全体の処理性能向上に貢献できる。
    */
-  template <bool kCreateIfNotFound, typename InitialEvalFunc>
+  template <typename InitialEvalFunc>
   SearchResult LookUp(bool& does_have_old_child, MateLen len, InitialEvalFunc&& eval_func) const {
     MateLen16 len16{len};
     PnDn pn = 1;
@@ -213,11 +200,6 @@ class Query {
     const auto [init_pn, init_dn] = std::forward<InitialEvalFunc>(eval_func)();
     pn = std::max(pn, init_pn);
     dn = std::max(dn, init_dn);
-
-    if constexpr (kCreateIfNotFound) {
-      // このエントリに対し費やした探索量は `amount` ではなく 1 なので注意。
-      CreateNewEntry(hand_, pn, dn, 1);
-    }
 
     const UnknownData unknown_data{true, kNullKey, kNullHand, BitSet64::Full()};
     return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
