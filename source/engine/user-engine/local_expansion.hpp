@@ -321,7 +321,7 @@ class LocalExpansion {
     if (or_node_) {
       const auto& result = FrontResult();
       const auto best_move = mp_[idx_[0]];
-      const auto proof_hand = BeforeHand(n.Pos(), best_move, result.GetHand());
+      const auto proof_hand = BeforeHand(n.Pos(), best_move, result.GetFinalData().hand);
       const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
       const auto amount = result.Amount();
 
@@ -334,7 +334,7 @@ class LocalExpansion {
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
 
-        set.Update(result.GetHand());
+        set.Update(result.GetFinalData().hand);
         amount = std::max(amount, result.Amount());
         if (MateLen{result.Len()} + 1 > mate_len) {
           mate_len = std::min(MateLen{result.Len()} + 1, kDepthMaxMateLen);
@@ -367,7 +367,7 @@ class LocalExpansion {
         const auto& result = results_[i_raw];
         const auto child_move = mp_[i_raw];
 
-        set.Update(BeforeHand(n.Pos(), child_move, result.GetHand()));
+        set.Update(BeforeHand(n.Pos(), child_move, result.GetFinalData().hand));
         amount = std::max(amount, result.Amount());
         if (result.Len() + 1 < mate_len) {
           mate_len = result.Len() + 1;
@@ -379,7 +379,7 @@ class LocalExpansion {
       return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
     } else {
       const auto& result = FrontResult();
-      auto disproof_hand = result.GetHand();
+      auto disproof_hand = result.GetFinalData().hand;
       const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
       const auto amount = result.Amount();
 
@@ -400,13 +400,12 @@ class LocalExpansion {
     }
   }
 
-  SearchResult GetUnknownResult(const Node& n) const {
+  SearchResult GetUnknownResult(const Node& /* n */) const {
     const auto& result = FrontResult();
     const std::uint32_t amount = result.Amount() + mp_.size() / 2;
-    const auto or_hand = n.OrHand();
 
     const UnknownData unknown_data{false, sum_mask_};
-    return SearchResult::MakeUnknown(GetPn(), GetDn(), or_hand, len_, amount, unknown_data);
+    return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, unknown_data);
   }
 
   void ResortFront() {

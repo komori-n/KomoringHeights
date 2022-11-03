@@ -40,7 +40,7 @@ TEST(CheckObviousFinalOrNode, MateIn1Ply) {
     ASSERT_TRUE(res) << s;
     EXPECT_TRUE(res->IsFinal()) << s;
     EXPECT_EQ(res->Pn(), 0) << s;
-    EXPECT_EQ(res->GetHand(), h) << s;
+    EXPECT_EQ(res->GetFinalData().hand, h) << s;
   }
 }
 

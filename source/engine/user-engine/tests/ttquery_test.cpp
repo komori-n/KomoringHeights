@@ -188,8 +188,8 @@ TEST_F(QueryTest, LoopUp_Proven) {
   EXPECT_EQ(result.Pn(), 0);
   EXPECT_EQ(result.Dn(), kInfinitePnDn);
   EXPECT_EQ(result.Len(), MateLen{264});
-  EXPECT_EQ(result.GetHand(), hand);
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
+  EXPECT_EQ(result.GetFinalData().hand, hand);
 }
 
 TEST_F(QueryTest, LoopUp_Disproven) {
@@ -203,8 +203,8 @@ TEST_F(QueryTest, LoopUp_Disproven) {
   EXPECT_EQ(result.Pn(), kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
   EXPECT_EQ(result.Len(), MateLen{3340});
-  EXPECT_EQ(result.GetHand(), hand);
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
+  EXPECT_EQ(result.GetFinalData().hand, hand);
 }
 
 TEST_F(QueryTest, LookUpParent_Empty) {
@@ -251,7 +251,7 @@ TEST_F(QueryTest, SetResult_UnknownNew) {
   const PnDn dn{4};
   const SearchAmount amount{334};
   const UnknownData unknown_data{};
-  const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen{334}, amount, unknown_data);
+  const SearchResult result = SearchResult::MakeUnknown(pn, dn, MateLen{334}, amount, unknown_data);
 
   query_.SetResult(result);
   EXPECT_EQ(entries_[0].Pn(), pn);
@@ -267,7 +267,7 @@ TEST_F(QueryTest, SetResult_UnknownUpdate) {
     entries_[i].Init(board_key_, hand_);
 
     const UnknownData unknown_data{};
-    const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen{334}, amount, unknown_data);
+    const SearchResult result = SearchResult::MakeUnknown(pn, dn, MateLen{334}, amount, unknown_data);
 
     query_.SetResult(result);
     EXPECT_EQ(entries_[i].Pn(), pn) << i;
@@ -290,7 +290,7 @@ TEST_F(QueryTest, SetResult_UnknownOverwrite) {
   }
 
   const UnknownData unknown_data{};
-  const SearchResult result = SearchResult::MakeUnknown(pn, dn, hand_, MateLen{334}, amount, unknown_data);
+  const SearchResult result = SearchResult::MakeUnknown(pn, dn, MateLen{334}, amount, unknown_data);
   query_.SetResult(result);
 
   EXPECT_EQ(entries_[8].Pn(), pn);

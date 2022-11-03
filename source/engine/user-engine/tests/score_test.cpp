@@ -11,7 +11,7 @@ using komori::SearchResult;
 using komori::UnknownData;
 
 TEST(ScoreTest, MakeUnknown_None) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
   EXPECT_EQ(s1.ToString(), "cp 0");
@@ -21,7 +21,7 @@ TEST(ScoreTest, MakeUnknown_None) {
 }
 
 TEST(ScoreTest, MakeUnknown_Dn) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kDn, result, true);
   EXPECT_EQ(s1.ToString(), "cp 4");
@@ -31,7 +31,7 @@ TEST(ScoreTest, MakeUnknown_Dn) {
 }
 
 TEST(ScoreTest, MakeUnknown_MinusPn) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kMinusPn, result, true);
   EXPECT_EQ(s1.ToString(), "cp -33");
@@ -41,7 +41,7 @@ TEST(ScoreTest, MakeUnknown_MinusPn) {
 }
 
 TEST(ScoreTest, MakeUnknown_Ponanza) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, HAND_ZERO, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kPonanza, result, true);
   EXPECT_EQ(s1.ToString(), "cp -1266");

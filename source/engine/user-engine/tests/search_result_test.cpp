@@ -12,11 +12,10 @@ using komori::UnknownData;
 
 TEST(SearchResultTest, ConstructUnknown) {
   const UnknownData unknown_data{true, BitSet64{445}};
-  const auto result = SearchResult::MakeUnknown(33, 4, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
+  const auto result = SearchResult::MakeUnknown(33, 4, MateLen{264}, 10, unknown_data);
 
   EXPECT_EQ(result.Pn(), 33);
   EXPECT_EQ(result.Dn(), 4);
-  EXPECT_EQ(result.GetHand(), (MakeHand<PAWN, PAWN, KNIGHT>()));
   EXPECT_EQ(result.Len(), MateLen{264});
   EXPECT_EQ(result.Amount(), 10);
   EXPECT_FALSE(result.IsFinal());
@@ -29,11 +28,11 @@ TEST(SearchResultTest, MakeProven) {
 
   EXPECT_EQ(result.Pn(), 0);
   EXPECT_EQ(result.Dn(), komori::kInfinitePnDn);
-  EXPECT_EQ(result.GetHand(), (MakeHand<PAWN, SILVER>()));
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 20);
   EXPECT_TRUE(result.IsFinal());
   EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<PAWN, SILVER>()));
 }
 
 TEST(SearchResultTest, MakeDisproven) {
@@ -41,11 +40,11 @@ TEST(SearchResultTest, MakeDisproven) {
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
-  EXPECT_EQ(result.GetHand(), (MakeHand<GOLD, GOLD>()));
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 30);
   EXPECT_TRUE(result.IsFinal());
   EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<GOLD, GOLD>()));
 }
 
 TEST(SearchResultTest, MakeRepetition) {
@@ -53,21 +52,20 @@ TEST(SearchResultTest, MakeRepetition) {
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
-  EXPECT_EQ(result.GetHand(), (MakeHand<ROOK, BISHOP>()));
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 40);
   EXPECT_TRUE(result.IsFinal());
   EXPECT_TRUE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<ROOK, BISHOP>()));
 }
 
 TEST(SearchResultTest, InitUnknown) {
   SearchResult result{};
   const UnknownData unknown_data{true, BitSet64{445}};
-  result.InitUnknown(33, 4, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
+  result.InitUnknown(33, 4, MateLen{264}, 10, unknown_data);
 
   EXPECT_EQ(result.Pn(), 33);
   EXPECT_EQ(result.Dn(), 4);
-  EXPECT_EQ(result.GetHand(), (MakeHand<PAWN, PAWN, KNIGHT>()));
   EXPECT_EQ(result.Len(), MateLen{264});
   EXPECT_EQ(result.Amount(), 10);
   EXPECT_FALSE(result.IsFinal());
@@ -81,10 +79,10 @@ TEST(SearchResultTest, InitProven) {
 
   EXPECT_EQ(result.Pn(), 0);
   EXPECT_EQ(result.Dn(), komori::kInfinitePnDn);
-  EXPECT_EQ(result.GetHand(), (MakeHand<PAWN, SILVER>()));
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 20);
   EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<PAWN, SILVER>()));
 }
 
 TEST(SearchResultTest, InitDisproven) {
@@ -93,10 +91,10 @@ TEST(SearchResultTest, InitDisproven) {
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
-  EXPECT_EQ(result.GetHand(), (MakeHand<GOLD, GOLD>()));
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 30);
   EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<GOLD, GOLD>()));
 }
 
 TEST(SearchResultTest, InitRepetition) {
@@ -105,10 +103,10 @@ TEST(SearchResultTest, InitRepetition) {
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
-  EXPECT_EQ(result.GetHand(), (MakeHand<ROOK, BISHOP>()));
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 40);
   EXPECT_TRUE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<ROOK, BISHOP>()));
 }
 
 TEST(SearchResultTest, Phi) {
@@ -129,9 +127,9 @@ TEST(SearchResultComparerTest, OrNode) {
   SearchResultComparer sr_comparer{true};
 
   const UnknownData unknown_data{true, BitSet64{445}};
-  const auto u1 = SearchResult::MakeUnknown(33, 4, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
-  const auto u2 = SearchResult::MakeUnknown(26, 4, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
-  const auto u3 = SearchResult::MakeUnknown(33, 5, MakeHand<PAWN, PAWN, KNIGHT>(), MateLen{264}, 10, unknown_data);
+  const auto u1 = SearchResult::MakeUnknown(33, 4, MateLen{264}, 10, unknown_data);
+  const auto u2 = SearchResult::MakeUnknown(26, 4, MateLen{264}, 10, unknown_data);
+  const auto u3 = SearchResult::MakeUnknown(33, 5, MateLen{264}, 10, unknown_data);
   const auto f1 = SearchResult::MakeFinal<false>(MakeHand<PAWN, SILVER>(), MateLen{334}, 20);
   const auto f2 = SearchResult::MakeFinal<false, true>(MakeHand<PAWN, SILVER>(), MateLen{334}, 20);
 

@@ -197,7 +197,7 @@ class Query {
 
     if (found_exact) {
       const UnknownData unknown_data{false, sum_mask};
-      return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
+      return SearchResult::MakeUnknown(pn, dn, len, amount, unknown_data);
     }
 
     const auto [init_pn, init_dn] = std::forward<InitialEvalFunc>(eval_func)();
@@ -205,7 +205,7 @@ class Query {
     dn = std::max(dn, init_dn);
 
     const UnknownData unknown_data{true, BitSet64::Full()};
-    return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
+    return SearchResult::MakeUnknown(pn, dn, len, amount, unknown_data);
   }
   // LCOV_EXCL_STOP NOLINTEND
 
@@ -340,7 +340,7 @@ class Query {
    */
   template <bool kIsProven>
   void SetFinal(const SearchResult& result) const noexcept {
-    const auto hand = result.GetHand();
+    const auto hand = result.GetFinalData().hand;
     auto entry = FindEntry(hand);
     if (entry == nullptr) {
       entry = CreateNewEntry(hand);
