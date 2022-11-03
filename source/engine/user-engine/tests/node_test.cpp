@@ -18,12 +18,15 @@ TEST(NodeTest, PositionValues) {
   EXPECT_EQ(n->GetKey(), p.key());
   EXPECT_EQ(n->BoardKey(), p.state()->board_key());
   EXPECT_EQ(n->GetPathKey(), 33);
+  EXPECT_EQ(n->GetBoardKeyHandPair(), (komori::BoardKeyHandPair{p.state()->board_key(), p.hand_of(WHITE)}));
 
   const Move m = make_move_drop(BISHOP, SQ_57, WHITE);
   EXPECT_EQ(n->KeyAfter(m), p.key_after(m));
   EXPECT_EQ(n->BoardKeyAfter(m), p.board_key_after(m));
   EXPECT_EQ(n->PathKeyAfter(m), komori::PathKeyAfter(33, m, 4));
   EXPECT_EQ(n->OrHandAfter(m), komori::AfterHand(p, m, p.hand_of(WHITE)));
+  EXPECT_EQ(n->BoardKeyHandPairAfter(m),
+            (komori::BoardKeyHandPair{p.board_key_after(m), komori::AfterHand(p, m, p.hand_of(WHITE))}));
 }
 
 TEST(NodeTest, IsRootOrNode) {

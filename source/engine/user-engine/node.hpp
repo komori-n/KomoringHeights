@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "../../mate/mate.h"
+#include "board_key_hand_pair.hpp"
 #include "hands.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
@@ -87,6 +88,8 @@ class Node {
   Key BoardKey() const { return Pos().state()->board_key(); }
   /// 現在の経路ハッシュ値
   Key GetPathKey() const { return path_key_; }
+  /// 盤面ハッシュ値と攻め方の持ち駒を同時に取得する
+  BoardKeyHandPair GetBoardKeyHandPair() const { return {BoardKey(), OrHand()}; }
 
   /// `move` 後のハッシュ値
   Key KeyAfter(Move move) const { return Pos().key_after(move); }
@@ -102,6 +105,8 @@ class Node {
       return OrHand();
     }
   }
+  /// `move` 後の盤面ハッシュ値と攻め方の持ち駒を同時に取得する
+  BoardKeyHandPair BoardKeyHandPairAfter(Move move) const { return {BoardKeyAfter(move), OrHandAfter(move)}; }
 
   /// `move` で1手進める
   void DoMove(Move move) {

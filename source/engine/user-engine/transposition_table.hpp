@@ -6,6 +6,7 @@
 
 #include <vector>
 
+#include "board_key_hand_pair.hpp"
 #include "node.hpp"
 #include "repetition_table.hpp"
 #include "ttentry.hpp"
@@ -201,16 +202,16 @@ class TranspositionTableImpl {
 
   /**
    * @brief 生のハッシュ値からクエリを構築する
-   * @param board_key 盤面ハッシュ値
-   * @param or_hand  持ち駒
+   * @param key_hand_pair 盤面ハッシュ値と持ち駒のペア
    * @param path_key 経路ハッシュ値（default: kNullKey）
    * @return クエリ
    * @note 二重カウント検出用
    */
-  Query BuildQueryByKey(Key board_key, Hand or_hand, Key path_key = kNullKey) {
+  Query BuildQueryByKey(BoardKeyHandPair key_hand_pair, Key path_key = kNullKey) {
+    const auto [board_key, hand] = key_hand_pair;
     auto cluster = ClusterOf(board_key);
     const auto depth = kDepthMax;
-    return {rep_table_, cluster, path_key, board_key, or_hand, depth};
+    return {rep_table_, cluster, path_key, board_key, hand, depth};
   }
 
   /**

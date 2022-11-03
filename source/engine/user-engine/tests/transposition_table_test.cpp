@@ -72,7 +72,7 @@ TEST_F(TranspositionTableTest, BuildQueryByKey_Normal) {
   const Key board_key = 0x334334334334;
   const Key path_key = 0x264264264264;
   const auto hand = MakeHand<PAWN, LANCE, LANCE>();
-  const auto query = tt_.BuildQueryByKey(board_key, hand, path_key);
+  const auto query = tt_.BuildQueryByKey({board_key, hand}, path_key);
 
   EXPECT_TRUE(query.cluster.head_entry >= &*tt_.begin());
   EXPECT_TRUE(query.cluster.head_entry + Cluster::kSize <= &*tt_.end());
@@ -87,7 +87,7 @@ TEST_F(TranspositionTableTest, BuildQueryByKey_ClusterHasUniformDistribution) {
   std::unordered_set<std::size_t> cluster_ids;
   for (Key k = 0; k < 2 * cluster_head_num; ++k) {
     Key board_key = (0xffff'ffff / 2 / cluster_head_num) * k;
-    const auto query = tt_.BuildQueryByKey(board_key, HAND_ZERO);
+    const auto query = tt_.BuildQueryByKey({board_key, HAND_ZERO});
     ASSERT_TRUE(query.cluster.head_entry >= &*tt_.begin()) << k;
     ASSERT_TRUE(query.cluster.head_entry + Cluster::kSize <= &*tt_.end()) << k;
 
@@ -98,7 +98,7 @@ TEST_F(TranspositionTableTest, BuildQueryByKey_ClusterHasUniformDistribution) {
 }
 
 TEST_F(TranspositionTableTest, Hashfull_EmptyAfterNewSearch) {
-  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
 
   query.rep_table.Insert(0x334);
   for (auto itr = query.cluster.head_entry; itr != &*tt_.end(); ++itr) {
@@ -112,7 +112,7 @@ TEST_F(TranspositionTableTest, Hashfull_EmptyAfterNewSearch) {
 
 TEST_F(TranspositionTableTest, Hashfull_Full) {
   // board_key = 0 を渡すことで先頭クラスタが取れるはず
-  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
   ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
 
   query.rep_table.Insert(0x334);
@@ -127,7 +127,7 @@ TEST_F(TranspositionTableTest, Hashfull_Full) {
 
 TEST_F(TranspositionTableTest, CollectGarbage_DoNothing) {
   // board_key = 0 を渡すことで先頭クラスタが取れるはず
-  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
   ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
 
   auto itr = query.cluster.head_entry;
@@ -142,7 +142,7 @@ TEST_F(TranspositionTableTest, CollectGarbage_DoNothing) {
 
 TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Increasing) {
   // board_key = 0 を渡すことで先頭クラスタが取れるはず
-  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
   ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
 
   auto itr = query.cluster.head_entry + 1;
@@ -161,7 +161,7 @@ TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Increasing) {
 
 TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Decreasing) {
   // board_key = 0 を渡すことで先頭クラスタが取れるはず
-  auto query = tt_.BuildQueryByKey(0, HAND_ZERO, 0);
+  auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
   ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
 
   auto itr = query.cluster.head_entry + 334;
