@@ -404,7 +404,7 @@ class LocalExpansion {
     const std::uint32_t amount = result.Amount() + mp_.size() / 2;
     const auto or_hand = n.OrHand();
 
-    const UnknownData unknown_data{false, kNullKey, kNullHand, sum_mask_};
+    const UnknownData unknown_data{false, sum_mask_};
     return SearchResult::MakeUnknown(GetPn(), GetDn(), or_hand, len_, amount, unknown_data);
   }
 

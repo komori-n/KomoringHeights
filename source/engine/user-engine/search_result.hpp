@@ -13,10 +13,8 @@
 namespace komori {
 /// 結論が出ていないノード（Unknown）の探索結果
 struct UnknownData {
-  bool is_first_visit;   ///< 初めて訪れた局面かどうか
-  Key parent_board_key;  ///< 1手前の盤面ハッシュ値
-  Hand parent_hand;      ///< 1手前の攻め方の持ち駒
-  BitSet64 sum_mask;     ///< δ値を和で計算すべき子の集合
+  bool is_first_visit;  ///< 初めて訪れた局面かどうか
+  BitSet64 sum_mask;    ///< δ値を和で計算すべき子の集合
 };
 
 /// 結論が出てたノード（Final）の探索結果

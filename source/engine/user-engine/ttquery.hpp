@@ -193,7 +193,7 @@ class Query {
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
 
     if (found_exact) {
-      const UnknownData unknown_data{false, kNullKey, kNullHand, sum_mask};
+      const UnknownData unknown_data{false, sum_mask};
       return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
     }
 
@@ -201,7 +201,7 @@ class Query {
     pn = std::max(pn, init_pn);
     dn = std::max(dn, init_dn);
 
-    const UnknownData unknown_data{true, kNullKey, kNullHand, BitSet64::Full()};
+    const UnknownData unknown_data{true, BitSet64::Full()};
     return SearchResult::MakeUnknown(pn, dn, hand_, len, amount, unknown_data);
   }
 
