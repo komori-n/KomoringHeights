@@ -208,26 +208,33 @@ TEST_F(QueryTest, LoopUp_Disproven) {
 }
 
 TEST_F(QueryTest, LookUpParent_Empty) {
-  const auto parent_key_hand_pair = query_.LookUpParent();
+  PnDn pn{1}, dn{1};
+  const auto parent_key_hand_pair = query_.LookUpParent(pn, dn);
   EXPECT_EQ(parent_key_hand_pair, std::nullopt);
 }
 
 TEST_F(QueryTest, LookUpParent_NoData) {
+  PnDn pn{1}, dn{1};
   entries_[3].Init(board_key_, hand_);
-  const auto parent_key_hand_pair = query_.LookUpParent();
+  const auto parent_key_hand_pair = query_.LookUpParent(pn, dn);
   EXPECT_EQ(parent_key_hand_pair, std::nullopt);
 }
 
 TEST_F(QueryTest, LookUpParent_Exact) {
+  const PnDn ans_pn{33};
+  const PnDn ans_dn{4};
   const Key board_key{0x3304};
   const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
 
   entries_[5].Init(board_key_, hand_);
-  entries_[5].UpdateUnknown(264, 1, 1, 1, BitSet64::Full(), board_key, hand);
-  const auto parent_key_hand_pair = query_.LookUpParent();
+  entries_[5].UpdateUnknown(264, ans_pn, ans_dn, 1, BitSet64::Full(), board_key, hand);
+  PnDn pn{1}, dn{1};
+  const auto parent_key_hand_pair = query_.LookUpParent(pn, dn);
   ASSERT_NE(parent_key_hand_pair, std::nullopt);
   EXPECT_EQ(parent_key_hand_pair->board_key, board_key);
   EXPECT_EQ(parent_key_hand_pair->hand, hand);
+  EXPECT_EQ(pn, ans_pn);
+  EXPECT_EQ(dn, ans_dn);
 }
 
 TEST_F(QueryTest, FinalRange) {

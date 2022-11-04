@@ -177,14 +177,18 @@ class Query {
 
   /**
    * @brief 置換表に保存された現局面の親局面を取得する
+   * @param[out] pn 現局面のpn
+   * @param[out] dn 現局面のdn
    * @return 現局面の親局面
    */
-  constexpr std::optional<BoardKeyHandPair> LookUpParent() const noexcept {
+  constexpr std::optional<BoardKeyHandPair> LookUpParent(PnDn& pn, PnDn& dn) const noexcept {
     if (const auto entry = FindEntry(hand_)) {
       const auto parent_board_key = entry->GetParentBoardKey();
       const auto parent_hand = entry->GetParentHand();
 
       if (parent_hand != kNullHand) {
+        pn = entry->Pn();
+        dn = entry->Dn();
         return BoardKeyHandPair{parent_board_key, parent_hand};
       }
     }
