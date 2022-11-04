@@ -34,6 +34,24 @@
 #define KOMORI_PRECONDITION(cond) ConsumeValues({cond})
 #endif
 
+#if !defined(DOXYGEN_SHOULD_SKIP_THIS)
+// X を文字列にする。このままでは文字列化できないので IMPL マクロを経由する。
+#define KOMORI_TO_STRING(X) KOMORI_TO_STRING_IMPL(X)
+// X を文字列化する。
+#define KOMORI_TO_STRING_IMPL(X) #X
+
+#if defined(__clang__)
+/// clang用 unroll
+#define KOMORI_UNROLL(n) _Pragma(KOMORI_TO_STRING(unroll n))
+#elif defined(__GNUC__)
+/// GCC用 unroll
+#define KOMORI_UNROLL(n) _Pragma(KOMORI_TO_STRING(GCC unroll n))
+#else
+/// pragma unroll
+#define KOMORI_UNROLL(n)
+#endif
+#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
+
 /// Komoring Heights
 namespace komori {
 // <namespaceコメント> NOLINTBEGIN

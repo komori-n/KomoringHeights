@@ -14,6 +14,11 @@
 #include "typedefs.hpp"
 
 namespace komori::tt {
+/// クラスタサイズ。for文をアンロールするためにプリプロリス中に値が必要なのでマクロ定数にする。
+#define KOMORI_TTQUERY_CLUSTER_SIZE 16
+/// クラスタの for ループのアンロール命令。for 文の前につけるとコンパイラがアンロールしてくれる。
+#define KOMORI_CLUSTER_UNROLL KOMORI_UNROLL(KOMORI_TTQUERY_CLUSTER_SIZE)
+
 /**
  * @brief `Query` の読み書きで使用する `Entry` の連続領域を指す構造体
  *
@@ -22,8 +27,7 @@ namespace komori::tt {
  *
  * ## 実装詳細
  *
- * 連続なエントリを管理する。クラスタサイズ（`kSize`）はコンパイル時定数なので、領域へのアクセスはマクロにより
- * ループアンロールできる。（詳しくは `KOMORI_TTQUERY_UNROLL_CLUSTER` を参照）
+ * 連続なエントリを管理する。クラスタサイズ（`kSize`）はコンパイル時定数。
  * この `kSize` 個のエントリは他のクラスと一部を共有する可能性がある。
  *
  * クラスタサイズが定数なので、構造体内では領域の先頭へのポインタだけを保持する。
@@ -35,7 +39,7 @@ struct Cluster {
    * この値を大きくすることで、`Entry` が格納可能な範囲が広がるため、探索済情報が消されづらくなる。一方、この値を
    * 小さくすることで、`Entry` を探す範囲が狭まるので動作速度が向上する。
    */
-  static constexpr inline std::size_t kSize{16U};
+  static constexpr inline std::size_t kSize{KOMORI_TTQUERY_CLUSTER_SIZE};
 
   /**
    * @brief クラスタの先頭へのポインタ。[`head_entry`, `head_entry + kSize`) の領域を使用する
@@ -44,36 +48,6 @@ struct Cluster {
    */
   Entry* head_entry;
 };
-
-/**
- * @brief Cluster に関する for ループのループをアンロールするマクロ。
- *
- * ttv3query.hpp 内でのみ使用可能。
- * for 文で Cluster::kSize 周回す時間も惜しいので、マクロを用いてゴリ押しでループ展開を行う。
- *
- * @note よくやるテンプレート+lambda式ではなくマクロを用いてループ展開を行う理由は、ループの途中で early return
- * できるようにするため。
- */
-#define KOMORI_TTQUERY_UNROLL_CLUSTER(func) \
-  do {                                      \
-    static_assert(Cluster::kSize == 16);    \
-    func(0);                                \
-    func(1);                                \
-    func(2);                                \
-    func(3);                                \
-    func(4);                                \
-    func(5);                                \
-    func(6);                                \
-    func(7);                                \
-    func(8);                                \
-    func(9);                                \
-    func(10);                               \
-    func(11);                               \
-    func(12);                               \
-    func(13);                               \
-    func(14);                               \
-    func(15);                               \
-  } while (false)
 
 /**
  * @brief 連続する複数エントリを束ねてまとめて読み書きするためのクラス。
@@ -162,38 +136,30 @@ class Query {
     PnDn dn = 1;
     SearchAmount amount = 1;
 
-    Entry* itr = cluster_.head_entry;
+    auto itr = cluster_.head_entry;
     bool found_exact = false;
     BitSet64 sum_mask = BitSet64::Full();
 
-    // Doxygen によるドキュメンテーションを無効にする
-#if !defined(DOXYGEN_SHOULD_SKIP_THIS)
-#define LOOKUP_UNROLL_IMPL(i)                                                            \
-  do {                                                                                   \
-    /* `IsFor()` -> `IsNull()` の順で呼び出すことで2%高速化 */              \
-    if (itr->IsFor(board_key_) && !itr->IsNull()) {                                      \
-      if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {              \
-        amount = std::max(amount, itr->Amount());                                        \
-        if (pn == 0) {                                                                   \
-          return SearchResult::MakeFinal<true>(itr->GetHand(), MateLen{len16}, amount);  \
-        } else if (dn == 0) {                                                            \
-          return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen{len16}, amount); \
-        } else if (itr->IsFor(board_key_, hand_)) {                                      \
-          if (itr->IsPossibleRepetition() && rep_table_->Contains(path_key_)) {          \
-            return SearchResult::MakeFinal<false, true>(hand_, len, amount);             \
-          }                                                                              \
-                                                                                         \
-          found_exact = true;                                                            \
-          sum_mask = itr->SumMask();                                                     \
-        }                                                                                \
-      }                                                                                  \
-    }                                                                                    \
-    itr++;                                                                               \
-  } while (false)
+    KOMORI_CLUSTER_UNROLL for (std::size_t i = 0; i < Cluster::kSize; ++i, ++itr) {
+      /* `IsFor()` -> `IsNull()` の順で呼び出すことで2%高速化 */
+      if (itr->IsFor(board_key_) && !itr->IsNull()) {
+        if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {
+          amount = std::max(amount, itr->Amount());
+          if (pn == 0) {
+            return SearchResult::MakeFinal<true>(itr->GetHand(), MateLen{len16}, amount);
+          } else if (dn == 0) {
+            return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen{len16}, amount);
+          } else if (itr->IsFor(board_key_, hand_)) {
+            if (itr->IsPossibleRepetition() && rep_table_->Contains(path_key_)) {
+              return SearchResult::MakeFinal<false, true>(hand_, len, amount);
+            }
 
-    KOMORI_TTQUERY_UNROLL_CLUSTER(LOOKUP_UNROLL_IMPL);
-#undef LOOKUP_UNROLL_IMPL
-#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
+            found_exact = true;
+            sum_mask = itr->SumMask();
+          }
+        }
+      }
+    }
 
     if (found_exact) {
       const UnknownData unknown_data{false, sum_mask};
@@ -236,10 +202,9 @@ class Query {
   constexpr std::pair<MateLen, MateLen> FinalRange() const noexcept {
     MateLen16 disproven_len = kMinus1MateLen16;
     MateLen16 proven_len = kDepthMaxPlus1MateLen16;
+    auto itr = cluster_.head_entry;
 
-    // 頻繁に呼ばれる関数ではないのでアンローリングせずに普通に for 文で回す
-    for (std::size_t i = 0; i < Cluster::kSize; ++i) {
-      auto itr = cluster_.head_entry + i;
+    KOMORI_CLUSTER_UNROLL for (std::size_t i = 0; i < Cluster::kSize; ++i, ++itr) {
       if (itr->IsFor(board_key_) && !itr->IsNull()) {
         itr->UpdateFinalRange(hand_, disproven_len, proven_len);
       }
@@ -278,18 +243,11 @@ class Query {
   Entry* FindEntry(Hand hand) const noexcept {  // NOLINT
     Entry* itr = cluster_.head_entry;
 
-#if !defined(DOXYGEN_SHOULD_SKIP_THIS)  // NOLINTBEGIN
-#define FIND_ENTRY_IMPL(i)              \
-  do {                                  \
-    if (itr->IsFor(board_key_, hand)) { \
-      return itr;                       \
-    }                                   \
-    itr++;                              \
-  } while (false)
-
-    KOMORI_TTQUERY_UNROLL_CLUSTER(FIND_ENTRY_IMPL);
-#undef CREATE_ENTRY_IMPL
-#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS) //NOLINTEND
+    KOMORI_CLUSTER_UNROLL for (std::size_t i = 0; i < Cluster::kSize; ++i, ++itr) {
+      if (itr->IsFor(board_key_, hand)) {
+        return itr;
+      }
+    }
 
     return nullptr;
   }
@@ -304,30 +262,22 @@ class Query {
    *
    * 作成するエントリの持ち駒を `hand_` を直接使わずに `hand` を引数として受け取っている理由は、
    * 詰み／不詰エントリを書き込むときに使用したいため。
-   */ // NOLINTNEXTLINE
+   */
   Entry* CreateNewEntry(Hand hand) const noexcept {
     Entry* itr = cluster_.head_entry;
     Entry* min_amount_entry = cluster_.head_entry;
     SearchAmount min_amount = std::numeric_limits<SearchAmount>::max();
-    // LCOV_EXCL_START
-#if !defined(DOXYGEN_SHOULD_SKIP_THIS)  // NOLINTBEGIN
-#define CREATE_ENTRY_IMPL(i)               \
-  do {                                     \
-    if (itr->IsNull()) {                   \
-      itr->Init(board_key_, hand, depth_); \
-      return itr;                          \
-    }                                      \
-    if (itr->Amount() < min_amount) {      \
-      min_amount_entry = itr;              \
-      min_amount = itr->Amount();          \
-    }                                      \
-    itr++;                                 \
-  } while (false)
 
-    KOMORI_TTQUERY_UNROLL_CLUSTER(CREATE_ENTRY_IMPL);
-#undef CREATE_ENTRY_IMPL
-#endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS) // NOLINTEND
-        // LCOV_EXCL_STOP
+    KOMORI_CLUSTER_UNROLL for (std::size_t i = 0; i < Cluster::kSize; ++i, ++itr) {
+      if (itr->IsNull()) {
+        itr->Init(board_key_, hand, depth_);
+        return itr;
+      }
+      if (itr->Amount() < min_amount) {
+        min_amount_entry = itr;
+        min_amount = itr->Amount();
+      }
+    }
 
     min_amount_entry->Init(board_key_, hand, depth_);
     return min_amount_entry;
@@ -398,6 +348,8 @@ class Query {
 
 // このヘッダ外では使えないようにしておく
 #undef KOMORI_TTQUERY_UNROLL_CLUSTER
+#undef KOMORI_TTQUERY__CLUSTER_SIZE
+#undef KOMORI_TTQUERY_CLUSTER_SIZE
 
 }  // namespace komori::tt
 
