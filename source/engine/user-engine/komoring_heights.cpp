@@ -167,6 +167,13 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
       break;
     }
 
+    if (result.Pn() >= kInfinitePnDn || result.Dn() >= kInfinitePnDn) {
+      auto info = CurrentInfo();
+      sync_cout << info << "error: " << (result.Pn() >= kInfinitePnDn ? "pn" : "dn") << " overflow detected"
+                << sync_endl;
+      break;
+    }
+
     score_ = Score::Make(option_.score_method, result, n.IsRootOrNode());
     // 反復深化のしきい値を適当に伸ばす
     thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
