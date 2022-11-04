@@ -11,6 +11,7 @@
 #include "bitset.hpp"
 #include "board_key_hand_pair.hpp"
 #include "delayed_move_list.hpp"
+#include "double_count_elimination.hpp"
 #include "fixed_size_stack.hpp"
 #include "hands.hpp"
 #include "initial_estimation.hpp"
@@ -66,7 +67,12 @@ class LocalExpansion {
                  MateLen len,
                  bool first_search,
                  BitSet64 sum_mask = BitSet64::Full())
-      : or_node_{n.IsOrNode()}, mp_{n, true}, delayed_move_list_{n, mp_}, len_{len}, sum_mask_{sum_mask} {
+      : or_node_{n.IsOrNode()},
+        mp_{n, true},
+        delayed_move_list_{n, mp_},
+        len_{len},
+        key_hand_pair_{n.GetBoardKeyHandPair()},
+        sum_mask_{sum_mask} {
     Node& nn = const_cast<Node&>(n);
 
     std::uint32_t next_i_raw = 0;
@@ -76,6 +82,7 @@ class LocalExpansion {
       idx_.Push(i_raw);
       auto& result = results_[i_raw];
       auto& query = queries_[i_raw];
+      child_key_hand_pairs_[i_raw] = n.BoardKeyHandPairAfter(move.move);
 
       if (n.IsRepetitionOrInferiorAfter(move.move)) {
         result.InitFinal<false, true>(hand_after, len, 1);
@@ -142,6 +149,7 @@ class LocalExpansion {
     const auto& result = FrontResult();
     return result.GetUnknownData().sum_mask;
   }
+  bool empty() const noexcept { return idx_.empty(); }
 
   SearchResult CurrentResult(const Node& n) const {
     if (GetPn() == 0) {
@@ -215,6 +223,35 @@ class LocalExpansion {
     } else {
       return {child_thdelta, child_thphi};
     }
+  }
+
+  bool ResolveDoubleCountIfBranchRoot(BranchRootEdge edge) {
+    if (edge.branch_root_key_hand_pair == key_hand_pair_) {
+      sum_mask_.Reset(idx_.front());
+      for (const auto i_raw : idx_) {
+        const auto& child_key_hand_pair = child_key_hand_pairs_[i_raw];
+        if (child_key_hand_pair == edge.child_key_hand_pair) {
+          if (sum_mask_.Test(idx_[i_raw])) {
+            sum_mask_.Reset(i_raw);
+            RecalcDelta();
+          }
+          break;
+        }
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  bool ShouldStopAncestorSearch(bool branch_root_is_or_node) const {
+    if (or_node_ != branch_root_is_or_node) {
+      return false;
+    }
+
+    const auto& best_result = results_[idx_.front()];
+    const PnDn delta_diff = GetDelta() - best_result.Delta(or_node_);
+    return delta_diff > kAncestorSearchThreshold;
   }
 
  private:
@@ -419,9 +456,11 @@ class LocalExpansion {
   const MovePicker mp_;
   const DelayedMoveList delayed_move_list_;
   const MateLen len_;
+  const BoardKeyHandPair key_hand_pair_;
 
   std::array<SearchResult, kMaxCheckMovesPerNode> results_;
   std::array<tt::Query, kMaxCheckMovesPerNode> queries_;
+  std::array<BoardKeyHandPair, kMaxCheckMovesPerNode> child_key_hand_pairs_;
 
   bool does_have_old_child_{false};
 

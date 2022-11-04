@@ -4,7 +4,7 @@
 #ifndef KOMORI_EXPANSION_STACK_HPP_
 #define KOMORI_EXPANSION_STACK_HPP_
 
-#include <stack>
+#include <deque>
 #include "local_expansion.hpp"
 
 namespace komori {
@@ -43,19 +43,45 @@ class ExpansionStack {
    */
   template <typename... Args>
   LocalExpansion& Emplace(Args&&... args) {
-    auto& expansion = list_.emplace(std::forward<Args>(args)...);
+    auto& expansion = list_.emplace_back(std::forward<Args>(args)...);
     return expansion;
   }
 
   /**
    * @brief スタック先頭の `LocalExpansion` オブジェクトを開放する。
    */
-  void Pop() noexcept { list_.pop(); }
+  void Pop() noexcept { list_.pop_back(); }
 
   /// スタック先頭要素を返す。
-  LocalExpansion& Current() { return list_.top(); }
+  LocalExpansion& Current() { return list_.back(); }
   /// スタック先頭要素を返す。
-  const LocalExpansion& Current() const { return list_.top(); }
+  const LocalExpansion& Current() const { return list_.back(); }
+
+  /**
+   * @brief
+   * @param tt
+   * @param n
+   */
+  void EliminateDoubleCount(tt::TranspositionTable& tt, const Node& n) {
+    const auto& current = Current();
+    if (current.empty()) {
+      return;
+    }
+
+    const auto best_move = current.BestMove();
+    if (auto opt = FindKnownAncestor(tt, n, best_move)) {
+      const auto branch_root_edge = *opt;
+      for (auto itr = list_.rbegin() + 1; itr != list_.rend(); ++itr) {
+        if (itr->ResolveDoubleCountIfBranchRoot(branch_root_edge)) {
+          break;
+        }
+
+        if (itr->ShouldStopAncestorSearch(branch_root_edge.branch_root_is_or_node)) {
+          break;
+        }
+      }
+    }
+  }
 
  private:
   /**
@@ -65,7 +91,7 @@ class ExpansionStack {
    *       `LocalExpansion` のような move 不可オブジェクトには用いることができない。
    *       現時点では探索速度にそれほど影響ないと考えるので、実装は後回しにする。
    */
-  std::stack<LocalExpansion> list_;
+  std::deque<LocalExpansion> list_;
 };
 }  // namespace komori
 

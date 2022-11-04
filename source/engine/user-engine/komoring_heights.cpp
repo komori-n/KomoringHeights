@@ -185,6 +185,8 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);
 
+  expansion_list_.EliminateDoubleCount(tt_, n);
+
   // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
   auto curr_result = local_expansion.CurrentResult(n);
   // Threshold Controlling Algorithm(TCA).
