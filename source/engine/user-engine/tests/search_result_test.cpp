@@ -138,8 +138,8 @@ TEST(SearchResultComparerTest, OrNode) {
   EXPECT_EQ(sr_comparer(u1, u3), SearchResultComparer::Ordering::kLess);
   EXPECT_EQ(sr_comparer(u3, u1), SearchResultComparer::Ordering::kGreater);
 
-  EXPECT_EQ(sr_comparer(f1, f2), SearchResultComparer::Ordering::kLess);
-  EXPECT_EQ(sr_comparer(f2, f1), SearchResultComparer::Ordering::kGreater);
+  EXPECT_EQ(sr_comparer(f1, f2), SearchResultComparer::Ordering::kGreater);
+  EXPECT_EQ(sr_comparer(f2, f1), SearchResultComparer::Ordering::kLess);
 
   EXPECT_EQ(sr_comparer(u1, u1), SearchResultComparer::Ordering::kEquivalent);
   EXPECT_EQ(sr_comparer(f1, f1), SearchResultComparer::Ordering::kEquivalent);

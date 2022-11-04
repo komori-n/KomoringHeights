@@ -242,7 +242,7 @@ class SearchResultComparer {
       const auto r_is_rep = rhs.GetFinalData().is_repetition;
 
       if (l_is_rep != r_is_rep) {
-        if (!or_node_ ^ (static_cast<int>(l_is_rep) < static_cast<int>(r_is_rep))) {
+        if (!or_node_ ^ l_is_rep) {
           return Ordering::kLess;
         } else {
           return Ordering::kGreater;
