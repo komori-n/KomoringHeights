@@ -1,0 +1,4 @@
+div.fragment div.line,
+div.fragment div.line  a.code {
+	font-family: Menlo, Consolas, "Hiragino Kaku Gothic ProN", Meiryo, monospace;
+}
