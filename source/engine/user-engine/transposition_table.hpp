@@ -243,6 +243,32 @@ class TranspositionTableImpl {
     RemoveUnusedEntries();
   }
 
+  /**
+   * @brief エントリをできるだけ手前の方に移動させる（コンパクション）
+   */
+  void CompactEntries() {
+    for (auto& entry : entries_) {
+      if (entry.IsNull()) {
+        continue;
+      }
+
+      auto cluster = ClusterOf(entry.BoardKey());
+      if (cluster.head_entry != &entry) {
+        decltype(cluster.head_entry) candidate = nullptr;
+        if (cluster.head_entry->IsNull()) {
+          candidate = cluster.head_entry;
+        } else if ((cluster.head_entry + 1)->IsNull()) {
+          candidate = cluster.head_entry + 1;
+        }
+
+        if (candidate != nullptr) {
+          *candidate = entry;
+          entry.SetNull();
+        }
+      }
+    }
+  }
+
   // <テスト用>
   // 外部から内部変数を観測できないと厳しいので、直接アクセスできるようにしておく。
   // ただし、書き換えられてしまうと面倒なので、必ずconstをつけて渡す。

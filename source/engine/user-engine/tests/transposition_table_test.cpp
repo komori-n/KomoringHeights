@@ -177,3 +177,77 @@ TEST_F(TranspositionTableTest, CollectGarbage_RemoveEntries_Decreasing) {
     EXPECT_TRUE(itr[i].IsNull()) << i;
   }
 }
+
+TEST_F(TranspositionTableTest, Compaction_MoveHead) {
+  const auto board_key{0x1};
+  const auto hand = MakeHand<PAWN, LANCE, LANCE>();
+
+  // board_key = 0 を渡すことで先頭クラスタが取れるはず
+  auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
+  ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
+  // board_key = 1 も同じクラスになるはず
+  ASSERT_EQ(tt_.BuildQueryByKey({board_key, hand}, 0).cluster.head_entry, query.cluster.head_entry);
+
+  auto entries = query.cluster.head_entry;
+  entries[5].Init(board_key, hand);
+
+  tt_.CompactEntries();
+
+  EXPECT_TRUE(entries[5].IsNull());
+  EXPECT_FALSE(entries[0].IsNull());
+  EXPECT_TRUE(entries[0].IsFor(board_key, hand));
+}
+
+TEST_F(TranspositionTableTest, Compaction_MoveHeadPlus1) {
+  const auto board_key1{0x1};
+  const auto hand1 = MakeHand<PAWN, LANCE, LANCE>();
+  const auto board_key2{0x2};
+  const auto hand2 = MakeHand<PAWN>();
+
+  // board_key = 0 を渡すことで先頭クラスタが取れるはず
+  auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
+  ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
+  // board_key = 1 も同じクラスになるはず
+  ASSERT_EQ(tt_.BuildQueryByKey({board_key1, hand2}, 0).cluster.head_entry, query.cluster.head_entry);
+  // board_key = 2 も同じクラスになるはず
+  ASSERT_EQ(tt_.BuildQueryByKey({board_key2, hand2}, 0).cluster.head_entry, query.cluster.head_entry);
+
+  auto entries = query.cluster.head_entry;
+  entries[0].Init(board_key1, hand1);
+  entries[5].Init(board_key2, hand2);
+
+  tt_.CompactEntries();
+
+  EXPECT_TRUE(entries[5].IsNull());
+  EXPECT_FALSE(entries[0].IsNull());
+  EXPECT_TRUE(entries[0].IsFor(board_key1, hand1));
+  EXPECT_FALSE(entries[1].IsNull());
+  EXPECT_TRUE(entries[1].IsFor(board_key2, hand2));
+}
+
+TEST_F(TranspositionTableTest, Compaction_Full) {
+  const auto board_key1{0x1};
+  const auto hand1 = MakeHand<PAWN, LANCE, LANCE>();
+  const auto board_key2{0x2};
+  const auto hand2 = MakeHand<PAWN>();
+
+  // board_key = 0 を渡すことで先頭クラスタが取れるはず
+  auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
+  ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
+  // board_key = 1 も同じクラスになるはず
+  ASSERT_EQ(tt_.BuildQueryByKey({board_key1, hand2}, 0).cluster.head_entry, query.cluster.head_entry);
+  // board_key = 2 も同じクラスになるはず
+  ASSERT_EQ(tt_.BuildQueryByKey({board_key2, hand2}, 0).cluster.head_entry, query.cluster.head_entry);
+
+  auto entries = query.cluster.head_entry;
+  entries[0].Init(board_key1, hand1);
+  entries[1].Init(board_key1, hand1);
+  entries[5].Init(board_key2, hand2);
+
+  tt_.CompactEntries();
+
+  // [0] と [1] は使用中なので [5] はコンパクションされない
+  EXPECT_FALSE(entries[5].IsNull());
+  EXPECT_FALSE(entries[5].IsNull());
+  EXPECT_TRUE(entries[5].IsFor(board_key2, hand2));
+}

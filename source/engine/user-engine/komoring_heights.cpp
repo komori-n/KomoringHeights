@@ -211,6 +211,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
 
   if (monitor_.ShouldGc()) {
     tt_.CollectGarbage();
+    tt_.CompactEntries();
     monitor_.ResetNextGc();
   }
 

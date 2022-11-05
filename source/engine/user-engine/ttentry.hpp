@@ -214,6 +214,8 @@ class alignas(64) Entry {
   constexpr Hand GetParentHand() const noexcept { return parent_hand_; }
   /// δ値を和で計算すべき子の集合
   constexpr BitSet64 SumMask() const noexcept { return sum_mask_; }
+  /// 盤面ハッシュ値（コンパクション用）
+  constexpr Key BoardKey() const noexcept { return board_key_; }
 
   /**
    * @brief 千日手の可能性ありフラグの設定および pn/dn の再初期化を行う。
