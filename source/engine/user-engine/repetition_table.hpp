@@ -5,6 +5,7 @@
 #define KOMORI_REPETITION_TABLE_HPP_
 
 #include <array>
+#include <iostream>
 #include <limits>
 #include <unordered_set>
 
@@ -60,6 +61,9 @@ class RepetitionTable {
 
   /// 置換表のメモリ使用率を求める。
   double HashRate() const { return static_cast<double>(Size()) / static_cast<double>(size_max_); }
+
+  std::ostream& Save(std::ostream& os) const { return os; }
+  std::istream& Load(std::istream& is) { return is; }
 
  private:
   /// 内部で持つ `std::unordered_set` の個数。あまり多いと LookUp 時間が増大する。

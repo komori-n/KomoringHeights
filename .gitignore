@@ -247,6 +247,7 @@ ModelManifest.xml
 YaneuraOu-by-*
 KomoringHeights-by-*
 kh-test
+*.bin
 
 # personal debugging files
 source/test

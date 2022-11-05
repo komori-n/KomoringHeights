@@ -75,11 +75,7 @@ class KomoringHeights {
   KomoringHeights& operator=(KomoringHeights&&) = delete;
   ~KomoringHeights() = default;
 
-  void Init(EngineOption option, Thread* thread) {
-    option_ = option;
-    tt_.Resize(option_.hash_mb);
-    monitor_.Init(thread);
-  }
+  void Init(const EngineOption& option, Thread* thread);
 
   void SetStop() { monitor_.SetStop(true); }
   void ResetStop() { monitor_.SetStop(false); }

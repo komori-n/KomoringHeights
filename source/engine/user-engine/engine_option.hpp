@@ -4,8 +4,10 @@
 #ifndef KOMORI_ENGINE_OPTION_HPP_
 #define KOMORI_ENGINE_OPTION_HPP_
 
+#include <filesystem>
 #include <limits>
 #include <map>
+#include <optional>
 #include <string>
 
 #include "../../usi.h"
@@ -160,6 +162,10 @@ struct EngineOption {
 
   ScoreCalculationMethod score_method;  ///< スコアの計算法
   PostSearchLevel post_search_level;    ///< 余詰探索の度合い
+
+  std::filesystem::path tt_read_path;   ///< TTを読み込むファイル名
+  std::filesystem::path tt_write_path;  ///< TTを書き込むファイル名
+  bool tt_no_overwrite;                 ///< TTの上書きを禁止するかどうか
   // NOLINTEND(misc-non-private-member-variables-in-classes)
 
 #if defined(USE_DEEP_DFPN)
@@ -185,6 +191,10 @@ struct EngineOption {
     o["ScoreCalculation"] << USI::Option(detail::score_caluclation_option.Keys(),
                                          detail::score_caluclation_option.DefaultKey());
     o["PostSearchLevel"] << USI::Option(detail::post_search_level.Keys(), detail::post_search_level.DefaultKey());
+
+    o["TTReadPath"] << USI::Option("");
+    o["TTWritePath"] << USI::Option("");
+    o["TTFileOverwrite"] << USI::Option(true);
   }
 
   /**
@@ -212,6 +222,11 @@ struct EngineOption {
 
     score_method = detail::score_caluclation_option.Get(detail::ReadOption<std::string>(o, "ScoreCalculation"));
     post_search_level = detail::post_search_level.Get(detail::ReadOption<std::string>(o, "PostSearchLevel"));
+
+    tt_read_path = detail::ReadOption<std::string>(o, "TTReadPath");
+    tt_write_path = detail::ReadOption<std::string>(o, "TTWritePath");
+    // 外へ公開するオプションと内部で持つオプションが反転しているので注意
+    tt_no_overwrite = (detail::ReadOption(o, "TTFileOverwrite") == 0);
   }
 };
 }  // namespace komori

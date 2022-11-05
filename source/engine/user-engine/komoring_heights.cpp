@@ -1,11 +1,48 @@
 #include "komoring_heights.hpp"
 
+#include <fstream>
+#include <regex>
+
 namespace komori {
 namespace {
 inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
   const std::uint64_t entry_num = hash_mb * 1024 * 1024 / sizeof(tt::Entry);
 
   return entry_num / 2 * 3;
+}
+
+/**
+ * @brief "name (1).bin" のようにファイル名がかぶらないような番号を付与する
+ * @param path 書き込みたいファイルへのパス
+ * @return ファイルパス
+ *
+ * 既存のファイルと衝突しなくなるまで、以下の要領でパスを巡回する。
+ *
+ * - "name" --> "name (1)" --> "name (2)" --> ...
+ * - "hoge/name.bin" --> "hoge/name (1).bin" --> "hoge/name (2).bin" --> ...
+ */
+inline std::filesystem::path GetNoOverwritePath(std::filesystem::path path) {
+  while (std::filesystem::exists(path)) {
+    std::string filename = path.stem();
+    const std::string ext = path.extension();
+    const std::regex reg{R"((.* )\((\d+)\))"};
+    std::smatch match;
+
+    if (std::regex_match(filename, match, reg)) {
+      auto num = stoi(match[2].str());
+      filename = match[1].str();
+      filename += "(";
+      filename += std::to_string(num + 1);
+      filename += ")";
+      filename += ext;
+    } else {
+      filename += " (1)";
+      filename += ext;
+    }
+    path.replace_filename(filename);
+  }
+
+  return path;
 }
 }  // namespace
 
@@ -74,6 +111,21 @@ void SearchMonitor::PopLimit() {
 }
 }  // namespace detail
 
+void KomoringHeights::Init(const EngineOption& option, Thread* thread) {
+  option_ = option;
+  tt_.Resize(option_.hash_mb);
+  monitor_.Init(thread);
+
+  const auto& tt_read_path = option_.tt_read_path;
+  if (!tt_read_path.empty() && std::filesystem::exists(tt_read_path)) {
+    std::ifstream ifs(tt_read_path, std::ios::binary);
+    if (ifs) {
+      sync_cout << "info string load_path: " << tt_read_path << sync_endl;
+      tt_.Load(ifs);
+    }
+  }
+}
+
 UsiInfo KomoringHeights::CurrentInfo() const {
   UsiInfo usi_output = monitor_.GetInfo();
   usi_output.Set(UsiInfoKey::kHashfull, tt_.Hashfull());
@@ -95,6 +147,18 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
 
   auto [state, len] = SearchMainLoop(node, is_root_or_node);
   const bool proven = (state == NodeState::kProven);
+
+  auto tt_write_path = option_.tt_write_path;
+  if (!tt_write_path.empty()) {
+    if (option_.tt_no_overwrite) {
+      tt_write_path = GetNoOverwritePath(tt_write_path);
+    }
+    std::ofstream ofs(tt_write_path, std::ios::binary);
+    if (ofs) {
+      sync_cout << "info string save_path: " << tt_write_path << sync_endl;
+      tt_.Save(ofs);
+    }
+  }
 
   if (proven) {
     if (best_moves_.size() % 2 != static_cast<int>(is_root_or_node)) {

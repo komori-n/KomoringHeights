@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <sstream>
 #include <unordered_set>
 
 #include "../transposition_table.hpp"
@@ -41,6 +42,34 @@ TEST_F(TranspositionTableTest, Resize) {
     const auto size = reinterpret_cast<std::uintptr_t>(&*tt_.end()) - reinterpret_cast<std::uintptr_t>(&*tt_.begin());
     EXPECT_LE(size / 1024 / 1024, i);
   }
+}
+
+TEST_F(TranspositionTableTest, NewSearch) {
+  const auto query = tt_.BuildQueryByKey({0x334334334, HAND_ZERO});
+  const Key board_key{0x334};
+  const Key path_key{0x264};
+  const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
+  query.cluster.head_entry->Init(board_key, hand);
+  query.rep_table.Insert(path_key);
+
+  EXPECT_TRUE(query.rep_table.Contains(path_key));
+  tt_.NewSearch();
+  EXPECT_TRUE(query.cluster.head_entry->IsFor(board_key, hand));
+  EXPECT_FALSE(query.rep_table.Contains(path_key));
+}
+
+TEST_F(TranspositionTableTest, Clear) {
+  const auto query = tt_.BuildQueryByKey({0x334334334, HAND_ZERO});
+  const Key board_key{0x334};
+  const Key path_key{0x264};
+  const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
+  query.cluster.head_entry->Init(board_key, hand);
+  query.rep_table.Insert(path_key);
+
+  EXPECT_TRUE(query.rep_table.Contains(path_key));
+  tt_.Clear();
+  EXPECT_FALSE(query.cluster.head_entry->IsFor(board_key, hand));
+  EXPECT_FALSE(query.rep_table.Contains(path_key));
 }
 
 TEST_F(TranspositionTableTest, BuildQuery) {
@@ -97,7 +126,7 @@ TEST_F(TranspositionTableTest, BuildQueryByKey_ClusterHasUniformDistribution) {
   EXPECT_EQ(cluster_ids.size(), cluster_head_num);
 }
 
-TEST_F(TranspositionTableTest, Hashfull_EmptyAfterNewSearch) {
+TEST_F(TranspositionTableTest, Hashfull_EmptyAfterClear) {
   auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
 
   query.rep_table.Insert(0x334);
@@ -106,7 +135,7 @@ TEST_F(TranspositionTableTest, Hashfull_EmptyAfterNewSearch) {
   }
 
   EXPECT_GT(tt_.Hashfull(), 0);
-  tt_.NewSearch();
+  tt_.Clear();
   EXPECT_EQ(tt_.Hashfull(), 0);
 }
 
@@ -250,4 +279,35 @@ TEST_F(TranspositionTableTest, Compaction_Full) {
   EXPECT_FALSE(entries[5].IsNull());
   EXPECT_FALSE(entries[5].IsNull());
   EXPECT_TRUE(entries[5].IsFor(board_key2, hand2));
+}
+
+TEST_F(TranspositionTableTest, SaveLoad) {
+  const auto board_key1{0x334334334334334ull};
+  const auto hand1 = MakeHand<PAWN, LANCE, LANCE>();
+  const auto board_key2{0x264264264264264ull};
+  const auto hand2 = MakeHand<PAWN>();
+
+  const auto query1 = tt_.BuildQueryByKey({board_key1, hand1});
+  query1.cluster.head_entry->Init(board_key1, hand1);
+  query1.cluster.head_entry->UpdateUnknown(334, 1, 1, komori::tt::detail::kTTSaveAmountThreshold + 1, BitSet64::Full(),
+                                           0x334, HAND_ZERO);
+  const auto query2 = tt_.BuildQueryByKey({board_key2, hand2});
+  query2.cluster.head_entry->Init(board_key2, hand2);
+  query2.cluster.head_entry->UpdateUnknown(334, 1, 1, komori::tt::detail::kTTSaveAmountThreshold - 1, BitSet64::Full(),
+                                           0x334, HAND_ZERO);
+  ASSERT_NE(query1.cluster.head_entry, query2.cluster.head_entry);
+
+  std::stringstream ss;
+  tt_.Save(ss);
+  tt_.Clear();
+  EXPECT_FALSE(query1.cluster.head_entry->IsFor(board_key1, hand1));
+  EXPECT_FALSE(query2.cluster.head_entry->IsFor(board_key2, hand2));
+
+  // query2 の位置に entry2 を書き込む。次の load 後には entry2, entry1 の順に並ぶはず
+  query1.cluster.head_entry->Init(board_key2, hand2);
+
+  tt_.Load(ss);
+  EXPECT_TRUE(query1.cluster.head_entry->IsFor(board_key2, hand2));
+  EXPECT_TRUE((query1.cluster.head_entry + 1)->IsFor(board_key1, hand1));
+  EXPECT_FALSE(query2.cluster.head_entry->IsFor(board_key2, hand2));
 }

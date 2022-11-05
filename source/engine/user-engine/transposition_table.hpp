@@ -17,6 +17,8 @@ namespace komori::tt {
 namespace detail {
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合。
 constexpr inline double kNormalRepetitionRatio = 0.95;
+/// TT をファイルへ書き出す最低の探索量。探索量の小さいエントリを書き出さないことでファイルサイズを小さくする。
+constexpr inline SearchAmount kTTSaveAmountThreshold = 10;
 
 /**
  * @brief Hashfull（ハッシュ使用率）を計算するために仕様するエントリ数。大きすぎると探索性能が低下する。
@@ -152,19 +154,29 @@ class TranspositionTableImpl {
     entries_.resize(new_num_entries);
     entries_.shrink_to_fit();
     rep_table_.SetTableSizeMax(rep_num_entries);
-    NewSearch(true);
+    Clear();
   }
+
+  /**
+   * @brief 新しい探索を始める
+   *
+   * 探索の開始前に必ず呼び出される。千日手テーブルについては、前回の探索結果を流用するのは難しいのですべて
+   * 消してしまう。一方、通常探索エントリは削除にも時間がかかるのでそのまま残しておく。
+   *
+   * 通常探索エントリを完全に消去したい場合は Clear() を使うこと。
+   *
+   * @see Clear
+   */
+  void NewSearch() { rep_table_.Clear(); }
 
   /**
    * @brief 以前の探索結果をすべて消去する。
    */
-  void NewSearch(bool force_clean = false) {
-    if (force_clean || Hashfull() >= 50) {
-      for (auto& entry : entries_) {
-        entry.SetNull();
-      }
-      rep_table_.Clear();
+  void Clear() {
+    for (auto& entry : entries_) {
+      entry.SetNull();
     }
+    rep_table_.Clear();
   }
 
   /**
@@ -267,6 +279,69 @@ class TranspositionTableImpl {
         }
       }
     }
+  }
+
+  /**
+   * @brief 置換表の中身をバイナリ出力ストリーム `os` へ出力する
+   * @param os バイナリ出力ストリーム
+   * @return `os`
+   *
+   * 現在の通常探索エントリのうち、探索量が kTTSaveAmountThreshold を超えるものをバイナリ出力ストリームへと書き出す。
+   * 探索量の小さなエントリを書き出さないことで、出力サイズを小さくすることができる。
+   *
+   * また、千日手テーブルについては書き出しを行わない。なぜなら、探索開始局面が同一でなければ再利用しづらい情報であり、
+   * 多くの詰将棋では千日手テーブルなしでもそれほど時間がかからず詰み手順を復元できるためである。
+   *
+   * 書き出す情報は以下のような構造になっている。
+   *
+   * - 書き出すエントリ数(8 bytes)
+   * - エントリ本体(sizeof(Entry) * n bytes)
+   *
+   * なお、`os` がバイナリモードではない場合、書き込みを行わないので注意。
+   */
+  std::ostream& Save(std::ostream& os) {
+    auto should_save = [](const Entry& entry) { return !entry.IsNull() && entry.Amount() > kTTSaveAmountThreshold; };
+    std::uint64_t used_entries = std::count_if(entries_.begin(), entries_.end(), should_save);
+    os.write(reinterpret_cast<const char*>(&used_entries), sizeof(used_entries));
+
+    for (const auto& entry : entries_) {
+      if (should_save(entry)) {
+        os.write(reinterpret_cast<const char*>(&entry), sizeof(Entry));
+      }
+    }
+
+    return os;
+  }
+
+  /**
+   * @brief バイナリ入力ストリーム `in` から置換表エントリを読み込む。
+   * @param is バイナリ入力ストリーム
+   * @return `is`
+   *
+   * `Save()` で書き出した情報を置換表へ読み込む。ストリームから読み込んだエントリを挿入するイメージであるため、
+   * `Save()` 時の置換表サイズより現在のサイズが小さくても問題なく動作する。
+   *
+   * @see Save()
+   */
+  std::istream& Load(std::istream& is) {
+    std::uint64_t used_entries{};
+    is.read(reinterpret_cast<char*>(&used_entries), sizeof(used_entries));
+
+    for (std::uint64_t i = 0; i < used_entries && is; ++i) {
+      Entry entry;
+      is.read(reinterpret_cast<char*>(&entry), sizeof(entry));
+
+      auto cluster = ClusterOf(entry.BoardKey());
+      auto itr = cluster.head_entry;
+      for (std::uint64_t j = 0; j < Cluster::kSize; ++j, ++itr) {
+        if (itr->IsNull()) {
+          *itr = entry;
+          break;
+        }
+      }
+    }
+
+    return is;
   }
 
   // <テスト用>
