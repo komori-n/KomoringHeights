@@ -10,9 +10,15 @@
 #include "typedefs.hpp"
 
 namespace komori {
+/// pn/dn 値の単位。df-pn+ では「評価値0.5」のような小数を扱いたいので1より大きな値を用いれるようにする。
 inline constexpr PnDn kPnDnUnit = 2;
 namespace detail {
-
+/**
+ * @brief df-pn+における OR node の pn/dn 初期値を計算する
+ * @param n     現局面
+ * @param move  次の手
+ * @return `n` を `move` で動かした局面の pn/dn の初期値
+ */
 inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move) {
   PnDn pn = kPnDnUnit;
   PnDn dn = kPnDnUnit;
@@ -45,6 +51,12 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move)
   return {pn, dn};
 }
 
+/**
+ * @brief df-pn+における AND node の pn/dn 初期値を計算する
+ * @param n     現局面
+ * @param move  次の手
+ * @return `n` を `move` で動かした局面の pn/dn の初期値
+ */
 inline std::pair<PnDn, PnDn> InitialPnDnPlusAndNode(const Position& n, Move move) {
   const Color us = n.side_to_move();
   const Color them = ~us;
@@ -78,8 +90,17 @@ void DeepDfpnInit(Depth d, double e);
 PnDn InitialDeepPnDn(Depth depth);
 #endif
 
+/**
+ * @brief 初めて訪れた局面の pn/dn 初期値を計算する
+ * @param n     現局面
+ * @param move  次の手
+ * @return `n` を `move` で動かした局面の pn/dn の初期値
+ *
+ * 局面の pn/dn 初期値を与える関数。古典的な df-pn アルゴリズムでは (pn, dn) = (1, 1) だが、この値を
+ * 詰みやすさ／詰み逃れやすさに応じて増減させることで探索性能を向上させられる。
+ */
 inline std::pair<PnDn, PnDn> InitialPnDn(const Node& n, Move move) {
-#if defined(USE_DFPN_PLUS)
+#if !defined(USE_DEEP_DFPN)
   // df-pn+
   // 評価関数の設計は GPS 将棋を参考にした。
   // https://gps.tanaka.ecc.u-tokyo.ac.jp/cgi-bin/viewvc.cgi/trunk/osl/std/osl/checkmate/libertyEstimator.h?view=markup
@@ -90,12 +111,10 @@ inline std::pair<PnDn, PnDn> InitialPnDn(const Node& n, Move move) {
   } else {
     return detail::InitialPnDnPlusAndNode(n.Pos(), move);
   }
-#elif defined(USE_DEEP_DFPN)
+#else   // !defined(USE_DEEP_DFPN)
   PnDn pndn = InitialDeepPnDn(n.GetDepth());
   return {pndn, pndn};
-#else
-  return {kInitialPn, kInitialDn};
-#endif
+#endif  // !defined(USE_DEEP_DFPN)
 }
 
 /**
