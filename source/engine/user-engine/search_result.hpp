@@ -135,13 +135,16 @@ class SearchResult {
   /// `result` を出力ストリームへ出力する。
   friend std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
     os << "{";
-    if (result.pn_ == 0) {
-      os << "proof_hand=" << result.final_data_.hand;
-    } else if (result.dn_ == 0) {
-      if (result.final_data_.is_repetition) {
-        os << "repetition";
+    if (result.IsFinal()) {
+      const auto final_data = result.GetFinalData();
+      if (result.Pn() == 0) {
+        os << "proof_hand=" << final_data.hand;
       } else {
-        os << "disproof_hand" << result.final_data_.hand;
+        if (!final_data.is_repetition) {
+          os << "disproof_hand=" << final_data.hand;
+        } else {
+          os << "repetition";
+        }
       }
     } else {
       os << "(pn,dn)=(" << result.pn_ << "," << result.dn_ << ")";
