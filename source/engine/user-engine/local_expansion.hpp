@@ -291,8 +291,9 @@ class LocalExpansion {
     // 例） sfen +P5l2/4+S4/p1p+bpp1kp/6pgP/3n1n3/P2NP4/3P1NP2/2P2S3/3K3L1 b RGSL2Prb2gsl3p 159
     //      1筋の合駒を考える時、玉方が合駒を微妙に変えることで読みの深さを指数関数的に大きくできてしまう
     if (mp_.size() > idx_.size()) {
-      // 読みの後回しが原因の（半）無限ループを回避できればいいので、1点減点しておく
-      sum_delta += 1;
+      // 後回しにしている手1つにつき 1/4 点減点する。小数点以下は切り捨てするが、計算結果が 1 を下回る場合のみ
+      // 1 に切り上げる。
+      sum_delta += std::max<std::size_t>((mp_.size() - idx_.size()) / 4, 1);
     }
 
     return sum_delta + max_delta;
@@ -379,7 +380,7 @@ class LocalExpansion {
       }
 
       // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
-      amount += std::max(mp_.size(), std::size_t{1}) - 1;
+      amount += std::max<std::uint32_t>(idx_.size(), 1) - 1;
 
       const auto proof_hand = set.Get(n.Pos());
       return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
@@ -410,7 +411,7 @@ class LocalExpansion {
           mate_len = result.Len() + 1;
         }
       }
-      amount += std::max(mp_.size(), std::size_t{1}) - 1;
+      amount += std::max<std::uint32_t>(idx_.size(), 1) - 1;
       const auto disproof_hand = set.Get(n.Pos());
 
       return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
@@ -439,7 +440,7 @@ class LocalExpansion {
 
   SearchResult GetUnknownResult(const Node& /* n */) const {
     const auto& result = FrontResult();
-    const std::uint32_t amount = result.Amount() + mp_.size() / 2;
+    const std::uint32_t amount = result.Amount() + idx_.size() / 2;
 
     const UnknownData unknown_data{false, sum_mask_};
     return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, unknown_data);
