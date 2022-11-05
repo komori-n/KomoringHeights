@@ -92,7 +92,7 @@ class LocalExpansion {
         const auto min_len = or_node_ ? MateLen{0} : MateLen{1};
         if (len_ - 1 < min_len) {
           // どう見ても詰まない
-          result.InitFinal<false>(hand_after, min_len, 1);
+          result.InitFinal<false>(hand_after, min_len - 1, 1);
           goto CHILD_LOOP_END;
         }
 

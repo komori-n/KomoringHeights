@@ -237,7 +237,7 @@ TEST_F(QueryTest, LookUpParent_Exact) {
   EXPECT_EQ(dn, ans_dn);
 }
 
-TEST_F(QueryTest, FinalRange) {
+TEST_F(QueryTest, FinalRange_Normal) {
   const auto len1 = MateLen{334};
   const auto len2 = MateLen{264};
   entries_[0].Init(board_key_, MakeHand<PAWN>());
@@ -251,6 +251,26 @@ TEST_F(QueryTest, FinalRange) {
   const auto [disproven_len, proven_len] = query_.FinalRange();
   EXPECT_EQ(disproven_len, len2);
   EXPECT_EQ(proven_len, len1);
+}
+
+TEST_F(QueryTest, FinalRange_Repetition) {
+  const auto len = MateLen{334};
+  entries_[0].Init(board_key_, hand_);
+  entries_[0].UpdateProven(MateLen16{len}, 1);
+
+  const auto [disproven_len1, proven_len1] = query_.FinalRange();
+  EXPECT_EQ(disproven_len1, komori::kMinus1MateLen);
+  EXPECT_EQ(proven_len1, len);
+
+  entries_[0].SetPossibleRepetition();
+  const auto [disproven_len2, proven_len2] = query_.FinalRange();
+  EXPECT_EQ(disproven_len2, komori::kMinus1MateLen);
+  EXPECT_EQ(proven_len2, len);
+
+  rep_table_.Insert(path_key_);
+  const auto [disproven_len3, proven_len3] = query_.FinalRange();
+  EXPECT_EQ(disproven_len3, len - 1);
+  EXPECT_EQ(proven_len3, len);
 }
 
 TEST_F(QueryTest, SetResult_UnknownNew) {

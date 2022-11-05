@@ -207,11 +207,20 @@ class Query {
     MateLen16 disproven_len = kMinus1MateLen16;
     MateLen16 proven_len = kDepthMaxPlus1MateLen16;
     auto itr = cluster_.head_entry;
+    bool found_rep = false;
 
     KOMORI_CLUSTER_UNROLL for (std::size_t i = 0; i < Cluster::kSize; ++i, ++itr) {
       if (itr->IsFor(board_key_) && !itr->IsNull()) {
         itr->UpdateFinalRange(hand_, disproven_len, proven_len);
+
+        if (itr->IsFor(board_key_, hand_) && itr->IsPossibleRepetition() && rep_table_->Contains(path_key_)) {
+          found_rep = true;
+        }
       }
+    }
+
+    if (found_rep) {
+      disproven_len = std::max(disproven_len, proven_len - 1);
     }
 
     return {MateLen{disproven_len}, MateLen{proven_len}};
