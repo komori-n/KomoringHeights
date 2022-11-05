@@ -26,8 +26,9 @@ enum class ScoreCalculationMethod {
  * @brief 余詰探索の度合い。
  */
 enum class PostSearchLevel {
-  kNone,       ///< 余詰探索なし
-  kMinLength,  ///< 最短手順を探す
+  kNone,        ///< 余詰探索なし
+  kUpperBound,  ///< Upper bound に一致する長さの手順を見つけるまで
+  kMinLength,   ///< 最短手順を探す
 };
 
 namespace detail {
@@ -103,6 +104,7 @@ inline const DefaultOrderedMap<std::string, PostSearchLevel> post_search_level{
     PostSearchLevel::kNone,
     {
         {"None", PostSearchLevel::kNone},
+        {"UpperBound", PostSearchLevel::kUpperBound},
         {"MinLength", PostSearchLevel::kMinLength},
     },
 };

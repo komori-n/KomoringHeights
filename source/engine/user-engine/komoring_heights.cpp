@@ -110,8 +110,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
   auto node_state{NodeState::kUnknown};
   auto len{kDepthMaxMateLen};
 
-  const int max_loop_cnt = option_.post_search_level == PostSearchLevel::kNone ? 1 : 128;
-  for (int i = 0; i < max_loop_cnt; ++i) {
+  for (int i = 0; i < 128; ++i) {
     // `result` が余詰探索による不詰だったとき、後から元の状態（詰み）に戻せるようにしておく
     const auto old_score = score_;
     const auto result = SearchEntry(n, len);
@@ -134,6 +133,11 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
       sync_cout << info << sync_endl;
       node_state = NodeState::kProven;
       if (result.Len().Len() <= 1) {
+        break;
+      }
+
+      if (option_.post_search_level == PostSearchLevel::kNone ||
+          (option_.post_search_level == PostSearchLevel::kUpperBound && best_moves_.size() == result.Len().Len())) {
         break;
       }
 
