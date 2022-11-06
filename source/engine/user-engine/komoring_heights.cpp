@@ -212,9 +212,11 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
         sync_cout << info << "Failed to detect PV" << sync_endl;
       }
       if (node_state == NodeState::kProven) {
-        best_moves_ = GetMatePath(n, len + 2);
         len = len + 2;
         score_ = old_score;
+        if (best_moves_.size() != len.Len()) {
+          best_moves_ = GetMatePath(n, len);
+        }
       }
       break;
     }
@@ -277,7 +279,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     }
   }
 
-  if (monitor_.ShouldGc()) {
+  if (n.GetDepth() > 0 && monitor_.ShouldGc()) {
     tt_.CollectGarbage();
     tt_.CompactEntries();
     monitor_.ResetNextGc();
@@ -333,7 +335,13 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
       break;
     }
 
-    SearchEntry(n, len);
+    const auto result = SearchEntry(n, len);
+    if (result.Pn() != 0) {
+      // `n` は詰みのはずなのに探索で詰みを示せなかった。このような現象は、余詰め探索に千日手が絡んでいるケースで
+      // しばしば発生する。千日手テーブルだけ消去して探索し直すことでこれを回避できる。
+      tt_.NewSearch();
+      SearchEntry(n, len);
+    }
 
     // 子ノードの中から最善っぽい手を選ぶ
     Move best_move = MOVE_NONE;
