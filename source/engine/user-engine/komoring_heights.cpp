@@ -174,7 +174,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
   auto node_state{NodeState::kUnknown};
   auto len{kDepthMaxMateLen};
 
-  for (int i = 0; i < 128; ++i) {
+  for (Depth i = 0; i < kDepthMax; ++i) {
     // `result` が余詰探索による不詰だったとき、後から元の状態（詰み）に戻せるようにしておく
     const auto old_score = score_;
     const auto result = SearchEntry(n, len);
