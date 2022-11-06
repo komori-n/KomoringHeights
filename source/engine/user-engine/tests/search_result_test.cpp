@@ -31,7 +31,7 @@ TEST(SearchResultTest, MakeProven) {
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 20);
   EXPECT_TRUE(result.IsFinal());
-  EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_FALSE(result.GetFinalData().IsRepetition());
   EXPECT_EQ(result.GetFinalData().hand, (MakeHand<PAWN, SILVER>()));
 }
 
@@ -43,69 +43,19 @@ TEST(SearchResultTest, MakeDisproven) {
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 30);
   EXPECT_TRUE(result.IsFinal());
-  EXPECT_FALSE(result.GetFinalData().is_repetition);
+  EXPECT_FALSE(result.GetFinalData().IsRepetition());
   EXPECT_EQ(result.GetFinalData().hand, (MakeHand<GOLD, GOLD>()));
 }
 
 TEST(SearchResultTest, MakeRepetition) {
-  const auto result = SearchResult::MakeFinal<false, true>(MakeHand<ROOK, BISHOP>(), MateLen{334}, 40);
+  const auto result = SearchResult::MakeRepetition(MakeHand<ROOK, BISHOP>(), MateLen{334}, 40, 334);
 
   EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
   EXPECT_EQ(result.Len(), MateLen{334});
   EXPECT_EQ(result.Amount(), 40);
   EXPECT_TRUE(result.IsFinal());
-  EXPECT_TRUE(result.GetFinalData().is_repetition);
-  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<ROOK, BISHOP>()));
-}
-
-TEST(SearchResultTest, InitUnknown) {
-  SearchResult result{};
-  const UnknownData unknown_data{true, BitSet64{445}};
-  result.InitUnknown(33, 4, MateLen{264}, 10, unknown_data);
-
-  EXPECT_EQ(result.Pn(), 33);
-  EXPECT_EQ(result.Dn(), 4);
-  EXPECT_EQ(result.Len(), MateLen{264});
-  EXPECT_EQ(result.Amount(), 10);
-  EXPECT_FALSE(result.IsFinal());
-  EXPECT_TRUE(result.GetUnknownData().is_first_visit);
-  EXPECT_EQ(result.GetUnknownData().sum_mask, BitSet64{445});
-}
-
-TEST(SearchResultTest, InitProven) {
-  SearchResult result{};
-  result.InitFinal<true>(MakeHand<PAWN, SILVER>(), MateLen{334}, 20);
-
-  EXPECT_EQ(result.Pn(), 0);
-  EXPECT_EQ(result.Dn(), komori::kInfinitePnDn);
-  EXPECT_EQ(result.Len(), MateLen{334});
-  EXPECT_EQ(result.Amount(), 20);
-  EXPECT_FALSE(result.GetFinalData().is_repetition);
-  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<PAWN, SILVER>()));
-}
-
-TEST(SearchResultTest, InitDisproven) {
-  SearchResult result{};
-  result.InitFinal<false>(MakeHand<GOLD, GOLD>(), MateLen{334}, 30);
-
-  EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
-  EXPECT_EQ(result.Dn(), 0);
-  EXPECT_EQ(result.Len(), MateLen{334});
-  EXPECT_EQ(result.Amount(), 30);
-  EXPECT_FALSE(result.GetFinalData().is_repetition);
-  EXPECT_EQ(result.GetFinalData().hand, (MakeHand<GOLD, GOLD>()));
-}
-
-TEST(SearchResultTest, InitRepetition) {
-  SearchResult result{};
-  result.InitFinal<false, true>(MakeHand<ROOK, BISHOP>(), MateLen{334}, 40);
-
-  EXPECT_EQ(result.Pn(), komori::kInfinitePnDn);
-  EXPECT_EQ(result.Dn(), 0);
-  EXPECT_EQ(result.Len(), MateLen{334});
-  EXPECT_EQ(result.Amount(), 40);
-  EXPECT_TRUE(result.GetFinalData().is_repetition);
+  EXPECT_EQ(result.GetFinalData().repetition_start, 334);
   EXPECT_EQ(result.GetFinalData().hand, (MakeHand<ROOK, BISHOP>()));
 }
 
@@ -131,7 +81,7 @@ TEST(SearchResultComparerTest, OrNode) {
   const auto u2 = SearchResult::MakeUnknown(26, 4, MateLen{264}, 10, unknown_data);
   const auto u3 = SearchResult::MakeUnknown(33, 5, MateLen{264}, 10, unknown_data);
   const auto f1 = SearchResult::MakeFinal<false>(MakeHand<PAWN, SILVER>(), MateLen{334}, 20);
-  const auto f2 = SearchResult::MakeFinal<false, true>(MakeHand<PAWN, SILVER>(), MateLen{334}, 20);
+  const auto f2 = SearchResult::MakeRepetition(MakeHand<PAWN, SILVER>(), MateLen{334}, 20, 0);
 
   EXPECT_EQ(sr_comparer(u2, u1), SearchResultComparer::Ordering::kLess);
   EXPECT_EQ(sr_comparer(u1, u2), SearchResultComparer::Ordering::kGreater);

@@ -48,11 +48,12 @@ TEST_F(TranspositionTableTest, NewSearch) {
   const auto query = tt_.BuildQueryByKey({0x334334334, HAND_ZERO});
   const Key board_key{0x334};
   const Key path_key{0x264};
+  const Key depth{264};
   const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
   query.cluster.head_entry->Init(board_key, hand);
-  query.rep_table.Insert(path_key);
+  query.rep_table.Insert(path_key, depth);
 
-  EXPECT_TRUE(query.rep_table.Contains(path_key));
+  EXPECT_EQ(query.rep_table.Contains(path_key), std::optional<Depth>{depth});
   tt_.NewSearch();
   EXPECT_TRUE(query.cluster.head_entry->IsFor(board_key, hand));
   EXPECT_FALSE(query.rep_table.Contains(path_key));
@@ -62,11 +63,12 @@ TEST_F(TranspositionTableTest, Clear) {
   const auto query = tt_.BuildQueryByKey({0x334334334, HAND_ZERO});
   const Key board_key{0x334};
   const Key path_key{0x264};
+  const Key depth{264};
   const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
   query.cluster.head_entry->Init(board_key, hand);
-  query.rep_table.Insert(path_key);
+  query.rep_table.Insert(path_key, depth);
 
-  EXPECT_TRUE(query.rep_table.Contains(path_key));
+  EXPECT_EQ(query.rep_table.Contains(path_key), std::optional<Depth>{depth});
   tt_.Clear();
   EXPECT_FALSE(query.cluster.head_entry->IsFor(board_key, hand));
   EXPECT_FALSE(query.rep_table.Contains(path_key));
@@ -129,7 +131,7 @@ TEST_F(TranspositionTableTest, BuildQueryByKey_ClusterHasUniformDistribution) {
 TEST_F(TranspositionTableTest, Hashfull_EmptyAfterClear) {
   auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
 
-  query.rep_table.Insert(0x334);
+  query.rep_table.Insert(0x334, 264);
   for (auto itr = query.cluster.head_entry; itr != &*tt_.end(); ++itr) {
     itr->Init(0x334, HAND_ZERO);
   }
@@ -144,7 +146,7 @@ TEST_F(TranspositionTableTest, Hashfull_Full) {
   auto query = tt_.BuildQueryByKey({0, HAND_ZERO}, 0);
   ASSERT_EQ(query.cluster.head_entry, &*tt_.begin());
 
-  query.rep_table.Insert(0x334);
+  query.rep_table.Insert(0x334, 264);
   for (auto itr = query.cluster.head_entry; itr != &*tt_.end(); ++itr) {
     itr->Init(0x334, HAND_ZERO);
   }

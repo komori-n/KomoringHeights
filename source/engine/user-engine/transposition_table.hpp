@@ -16,7 +16,7 @@
 namespace komori::tt {
 namespace detail {
 /// USI_Hash のうちどの程度を NormalTable に使用するかを示す割合。
-constexpr inline double kNormalRepetitionRatio = 0.95;
+constexpr inline double kNormalRepetitionRatio = 0.90;
 /// TT をファイルへ書き出す最低の探索量。探索量の小さいエントリを書き出さないことでファイルサイズを小さくする。
 constexpr inline SearchAmount kTTSaveAmountThreshold = 10;
 
@@ -146,9 +146,9 @@ class TranspositionTableImpl {
     // 通常テーブルに保存する要素数。最低でも `Cluster::kSize + 1` 以上になるようにする
     const auto new_num_entries = std::max(static_cast<std::uint64_t>(Cluster::kSize + 1), normal_bytes / sizeof(Entry));
     // 千日手テーブルに保存する要素数。最低でも 1 以上になるようにする
-    // 千日手テーブルは `std::unordered_set` により実現されているので、N 個のエントリを保存するためには
-    // 4N * sizeof(Key) バイト程度が必要になる。（環境依存）
-    const auto rep_num_entries = std::max(decltype(rep_bytes){1}, rep_bytes / 4 / sizeof(Key));
+    // 千日手テーブルは `std::unordered_map` により実現されているので、N 個のエントリを保存するためには
+    // 6N * sizeof(Key) バイト程度が必要になる。（環境依存）
+    const auto rep_num_entries = std::max(decltype(rep_bytes){1}, rep_bytes / 6 / sizeof(Key));
 
     cluster_head_num_ = new_num_entries - Cluster::kSize;
     entries_.resize(new_num_entries);

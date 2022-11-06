@@ -76,7 +76,7 @@ TEST_F(QueryTest, LoopUp_UnknownExact) {
 }
 
 TEST_F(QueryTest, LoopUp_UnknownExactRepetition) {
-  rep_table_.Insert(path_key_);
+  rep_table_.Insert(path_key_, depth_ - 4);
 
   const PnDn pn{33};
   const PnDn dn{4};
@@ -91,6 +91,7 @@ TEST_F(QueryTest, LoopUp_UnknownExactRepetition) {
   EXPECT_EQ(result.Pn(), kInfinitePnDn);
   EXPECT_EQ(result.Dn(), 0);
   EXPECT_EQ(result.Amount(), entries_[0].Amount());
+  EXPECT_EQ(result.GetFinalData().repetition_start, depth_ - 4);
 }
 
 TEST_F(QueryTest, LoopUp_UnknownExactNoRepetition) {
@@ -267,7 +268,7 @@ TEST_F(QueryTest, FinalRange_Repetition) {
   EXPECT_EQ(disproven_len2, komori::kMinus1MateLen);
   EXPECT_EQ(proven_len2, len);
 
-  rep_table_.Insert(path_key_);
+  rep_table_.Insert(path_key_, 264);
   const auto [disproven_len3, proven_len3] = query_.FinalRange();
   EXPECT_EQ(disproven_len3, len - 1);
   EXPECT_EQ(proven_len3, len);
@@ -365,7 +366,7 @@ TEST_F(QueryTest, SetResult_DisprovenUpdate) {
 
 TEST_F(QueryTest, SetResult_RepetitionNew) {
   const SearchAmount amount{334};
-  const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen{334}, amount);
+  const SearchResult result = SearchResult::MakeRepetition(hand_, MateLen{334}, amount, 0);
 
   query_.SetResult(result);
   EXPECT_EQ(entries_[0].Pn(), 1);
@@ -376,7 +377,7 @@ TEST_F(QueryTest, SetResult_RepetitionNew) {
 
 TEST_F(QueryTest, SetResult_RepetitionUpdate) {
   const SearchAmount amount{334};
-  const SearchResult result = SearchResult::MakeFinal<false, true>(hand_, MateLen{334}, amount);
+  const SearchResult result = SearchResult::MakeRepetition(hand_, MateLen{334}, amount, 0);
 
   entries_[2].Init(board_key_, hand_);
   query_.SetResult(result);

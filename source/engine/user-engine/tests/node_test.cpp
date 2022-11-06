@@ -44,6 +44,7 @@ TEST(NodeTest, Repetitions) {
 
   const auto m = make_move(SQ_59, SQ_48, B_KING);
 
+  EXPECT_EQ(n->ContainsInPath(n->BoardKey(), n->OrHand()), std::optional<Depth>{4});
   EXPECT_FALSE(n->IsRepetition());
   EXPECT_FALSE(n->IsRepetitionAfter(m));
   EXPECT_FALSE(n->ContainsInPath(n->BoardKeyAfter(m), n->OrHandAfter(m)));

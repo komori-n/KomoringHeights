@@ -14,11 +14,10 @@ namespace komori {
  * @brief 探索履歴を管理し、千日手や優等局面の判定を行うクラス。
  *
  * df-pn探索中に、親ノードで訪れた局面と同一局面や優等局面／劣等局面で探索を打ち切りたいことがある。
- * このクラスは、これまでに訪れた (`board_key`, `hand`) の組を管理し、親ノードで類似局面があったかどうかを判定する。
+ * このクラスは、これまでに訪れた (`board_key`, `hand`) の組と探索深さ `depth` を管理し、親ノードで類似局面が
+ * あったかどうかを判定する。
  *
  * `Visit()` で新たな局面に訪れ、`Leave()` で訪れた局面の削除ができる。
- *
- * @note 詰将棋探索では手数が長くなりがちなので、基本的には `Position()` の千日手判定よりも高速に動作する。
  */
 class VisitHistory {
  public:
@@ -102,6 +101,7 @@ class VisitHistory {
   }
 
  private:
+  /// 攻め方の持ち駒と探索深さのペア
   using HandDepthPair = std::pair<Hand, Depth>;
   /// 経路上で訪れたことがある局面一覧。局面の優等性を利用したいためmultisetを用いる。
   std::unordered_multimap<Key, HandDepthPair> visited_;

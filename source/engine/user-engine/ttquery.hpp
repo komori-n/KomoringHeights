@@ -150,8 +150,10 @@ class Query {
           } else if (dn == 0) {
             return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen{len16}, amount);
           } else if (itr->IsFor(board_key_, hand_)) {
-            if (itr->IsPossibleRepetition() && rep_table_->Contains(path_key_)) {
-              return SearchResult::MakeFinal<false, true>(hand_, len, amount);
+            if (itr->IsPossibleRepetition()) {
+              if (auto depth_opt = rep_table_->Contains(path_key_)) {
+                return SearchResult::MakeRepetition(hand_, len, amount, *depth_opt);
+              }
             }
 
             found_exact = true;
@@ -237,7 +239,7 @@ class Query {
     if (result.Pn() == 0) {
       SetFinal<true>(result);
     } else if (result.Dn() == 0) {
-      if (result.GetFinalData().is_repetition) {
+      if (result.GetFinalData().IsRepetition()) {
         SetRepetition(result);
       } else {
         SetFinal<false>(result);
@@ -323,14 +325,14 @@ class Query {
    * @brief 千日手の探索結果 `result` をクラスタに書き込む関数
    * @param result 探索結果（千日手）
    */
-  void SetRepetition(const SearchResult& /* result */) const noexcept {
+  void SetRepetition(const SearchResult& result) const noexcept {
     auto entry = FindEntry(hand_);
     if (entry == nullptr) {
       entry = CreateNewEntry(hand_);
     }
 
     entry->SetPossibleRepetition();
-    rep_table_->Insert(path_key_);
+    rep_table_->Insert(path_key_, result.GetFinalData().repetition_start);
   }
 
   /**

@@ -7,7 +7,7 @@
 #include <array>
 #include <iostream>
 #include <limits>
-#include <unordered_set>
+#include <unordered_map>
 
 #include "typedefs.hpp"
 
@@ -18,7 +18,7 @@ namespace komori {
  * 千日手と判明した経路ハッシュ値を高々 `size_max` 個記憶する。もし記録している手順数が `size_max` を超える場合、
  * 古い結果を削除する GC 機能を備えている。
  *
- * @note `std::unordered_set` を複数個持つことでこの GC 機能を実現している。
+ * @note `std::unordered_map` を複数個持つことでこの GC 機能を実現している。
  */
 class RepetitionTable {
  public:
@@ -36,18 +36,35 @@ class RepetitionTable {
     // GC 機能は `Insert()` 内部で行っているので、ここですべきことはなにもない
   }
 
-  /// 経路ハッシュ値 `path_key` を登録する
-  void Insert(Key path_key) {
-    keys_[idx_].insert(path_key);
+  /**
+   * @brief 経路ハッシュ値 `path_key` に千日手判定開始深さ `depth` を設定する
+   * @param path_key 経路ハッシュ値
+   * @param depth    千日手判定開始深さ
+   */
+  void Insert(Key path_key, Depth depth) {
+    if (auto itr = keys_[idx_].find(path_key); itr != keys_[idx_].end()) {
+      keys_[idx_].insert_or_assign(path_key, std::max(depth, itr->second));
+    } else {
+      keys_[idx_].insert(std::make_pair(path_key, depth));
+    }
     if (keys_[idx_].size() >= size_max_ / kTableLen) {
       idx_ = (idx_ + 1) % kTableLen;
       keys_[idx_].clear();
     }
   }
 
-  /// 経路ハッシュ値 `path_key` が保存されているかどうか判定する。
-  bool Contains(Key path_key) const {
-    return std::any_of(keys_.begin(), keys_.end(), [&](const auto& tbl) { return tbl.find(path_key) != tbl.end(); });
+  /**
+   * @brief 経路ハッシュ値 `path_key` が保存されているかどうか判定する。
+   * @param path_key 経路ハッシュ値
+   * @return `path_key` が保存されていればその深さ、なければ `std::nullopt`
+   */
+  std::optional<Depth> Contains(Key path_key) const {
+    for (const auto& tbl : keys_) {
+      if (const auto itr = tbl.find(path_key); itr != tbl.end()) {
+        return itr->second;
+      }
+    }
+    return std::nullopt;
   }
 
   /// 現在置換表に保存されている経路ハッシュ値の個数をカウントする。
@@ -66,11 +83,11 @@ class RepetitionTable {
   std::istream& Load(std::istream& is) { return is; }
 
  private:
-  /// 内部で持つ `std::unordered_set` の個数。あまり多いと LookUp 時間が増大する。
+  /// 内部で持つ `std::unordered_map` の個数。あまり多いと LookUp 時間が増大する。
   static constexpr inline std::size_t kTableLen = 2;
 
   /// 経路ハッシュ値置換表の本体
-  std::array<std::unordered_set<Key>, kTableLen> keys_{};
+  std::array<std::unordered_map<Key, Depth>, kTableLen> keys_{};
   /// 現在アクティブな置換表([0, kTableLen))
   std::size_t idx_{0};
   /// 置換表内に保存できる経路ハッシュ値の最大個数

@@ -83,7 +83,7 @@ TEST(ScoreTest, MakeUnknown_Disproven) {
 }
 
 TEST(ScoreTest, MakeUnknown_Repetition) {
-  const SearchResult result = SearchResult::MakeFinal<false, true>(HAND_ZERO, MateLen{264}, 1);
+  const SearchResult result = SearchResult::MakeRepetition(HAND_ZERO, MateLen{264}, 1, 334);
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
   EXPECT_EQ(s1.ToString(), "mate -264");

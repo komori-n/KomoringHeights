@@ -84,15 +84,15 @@ class LocalExpansion {
       auto& query = queries_[i_raw];
       child_key_hand_pairs_[i_raw] = n.BoardKeyHandPairAfter(move.move);
 
-      if (n.IsRepetitionOrInferiorAfter(move.move)) {
-        result.InitFinal<false, true>(hand_after, len, 1);
+      if (const auto depth_opt = n.IsRepetitionOrInferiorAfter(move.move)) {
+        result = SearchResult::MakeRepetition(hand_after, len, 1, *depth_opt);
       } else {
         // 子局面が OR node  -> 1手詰以上
         // 子局面が AND node -> 0手詰以上
         const auto min_len = or_node_ ? MateLen{0} : MateLen{1};
         if (len_ - 1 < min_len) {
           // どう見ても詰まない
-          result.InitFinal<false>(hand_after, min_len - 1, 1);
+          result = SearchResult::MakeFinal<false>(hand_after, min_len - 1, 1);
           goto CHILD_LOOP_END;
         }
 
@@ -390,8 +390,13 @@ class LocalExpansion {
   SearchResult GetDisprovenResult(const Node& n) const {
     // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
     if (!mp_.empty()) {
-      if (const auto& result = FrontResult(); result.GetFinalData().is_repetition) {
-        return SearchResult::MakeFinal<false, true>(n.OrHand(), len_, 1);
+      if (const auto& result = FrontResult(); result.GetFinalData().IsRepetition()) {
+        const auto depth = result.GetFinalData().repetition_start;
+        if (depth < n.GetDepth()) {
+          return SearchResult::MakeRepetition(n.OrHand(), len_, 1, depth);
+        } else {
+          return SearchResult::MakeFinal<false>(n.OrHand(), len_, 1);
+        }
       }
     }
 

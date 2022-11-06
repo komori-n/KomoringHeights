@@ -13,14 +13,21 @@
 namespace komori {
 /// 結論が出ていないノード（Unknown）の探索結果
 struct UnknownData {
+  // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
   bool is_first_visit;  ///< 初めて訪れた局面かどうか
   BitSet64 sum_mask;    ///< δ値を和で計算すべき子の集合
+  // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
 
 /// 結論が出てたノード（Final）の探索結果
 struct FinalData {
-  bool is_repetition;  ///< 千日手による final かどうか
-  Hand hand;           ///< 証明駒 or 反証駒
+  // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
+  Depth repetition_start;  ///< 千日手の開始深さ。千日手でないなら kDepthMax。
+  Hand hand;               ///< 証明駒 or 反証駒
+  // NOLINTEND(misc-non-private-member-variables-in-classes)
+
+  /// 千日手かどうか
+  constexpr bool IsRepetition() const noexcept { return repetition_start < kDepthMax; }
 };
 
 /**
@@ -50,27 +57,27 @@ class SearchResult {
                                             MateLen len,
                                             std::uint32_t amount,
                                             UnknownData unknown_data) {
-    // SearchResult{}.InitUnknown(...) だと constexpr にならないのでダメ
     return {pn, dn, len, amount, unknown_data};
   }
 
   /**
    * @brief Finalな探索結果で初期化する
    * @tparam kIsProven     `true` なら詰み、`false` なら不詰
-   * @tparam kIsRepetition `true` なら千日手による不詰
    * @param hand           攻め方の持ち駒
    * @param len            探索時の残り手数
    * @param amount         探索量
    *
-   * `kIsProven` と `kIsRepetition` を同時に `true` にすることはできない。
+   * 千日手の場合、この関数ではなく `MakeRepetition()` を用いること。
    */
-  template <bool kIsProven, bool kIsRepetition = false>
+  template <bool kIsProven>
   static constexpr SearchResult MakeFinal(Hand hand, MateLen len, std::uint32_t amount) {
-    static_assert(!(kIsProven && kIsRepetition));
-
     const auto pn = kIsProven ? 0 : kInfinitePnDn;
     const auto dn = kIsProven ? kInfinitePnDn : 0;
-    return {pn, dn, len, amount, FinalData{kIsRepetition, hand}};
+    return {pn, dn, len, amount, FinalData{kDepthMax, hand}};
+  }
+
+  static constexpr SearchResult MakeRepetition(Hand hand, MateLen len, std::uint32_t amount, Depth rep_start) {
+    return {kInfinitePnDn, 0, len, amount, FinalData{rep_start, hand}};
   }
 
   /// 領域を事前確保できるようにするために、デフォルト構築可能にする。
@@ -95,43 +102,6 @@ class SearchResult {
   /// Final部分の結果。`IsFinal()` の場合のみ呼び出し可能。
   constexpr const FinalData& GetFinalData() const { return final_data_; }
 
-  /**
-   * @brief Unknownな探索結果を上書きで保存する
-   * @param pn            pn
-   * @param dn            dn
-   * @param len           探索時の残り手数
-   * @param amount        探索量
-   * @param unknown_data  Unknown部分の結果
-   */
-  constexpr void InitUnknown(PnDn pn, PnDn dn, MateLen len, std::uint32_t amount, UnknownData unknown_data) {
-    pn_ = pn;
-    dn_ = dn;
-    len_ = len;
-    amount_ = amount;
-    unknown_data_ = unknown_data;
-  }
-
-  /**
-   * @brief Finalな探索結果を上書きで保存する
-   * @tparam kIsProven     `true` なら詰み、`false` なら不詰
-   * @tparam kIsRepetition `true` なら千日手による不詰
-   * @param hand           攻め方の持ち駒
-   * @param len            探索時の残り手数
-   * @param amount         探索量
-   *
-   * `kIsProven` と `kIsRepetition` を同時に `true` にすることはできない。
-   */
-  template <bool kIsProven, bool kIsRepetition = false>
-  constexpr void InitFinal(Hand hand, MateLen len, std::uint32_t amount) {
-    static_assert(!(kIsProven && kIsRepetition));
-
-    pn_ = kIsProven ? 0 : kInfinitePnDn;
-    dn_ = kIsProven ? kInfinitePnDn : 0;
-    len_ = len;
-    amount_ = amount;
-    final_data_ = FinalData{kIsRepetition, hand};
-  }
-
   /// `result` を出力ストリームへ出力する。
   friend std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
     os << "{";
@@ -140,10 +110,10 @@ class SearchResult {
       if (result.Pn() == 0) {
         os << "proof_hand=" << final_data.hand;
       } else {
-        if (!final_data.is_repetition) {
+        if (!final_data.IsRepetition()) {
           os << "disproof_hand=" << final_data.hand;
         } else {
-          os << "repetition";
+          os << "repetition start=" << final_data.repetition_start;
         }
       }
     } else {
@@ -241,11 +211,12 @@ class SearchResultComparer {
     }
 
     if (lhs.Dn() == 0 /* && rhs.Dn() == 0 */) {
-      const auto l_is_rep = lhs.GetFinalData().is_repetition;
-      const auto r_is_rep = rhs.GetFinalData().is_repetition;
+      const auto l_rep_start = lhs.GetFinalData().repetition_start;
+      const auto r_rep_start = rhs.GetFinalData().repetition_start;
 
-      if (l_is_rep != r_is_rep) {
-        if (!or_node_ ^ l_is_rep) {
+      if (l_rep_start != r_rep_start) {
+        // OR node では repetition_start が小さい順、AND node では repetition_start が大きい順に並べたい
+        if (!or_node_ ^ (l_rep_start < r_rep_start)) {
           return Ordering::kLess;
         } else {
           return Ordering::kGreater;
