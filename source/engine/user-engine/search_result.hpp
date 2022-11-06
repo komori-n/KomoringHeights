@@ -76,6 +76,13 @@ class SearchResult {
     return {pn, dn, len, amount, FinalData{kDepthMax, hand}};
   }
 
+  /**
+   * @brief 千日手の探索結果で初期化する
+   * @param hand 攻め方の持ち駒
+   * @param len  探索時の残り手数
+   * @param amount 探索量
+   * @param rep_start 千日手の開始局面。この深さを下回ったら千日手は解消されたと判断する。
+   */
   static constexpr SearchResult MakeRepetition(Hand hand, MateLen len, std::uint32_t amount, Depth rep_start) {
     return {kInfinitePnDn, 0, len, amount, FinalData{rep_start, hand}};
   }
