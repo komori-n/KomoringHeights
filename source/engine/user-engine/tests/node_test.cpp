@@ -47,19 +47,17 @@ TEST(NodeTest, Repetitions) {
   EXPECT_FALSE(n->IsRepetition());
   EXPECT_FALSE(n->IsRepetitionAfter(m));
   EXPECT_FALSE(n->ContainsInPath(n->BoardKeyAfter(m), n->OrHandAfter(m)));
-  EXPECT_FALSE(n->ContainsInPath(n->BoardKeyAfter(m)));
 
   n->DoMove(make_move(SQ_68, SQ_57, W_SILVER));
   n->DoMove(make_move(SQ_48, SQ_59, B_KING));
   n->DoMove(make_move(SQ_57, SQ_68, W_SILVER));
 
-  EXPECT_TRUE(n->IsRepetitionAfter(m));
-  EXPECT_TRUE(n->ContainsInPath(n->BoardKeyAfter(m), n->OrHandAfter(m)));
-  EXPECT_TRUE(n->ContainsInPath(n->BoardKeyAfter(m)));
+  EXPECT_EQ(n->IsRepetitionAfter(m), std::optional<Depth>{4});
+  EXPECT_EQ(n->ContainsInPath(n->BoardKeyAfter(m), n->OrHandAfter(m)), std::optional<Depth>{4});
 
   n->DoMove(m);
 
-  EXPECT_TRUE(n->IsRepetition());
+  EXPECT_EQ(n->IsRepetition(), std::optional<Depth>{4});
 }
 
 TEST(NodeTest, InferiorLoop) {
@@ -74,11 +72,11 @@ TEST(NodeTest, InferiorLoop) {
   n->DoMove(make_move(SQ_48, SQ_39, B_KING));
   n->DoMove(make_move_drop(GOLD, SQ_48, WHITE));
 
-  EXPECT_TRUE(n->IsRepetitionOrInferiorAfter(m));
+  EXPECT_EQ(n->IsRepetitionOrInferiorAfter(m), std::optional<Depth>{4});
 
   n->DoMove(m);
 
-  EXPECT_TRUE(n->IsRepetitionOrInferior());
+  EXPECT_EQ(n->IsRepetitionOrInferior(), std::optional<Depth>{4});
 }
 
 TEST(NodeTest, SuperiorLoop) {
@@ -93,11 +91,11 @@ TEST(NodeTest, SuperiorLoop) {
   n->DoMove(make_move_drop(PAWN, SQ_42, WHITE));
   n->DoMove(make_move(SQ_62, SQ_42, B_ROOK));
 
-  EXPECT_TRUE(n->IsRepetitionOrSuperiorAfter(m));
+  EXPECT_EQ(n->IsRepetitionOrSuperiorAfter(m), std::optional<Depth>{4});
 
   n->DoMove(m);
 
-  EXPECT_TRUE(n->IsRepetitionOrSuperior());
+  EXPECT_EQ(n->IsRepetitionOrSuperior(), std::optional<Depth>{4});
 }
 
 TEST(NodeTest, RollForward) {

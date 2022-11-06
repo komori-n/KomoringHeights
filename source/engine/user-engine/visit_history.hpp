@@ -4,6 +4,7 @@
 #ifndef KOMORI_VISIT_HISTORY_HPP_
 #define KOMORI_VISIT_HISTORY_HPP_
 
+#include <optional>
 #include <unordered_map>
 
 #include "typedefs.hpp"
@@ -25,22 +26,24 @@ class VisitHistory {
    * @brief (`board_key`, `hand`) を履歴に登録する
    * @param board_key   局面のハッシュ
    * @param hand        攻め方の持ち駒
+   * @param depth       現在の探索深さ
    *
    * `Contains(board_key, hand) == true` の場合、呼び出し禁止。
    */
-  void Visit(Key board_key, Hand hand) { visited_.emplace(board_key, hand); }
+  void Visit(Key board_key, Hand hand, Depth depth) { visited_.emplace(board_key, std::make_pair(hand, depth)); }
 
   /**
    * @brief (`board_key`, `hand`) を履歴から消す
    * @param board_key   局面のハッシュ
    * @param hand        攻め方の持ち駒
+   * @param depth       現在の探索深さ
    *
    * (`board_key`, `hand`) は必ず `Visit()` で登録された局面でなければならない。
    */
-  void Leave(Key board_key, Hand hand) {
+  void Leave(Key board_key, Hand hand, Depth /* depth */) {
     auto [begin, end] = visited_.equal_range(board_key);
     for (auto itr = begin; itr != end; ++itr) {
-      if (itr->second == hand) {
+      if (itr->second.first == hand) {
         visited_.erase(itr);
         return;
       }
@@ -52,34 +55,33 @@ class VisitHistory {
    * @param board_key 盤面のハッシュ
    * @param hand      攻め方の持ち駒
    */
-  bool Contains(Key board_key, Hand hand) const {
+  std::optional<Depth> Contains(Key board_key, Hand hand) const {
     const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hand] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+    for (const auto& [bk, history_hd] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+      const auto& [history_hand, history_depth] = history_hd;
       if (history_hand == hand) {
-        return true;
+        return history_depth;
       }
     }
 
-    return false;
+    return std::nullopt;
   }
-
-  /// `board_key` の同一局面が履歴に記録されているか調べる。
-  bool Contains(Key board_key) const { return visited_.find(board_key) != visited_.end(); }
 
   /**
    * @brief (`board_key`, `hand`) の優等局面が履歴に記録されているか調べる。
    * @param board_key   盤面ハッシュ
    * @param hand        攻め方の持ち駒
    */
-  bool IsInferior(Key board_key, Hand hand) const {
+  std::optional<Depth> IsInferior(Key board_key, Hand hand) const {
     const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hand] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+    for (const auto& [bk, history_hd] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+      const auto& [history_hand, history_depth] = history_hd;
       if (hand_is_equal_or_superior(history_hand, hand)) {
-        return true;
+        return history_depth;
       }
     }
 
-    return false;
+    return std::nullopt;
   }
 
   /**
@@ -87,20 +89,22 @@ class VisitHistory {
    * @param board_key   盤面ハッシュ
    * @param hand        攻め方の持ち駒
    */
-  bool IsSuperior(Key board_key, Hand hand) const {
+  std::optional<Depth> IsSuperior(Key board_key, Hand hand) const {
     const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hand] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+    for (const auto& [bk, history_hd] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+      const auto& [history_hand, history_depth] = history_hd;
       if (hand_is_equal_or_superior(hand, history_hand)) {
-        return true;
+        return history_depth;
       }
     }
 
-    return false;
+    return std::nullopt;
   }
 
  private:
+  using HandDepthPair = std::pair<Hand, Depth>;
   /// 経路上で訪れたことがある局面一覧。局面の優等性を利用したいためmultisetを用いる。
-  std::unordered_multimap<Key, Hand> visited_;
+  std::unordered_multimap<Key, HandDepthPair> visited_;
 };
 }  // namespace komori
 
