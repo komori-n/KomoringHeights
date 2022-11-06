@@ -37,14 +37,14 @@ class SearchMonitor {
   void Tick();
   UsiInfo GetInfo() const;
   std::uint64_t MoveCount() const { return thread_->nodes; }
-  bool ShouldStop() const { return MoveCount() >= move_limit_ || stop_; }
+  bool ShouldStop() const { return MoveCount() >= move_limit_ || stop_.load(std::memory_order_relaxed); }
 
   bool ShouldGc() const { return MoveCount() >= next_gc_count_; }
   void ResetNextGc();
 
   void PushLimit(std::uint64_t move_limit);
   void PopLimit();
-  void SetStop(bool stop = true) { stop_ = stop; }
+  void SetStop(bool stop = true) { stop_.store(stop, std::memory_order_relaxed); }
 
  private:
   static constexpr inline std::size_t kHistLen = 16;
@@ -79,7 +79,7 @@ class KomoringHeights {
 
   void SetStop() { monitor_.SetStop(true); }
   void ResetStop() { monitor_.SetStop(false); }
-  void RequestPrint() { print_flag_ = true; }
+  void RequestPrint() { print_flag_.store(true, std::memory_order_relaxed); }
   UsiInfo CurrentInfo() const;
 
   const std::vector<Move>& BestMoves() const { return best_moves_; }

@@ -377,10 +377,9 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
 }
 
 void KomoringHeights::PrintIfNeeded(const Node& n) {
-  if (!print_flag_) {
+  if (!print_flag_.exchange(false, std::memory_order_relaxed)) {
     return;
   }
-  print_flag_ = false;
 
   auto usi_output = CurrentInfo();
   usi_output.Set(UsiInfoKey::kDepth, n.GetDepth());
