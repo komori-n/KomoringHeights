@@ -110,6 +110,9 @@ class Query {
   /// Destructor
   ~Query() noexcept = default;
 
+  /// 盤面ハッシュ値と持ち駒のペアを返す
+  constexpr BoardKeyHandPair GetBoardKeyHandPair() const noexcept { return BoardKeyHandPair{board_key_, hand_}; }
+
   // テンプレート関数のカバレッジは悲しいことになるので取らない
   // LCOV_EXCL_START NOLINTBEGIN
 

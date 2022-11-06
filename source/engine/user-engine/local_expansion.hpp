@@ -82,7 +82,6 @@ class LocalExpansion {
       idx_.Push(i_raw);
       auto& result = results_[i_raw];
       auto& query = queries_[i_raw];
-      child_key_hand_pairs_[i_raw] = n.BoardKeyHandPairAfter(move.move);
 
       if (const auto depth_opt = n.IsRepetitionOrInferiorAfter(move.move)) {
         result = SearchResult::MakeRepetition(hand_after, len, 1, *depth_opt);
@@ -136,12 +135,18 @@ class LocalExpansion {
     RecalcDelta();
   }
 
+  /// Copy constructor(delete)
   LocalExpansion(const LocalExpansion&) = delete;
+  /// Move constructor(delete)
   LocalExpansion(LocalExpansion&&) = delete;
+  /// Copy assign operator(delete)
   LocalExpansion& operator=(const LocalExpansion&) = delete;
+  /// Move assign operator(delete)
   LocalExpansion& operator=(LocalExpansion&&) = delete;
+  /// Destructor(default)
   ~LocalExpansion() = default;
 
+  bool empty() const noexcept { return idx_.empty(); }
   Move BestMove() const { return mp_[idx_.front()].move; }
   bool DoesHaveOldChild() const { return does_have_old_child_; }
   bool FrontIsFirstVisit() const { return FrontResult().GetUnknownData().is_first_visit; }
@@ -149,7 +154,6 @@ class LocalExpansion {
     const auto& result = FrontResult();
     return result.GetUnknownData().sum_mask;
   }
-  bool empty() const noexcept { return idx_.empty(); }
 
   SearchResult CurrentResult(const Node& n) const {
     if (GetPn() == 0) {
@@ -229,7 +233,7 @@ class LocalExpansion {
     if (edge.branch_root_key_hand_pair == key_hand_pair_) {
       sum_mask_.Reset(idx_.front());
       for (const auto i_raw : idx_) {
-        const auto& child_key_hand_pair = child_key_hand_pairs_[i_raw];
+        const auto& child_key_hand_pair = queries_[i_raw].GetBoardKeyHandPair();
         if (child_key_hand_pair == edge.child_key_hand_pair) {
           if (sum_mask_.Test(idx_[i_raw])) {
             sum_mask_.Reset(i_raw);
@@ -458,22 +462,26 @@ class LocalExpansion {
     std::rotate(idx_.begin(), idx_.begin() + 1, itr);
   }
 
-  const bool or_node_;
-  const MovePicker mp_;
-  const DelayedMoveList delayed_move_list_;
-  const MateLen len_;
-  const BoardKeyHandPair key_hand_pair_;
+  const bool or_node_;                       ///< 現局面が OR node かどうか
+  const MovePicker mp_;                      ///< 現局面の合法手
+  const DelayedMoveList delayed_move_list_;  ///< 後回しにしている手のグラフ構造
+  const MateLen len_;                        ///< 現局面における残り探索手数
+  const BoardKeyHandPair key_hand_pair_;  ///< 現局面の盤面ハッシュ値と持ち駒。二重カウント対策で用いる。
 
+  /// 子の現在の評価値結果一覧
   std::array<SearchResult, kMaxCheckMovesPerNode> results_;
+  /// 子のクエリ一覧。コンストラクト時に作ったクエリを使い回すことで高速化できる
   std::array<tt::Query, kMaxCheckMovesPerNode> queries_;
-  std::array<BoardKeyHandPair, kMaxCheckMovesPerNode> child_key_hand_pairs_;
 
+  /// 現局面の評価値が古い探索情報に基づくものかどうか。TCA の探索延長の判断に用いる。
   bool does_have_old_child_{false};
 
-  PnDn sum_delta_except_best_;
-  PnDn max_delta_except_best_;
+  PnDn sum_delta_except_best_;  ///< 和でδを計上する子のうち現局面を除いたもののδ値の和
+  PnDn max_delta_except_best_;  ///< 最大値でδを計上する子のうち現局面を除いたもののδ値の最大値
 
+  /// δ値を和で計算すべき子の一覧。ビットが立っている子は和、立っていない子は最大値で計上する。
   BitSet64 sum_mask_;
+  /// 現在有効な生添字の一覧。「良さ順」で並んでいる。
   FixedSizeStack<std::uint32_t, kMaxCheckMovesPerNode> idx_;
 };
 }  // namespace komori

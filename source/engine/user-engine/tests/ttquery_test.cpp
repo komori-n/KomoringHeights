@@ -44,6 +44,10 @@ class QueryTest : public ::testing::Test {
 constexpr auto kDefaultInitialEvalFunc = []() { return std::make_pair(kPnDnUnit, kPnDnUnit); };
 }  // namespace
 
+TEST_F(QueryTest, GetBoardKeyHandPair) {
+  EXPECT_EQ(query_.GetBoardKeyHandPair(), (komori::BoardKeyHandPair{board_key_, hand_}));
+}
+
 TEST_F(QueryTest, LoopUp_None) {
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
