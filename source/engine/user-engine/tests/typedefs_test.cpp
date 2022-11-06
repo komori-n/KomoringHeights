@@ -3,6 +3,7 @@
 #include "../typedefs.hpp"
 #include "test_lib.hpp"
 
+using komori::AsRange;
 using komori::Clamp;
 using komori::Delta;
 using komori::kInfinitePnDn;
@@ -14,6 +15,16 @@ using komori::StepEffect;
 using komori::ToString;
 
 namespace {
+TEST(AsRange, unordered_multimap) {
+  std::unordered_multimap<std::int32_t, std::int32_t> map{{10, 1}, {10, 0}, {10, 1}, {3, 2}};
+
+  std::unordered_multiset<std::int32_t> ans{1, 0, 1};
+  for (const auto& [key, value] : AsRange{map.equal_range(10)}) {
+    ASSERT_NE(ans.find(value), ans.end());
+    ans.erase(ans.find(value));
+  }
+}
+
 template <typename T>
 class SaturationTest : public ::testing::Test {};
 using SaturationTestTypes = ::testing::Types<std::uint8_t,

@@ -53,10 +53,8 @@ class VisitHistory {
    * @param hand      攻め方の持ち駒
    */
   bool Contains(Key board_key, Hand hand) const {
-    auto [begin, end] = visited_.equal_range(board_key);
-
-    for (auto itr = begin; itr != end; ++itr) {
-      auto history_hand = itr->second;
+    const auto range = visited_.equal_range(board_key);
+    for (const auto& [bk, history_hand] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
       if (history_hand == hand) {
         return true;
       }
@@ -74,10 +72,8 @@ class VisitHistory {
    * @param hand        攻め方の持ち駒
    */
   bool IsInferior(Key board_key, Hand hand) const {
-    auto [begin, end] = visited_.equal_range(board_key);
-
-    for (auto itr = begin; itr != end; ++itr) {
-      auto history_hand = itr->second;
+    const auto range = visited_.equal_range(board_key);
+    for (const auto& [bk, history_hand] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
       if (hand_is_equal_or_superior(history_hand, hand)) {
         return true;
       }
@@ -92,10 +88,8 @@ class VisitHistory {
    * @param hand        攻め方の持ち駒
    */
   bool IsSuperior(Key board_key, Hand hand) const {
-    auto [begin, end] = visited_.equal_range(board_key);
-
-    for (auto itr = begin; itr != end; ++itr) {
-      auto history_hand = itr->second;
+    const auto range = visited_.equal_range(board_key);
+    for (const auto& [bk, history_hand] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
       if (hand_is_equal_or_superior(hand, history_hand)) {
         return true;
       }
