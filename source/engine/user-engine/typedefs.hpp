@@ -219,7 +219,7 @@ struct NodeTag {};
  */
 using PnDn = std::uint64_t;
 /// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
-inline constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2;
+inline constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2 - 1;
 /// pnの初期値。df-pn+やdeep df-pnへの拡張を考慮して 1 ではない値で初期化できるようにしておく。
 inline constexpr PnDn kInitialPn = 2;
 /// dnの初期値。df-pn+やdeep df-pnへの拡張を考慮して 1 ではない値で初期化できるようにしておく。

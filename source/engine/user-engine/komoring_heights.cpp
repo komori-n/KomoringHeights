@@ -231,7 +231,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   PnDn thdn = (len == kDepthMaxMateLen) ? 1 : kInfinitePnDn;
 
   expansion_list_.Emplace(tt_, n, len, true);
-  while (!monitor_.ShouldStop()) {
+  while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
     result = SearchImpl(n, thpn, thdn, len, false);
     if (result.IsFinal()) {
       break;
@@ -246,8 +246,8 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
 
     score_ = Score::Make(option_.score_method, result, n.IsRootOrNode());
     // 反復深化のしきい値を適当に伸ばす
-    thpn = Clamp(thpn, 2 * result.Pn(), kInfinitePnDn);
-    thdn = Clamp(thdn, 2 * result.Dn(), kInfinitePnDn);
+    thpn = Clamp(thpn, SaturatedMultiply<PnDn>(result.Pn(), 2), kInfinitePnDn);
+    thdn = Clamp(thdn, SaturatedMultiply<PnDn>(result.Dn(), 2), kInfinitePnDn);
   }
   expansion_list_.Pop();
 

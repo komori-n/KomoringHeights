@@ -282,21 +282,7 @@ class LocalExpansion {
 
   constexpr PnDn GetDelta() const {
     auto [sum_delta, max_delta] = GetRawDelta();
-    if (sum_delta == 0 && max_delta == 0) {
-      return 0;
-    }
-
-    // 後回しにしている子局面が存在する場合、その値をδ値に加算しないと局面を過大評価してしまう。
-    //
-    // 例） sfen +P5l2/4+S4/p1p+bpp1kp/6pgP/3n1n3/P2NP4/3P1NP2/2P2S3/3K3L1 b RGSL2Prb2gsl3p 159
-    //      1筋の合駒を考える時、玉方が合駒を微妙に変えることで読みの深さを指数関数的に大きくできてしまう
-    if (mp_.size() > idx_.size()) {
-      // 後回しにしている手1つにつき 1/4 点減点する。小数点以下は切り捨てするが、計算結果が 1 を下回る場合のみ
-      // 1 に切り上げる。
-      sum_delta += std::max<std::size_t>((mp_.size() - idx_.size()) / 4, 1);
-    }
-
-    return sum_delta + max_delta;
+    return SaturatedAdd(sum_delta, max_delta);
   }
 
   constexpr std::pair<PnDn, PnDn> GetRawDelta() const {
@@ -314,6 +300,16 @@ class LocalExpansion {
       max_delta = std::max(max_delta, best_result.Delta(or_node_));
     }
 
+    // 後回しにしている子局面が存在する場合、その値をδ値に加算しないと局面を過大評価してしまう。
+    //
+    // 例） sfen +P5l2/4+S4/p1p+bpp1kp/6pgP/3n1n3/P2NP4/3P1NP2/2P2S3/3K3L1 b RGSL2Prb2gsl3p 159
+    //      1筋の合駒を考える時、玉方が合駒を微妙に変えることで読みの深さを指数関数的に大きくできてしまう
+    if (mp_.size() > idx_.size()) {
+      // 後回しにしている手1つにつき 1/4 点減点する。小数点以下は切り捨てするが、計算結果が 1 を下回る場合のみ
+      // 1 に切り上げる。
+      sum_delta += std::max<std::size_t>((mp_.size() - idx_.size()) / 4, 1);
+    }
+
     return {sum_delta, max_delta};
   }
 
@@ -327,8 +323,12 @@ class LocalExpansion {
 
   PnDn NewThdeltaForBestMove(PnDn thdelta) const {
     PnDn delta_except_best = sum_delta_except_best_;
+    if (mp_.size() > idx_.size()) {
+      delta_except_best += std::max<std::size_t>((mp_.size() - idx_.size()) / 4, 1);
+    }
+
     if (sum_mask_[idx_[0]]) {
-      delta_except_best += max_delta_except_best_;
+      delta_except_best = SaturatedAdd(delta_except_best, max_delta_except_best_);
     }
 
     // 計算の際はオーバーフローに注意
