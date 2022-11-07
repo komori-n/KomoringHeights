@@ -159,7 +159,6 @@ class alignas(64) Entry {
    * @param hand      持ち駒
    */
   constexpr void Init(Key board_key, Hand hand) noexcept {
-    // 高速化のために初期化をサボれるところではサボる
     hand_ = hand;
     amount_ = 1;
     board_key_ = board_key;
