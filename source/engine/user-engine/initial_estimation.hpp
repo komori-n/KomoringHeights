@@ -167,10 +167,13 @@ inline bool IsSumDeltaNode(const Node& n, Move move) {
   if (is_drop(move)) {
     // 駒打ち
     if (or_node) {
-      if (move_dropped_piece(move) == LANCE || move_dropped_piece(move) == BISHOP || move_dropped_piece(move) == ROOK) {
+      const auto p = move_dropped_piece(move);
+      if (p == LANCE || p == BISHOP || p == ROOK) {
         // 飛車と角はだいたいどこから打っても同じ
         return false;
       }
+    } else {
+      // AND node の駒打ち（合駒）は遅延展開でなんとかするので特に何も考えない
     }
   }
 
