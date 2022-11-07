@@ -50,6 +50,8 @@
 /// pragma unroll
 #define KOMORI_UNROLL(n)
 #endif
+
+#define KOMORI_HAND_LOOP_UNROLL KOMORI_UNROLL(7)
 #endif  // !defined(DOXYGEN_SHOULD_SKIP_THIS)
 
 /// Komoring Heights
@@ -308,7 +310,7 @@ inline bool DoesHaveMatePossibility(const Position& n) {
   const auto hand = n.hand_of(us);
   const auto king_sq = n.king_square(them);
   const auto droppable_bb = ~n.pieces();
-  KOMORI_UNROLL(7) for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+  KOMORI_HAND_LOOP_UNROLL for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
     if (hand_exists(hand, pr)) {
       if (pr == PAWN && (n.pieces(us, PAWN) & file_bb(file_of(king_sq)))) {
         continue;
