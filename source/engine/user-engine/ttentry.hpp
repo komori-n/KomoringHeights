@@ -157,9 +157,8 @@ class alignas(64) Entry {
    * @brief エントリの初期化を行う
    * @param board_key 盤面ハッシュ値
    * @param hand      持ち駒
-   * @param depth     現在の探索深さ（デフォルト： `kDepthMax`）
    */
-  constexpr void Init(Key board_key, Hand hand, Depth depth = kDepthMax) noexcept {
+  constexpr void Init(Key board_key, Hand hand) noexcept {
     // 高速化のために初期化をサボれるところではサボる
     hand_ = hand;
     amount_ = 1;
@@ -169,7 +168,7 @@ class alignas(64) Entry {
 
     pn_ = 1;
     dn_ = 1;
-    min_depth_ = static_cast<std::int16_t>(depth);
+    min_depth_ = static_cast<std::int16_t>(kDepthMax);
     repetition_state_ = RepetitionState::kNone;
 
     parent_hand_ = kNullHand;

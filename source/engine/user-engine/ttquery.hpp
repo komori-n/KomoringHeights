@@ -288,7 +288,7 @@ class Query {
 
     KOMORI_CLUSTER_UNROLL for (std::size_t i = 0; i < Cluster::kSize; ++i, ++itr) {
       if (itr->IsNull()) {
-        itr->Init(board_key_, hand, depth_);
+        itr->Init(board_key_, hand);
         return itr;
       }
       if (itr->Amount() < min_amount) {
@@ -297,7 +297,7 @@ class Query {
       }
     }
 
-    min_amount_entry->Init(board_key_, hand, depth_);
+    min_amount_entry->Init(board_key_, hand);
     return min_amount_entry;
   }
 

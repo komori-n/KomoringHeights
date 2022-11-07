@@ -53,16 +53,6 @@ TEST(EntryTest, GetHand) {
   EXPECT_EQ(entry.GetHand(), hand);
 }
 
-TEST(EntryTest, Init_MinDepth) {
-  Entry entry;
-  entry.Init(0x334, HAND_ZERO);
-  EXPECT_EQ(entry.MinDepth(), komori::kDepthMax);
-
-  const auto depth = 334;
-  entry.Init(0x334, HAND_ZERO, depth);
-  EXPECT_EQ(entry.MinDepth(), depth);
-}
-
 TEST(EntryTest, Init_SumMask) {
   Entry entry;
   entry.Init(0x334, HAND_ZERO);
