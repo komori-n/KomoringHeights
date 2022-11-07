@@ -208,10 +208,6 @@ inline constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
 /// 無効な Key
 inline constexpr Key kNullKey = Key{0x3343343343343340ULL};
 
-/// OR Node/AND Node を表す型。コンパイル時分岐に用いる
-template <bool kOrNode>
-struct NodeTag {};
-
 /**
  * @brief 証明数／反証数を格納する型
  *
@@ -295,42 +291,6 @@ inline std::string OrdinalNumber(Integer i) {
 }
 
 /**
- * @brief `c` 側の `sq` にある `pt` の短い利きの `Bitboard` を返す
- * @param pt 駒種
- * @param c  プレイヤー
- * @param sq 場所
- * @return Bitboard 短い利きの `Bitboard`
- */
-inline Bitboard StepEffect(PieceType pt, Color c, Square sq) {
-  switch (pt) {
-    case PAWN:
-    case LANCE:
-      return pawnEffect(c, sq);
-    case KNIGHT:
-      return knightEffect(c, sq);
-    case SILVER:
-      return silverEffect(c, sq);
-    case GOLD:
-    case PRO_PAWN:
-    case PRO_LANCE:
-    case PRO_KNIGHT:
-    case PRO_SILVER:
-      return goldEffect(c, sq);
-    case KING:
-    case HORSE:
-    case DRAGON:
-    case QUEEN:
-      return kingEffect(sq);
-    case BISHOP:
-      return bishopStepEffect(sq);
-    case ROOK:
-      return rookStepEffect(sq);
-    default:
-      return {};
-  }
-}
-
-/**
  * @brief (OR node限定) `n` が不詰かどうかを簡易的に調べる。
  * @param n 現局面（OR node）
  * @return `true`: 不明
@@ -343,33 +303,32 @@ inline Bitboard StepEffect(PieceType pt, Color c, Square sq) {
  * 戻り値が `true` であっても、現局面に合法手が存在しない可能性があるので注意。
  */
 inline bool DoesHaveMatePossibility(const Position& n) {
-  auto us = n.side_to_move();
-  auto them = ~us;
-  auto hand = n.hand_of(us);
-  auto king_sq = n.king_square(them);
-
-  auto droppable_bb = ~n.pieces();
-  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+  const auto us = n.side_to_move();
+  const auto them = ~us;
+  const auto hand = n.hand_of(us);
+  const auto king_sq = n.king_square(them);
+  const auto droppable_bb = ~n.pieces();
+  KOMORI_UNROLL(7) for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
     if (hand_exists(hand, pr)) {
       if (pr == PAWN && (n.pieces(us, PAWN) & file_bb(file_of(king_sq)))) {
         continue;
       }
 
-      if (droppable_bb.test(StepEffect(pr, them, king_sq))) {
+      if (n.check_squares(pr) & droppable_bb) {
         return true;
       }
     }
   }
 
-  auto x = ((n.pieces(PAWN) & check_candidate_bb(us, PAWN, king_sq)) |
-            (n.pieces(LANCE) & check_candidate_bb(us, LANCE, king_sq)) |
-            (n.pieces(KNIGHT) & check_candidate_bb(us, KNIGHT, king_sq)) |
-            (n.pieces(SILVER) & check_candidate_bb(us, SILVER, king_sq)) |
-            (n.pieces(GOLDS) & check_candidate_bb(us, GOLD, king_sq)) |
-            (n.pieces(BISHOP) & check_candidate_bb(us, BISHOP, king_sq)) | (n.pieces(ROOK_DRAGON)) |
-            (n.pieces(HORSE) & check_candidate_bb(us, ROOK, king_sq))) &
-           n.pieces(us);
-  auto y = n.blockers_for_king(them) & n.pieces(us);
+  const auto x = ((n.pieces(PAWN) & check_candidate_bb(us, PAWN, king_sq)) |
+                  (n.pieces(LANCE) & check_candidate_bb(us, LANCE, king_sq)) |
+                  (n.pieces(KNIGHT) & check_candidate_bb(us, KNIGHT, king_sq)) |
+                  (n.pieces(SILVER) & check_candidate_bb(us, SILVER, king_sq)) |
+                  (n.pieces(GOLDS) & check_candidate_bb(us, GOLD, king_sq)) |
+                  (n.pieces(BISHOP) & check_candidate_bb(us, BISHOP, king_sq)) | (n.pieces(ROOK_DRAGON)) |
+                  (n.pieces(HORSE) & check_candidate_bb(us, ROOK, king_sq))) &
+                 n.pieces(us);
+  const auto y = n.blockers_for_king(them) & n.pieces(us);
 
   return x | y;
 }

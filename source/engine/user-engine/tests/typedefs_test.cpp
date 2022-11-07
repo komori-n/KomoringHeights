@@ -11,7 +11,6 @@ using komori::OrdinalNumber;
 using komori::Phi;
 using komori::SaturatedAdd;
 using komori::SaturatedMultiply;
-using komori::StepEffect;
 using komori::ToString;
 
 namespace {
@@ -124,25 +123,6 @@ TEST(OrdinalNumberTest, All) {
   EXPECT_EQ(OrdinalNumber(122), "122nd");
   EXPECT_EQ(OrdinalNumber(123), "123rd");
   EXPECT_EQ(OrdinalNumber(124), "124th");
-}
-
-TEST(StepEffectTest, StepEffectTest) {
-  EXPECT_EQ(StepEffect(PAWN, BLACK, SQ_55), pawnEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(LANCE, BLACK, SQ_55), pawnEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(KNIGHT, BLACK, SQ_55), knightEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(SILVER, BLACK, SQ_55), silverEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(GOLD, BLACK, SQ_55), goldEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(PRO_PAWN, BLACK, SQ_55), goldEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(PRO_LANCE, BLACK, SQ_55), goldEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(PRO_KNIGHT, BLACK, SQ_55), goldEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(PRO_SILVER, BLACK, SQ_55), goldEffect(BLACK, SQ_55));
-  EXPECT_EQ(StepEffect(KING, BLACK, SQ_55), kingEffect(SQ_55));
-  EXPECT_EQ(StepEffect(HORSE, BLACK, SQ_55), kingEffect(SQ_55));
-  EXPECT_EQ(StepEffect(DRAGON, BLACK, SQ_55), kingEffect(SQ_55));
-  EXPECT_EQ(StepEffect(QUEEN, BLACK, SQ_55), kingEffect(SQ_55));
-  EXPECT_EQ(StepEffect(BISHOP, BLACK, SQ_55), bishopStepEffect(SQ_55));
-  EXPECT_EQ(StepEffect(ROOK, BLACK, SQ_55), rookStepEffect(SQ_55));
-  EXPECT_EQ(StepEffect(NO_PIECE_TYPE, BLACK, SQ_55), Bitboard{});
 }
 
 TEST(DoesHaveMatePossibilityTest, BoardPiece) {

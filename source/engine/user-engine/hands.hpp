@@ -114,13 +114,13 @@ inline Hand RemoveIfHandGivesOtherChecks(const Position& n, Hand disproof_hand) 
   const auto droppable_bb = ~n.pieces();
 
   for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
-    if (!hand_exists(hand, pr)) {
+    if (!hand_exists(hand, pr) && hand_exists(disproof_hand, pr)) {
       // 二歩の場合は反証駒を消す必要はない（打てないので）
       if (pr == PAWN && (n.pieces(us, PAWN) & file_bb(file_of(king_sq)))) {
         continue;
       }
 
-      if (droppable_bb.test(StepEffect(pr, them, king_sq))) {
+      if (n.check_squares(pr) & droppable_bb) {
         // pr を持っていたら王手ができる -> pr は反証駒から除かれるべき
         RemoveHand(disproof_hand, pr);
       }
