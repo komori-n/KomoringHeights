@@ -17,6 +17,7 @@
 #include "initial_estimation.hpp"
 #include "move_picker.hpp"
 #include "node.hpp"
+#include "ranges.hpp"
 #include "transposition_table.hpp"
 
 namespace komori {
@@ -75,9 +76,7 @@ class LocalExpansion {
         sum_mask_{sum_mask} {
     Node& nn = const_cast<Node&>(n);
 
-    std::uint32_t next_i_raw = 0;
-    for (const auto& move : mp_) {
-      const auto i_raw = next_i_raw++;
+    for (const auto& [i_raw, move] : WithIndex(mp_)) {
       const auto hand_after = n.OrHandAfter(move.move);
       idx_.Push(i_raw);
       auto& result = results_[i_raw];
@@ -100,7 +99,8 @@ class LocalExpansion {
         }
 
         query = tt.BuildChildQuery(n, move.move);
-        result = query.LookUp(does_have_old_child_, len - 1, [&n, &move]() { return InitialPnDn(n, move.move); });
+        result =
+            query.LookUp(does_have_old_child_, len - 1, [&n, &move = move]() { return InitialPnDn(n, move.move); });
 
         if (!result.IsFinal() && !or_node_ && first_search && result.GetUnknownData().is_first_visit) {
           nn.DoMove(move.move);

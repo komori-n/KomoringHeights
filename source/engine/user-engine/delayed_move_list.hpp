@@ -10,6 +10,7 @@
 
 #include "move_picker.hpp"
 #include "node.hpp"
+#include "ranges.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
@@ -48,9 +49,7 @@ class DelayedMoveList {
     std::array<std::pair<Move, std::size_t>, kMaxLen> moves;
     std::size_t len{0};
 
-    std::size_t next_i_raw = 0;
-    for (const auto& move : mp) {
-      const auto i_raw = next_i_raw++;
+    for (const auto& [i_raw, move] : WithIndex(mp)) {
       prev_[i_raw] = next_[i_raw] = 0;
 
       if (!IsDelayable(n, move)) {
