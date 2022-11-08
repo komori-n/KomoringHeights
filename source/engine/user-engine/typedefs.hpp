@@ -69,41 +69,6 @@ namespace detail {}  // namespace detail
 // </namespaceコメント> NOLINTEND
 
 /**
- * @brief イテレータのペアで range-based for をするためのアダプタ
- * @tparam Iterator イテレータ
- *
- * `std::multimap::equal_range()` のように、(begin, end) の形式のイテレータを所持しているとき、range-based for で
- * 要素を取り出すためのアダプタ。
- *
- * ```cpp
- * std::unordered_multimap<std::int32_t, std::int32_t> map{ ... };
- * for (const auto& [key, value] : AsRange{map.equal_range(10)}) {
- *   ...
- * }
- * ```
- */
-template <typename Iterator>
-class AsRange {
- public:
-  /// Default constructor(delte)
-  AsRange() = delete;
-  /**
-   * @brief イテレータのペアから range を作成する
-   * @param p イテレータのペア（begin, end）
-   */
-  constexpr explicit AsRange(const std::pair<Iterator, Iterator>& p) noexcept
-      : begin_itr_{p.first}, end_itr_{p.second} {}
-  /// 範囲の先頭
-  constexpr Iterator begin() noexcept { return begin_itr_; }
-  /// 範囲の末尾
-  constexpr Iterator end() noexcept { return end_itr_; }
-
- private:
-  Iterator begin_itr_;  ///< 範囲の先頭
-  Iterator end_itr_;    ///< 範囲の末尾
-};
-
-/**
  * @brief `T` 型の値を足し合わせる。ただし、計算結果が `T` 型で表現できない場合は上限値で丸める（符号なし型）
  * @tparam T  足し合わせる型（符号なし型）
  * @param lhs `T` 型の値

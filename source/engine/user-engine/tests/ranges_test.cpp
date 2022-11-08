@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <unordered_map>
+#include <unordered_set>
+
 #include "../ranges.hpp"
 
 TEST(WithIndexTest, LvalueReferenceRange) {
@@ -92,5 +95,15 @@ TEST(WithIndexTest, FreeFunctionRange) {
     EXPECT_EQ(i, expected_i) << expected_i;
     EXPECT_EQ(x, expected_i + 3) << expected_i;
     expected_i++;
+  }
+}
+
+TEST(AsRange, unordered_multimap) {
+  std::unordered_multimap<std::int32_t, std::int32_t> map{{10, 1}, {10, 0}, {10, 1}, {3, 2}};
+
+  std::unordered_multiset<std::int32_t> ans{1, 0, 1};
+  for (const auto& [key, value] : komori::AsRange{map.equal_range(10)}) {
+    ASSERT_NE(ans.find(value), ans.end());
+    ans.erase(ans.find(value));
   }
 }

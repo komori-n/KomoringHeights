@@ -210,6 +210,41 @@ constexpr inline detail::WithIndexImpl<IndexType, Range> WithIndex(Range&& range
   static_assert(std::is_lvalue_reference_v<Range> || std::is_nothrow_move_constructible_v<Range>);
   return detail::WithIndexImpl<IndexType, Range>{std::forward<Range>(range)};
 }
+
+/**
+ * @brief イテレータのペアで range-based for をするためのアダプタ
+ * @tparam Iterator イテレータ
+ *
+ * `std::multimap::equal_range()` のように、(begin, end) の形式のイテレータを所持しているとき、range-based for で
+ * 要素を取り出すためのアダプタ。
+ *
+ * ```cpp
+ * std::unordered_multimap<std::int32_t, std::int32_t> map{ ... };
+ * for (const auto& [key, value] : AsRange{map.equal_range(10)}) {
+ *   ...
+ * }
+ * ```
+ */
+template <typename Iterator>
+class AsRange {
+ public:
+  /// Default constructor(delte)
+  AsRange() = delete;
+  /**
+   * @brief イテレータのペアから range を作成する
+   * @param p イテレータのペア（begin, end）
+   */
+  constexpr explicit AsRange(const std::pair<Iterator, Iterator>& p) noexcept
+      : begin_itr_{p.first}, end_itr_{p.second} {}
+  /// 範囲の先頭
+  constexpr Iterator begin() noexcept { return begin_itr_; }
+  /// 範囲の末尾
+  constexpr Iterator end() noexcept { return end_itr_; }
+
+ private:
+  Iterator begin_itr_;  ///< 範囲の先頭
+  Iterator end_itr_;    ///< 範囲の末尾
+};
 }  // namespace komori
 
 #endif  // KOMORI_RANGES_HPP_
