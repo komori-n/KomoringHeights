@@ -214,9 +214,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
       if (node_state == NodeState::kProven) {
         len = len + 2;
         score_ = old_score;
-        if (best_moves_.size() != len.Len()) {
-          best_moves_ = GetMatePath(n, len);
-        }
+        best_moves_ = GetMatePath(n, len);
       }
       break;
     }
