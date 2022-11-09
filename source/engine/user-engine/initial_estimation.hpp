@@ -26,19 +26,19 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move)
   const Color us = n.side_to_move();
   const Color them = ~us;
   const Square to = to_sq(move);
-  auto attack_support = n.attackers_to(us, to).pop_count();
-  auto defence_support = n.attackers_to(them, to).pop_count();
+  const auto attack_support = n.attackers_to(us, to).pop_count();
+  const auto defense_support = n.attackers_to(them, to).pop_count();
 
-  if (defence_support >= 2) {
+  if (defense_support >= 2) {
     // たくさん受け駒が利いている場合は後回し
     pn += kPnDnUnit;
   }
 
-  if (attack_support + (is_drop(move) ? 1 : 0) > defence_support) {
+  if (attack_support + (is_drop(move) ? 1 : 0) > defense_support) {
     // 攻め駒がたくさんあるときは探索を優先する
     dn += kPnDnUnit;
   } else if (auto captured_pc = n.piece_on(to); captured_pc != NO_PIECE) {
-    auto captured_pr = raw_type_of(captured_pc);
+    const auto captured_pr = raw_type_of(captured_pc);
     if (captured_pr == GOLD || captured_pr == SILVER) {
       dn += kPnDnUnit;
     } else {
@@ -73,10 +73,10 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusAndNode(const Position& n, Move move
     return {1 * kPnDnUnit, 1 * kPnDnUnit};
   }
 
-  auto attack_support = n.attackers_to(them, to).pop_count();
-  auto defence_support = n.attackers_to(us, to).pop_count();
+  const auto attack_support = n.attackers_to(them, to).pop_count();
+  const auto defense_support = n.attackers_to(us, to).pop_count();
 
-  if (attack_support < defence_support + (is_drop(move) ? 1 : 0)) {
+  if (attack_support < defense_support + (is_drop(move) ? 1 : 0)) {
     return {2 * kPnDnUnit, 1 * kPnDnUnit};
   }
   return {1 * kPnDnUnit, 2 * kPnDnUnit};
