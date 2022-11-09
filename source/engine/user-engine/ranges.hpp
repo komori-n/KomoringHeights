@@ -238,26 +238,44 @@ class AsRange {
 };
 
 namespace detail {
-template <typename Range, std::size_t kStep>
+/**
+ * @brief `Skep` の実装本体
+ * @tparam Range Iterable
+ * @tparam kSkip スキップする要素数
+ */
+template <typename Range, std::size_t kSkip>
 class SkipImpl {
  public:
+  /**
+   * @brief `SkipImpl` インスタンスを生成する
+   */
   constexpr explicit SkipImpl(Range range) noexcept(noexcept(Range{std::forward<Range>(range_)}))
       : range_{std::forward<Range>(range)} {}
 
+  /// 範囲の先頭
   constexpr auto begin() const noexcept(noexcept(call_begin(range_) != end())) {
     auto itr = call_begin(range_);
-    for (std::size_t i = 0; i < kStep && itr != end(); ++i, ++itr) {
+    for (std::size_t i = 0; i < kSkip && itr != end(); ++i, ++itr) {
     }
 
     return itr;
   }
 
+  /// 範囲の末尾
   constexpr auto end() const noexcept(noexcept(call_end(range_))) { return call_end(range_); }
 
  private:
-  Range range_;
+  Range range_;  ///< もとの range
 };
 }  // namespace detail
+
+/**
+ * @brief Iterable の先頭 `kSkip` 要素をスキップする
+ * @tparam kSkip スキップする要素数
+ * @tparam Range iterableの型
+ * @param range iterable
+ * @return range-based for で先頭 `kSize` 要素を飛ばした要素が取れるような iterable
+ */
 template <std::size_t kSkip, typename Range>
 constexpr inline auto Skip(Range&& range) noexcept(noexcept(detail::SkipImpl<Range, kSkip>{
     std::forward<Range>(range)})) {
