@@ -164,19 +164,10 @@ class WithIndexImpl {
   WithIndexImpl() = delete;
 
   /// 添字付き範囲の先頭
-  constexpr auto begin() noexcept(noexcept(call_begin(range_))) {
-    using RangeBeginIterator = decltype(call_begin(range_));
-    return WithIndexIterator<RangeBeginIterator>{PrivateConstructionTag{}, IndexType{0}, call_begin(range_)};
-  }
-
-  /// 添字付き範囲の先頭（const）
   constexpr auto begin() const noexcept(noexcept(call_begin(range_))) {
     using ConstRangeBeginIterator = decltype(call_begin(range_));
     return WithIndexIterator<ConstRangeBeginIterator>{PrivateConstructionTag{}, IndexType{0}, call_begin(range_)};
   }
-
-  /// 添字付き範囲の末尾
-  constexpr auto end() noexcept(noexcept(call_end(range_))) { return call_end(range_); }
 
   /// 添字付き範囲の末尾（const）
   constexpr auto end() const noexcept(noexcept(call_end(range_))) { return call_end(range_); }
@@ -245,6 +236,33 @@ class AsRange {
   Iterator begin_itr_;  ///< 範囲の先頭
   Iterator end_itr_;    ///< 範囲の末尾
 };
+
+namespace detail {
+template <typename Range, std::size_t kStep>
+class SkipImpl {
+ public:
+  constexpr explicit SkipImpl(Range range) noexcept(noexcept(Range{std::forward<Range>(range_)}))
+      : range_{std::forward<Range>(range)} {}
+
+  constexpr auto begin() const noexcept(noexcept(call_begin(range_) != end())) {
+    auto itr = call_begin(range_);
+    for (std::size_t i = 0; i < kStep && itr != end(); ++i, ++itr) {
+    }
+
+    return itr;
+  }
+
+  constexpr auto end() const noexcept(noexcept(call_end(range_))) { return call_end(range_); }
+
+ private:
+  Range range_;
+};
+}  // namespace detail
+template <std::size_t kSkip, typename Range>
+constexpr inline auto Skip(Range&& range) noexcept(noexcept(detail::SkipImpl<Range, kSkip>{
+    std::forward<Range>(range)})) {
+  return detail::SkipImpl<Range, kSkip>{std::forward<Range>(range)};
+}
 }  // namespace komori
 
 #endif  // KOMORI_RANGES_HPP_

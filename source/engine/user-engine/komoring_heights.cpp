@@ -291,7 +291,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     const auto best_move = local_expansion.BestMove();
     const bool is_first_search = local_expansion.FrontIsFirstVisit();
     const BitSet64 sum_mask = local_expansion.FrontSumMask();
-    const auto [child_thpn, child_thdn] = local_expansion.PnDnThresholds(thpn, thdn);
+    const auto [child_thpn, child_thdn] = local_expansion.FrontPnDnThresholds(thpn, thdn);
 
     n.DoMove(best_move);
 
@@ -317,7 +317,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     expansion_list_.Pop();
     n.UndoMove();
 
-    local_expansion.UpdateBestChild(child_result, n.GetBoardKeyHandPair());
+    local_expansion.UpdateBestChild(child_result);
     curr_result = local_expansion.CurrentResult(n);
   }
 

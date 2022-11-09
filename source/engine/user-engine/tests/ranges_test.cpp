@@ -107,3 +107,34 @@ TEST(AsRange, unordered_multimap) {
     ans.erase(ans.find(value));
   }
 }
+
+TEST(Skip, MutableVector) {
+  std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
+
+  for (auto&& x : komori::Skip<6>(vec)) {
+    x = 10;
+  }
+
+  EXPECT_EQ(vec[5], 1);
+  EXPECT_EQ(vec[6], 10);
+  EXPECT_EQ(vec[7], 10);
+}
+
+TEST(Skip, SkipStepIsGreaterThanLength) {
+  std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
+
+  for (auto&& x : komori::Skip<334>(vec)) {
+    EXPECT_EQ(334, x);
+  }
+
+  EXPECT_EQ(vec[7], 2);
+}
+
+TEST(Skip, ConstRange) {
+  const std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
+  const auto range = komori::Skip<7>(vec);
+
+  for (const auto& x : range) {
+    EXPECT_EQ(x, 2);
+  }
+}

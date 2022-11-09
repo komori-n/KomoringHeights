@@ -50,7 +50,7 @@ namespace komori {
  * 発生しやすくなる。一方、`kAncestorSearchThreshold` の値が大きいほど二重カウント判定が緩くなるため、二重カウントでない
  * パスを二重カウントと誤判定して探索性能の劣化に繋がる。
  */
-constexpr inline PnDn kAncestorSearchThreshold = 3 * kPnDnUnit;
+constexpr inline PnDn kAncestorSearchThreshold = kPnDnUnit;
 /**
  * @brief 二重カウントの可能性がある辺。 FindKnownAncestor の戻り値に用いる。
  *

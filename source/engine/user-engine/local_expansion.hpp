@@ -43,11 +43,65 @@ inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
 }
 }  // namespace detail
 
+/**
+ * @brief 局面の局所展開結果を保持する。
+ *
+ * 現局面の子ノードの展開結果を一時的に保持するクラス。前回の置換表 LookUp 結果を保持しておくことで、
+ * 置換表 LookUp 回数をへらすことが目的である。また、高速 2 手詰めルーチンを内蔵したりδ値を事前計算しておいたりなど、
+ * 高速化のために小手先高速化が詰め込まれている。
+ *
+ * ## 実装詳細
+ *
+ * ### 生添字（`i_raw`）
+ *
+ * 同じ局面 `n` に対し、`MovePicker` は常に同じ順番の指し手を生成する。つまり、`MovePicker` の添字により指し手を
+ * 一意に特定できる。このように、任意の指し手 `m` に対し、`MovePicker` における添字を `m` の生添字（raw index）と呼び、
+ * 変数 `i_raw` により表現する。
+ *
+ * ### 添字スタック（`idx_`）
+ *
+ * 探索中に「良さげ順」に生添字の並び替えを行いたい。このような生添字のリストが添え字スタック `idx`である。
+ * 探索結果の配列 `results_` を直接並び替えるのではなく `idx_` を並び替えることで、並び替えにかかる命令数を
+ * 削減することができる。また、添字スタックを経由してアクセスすることで、`mp_` や `sum_mask_` を「良さげ順」で
+ * アクセスすることができる。
+ *
+ * `idx_` は、スタックの古い方から新しい方の順で `results_` が「良さげ順」になるように並んでいる。もし `results_` の
+ * 更新があった場合、全体をソートし直すことなく挿入ソートの要領で「良さげ順」を保つことができる。
+ *
+ * また、スタック構造を活かして探索中に `idx_` へ生添字を追加することもできる。これは、
+ * 指し手の遅延展開（`delayed_move_list_`）に用いられる。
+ *
+ * ### δ値の計算（`sum_delta_except_best_`, `max_delta_except_best_`, `sum_mask`）
+ *
+ * 現局面のδ値は、和で計上する子の集合 sum_child と最大値で計上する子の集合 max_child を用いて
+ *    δ = Σ_[i in sum_child] δ_i + max_[i in max_child] δ_i
+ * により計算できる。また、子ノードにおける探索取りやめのδ値のしきい値 thdelta_i は、
+ * 「現局面のδしきい値 thdelta をこえるようなδ_i の最大値」により定義される。
+ *
+ * まともに計算すると、「δ値」と「子のδしきい値」で2回でこの計算が必要になる。この計算は
+ * 探索中にとても頻繁に現れる計算であるため、できる限り計算量を削減したい。そのため、
+ * 「最善手を除いた sum_child のδ値の和 `sum_delta_except_best_`」と「最善手を除いた max_child の
+ * δ値の最大値 `max_delta_except_best_`」を事前に計算しておく。これら2つの変数があれば、
+ * 「δ値」と「子のδしきい値」をどちらも短時間で計算できる。また、これらの値は多くの場合において、
+ * 差分計算で効率よく更新できることもポイントである。
+ *
+ * δ値を和で計上するか最大値で計上するかは `sum_mask_` で管理している。`sum_mask_` のビットが立っている子は
+ * 和で、立っていない子は最大値でδ値を計上する。「和」の方にビットを立てるようにしている理由は、
+ * 仮に子の個数が 64 個を超える場合は最大値で計上したいから。基本的には legacy df-pn のように和で計上するが、
+ * `IsSumDeltaNode()` に当てはまるノードと二重カウント検出された子は最大値で計算することでδ値の発散を抑える。
+ */
 class LocalExpansion {
  private:
+  /**
+   * @brief  `idx_` の比較器を生成する。
+   * @return 関数オブジェクト（比較器）
+   * @note ラムダ式を返すために、戻り値を auto にしてクラス先頭で定義している。
+   */
   auto MakeComparer() const {
     const SearchResultComparer sr_comparer{or_node_};
     return [this, sr_comparer](std::size_t i_raw, std::size_t j_raw) -> bool {
+      // `SearchResultComparer` で大小比較の決着がつくならそれに従う。
+      // `SearchResultComparer` で結論がでなければ、指し手自体の評価値（指し手生成時に付与）で大小を決める。
       const auto& left_result = results_[i_raw];
       const auto& right_result = results_[j_raw];
       const auto ordering = sr_comparer(left_result, right_result);
@@ -57,12 +111,19 @@ class LocalExpansion {
         return false;
       }
 
-      return mp_[i_raw] < mp_[j_raw];
+      return mp_[i_raw].value < mp_[j_raw].value;
     };
   }
 
  public:
-  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
+  /**
+   * @brief LocalExpansion を構築する。
+   * @param tt  置換表
+   * @param n   現局面
+   * @param len 残り詰み手数
+   * @param first_search 初回探索なら `true`。`true` なら高速 1 手詰めルーチンを走らせる。
+   * @param sum_mask δ値を和で計算する子の集合
+   */ // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   LocalExpansion(tt::TranspositionTable& tt,
                  const Node& n,
                  MateLen len,
@@ -74,6 +135,7 @@ class LocalExpansion {
         len_{len},
         key_hand_pair_{n.GetBoardKeyHandPair()},
         sum_mask_{sum_mask} {
+    // 1手詰め／1手不詰判定のために、const を一時的に外す
     Node& nn = const_cast<Node&>(n);
 
     for (const auto& [i_raw, move] : WithIndex(mp_)) {
@@ -88,14 +150,10 @@ class LocalExpansion {
         // 子局面が OR node  -> 1手詰以上
         // 子局面が AND node -> 0手詰以上
         const auto min_len = or_node_ ? MateLen{0} : MateLen{1};
-        if (len_ - 1 < min_len) {
+        if (len_ < min_len + 1) {
           // どう見ても詰まない
           result = SearchResult::MakeFinal<false>(hand_after, min_len - 1, 1);
           goto CHILD_LOOP_END;
-        }
-
-        if (!IsSumDeltaNode(n, move.move)) {
-          sum_mask_.Reset(i_raw);
         }
 
         query = tt.BuildChildQuery(n, move.move);
@@ -112,6 +170,10 @@ class LocalExpansion {
         }
 
         if (!result.IsFinal()) {
+          if (!IsSumDeltaNode(n, move.move)) {
+            sum_mask_.Reset(i_raw);
+          }
+
           auto next_dep = delayed_move_list_.Prev(i_raw);
           while (next_dep.has_value()) {
             if (!results_[*next_dep].IsFinal()) {
@@ -146,15 +208,41 @@ class LocalExpansion {
   /// Destructor(default)
   ~LocalExpansion() = default;
 
+  /**
+   * @brief 合法手がないかどうか
+   * @see CurrentResult
+   */
   bool empty() const noexcept { return idx_.empty(); }
+  /**
+   * @brief 現時点の最善手
+   * @pre !empty()
+   */
   Move BestMove() const { return mp_[idx_.front()].move; }
+  /**
+   * @brief unproven old child がいるかどうか
+   */
   bool DoesHaveOldChild() const { return does_have_old_child_; }
+  /**
+   * @brief 最善手の子ノードが初探索かどうか
+   * @pre !empty()
+   */
   bool FrontIsFirstVisit() const { return FrontResult().GetUnknownData().is_first_visit; }
+  /**
+   * @brief 最善手の Sum Mask
+   * @pre !empty()
+   */
   BitSet64 FrontSumMask() const {
     const auto& result = FrontResult();
     return result.GetUnknownData().sum_mask;
   }
 
+  /**
+   * @brief 現局面における探索結果を返す
+   * @param n 現局面
+   * @pre `n` がコンストラクト時に渡されたものと同じ局面
+   * @note `!CurrentResult(n).IsFinal()` ならば `!empty()` が成り立つ。これを利用して `!empty()` のチェックを
+   * スキップすることがある。
+   */
   SearchResult CurrentResult(const Node& n) const {
     if (GetPn() == 0) {
       return GetProvenResult(n);
@@ -165,19 +253,27 @@ class LocalExpansion {
     }
   }
 
-  void UpdateBestChild(const SearchResult& search_result, BoardKeyHandPair parent_key_hand_pair) {
+  /**
+   * @brief 最善手の子の評価値を更新する
+   * @param search_result 最善手の子の評価値
+   * @pre !empty()
+   */
+  void UpdateBestChild(const SearchResult& search_result) {
     const auto old_i_raw = idx_[0];
-    auto& query = queries_[old_i_raw];
+    const auto& query = queries_[old_i_raw];
     auto& result = results_[old_i_raw];
-    result = search_result;
-    query.SetResult(search_result, parent_key_hand_pair);
 
+    result = search_result;
+    query.SetResult(search_result, key_hand_pair_);
     if (search_result.Delta(or_node_) == 0 && delayed_move_list_.Next(old_i_raw)) {
+      ResortFront();
+
       // 後回しにした手があるならそれを復活させる
       // curr_i_raw の次に調べるべき子
       auto curr_i_raw = delayed_move_list_.Next(old_i_raw);
       do {
         idx_.Push(*curr_i_raw);
+        ResortBack();
         if (results_[*curr_i_raw].Delta(or_node_) > 0) {
           // まだ結論の出ていない子がいた
           break;
@@ -187,7 +283,6 @@ class LocalExpansion {
         curr_i_raw = delayed_move_list_.Next(*curr_i_raw);
       } while (curr_i_raw.has_value());
 
-      std::sort(idx_.begin(), idx_.end(), MakeComparer());
       RecalcDelta();
     } else {
       const bool old_is_sum_delta = sum_mask_[old_i_raw];
@@ -213,7 +308,14 @@ class LocalExpansion {
     }
   }
 
-  std::pair<PnDn, PnDn> PnDnThresholds(PnDn thpn, PnDn thdn) const {
+  /**
+   * @brief 最善手の子の探索で用いる pn と dn のしきい値
+   * @pre !empty()
+   * @param thpn 現局面の pn のしきい値
+   * @param thdn 現局面の dn のしきい値
+   * @return 子局面の pn, dn のしきい値のペア
+   */
+  std::pair<PnDn, PnDn> FrontPnDnThresholds(PnDn thpn, PnDn thdn) const {
     // pn/dn で考えるよりも phi/delta で考えたほうがわかりやすい
     // そのため、いったん phi/delta の世界に変換して、最後にもとに戻す
 
@@ -229,17 +331,25 @@ class LocalExpansion {
     }
   }
 
+  /**
+   * @brief 二重カウントの起点 `edge` に一致する枝が子に含まれるなら二重カウントを解消する
+   * @param edge 二重カウントの起点の枝
+   * @return `edge` を見つけたら true
+   */
   bool ResolveDoubleCountIfBranchRoot(BranchRootEdge edge) {
     if (edge.branch_root_key_hand_pair == key_hand_pair_) {
-      sum_mask_.Reset(idx_.front());
-      for (const auto i_raw : idx_) {
-        const auto& child_key_hand_pair = queries_[i_raw].GetBoardKeyHandPair();
-        if (child_key_hand_pair == edge.child_key_hand_pair) {
-          if (sum_mask_.Test(idx_[i_raw])) {
-            sum_mask_.Reset(i_raw);
-            RecalcDelta();
+      if (sum_mask_.Test(idx_.front())) {
+        sum_mask_.Reset(idx_.front());
+        for (const auto i_raw : Skip<1>(idx_)) {
+          const auto& query = queries_[i_raw];
+          const auto& child_key_hand_pair = query.GetBoardKeyHandPair();
+          if (child_key_hand_pair == edge.child_key_hand_pair) {
+            if (sum_mask_.Test(i_raw)) {
+              sum_mask_.Reset(i_raw);
+              RecalcDelta();
+            }
+            break;
           }
-          break;
         }
       }
       return true;
@@ -248,20 +358,26 @@ class LocalExpansion {
     return false;
   }
 
+  /**
+   * @brief 二重カウント探索をやめるべきかどうか判定する
+   * @param branch_root_is_or_node 二重カウントの分岐元が OR node かどうか
+   */
   bool ShouldStopAncestorSearch(bool branch_root_is_or_node) const {
     if (or_node_ != branch_root_is_or_node) {
       return false;
     }
 
-    const auto& best_result = results_[idx_.front()];
+    const auto& best_result = FrontResult();
     const PnDn delta_diff = GetDelta() - best_result.Delta(or_node_);
     return delta_diff > kAncestorSearchThreshold;
   }
 
  private:
+  /// 最善の子の探索結果を取得する
   const SearchResult& FrontResult() const { return results_[idx_.front()]; }
 
   // <PnDn>
+  /// Pn を計算する
   constexpr PnDn GetPn() const {
     if (or_node_) {
       return GetPhi();
@@ -269,6 +385,8 @@ class LocalExpansion {
       return GetDelta();
     }
   }
+
+  /// Dn を計算する
   constexpr PnDn GetDn() const {
     if (or_node_) {
       return GetDelta();
@@ -277,6 +395,7 @@ class LocalExpansion {
     }
   }
 
+  /// phi 値を計算する
   constexpr PnDn GetPhi() const {
     if (idx_.empty()) {
       return kInfinitePnDn;
@@ -284,14 +403,10 @@ class LocalExpansion {
     return FrontResult().Phi(or_node_);
   }
 
+  /// delta 値を計算する
   constexpr PnDn GetDelta() const {
-    auto [sum_delta, max_delta] = GetRawDelta();
-    return SaturatedAdd(sum_delta, max_delta);
-  }
-
-  constexpr std::pair<PnDn, PnDn> GetRawDelta() const {
     if (idx_.empty()) {
-      return {0, 0};
+      return 0;
     }
 
     const auto& best_result = FrontResult();
@@ -314,9 +429,10 @@ class LocalExpansion {
       sum_delta += std::max<std::size_t>((mp_.size() - idx_.size()) / 4, 1);
     }
 
-    return {sum_delta, max_delta};
+    return sum_delta + max_delta;
   }
 
+  /// 2番目の子の phi 値を計算する
   constexpr PnDn GetSecondPhi() const {
     if (idx_.size() <= 1) {
       return kInfinitePnDn;
@@ -325,6 +441,10 @@ class LocalExpansion {
     return second_best_result.Phi(or_node_);
   }
 
+  /**
+   * @brief 現局面の delta しきい値が `thdelta` のとき、子局面の delta しきい値を計算する
+   * @param thdelta 現局面の delta しきい値
+   */
   PnDn NewThdeltaForBestMove(PnDn thdelta) const {
     PnDn delta_except_best = sum_delta_except_best_;
     if (mp_.size() > idx_.size()) {
@@ -344,21 +464,24 @@ class LocalExpansion {
   }
   // </PnDn>
 
+  /**
+   * @brief δ値の一時変数 `sum_delta_except_best_`, `max_delta_except_best_` を計算し直す
+   */
   constexpr void RecalcDelta() {
     sum_delta_except_best_ = 0;
     max_delta_except_best_ = 0;
 
-    for (decltype(idx_.size()) i = 1; i < idx_.size(); ++i) {
-      const auto i_raw = idx_[i];
-      const auto& result = results_[i_raw];
+    for (const auto& i_raw : Skip<1>(idx_)) {
+      const auto delta_i = results_[i_raw].Delta(or_node_);
       if (sum_mask_[i_raw]) {
-        sum_delta_except_best_ += result.Delta(or_node_);
+        sum_delta_except_best_ += delta_i;
       } else {
-        max_delta_except_best_ = std::max(max_delta_except_best_, result.Delta(or_node_));
+        max_delta_except_best_ = std::max(max_delta_except_best_, delta_i);
       }
     }
   }
 
+  /// 探索結果を取得する（詰み局面）
   SearchResult GetProvenResult(const Node& n) const {
     if (or_node_) {
       const auto& result = FrontResult();
@@ -391,15 +514,17 @@ class LocalExpansion {
     }
   }
 
+  /// 探索結果を取得する（不詰局面）
   SearchResult GetDisprovenResult(const Node& n) const {
     // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
     if (!mp_.empty()) {
       if (const auto& result = FrontResult(); result.GetFinalData().IsRepetition()) {
         const auto depth = result.GetFinalData().repetition_start;
+        const auto amount = result.Amount();
         if (depth < n.GetDepth()) {
-          return SearchResult::MakeRepetition(n.OrHand(), len_, 1, depth);
+          return SearchResult::MakeRepetition(n.OrHand(), len_, amount, depth);
         } else {
-          return SearchResult::MakeFinal<false>(n.OrHand(), len_, 1);
+          return SearchResult::MakeFinal<false>(n.OrHand(), len_, amount);
         }
       }
     }
@@ -447,6 +572,7 @@ class LocalExpansion {
     }
   }
 
+  /// 探索結果を取得する（不明局面）
   SearchResult GetUnknownResult(const Node& /* n */) const {
     const auto& result = FrontResult();
     const std::uint32_t amount = result.Amount() + idx_.size() / 2;
@@ -455,11 +581,26 @@ class LocalExpansion {
     return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, unknown_data);
   }
 
+  /**
+   * @brief 先頭以外がソートされた状態のとき、先頭要素を適切な位置に挿入する
+   */
   void ResortFront() {
-    const auto comparer = MakeComparer();
+    if (idx_.size() > 1) {
+      const auto comparer = MakeComparer();
+      const auto itr = std::lower_bound(idx_.begin() + 1, idx_.end(), idx_.front(), comparer);
+      std::rotate(idx_.begin(), idx_.begin() + 1, itr);
+    }
+  }
 
-    auto itr = std::lower_bound(idx_.begin() + 1, idx_.end(), idx_[0], comparer);
-    std::rotate(idx_.begin(), idx_.begin() + 1, itr);
+  /**
+   * @brief 末尾以外がソートされた状態のとき、末尾要素を適切な位置に挿入する
+   */
+  void ResortBack() {
+    if (idx_.size() > 1) {
+      const auto comparer = MakeComparer();
+      const auto itr = std::lower_bound(idx_.begin(), idx_.end() - 1, idx_.back(), comparer);
+      std::rotate(itr, idx_.end() - 1, idx_.end());
+    }
   }
 
   const bool or_node_;                       ///< 現局面が OR node かどうか
