@@ -187,18 +187,22 @@ class Query {
    * @return 現局面の親局面
    */
   constexpr std::optional<BoardKeyHandPair> LookUpParent(PnDn& pn, PnDn& dn) const noexcept {
-    if (const auto entry = FindEntry(hand_)) {
-      const auto parent_board_key = entry->GetParentBoardKey();
-      const auto parent_hand = entry->GetParentHand();
+    pn = dn = 1;
 
-      if (parent_hand != kNullHand) {
-        pn = entry->Pn();
-        dn = entry->Dn();
-        return BoardKeyHandPair{parent_board_key, parent_hand};
+    Key parent_board_key = kNullKey;
+    Hand parent_hand = kNullHand;
+    auto itr = cluster_.head_entry;
+    KOMORI_CLUSTER_UNROLL for (std::size_t i = 0; i < Cluster::kSize; ++i, ++itr) {
+      if (itr->IsFor(board_key_) && !itr->IsNull()) {
+        itr->UpdateParentCandidate(hand_, pn, dn, parent_board_key, parent_hand);
       }
     }
 
-    return std::nullopt;
+    if (parent_hand == kNullHand) {
+      return std::nullopt;
+    }
+
+    return BoardKeyHandPair{parent_board_key, parent_hand};
   }
 
   /**

@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "bitset.hpp"
+#include "hands.hpp"
 #include "mate_len.hpp"
 #include "typedefs.hpp"
 
@@ -338,6 +339,39 @@ class alignas(64) Entry {
 
     // 優等でも劣等でもない局面。何もせずに返る
     return false;
+  }
+
+  /**
+   * @brief `hand` に対応する親局面を取得する
+   * @param hand 現局面の持ち駒
+   * @param pn pn
+   * @param dn dn
+   * @param parent_board_key 親局面の盤面ハッシュ値
+   * @param parent_hand 親局面の持ち駒
+   */
+  constexpr void UpdateParentCandidate(Hand hand, PnDn& pn, PnDn& dn, Key& parent_board_key, Hand& parent_hand) const {
+    const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
+    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+
+    if (is_inferior) {
+      if (pn_ > pn) {
+        pn = pn_;
+        if (parent_hand == kNullHand || pn > dn) {
+          parent_board_key = parent_board_key_;
+          parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
+        }
+      }
+    }
+
+    if (is_superior) {
+      if (dn_ > dn) {
+        dn = dn_;
+        if (parent_hand == kNullHand || dn > pn) {
+          parent_board_key = parent_board_key_;
+          parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
+        }
+      }
+    }
   }
 
   /**
