@@ -338,18 +338,16 @@ class LocalExpansion {
    */
   bool ResolveDoubleCountIfBranchRoot(BranchRootEdge edge) {
     if (edge.branch_root_key_hand_pair == key_hand_pair_) {
-      if (sum_mask_.Test(idx_.front())) {
-        sum_mask_.Reset(idx_.front());
-        for (const auto i_raw : Skip<1>(idx_)) {
-          const auto& query = queries_[i_raw];
-          const auto& child_key_hand_pair = query.GetBoardKeyHandPair();
-          if (child_key_hand_pair == edge.child_key_hand_pair) {
-            if (sum_mask_.Test(i_raw)) {
-              sum_mask_.Reset(i_raw);
-              RecalcDelta();
-            }
-            break;
+      sum_mask_.Reset(idx_.front());
+      for (const auto i_raw : Skip<1>(idx_)) {
+        const auto& query = queries_[i_raw];
+        const auto& child_key_hand_pair = query.GetBoardKeyHandPair();
+        if (child_key_hand_pair == edge.child_key_hand_pair) {
+          if (sum_mask_.Test(i_raw)) {
+            sum_mask_.Reset(i_raw);
+            RecalcDelta();
           }
+          break;
         }
       }
       return true;
