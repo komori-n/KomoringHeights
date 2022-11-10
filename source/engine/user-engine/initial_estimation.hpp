@@ -180,10 +180,21 @@ inline bool IsSumDeltaNode(const Node& n, Move move) {
     if (or_node) {
       // 馬鋸／龍鋸
       const auto from = from_sq(move);
+      const auto to = to_sq(move);
       const auto pc = n.Pos().piece_on(from);
       const auto pt = type_of(pc);
       if (pt == DRAGON || pt == HORSE) {
         return false;
+      }
+
+      // 3段目の香成と不成
+      if (pt == LANCE) {
+        const auto king_sq = n.Pos().king_square(n.AndColor());
+        const auto king_rank = rank_of(king_sq);
+        if ((n.Us() == BLACK && rank_of(to) == RANK_3 && king_rank == RANK_2) ||
+            (n.Us() == WHITE && rank_of(to) == RANK_7 && king_rank == RANK_8)) {
+          return false;
+        }
       }
     }
   }
