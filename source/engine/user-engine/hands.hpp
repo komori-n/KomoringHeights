@@ -74,6 +74,34 @@ inline Hand BeforeHand(const Position& n, Move move, Hand after_hand) {
 }
 
 /**
+ * @brief 持ち駒 `target` に `diff_dst - diff_src` を加える
+ * @param target 現在の持ち駒
+ * @param diff_src 変化量の起点
+ * @param diff_dst 変化量の終点
+ * @return `target` に `diff_dst - diff_src` を加算した結果
+ */
+inline Hand ApplyDeltaHand(Hand target, Hand diff_src, Hand diff_dst) {
+  // 単純に実装するなら target + (diff_dst - diff_src) だが、オーバーフローの可能性があるので駒種別に判定する
+  Hand res = HAND_ZERO;
+  for (PieceType pr = PIECE_HAND_ZERO; pr < PIECE_HAND_NB; ++pr) {
+    const auto target_cnt = hand_count(target, pr);
+    const auto src_cnt = hand_count(diff_src, pr);
+    const auto dst_cnt = hand_count(diff_dst, pr);
+    if (src_cnt < dst_cnt) {
+      const auto result_cnt = std::min(target_cnt + dst_cnt - src_cnt, PIECE_BIT_MASK[pr]);
+      add_hand(res, pr, result_cnt);
+    } else if (src_cnt > dst_cnt) {
+      const auto result_cnt = target_cnt > 0 ? target_cnt - (src_cnt - dst_cnt) : 0;
+      add_hand(res, pr, result_cnt);
+    } else {
+      add_hand(res, pr, target_cnt);
+    }
+  }
+
+  return res;
+}
+
+/**
  * @brief 局面 n の子局面がすべて 反証駒 disproof_hand で不詰であることが既知の場合、もとの局面 n の反証駒を計算する。
  *
  * OrNode の時に限り呼び出せる。

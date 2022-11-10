@@ -75,6 +75,33 @@ TEST(HandsTest, BeforeHand) {
   EXPECT_EQ(komori::BeforeHand(n.Pos(), make_move_promote(SQ_63, SQ_62, B_PAWN), HAND_ZERO), HAND_ZERO);
 }
 
+TEST(HandsTest, ApplyDeltaHand_Normal) {
+  const Hand hand = MakeHand<PAWN, LANCE, LANCE>();
+  const Hand src_hand = MakeHand<LANCE>();
+  const Hand dst_hand = MakeHand<PAWN, GOLD, GOLD>();
+
+  const auto res = komori::ApplyDeltaHand(hand, src_hand, dst_hand);
+  EXPECT_EQ(res, (MakeHand<PAWN, PAWN, LANCE, GOLD, GOLD>()));
+}
+
+TEST(HandsTest, ApplyDeltaHand_Minus) {
+  const Hand hand = HAND_ZERO;
+  const Hand src_hand = MakeHand<PAWN, LANCE, LANCE>();
+  const Hand dst_hand = HAND_ZERO;
+
+  const auto res = komori::ApplyDeltaHand(hand, src_hand, dst_hand);
+  EXPECT_EQ(res, HAND_ZERO);
+}
+
+TEST(HandsTest, ApplyDeltaHand_Overflow) {
+  const Hand hand = MakeHand<ROOK, ROOK>();
+  const Hand src_hand = HAND_ZERO;
+  const Hand dst_hand = MakeHand<ROOK, ROOK>();
+
+  const auto res = komori::ApplyDeltaHand(hand, src_hand, dst_hand);
+  EXPECT_EQ(res, (MakeHand<ROOK, ROOK, ROOK>()));
+}
+
 TEST(HandsTest, RemoveIfHandGivesOtherChecks) {
   TestNode n{"8k/9/8P/9/9/9/9/9/9 b NLP2r2b4g4s3n3l16p 1", true};
 
