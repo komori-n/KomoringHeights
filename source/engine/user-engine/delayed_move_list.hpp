@@ -59,7 +59,7 @@ class DelayedMoveList {
       bool found = false;
       for (std::size_t j = 0; j < len; ++j) {
         const auto [move_j, j_raw] = moves[j];
-        if (IsSame(move_j, move)) {
+        if (IsSame(n, move_j, move)) {
           next_[j_raw] = i_raw + 1;
           prev_[i_raw] = j_raw + 1;
           moves[j] = {move, i_raw};
@@ -140,18 +140,28 @@ class DelayedMoveList {
    * @return `m1` と `m2` のどちらかを遅延展開すべきなら `true`
    * @note `m1` と `m2` はいずれも `IsDelayable() == true` でなければならない。
    */
-  bool IsSame(Move m1, Move m2) const {
+  bool IsSame(const Node& n, Move m1, Move m2) const {
     const auto to1 = to_sq(m1);
     const auto to2 = to_sq(m2);
     if (is_drop(m1) && is_drop(m2)) {
-      return to1 == to2;
+      if (to1 == to2) {
+        return true;
+      }
+
+      // 逆王手でない中合いはだいたい無意味なので後回し
+      const auto support_cnt1 = n.Pos().attackers_to(n.Us(), to1).pop_count();
+      const auto support_cnt2 = n.Pos().attackers_to(n.Us(), to2).pop_count();
+      if (!n.IsOrNode() && support_cnt1 == 0 && support_cnt2 == 0 && !n.Pos().gives_check(m1) &&
+          !n.Pos().gives_check(m2)) {
+        return true;
+      }
     } else if (!is_drop(m1) && !is_drop(m2)) {
       const auto from1 = from_sq(m1);
       const auto from2 = from_sq(m2);
       return from1 == from2 && to1 == to2;
-    } else {
-      return false;
     }
+
+    return false;
   }
 
   std::array<std::uint32_t, kMaxCheckMovesPerNode> prev_;  ///< 直前に展開すべき手 + 1。なければ0。

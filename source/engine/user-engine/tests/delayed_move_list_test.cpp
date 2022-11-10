@@ -79,8 +79,8 @@ TEST(DelayedMoveListTest, AndDrop) {
     }
   }
 
-  EXPECT_EQ(no_prev_cnt, 7);
-  EXPECT_EQ(no_next_cnt, 7);
+  EXPECT_EQ(no_prev_cnt, 2);
+  EXPECT_EQ(no_next_cnt, 2);
 }
 
 TEST(DelayedMoveListTest, LancePromoteRev) {
