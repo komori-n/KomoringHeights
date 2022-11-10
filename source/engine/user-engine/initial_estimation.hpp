@@ -175,6 +175,17 @@ inline bool IsSumDeltaNode(const Node& n, Move move) {
     } else {
       // AND node の駒打ち（合駒）は遅延展開でなんとかするので特に何も考えない
     }
+  } else {
+    // 駒打ち以外
+    if (or_node) {
+      // 馬鋸／龍鋸
+      const auto from = from_sq(move);
+      const auto pc = n.Pos().piece_on(from);
+      const auto pt = type_of(pc);
+      if (pt == DRAGON || pt == HORSE) {
+        return false;
+      }
+    }
   }
 
   return true;
