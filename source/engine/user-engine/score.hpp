@@ -4,6 +4,8 @@
 #ifndef KOMORI_SCORE_HPP_
 #define KOMORI_SCORE_HPP_
 
+#include <cmath>
+
 #include "engine_option.hpp"
 #include "search_result.hpp"
 #include "typedefs.hpp"
