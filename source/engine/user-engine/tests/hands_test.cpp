@@ -77,11 +77,11 @@ TEST(HandsTest, BeforeHand) {
 
 TEST(HandsTest, ApplyDeltaHand_Normal) {
   const Hand hand = MakeHand<PAWN, LANCE, LANCE>();
-  const Hand src_hand = MakeHand<LANCE>();
+  const Hand src_hand = MakeHand<LANCE, LANCE, LANCE>();
   const Hand dst_hand = MakeHand<PAWN, GOLD, GOLD>();
 
   const auto res = komori::ApplyDeltaHand(hand, src_hand, dst_hand);
-  EXPECT_EQ(res, (MakeHand<PAWN, PAWN, LANCE, GOLD, GOLD>()));
+  EXPECT_EQ(res, (MakeHand<PAWN, PAWN, GOLD, GOLD>()));
 }
 
 TEST(HandsTest, ApplyDeltaHand_Minus) {

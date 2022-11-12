@@ -91,7 +91,7 @@ inline Hand ApplyDeltaHand(Hand target, Hand diff_src, Hand diff_dst) {
       const auto result_cnt = std::min(target_cnt + dst_cnt - src_cnt, PIECE_BIT_MASK[pr]);
       add_hand(res, pr, result_cnt);
     } else if (src_cnt > dst_cnt) {
-      const auto result_cnt = target_cnt > 0 ? target_cnt - (src_cnt - dst_cnt) : 0;
+      const auto result_cnt = target_cnt >= (src_cnt - dst_cnt) ? target_cnt - (src_cnt - dst_cnt) : 0;
       add_hand(res, pr, result_cnt);
     } else {
       add_hand(res, pr, target_cnt);
