@@ -260,6 +260,10 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);
 
+  if (n.GetDepth() >= kDepthMax) {
+    return SearchResult::MakeRepetition(n.OrHand(), len, 1, 0);
+  }
+
   expansion_list_.EliminateDoubleCount(tt_, n);
 
   // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
