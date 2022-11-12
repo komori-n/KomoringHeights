@@ -32,9 +32,8 @@ TEST(EngineOptionTest, Default) {
   EXPECT_EQ(op.root_is_and_node_if_checked, true);
   EXPECT_EQ(op.score_method, ScoreCalculationMethod::kPonanza);
   EXPECT_EQ(op.post_search_level, PostSearchLevel::kMinLength);
-  EXPECT_EQ(op.tt_read_path, std::filesystem::path{});
-  EXPECT_EQ(op.tt_write_path, std::filesystem::path{});
-  EXPECT_EQ(op.tt_no_overwrite, false);
+  EXPECT_EQ(op.tt_read_path, std::string{});
+  EXPECT_EQ(op.tt_write_path, std::string{});
 }
 
 TEST(EngineOptionTest, NoInitialization) {

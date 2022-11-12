@@ -4,7 +4,6 @@
 #ifndef KOMORI_ENGINE_OPTION_HPP_
 #define KOMORI_ENGINE_OPTION_HPP_
 
-#include <filesystem>
 #include <limits>
 #include <map>
 #include <optional>
@@ -163,9 +162,8 @@ struct EngineOption {
   ScoreCalculationMethod score_method;  ///< スコアの計算法
   PostSearchLevel post_search_level;    ///< 余詰探索の度合い
 
-  std::filesystem::path tt_read_path;   ///< TTを読み込むファイル名
-  std::filesystem::path tt_write_path;  ///< TTを書き込むファイル名
-  bool tt_no_overwrite;                 ///< TTの上書きを禁止するかどうか
+  std::string tt_read_path;   ///< TTを読み込むファイル名
+  std::string tt_write_path;  ///< TTを書き込むファイル名
   // NOLINTEND(misc-non-private-member-variables-in-classes)
 
 #if defined(USE_DEEP_DFPN)
@@ -194,7 +192,6 @@ struct EngineOption {
 
     o["TTReadPath"] << USI::Option("");
     o["TTWritePath"] << USI::Option("");
-    o["TTFileOverwrite"] << USI::Option(true);
   }
 
   /**
@@ -225,8 +222,6 @@ struct EngineOption {
 
     tt_read_path = detail::ReadOption<std::string>(o, "TTReadPath");
     tt_write_path = detail::ReadOption<std::string>(o, "TTWritePath");
-    // 外へ公開するオプションと内部で持つオプションが反転しているので注意
-    tt_no_overwrite = (detail::ReadOption(o, "TTFileOverwrite") == 0);
   }
 };
 }  // namespace komori
