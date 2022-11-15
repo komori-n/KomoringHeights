@@ -22,6 +22,9 @@
 
 namespace komori {
 namespace detail {
+/// 強制的に max 値によるδ値計算へ切り替えるしきい値。
+constexpr PnDn kForceSumPnDn = kInfinitePnDn / 1024;
+
 /**
  * @brief OR node `n` を `move` した局面が自明な詰み／不詰かどうかを判定する。
  * @param n     現局面
@@ -170,7 +173,7 @@ class LocalExpansion {
         }
 
         if (!result.IsFinal()) {
-          if (!IsSumDeltaNode(n, move.move)) {
+          if (!IsSumDeltaNode(n, move.move) || result.Delta(or_node_) >= detail::kForceSumPnDn) {
             sum_mask_.Reset(i_raw);
           }
 
@@ -265,6 +268,10 @@ class LocalExpansion {
 
     result = search_result;
     query.SetResult(search_result, key_hand_pair_);
+    if (!result.IsFinal() && result.Delta(or_node_) >= detail::kForceSumPnDn) {
+      sum_mask_.Reset(old_i_raw);
+    }
+
     if (search_result.Delta(or_node_) == 0 && delayed_move_list_.Next(old_i_raw)) {
       ResortFront();
 
@@ -412,7 +419,7 @@ class LocalExpansion {
     auto sum_delta = sum_delta_except_best_;
     auto max_delta = max_delta_except_best_;
     if (sum_mask_[idx_.front()]) {
-      sum_delta += best_result.Delta(or_node_);
+      sum_delta = Clamp(sum_delta + best_result.Delta(or_node_));
     } else {
       max_delta = std::max(max_delta, best_result.Delta(or_node_));
     }
@@ -427,7 +434,7 @@ class LocalExpansion {
       sum_delta += std::max<std::size_t>((mp_.size() - idx_.size()) / 4, 1);
     }
 
-    return sum_delta + max_delta;
+    return Clamp(sum_delta + max_delta);
   }
 
   /// 2番目の子の phi 値を計算する
@@ -472,7 +479,7 @@ class LocalExpansion {
     for (const auto& i_raw : Skip<1>(idx_)) {
       const auto delta_i = results_[i_raw].Delta(or_node_);
       if (sum_mask_[i_raw]) {
-        sum_delta_except_best_ += delta_i;
+        sum_delta_except_best_ = Clamp(sum_delta_except_best_ + delta_i);
       } else {
         max_delta_except_best_ = std::max(max_delta_except_best_, delta_i);
       }
