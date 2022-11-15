@@ -133,10 +133,10 @@ constexpr inline std::optional<BranchRootEdge> FindKnownAncestor(tt::Transpositi
       }
     }
 
-    if (dn <= kAncestorSearchThreshold || (!or_node && dn > last_dn + kAncestorSearchThreshold)) {
+    if (dn <= kAncestorSearchThreshold || (or_node && dn > last_dn + kAncestorSearchThreshold)) {
       dn_flag = false;
     }
-    if (pn <= kAncestorSearchThreshold || (or_node && pn > last_pn + kAncestorSearchThreshold)) {
+    if (pn <= kAncestorSearchThreshold || (!or_node && pn > last_pn + kAncestorSearchThreshold)) {
       pn_flag = false;
     }
 
