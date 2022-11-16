@@ -141,7 +141,7 @@ class LocalExpansion {
     // 1手詰め／1手不詰判定のために、const を一時的に外す
     Node& nn = const_cast<Node&>(n);
 
-    for (const auto& [i_raw, move] : WithIndex(mp_)) {
+    for (const auto& [i_raw, move] : WithIndex<std::uint32_t>(mp_)) {
       const auto hand_after = n.OrHandAfter(move.move);
       idx_.Push(i_raw);
       auto& result = results_[i_raw];

@@ -49,7 +49,7 @@ class DelayedMoveList {
     std::array<std::pair<Move, std::size_t>, kMaxLen> moves;
     std::size_t len{0};
 
-    for (const auto& [i_raw, move] : WithIndex(mp)) {
+    for (const auto& [i_raw, move] : WithIndex<std::uint32_t>(mp)) {
       prev_[i_raw] = next_[i_raw] = 0;
 
       if (!IsDelayable(n, move)) {
