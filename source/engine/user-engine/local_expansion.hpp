@@ -419,7 +419,7 @@ class LocalExpansion {
     auto sum_delta = sum_delta_except_best_;
     auto max_delta = max_delta_except_best_;
     if (sum_mask_[idx_.front()]) {
-      sum_delta = Clamp(sum_delta + best_result.Delta(or_node_));
+      sum_delta = ClampPnDn(sum_delta + best_result.Delta(or_node_));
     } else {
       max_delta = std::max(max_delta, best_result.Delta(or_node_));
     }
@@ -434,7 +434,7 @@ class LocalExpansion {
       sum_delta += std::max<std::size_t>((mp_.size() - idx_.size()) / 4, 1);
     }
 
-    return Clamp(sum_delta + max_delta);
+    return ClampPnDn(sum_delta + max_delta);
   }
 
   /// 2番目の子の phi 値を計算する
@@ -462,7 +462,7 @@ class LocalExpansion {
 
     // 計算の際はオーバーフローに注意
     if (thdelta >= delta_except_best) {
-      return Clamp(thdelta - delta_except_best);
+      return ClampPnDn(thdelta - delta_except_best);
     }
 
     return 0;
@@ -479,7 +479,7 @@ class LocalExpansion {
     for (const auto& i_raw : Skip<1>(idx_)) {
       const auto delta_i = results_[i_raw].Delta(or_node_);
       if (sum_mask_[i_raw]) {
-        sum_delta_except_best_ = Clamp(sum_delta_except_best_ + delta_i);
+        sum_delta_except_best_ = ClampPnDn(sum_delta_except_best_ + delta_i);
       } else {
         max_delta_except_best_ = std::max(max_delta_except_best_, delta_i);
       }

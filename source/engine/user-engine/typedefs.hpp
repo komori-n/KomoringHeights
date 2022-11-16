@@ -194,7 +194,7 @@ inline constexpr PnDn kInitialDn = 2;
  * @param[in] max 範囲の最大値
  * @return PnDn [`min`, `max`] の範囲に丸めた `val`
  */
-inline constexpr PnDn Clamp(PnDn val, PnDn min = 0, PnDn max = kInfinitePnDn) {
+constexpr inline PnDn ClampPnDn(PnDn val, PnDn min = 0, PnDn max = kInfinitePnDn) {
   return std::clamp(val, min, max);
 }
 
@@ -205,7 +205,7 @@ inline constexpr PnDn Clamp(PnDn val, PnDn min = 0, PnDn max = kInfinitePnDn) {
  * @param[in] or_node 現局面が OR Node なら `true`
  * @return PnDn φ値
  */
-inline PnDn Phi(PnDn pn, PnDn dn, bool or_node) {
+constexpr inline PnDn Phi(PnDn pn, PnDn dn, bool or_node) noexcept {
   return or_node ? pn : dn;
 }
 
@@ -216,11 +216,15 @@ inline PnDn Phi(PnDn pn, PnDn dn, bool or_node) {
  * @param[in] or_node 現局面が OR Node なら `true`
  * @return PnDn δ値
  */
-inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) {
+constexpr inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) noexcept {
   return or_node ? dn : pn;
 }
 
-/// pn/dn 値を文字列に変換する。
+/**
+ * @brief pn/dn 値を文字列に変換する
+ * @param val pn/dn 値
+ * @return `val` の文字列表現
+ */
 inline std::string ToString(PnDn val) {
   if (val == kInfinitePnDn) {
     return "inf";

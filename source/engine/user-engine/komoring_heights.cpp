@@ -207,8 +207,8 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
 
     score_ = Score::Make(option_.score_method, result, n.IsRootOrNode());
     // 反復深化のしきい値を適当に伸ばす
-    thpn = Clamp(thpn, SaturatedMultiply<PnDn>(result.Pn(), 2), kInfinitePnDn);
-    thdn = Clamp(thdn, SaturatedMultiply<PnDn>(result.Dn(), 2), kInfinitePnDn);
+    thpn = ClampPnDn(thpn, SaturatedMultiply<PnDn>(result.Pn(), 2), kInfinitePnDn);
+    thdn = ClampPnDn(thdn, SaturatedMultiply<PnDn>(result.Dn(), 2), kInfinitePnDn);
   }
   expansion_list_.Pop();
 
@@ -236,11 +236,11 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   inc_flag = inc_flag || local_expansion.DoesHaveOldChild();
   if (inc_flag && !curr_result.IsFinal()) {
     if (curr_result.Pn() < kInfinitePnDn) {
-      thpn = Clamp(thpn, curr_result.Pn() + 1);
+      thpn = ClampPnDn(thpn, curr_result.Pn() + 1);
     }
 
     if (curr_result.Dn() < kInfinitePnDn) {
-      thdn = Clamp(thdn, curr_result.Dn() + 1);
+      thdn = ClampPnDn(thdn, curr_result.Dn() + 1);
     }
   }
 

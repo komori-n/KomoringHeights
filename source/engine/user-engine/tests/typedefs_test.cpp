@@ -3,7 +3,7 @@
 #include "../typedefs.hpp"
 #include "test_lib.hpp"
 
-using komori::Clamp;
+using komori::ClampPnDn;
 using komori::Delta;
 using komori::kInfinitePnDn;
 using komori::OrdinalNumber;
@@ -62,9 +62,9 @@ TYPED_TEST(SaturationTest, SaturatedMultiply) {
 }
 
 TEST(PnDnTest, ClampTest) {
-  EXPECT_EQ(Clamp(10, 5, 20), 10);
-  EXPECT_EQ(Clamp(4, 5, 20), 5);
-  EXPECT_EQ(Clamp(334, 5, 20), 20);
+  EXPECT_EQ(ClampPnDn(10, 5, 20), 10);
+  EXPECT_EQ(ClampPnDn(4, 5, 20), 5);
+  EXPECT_EQ(ClampPnDn(334, 5, 20), 20);
 }
 
 TEST(PnDnTest, PhiTest) {
