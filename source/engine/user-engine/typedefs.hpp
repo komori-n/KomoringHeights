@@ -167,7 +167,7 @@ constexpr inline T SaturatedMultiply(T lhs, T rhs) noexcept {
 }
 
 /// 1局面の最大王手/王手回避の着手数
-inline constexpr std::size_t kMaxCheckMovesPerNode = 100;
+inline constexpr std::size_t kMaxCheckMovesPerNode = 110;
 /// 詰将棋の最大手数。ミクロコスモス（1525手詰）より十分大きな値を設定する
 inline constexpr Depth kDepthMax = 4000;
 /// 無効な持ち駒
