@@ -19,11 +19,9 @@ KomoringHeightsを動かすには、[将棋所](http://shogidokoro.starfree.jp/)
 
 エンジンオプションについては [EngineOptions](docs/EngineOptions.txt) を参照。
 
-# 技術解説
+# References
 
-* [詰将棋に対するdf-pnアルゴリズムの解説 | コウモリのちょーおんぱ](https://komorinfo.com/blog/df-pn-basics/)
-* [詰将棋探索における証明駒／反証駒の活用方法 | コウモリのちょーおんぱ](https://komorinfo.com/blog/proof-piece-and-disproof-piece/)
-* [高速な詰将棋ソルバー『KomoringHeights』v0.4.0を公開した | コウモリのちょーおんぱ](https://komorinfo.com/blog/komoring-heights-v040/)
+参考文献は[References](source/engine/user-engine/docs/refs.md)を参照。
 
 # Contributing
 
