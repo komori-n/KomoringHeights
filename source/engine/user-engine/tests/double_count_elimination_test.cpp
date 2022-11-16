@@ -69,27 +69,6 @@ TEST_F(FindKnownAncestorTest, SimpleDoubleCountOrNode) {
   EXPECT_TRUE(opt->branch_root_is_or_node);
 }
 
-TEST_F(FindKnownAncestorTest, DnCut) {
-  TestNode n{"9/9/9/7k1/7P1/9/9/9/9 w 2G2r2b2g4s4n4l17p 1", false};
-  SetSearchPath(*n,
-                {
-                    make_move(SQ_24, SQ_23, W_KING),
-                    make_move_drop(GOLD, SQ_14, BLACK),
-                    make_move(SQ_23, SQ_22, W_KING),
-                    make_move(SQ_14, SQ_23, B_GOLD),
-                },
-                100, 1);
-  std::vector<Move> moves{
-      make_move(SQ_24, SQ_23, W_KING),
-      make_move_drop(GOLD, SQ_24, BLACK),
-      make_move(SQ_23, SQ_22, W_KING),
-  };
-  RollForward(*n, moves);
-  auto opt = FindKnownAncestor(tt_, *n, make_move(SQ_24, SQ_23, B_GOLD));
-
-  ASSERT_EQ(opt, std::nullopt);
-}
-
 TEST_F(FindKnownAncestorTest, SimpleDoubleCountAndNode) {
   TestNode n{"9/9/9/7k1/7P1/9/9/9/9 w 2G2r2b2g4s4n4l17p 1", false};
   SetSearchPath(*n,
@@ -116,29 +95,4 @@ TEST_F(FindKnownAncestorTest, SimpleDoubleCountAndNode) {
   EXPECT_EQ(opt->branch_root_key_hand_pair.board_key, n->BoardKey());
   EXPECT_EQ(opt->branch_root_key_hand_pair.hand, n->OrHand());
   EXPECT_FALSE(opt->branch_root_is_or_node);
-}
-
-TEST_F(FindKnownAncestorTest, PnCut) {
-  TestNode n{"9/9/9/7k1/7P1/9/9/9/9 w 2G2r2b2g4s4n4l17p 1", false};
-  SetSearchPath(*n,
-                {
-                    make_move(SQ_24, SQ_23, W_KING),
-                    make_move_drop(GOLD, SQ_24, BLACK),
-                    make_move(SQ_23, SQ_22, W_KING),
-                    make_move_drop(GOLD, SQ_23, BLACK),
-                    make_move(SQ_22, SQ_21, W_KING),
-                },
-                1, 100);
-  std::vector<Move> moves{
-      make_move(SQ_24, SQ_23, W_KING),
-      make_move_drop(GOLD, SQ_24, BLACK),
-      make_move(SQ_23, SQ_12, W_KING),
-      make_move_drop(GOLD, SQ_23, BLACK),
-  };
-  RollForward(*n, moves);
-  auto opt = FindKnownAncestor(tt_, *n, make_move(SQ_12, SQ_21, W_KING));
-
-  n->UndoMove();
-  n->UndoMove();
-  ASSERT_EQ(opt, std::nullopt);
 }
