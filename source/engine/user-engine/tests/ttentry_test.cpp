@@ -267,6 +267,60 @@ TEST(EntryTest, LookUp_PnDn_Disproven) {
   EXPECT_EQ(dn, 0);
 }
 
+TEST(EntryTest, UpdateParentCandidate_DoNothing) {
+  Entry entry;
+  entry.Init(0x264, MakeHand<PAWN, LANCE, LANCE>());
+  entry.UpdateUnknown(334, 33, 4, 1, BitSet64::Full(), 33, HAND_ZERO);
+  PnDn pn{1};
+  PnDn dn{1};
+  Key parent_key{komori::kNullKey};
+  Hand parent_hand{komori::kNullHand};
+
+  // 関係ない局面を渡す -> ローカル変数は書き換わらないはず
+  entry.UpdateParentCandidate(MakeHand<GOLD>(), pn, dn, parent_key, parent_hand);
+
+  EXPECT_EQ(pn, 1);
+  EXPECT_EQ(dn, 1);
+  EXPECT_EQ(parent_key, komori::kNullKey);
+  EXPECT_EQ(parent_hand, komori::kNullHand);
+}
+
+TEST(EntryTest, UpdateParentCandidate_UseInferiorParent) {
+  Entry entry;
+  entry.Init(0x264, MakeHand<PAWN, LANCE, LANCE>());
+  entry.UpdateUnknown(334, 33, 4, 1, BitSet64::Full(), 334, MakeHand<LANCE, LANCE>());
+  PnDn pn{1};
+  PnDn dn{1};
+  Key parent_key{komori::kNullKey};
+  Hand parent_hand{komori::kNullHand};
+
+  // 関係ない局面を渡す -> ローカル変数は書き換わらないはず
+  entry.UpdateParentCandidate(MakeHand<PAWN>(), pn, dn, parent_key, parent_hand);
+
+  EXPECT_EQ(pn, 33);
+  EXPECT_EQ(dn, 1);
+  EXPECT_EQ(parent_key, 334);
+  EXPECT_EQ(parent_hand, HAND_ZERO);
+}
+
+TEST(EntryTest, UpdateParentCandidate_UseSuperiorParent) {
+  Entry entry;
+  entry.Init(0x264, MakeHand<PAWN, LANCE, LANCE>());
+  entry.UpdateUnknown(334, 33, 4, 1, BitSet64::Full(), 334, MakeHand<LANCE, LANCE>());
+  PnDn pn{1};
+  PnDn dn{1};
+  Key parent_key{komori::kNullKey};
+  Hand parent_hand{komori::kNullHand};
+
+  // 関係ない局面を渡す -> ローカル変数は書き換わらないはず
+  entry.UpdateParentCandidate(MakeHand<PAWN, LANCE, LANCE, LANCE, GOLD>(), pn, dn, parent_key, parent_hand);
+
+  EXPECT_EQ(pn, 1);
+  EXPECT_EQ(dn, 4);
+  EXPECT_EQ(parent_key, 334);
+  EXPECT_EQ(parent_hand, (MakeHand<LANCE, LANCE, LANCE, GOLD>()));
+}
+
 TEST(EntryTest, SetPossibleRepetition_PnDn) {
   Entry entry;
   entry.Init(0x264, HAND_ZERO);
