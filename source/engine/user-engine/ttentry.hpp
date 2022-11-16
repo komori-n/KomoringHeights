@@ -353,23 +353,19 @@ class alignas(64) Entry {
     const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
     const bool is_superior = hand_is_equal_or_superior(hand, hand_);
 
-    if (is_inferior) {
-      if (pn_ > pn) {
-        pn = pn_;
-        if (parent_hand == kNullHand || pn > dn) {
-          parent_board_key = parent_board_key_;
-          parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
-        }
+    if (is_inferior && pn_ > pn) {
+      pn = pn_;
+      if (parent_hand_ != kNullHand && (parent_hand == kNullHand || pn > dn)) {
+        parent_board_key = parent_board_key_;
+        parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
       }
     }
 
-    if (is_superior) {
-      if (dn_ > dn) {
-        dn = dn_;
-        if (parent_hand == kNullHand || dn > pn) {
-          parent_board_key = parent_board_key_;
-          parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
-        }
+    if (is_superior && dn_ > dn) {
+      dn = dn_;
+      if (parent_hand_ != kNullHand && (parent_hand == kNullHand || dn > pn)) {
+        parent_board_key = parent_board_key_;
+        parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
       }
     }
   }
