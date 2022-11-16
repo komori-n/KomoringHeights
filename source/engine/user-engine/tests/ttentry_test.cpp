@@ -439,7 +439,7 @@ TEST(EntryTest, UpdateProven_Amount) {
   entry.Init(0x264, HAND_ZERO);
   entry.UpdateUnknown(264, 26, 4, amount1, BitSet64::Full(), 0, HAND_ZERO);
   entry.UpdateProven(MateLen16{334}, amount2);
-  EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
+  EXPECT_EQ(entry.Amount(), amount2 + kFinalAmountBonus);
 }
 
 TEST(EntryTest, UpdateDisproven_Amount) {
@@ -449,7 +449,7 @@ TEST(EntryTest, UpdateDisproven_Amount) {
   entry.Init(0x264, HAND_ZERO);
   entry.UpdateUnknown(264, 26, 4, amount1, BitSet64::Full(), 0, HAND_ZERO);
   entry.UpdateDisproven(MateLen16{334}, amount2);
-  EXPECT_EQ(entry.Amount(), amount1 / 2 + amount2 + kFinalAmountBonus);
+  EXPECT_EQ(entry.Amount(), amount2 + kFinalAmountBonus);
 }
 
 TEST(EntryTest, UpdateFinalRange_Superior) {

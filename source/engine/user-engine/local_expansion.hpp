@@ -493,7 +493,7 @@ class LocalExpansion {
       const auto best_move = mp_[idx_[0]];
       const auto proof_hand = BeforeHand(n.Pos(), best_move, result.GetFinalData().hand);
       const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
-      const auto amount = result.Amount();
+      const auto amount = result.Amount() + mp_.size() - 1;
 
       return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
     } else {
@@ -512,7 +512,8 @@ class LocalExpansion {
       }
 
       // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
-      amount += std::max<SearchAmount>(idx_.size(), 1) - 1;
+      // なお、子の個数が空の場合があるので注意。
+      amount += std::max<SearchAmount>(mp_.size(), 1) - 1;
 
       const auto proof_hand = set.Get(n.Pos());
       return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
@@ -550,7 +551,7 @@ class LocalExpansion {
           mate_len = result.Len() + 1;
         }
       }
-      amount += std::max<SearchAmount>(idx_.size(), 1) - 1;
+      amount += std::max<SearchAmount>(mp_.size(), 1) - 1;
       const auto disproof_hand = set.Get(n.Pos());
 
       return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
@@ -558,7 +559,7 @@ class LocalExpansion {
       const auto& result = FrontResult();
       auto disproof_hand = result.GetFinalData().hand;
       const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
-      const auto amount = result.Amount();
+      const auto amount = result.Amount() + mp_.size() - 1;
 
       // 駒打ちならその駒を持っていないといけない
       if (const auto best_move = mp_[idx_[0]]; is_drop(best_move)) {
@@ -580,7 +581,7 @@ class LocalExpansion {
   /// 探索結果を取得する（不明局面）
   SearchResult GetUnknownResult(const Node& /* n */) const {
     const auto& result = FrontResult();
-    const SearchAmount amount = result.Amount() + idx_.size() / 2;
+    const SearchAmount amount = result.Amount() + mp_.size() - 1;
 
     const UnknownData unknown_data{false, sum_mask_};
     return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, unknown_data);

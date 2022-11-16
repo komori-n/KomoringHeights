@@ -256,7 +256,7 @@ class alignas(64) Entry {
     parent_board_key_ = parent_board_key;
     parent_hand_ = parent_hand;
     sum_mask_ = sum_mask;
-    AddAmount(amount);
+    amount_ = std::max(amount_, amount);
   }
 
   /**
@@ -267,8 +267,8 @@ class alignas(64) Entry {
    * @pre `len` > `disproven_len_`
    */
   constexpr void UpdateProven(MateLen16 len, SearchAmount amount) noexcept {
-    AddAmount(SaturatedAdd(amount, detail::kFinalAmountBonus));
     proven_len_ = std::min(proven_len_, len);
+    amount_ = std::max(amount_, SaturatedAdd(amount, detail::kFinalAmountBonus));
   }
 
   /**
@@ -279,8 +279,8 @@ class alignas(64) Entry {
    * @pre `len` < `proven_len_`
    */
   constexpr void UpdateDisproven(MateLen16 len, SearchAmount amount) noexcept {
-    AddAmount(SaturatedAdd(amount, detail::kFinalAmountBonus));
     disproven_len_ = std::max(disproven_len_, len);
+    amount_ = std::max(amount_, SaturatedAdd(amount, detail::kFinalAmountBonus));
   }
 
   /**
@@ -411,14 +411,6 @@ class alignas(64) Entry {
   // </テスト用>
 
  private:
-  /**
-   * @brief 探索量に `amount` を加える
-   * @param amount 追加する探索量
-   *
-   * @note 加算方法を変える可能性が高い（例えば上限値を変えるなど）ので、関数化しておく。
-   */
-  constexpr void AddAmount(SearchAmount amount) noexcept { amount_ = SaturatedAdd(amount_ / 2, amount); }
-
   /**
    * @brief 現局面とエントリが一致しているときの LookUp
    * @param depth16  探索深さ
