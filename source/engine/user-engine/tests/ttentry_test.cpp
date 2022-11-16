@@ -8,8 +8,8 @@ using komori::kDepthMaxPlus1MateLen16;
 using komori::kMinus1MateLen16;
 using komori::MateLen16;
 using komori::PnDn;
+using komori::SearchAmount;
 using komori::tt::Entry;
-using komori::tt::SearchAmount;
 using komori::tt::detail::kFinalAmountBonus;
 
 TEST(EntryTest, DefaultConstructedInstanceIsNull) {

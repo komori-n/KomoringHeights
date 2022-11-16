@@ -55,7 +55,7 @@ class SearchResult {
   static constexpr SearchResult MakeUnknown(PnDn pn,
                                             PnDn dn,
                                             MateLen len,
-                                            std::uint32_t amount,
+                                            SearchAmount amount,
                                             UnknownData unknown_data) {
     return {pn, dn, len, amount, unknown_data};
   }
@@ -70,7 +70,7 @@ class SearchResult {
    * 千日手の場合、この関数ではなく `MakeRepetition()` を用いること。
    */
   template <bool kIsProven>
-  static constexpr SearchResult MakeFinal(Hand hand, MateLen len, std::uint32_t amount) {
+  static constexpr SearchResult MakeFinal(Hand hand, MateLen len, SearchAmount amount) {
     const auto pn = kIsProven ? 0 : kInfinitePnDn;
     const auto dn = kIsProven ? kInfinitePnDn : 0;
     return {pn, dn, len, amount, FinalData{kDepthMax, hand}};
@@ -83,7 +83,7 @@ class SearchResult {
    * @param amount 探索量
    * @param rep_start 千日手の開始局面。この深さを下回ったら千日手は解消されたと判断する。
    */
-  static constexpr SearchResult MakeRepetition(Hand hand, MateLen len, std::uint32_t amount, Depth rep_start) {
+  static constexpr SearchResult MakeRepetition(Hand hand, MateLen len, SearchAmount amount, Depth rep_start) {
     return {kInfinitePnDn, 0, len, amount, FinalData{rep_start, hand}};
   }
 
@@ -103,7 +103,7 @@ class SearchResult {
   /// 探索時の残り手数
   constexpr MateLen Len() const { return len_; }
   /// 探索量
-  constexpr std::uint32_t Amount() const { return amount_; }
+  constexpr SearchAmount Amount() const { return amount_; }
   /// Unknown部分の結果。`!IsFinal()` の場合のみ呼び出し可能。
   constexpr const UnknownData& GetUnknownData() const { return unknown_data_; }
   /// Final部分の結果。`IsFinal()` の場合のみ呼び出し可能。
@@ -135,16 +135,16 @@ class SearchResult {
 
  private:
   /// Unknown用の初期化関数。`MakeUnknown()` を使ってほしいので private に隠しておく。
-  constexpr SearchResult(PnDn pn, PnDn dn, MateLen len, std::uint32_t amount, UnknownData unknown_data)
+  constexpr SearchResult(PnDn pn, PnDn dn, MateLen len, SearchAmount amount, UnknownData unknown_data)
       : pn_{pn}, dn_{dn}, len_{len}, amount_{amount}, unknown_data_{unknown_data} {}
   /// Final用の初期化関数。`MakeFinal()` を使ってほしいので private に隠しておく。
-  constexpr SearchResult(PnDn pn, PnDn dn, MateLen len, std::uint32_t amount, FinalData final_data)
+  constexpr SearchResult(PnDn pn, PnDn dn, MateLen len, SearchAmount amount, FinalData final_data)
       : pn_{pn}, dn_{dn}, len_{len}, amount_{amount}, final_data_{final_data} {}
 
-  PnDn pn_;               ///< pn
-  PnDn dn_;               ///< dn
-  MateLen len_;           ///< 探索時の残り手数
-  std::uint32_t amount_;  ///< 探索量
+  PnDn pn_;              ///< pn
+  PnDn dn_;              ///< dn
+  MateLen len_;          ///< 探索時の残り手数
+  SearchAmount amount_;  ///< 探索量
   union {
     UnknownData unknown_data_;  ///< Unknown専用領域
     FinalData final_data_;      ///< Final専用領域

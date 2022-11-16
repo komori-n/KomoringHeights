@@ -500,7 +500,7 @@ class LocalExpansion {
       // 子局面の証明駒の極小集合を計算する
       HandSet set{ProofHandTag{}};
       MateLen mate_len = kZeroMateLen;
-      std::uint32_t amount = 1;
+      SearchAmount amount = 1;
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
 
@@ -512,7 +512,7 @@ class LocalExpansion {
       }
 
       // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
-      amount += std::max<std::uint32_t>(idx_.size(), 1) - 1;
+      amount += std::max<SearchAmount>(idx_.size(), 1) - 1;
 
       const auto proof_hand = set.Get(n.Pos());
       return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
@@ -539,7 +539,7 @@ class LocalExpansion {
       // 子局面の反証駒の極大集合を計算する
       HandSet set{DisproofHandTag{}};
       MateLen mate_len = kDepthMaxMateLen;
-      std::uint32_t amount = 1;
+      SearchAmount amount = 1;
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
         const auto child_move = mp_[i_raw];
@@ -550,7 +550,7 @@ class LocalExpansion {
           mate_len = result.Len() + 1;
         }
       }
-      amount += std::max<std::uint32_t>(idx_.size(), 1) - 1;
+      amount += std::max<SearchAmount>(idx_.size(), 1) - 1;
       const auto disproof_hand = set.Get(n.Pos());
 
       return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
@@ -580,7 +580,7 @@ class LocalExpansion {
   /// 探索結果を取得する（不明局面）
   SearchResult GetUnknownResult(const Node& /* n */) const {
     const auto& result = FrontResult();
-    const std::uint32_t amount = result.Amount() + idx_.size() / 2;
+    const SearchAmount amount = result.Amount() + idx_.size() / 2;
 
     const UnknownData unknown_data{false, sum_mask_};
     return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, unknown_data);

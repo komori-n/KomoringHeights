@@ -220,6 +220,9 @@ constexpr inline PnDn Delta(PnDn pn, PnDn dn, bool or_node) noexcept {
   return or_node ? dn : pn;
 }
 
+/// 探索量。TTでエントリを消す際の判断に用いる。
+using SearchAmount = std::uint32_t;
+
 /**
  * @brief pn/dn 値を文字列に変換する
  * @param val pn/dn 値

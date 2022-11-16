@@ -12,9 +12,6 @@
 #include "typedefs.hpp"
 
 namespace komori::tt {
-/// 探索量。TTでエントリを消す際の判断に用いる。
-using SearchAmount = std::uint32_t;
-
 namespace detail {
 /// 詰み／不詰の探索量のボーナス。これを大きくすることで詰み／不詰エントリが消されづらくなる。
 constexpr inline SearchAmount kFinalAmountBonus{1000};
@@ -549,6 +546,7 @@ class alignas(64) Entry {
   BitSet64 sum_mask_{};   ///< δ値を和で計算する子の集合
 };
 
+static_assert(sizeof(SearchAmount) == 4, "The size of SearchAmount must be 4.");
 static_assert(sizeof(Entry) <= 64, "The size of `Entry` must be less than or equal to 64 bytes.");
 static_assert(alignof(Entry) == 64, "`Entry` must be aligned as 64 bytes.");
 static_assert(std::is_default_constructible<Entry>(), "`Entry` must be default constructible");
