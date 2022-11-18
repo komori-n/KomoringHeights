@@ -22,7 +22,7 @@ namespace komori {
  * 使える添字は 0-base。例えば、`T=uint64_t` なら [0, 64) の範囲。ただし、範囲外はすべて`false`
  * として扱う。すなわち、例えば `T=uint64_t` の場合、 `Set(334)` は何もせず、 `Test(334)` は常に `false` を返す。
  *
- * @caution trivially default constructible にするために、デフォルトコンストラクタは0初期化を行わない。空の BitSet が
+ * @note trivially default constructible にするために、デフォルトコンストラクタは0初期化を行わない。空の BitSet が
  * ほしい場合、`BitSet::None()` を用いて初期化すること。
  */
 template <typename T>

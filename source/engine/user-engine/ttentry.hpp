@@ -85,7 +85,7 @@ constexpr inline SearchAmount kFinalAmountBonus{1000};
  * 「千日手の可能性があるか」のフラグを保持する。このフラグの有無により千日手判定の別処理を行うかどうかを決める。
  *
  * `Init()` 直後は「千日手可能性フラグ」は立っていない。明示的に `SetPossibleRepetition()` をコールすることでのみ
- * 千日手フラグを建てることができる。千日手フラグは `IsPossibleRepetition()` により取得できる。
+ * 千日手フラグを立てることができる。千日手フラグは `IsPossibleRepetition()` により取得できる。
  *
  * ### 詰み／不詰の保存方法
  *
@@ -99,7 +99,7 @@ constexpr inline SearchAmount kFinalAmountBonus{1000};
  * - `disproven_len_` 手より大きく `proven_len_` 手未満：不明（探索中）
  * - `disproven_len_` 手以下：不詰
  *
- * `Init()` 直後は、-0手不詰、+∞手詰みで初期化する。こうすることで、任意の非負有限手に対し不明（探索中）の状態に
+ * `Init()` 直後は、-1手不詰、+∞手詰みで初期化する。こうすることで、任意の非負有限手に対し不明（探索中）の状態に
  * 設定できる。
  *
  * ### Look Up

@@ -12,7 +12,7 @@
 
 namespace komori {
 /**
- * @brief 現在の探索状況に基づく評価値っぽいものを計算する。
+ * @brief 現在の探索状況に基づく評価値。
  */
 class Score : DefineNotEqualByEqual<Score> {
   /// 内部で用いる整数型

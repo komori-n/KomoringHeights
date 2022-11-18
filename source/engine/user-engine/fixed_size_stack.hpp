@@ -12,23 +12,25 @@
 namespace komori {
 /**
  * @brief サイズ固定のスタック。
- * @tparam T 保存する要素の型（デフォルト構築可能かつトリビアルデストラクト可能）
+ * @tparam T 保存する要素の型（トリビアルコンストラクト可能かつトリビアルデストラクト可能）
  * @tparam kSize 保存可能な添字の最大個数（`kSize`>0）
- * @internal 命名を `StackStack` にしようと思ったけど意味不明なのでやめた
  *
  * `Push()` および `Pop()` により要素を追加および削除ができるスタック。動的メモリ確保は行わず、`std::array` にて
  * 実装されている。
  *
- * スタックは配列の手前から順に詰める形で実現されている。`operator[]` で要素を取得するときに使う添字は、古い順に
- * 0, 1, ... と振られている。同様に、イテレータ (`begin()` `end()`) は、古い順に要素を返す。
+ * スタックは配列の手前から順に詰める形で実現されている。スタックに積まれた要素は `operator[]` で
+ * アクセスすることができ、その添字は古い順に 0, 1, ... と振られている。同様に、イテレータ (`begin()` `end()`) により
+ * 古い順にイテレートすることができる。
  *
  * @note テンプレートパラメータ `kSize` でサイズの上限を指定できるが、高速化のために範囲チェックは一切行っていない。
+ * @note `T` に対する制約は弱めることができるが、実装が煩雑になるので必要になったら作る。
+ * @internal 命名を `StackStack` にしようと思ったけど意味不明なのでやめた
  */
 template <typename T, std::size_t kSize>
 class FixedSizeStack {
  public:
   static_assert(kSize > 0, "kSize shall be greater than 0");
-  static_assert(std::is_default_constructible_v<T>, "T shall be default constructible");
+  static_assert(std::is_trivially_constructible_v<T>, "T shall be trivially default constructible");
   static_assert(std::is_trivially_destructible_v<T>, "T shall be trivially destructible");
 
   /// `val` をスタックに追加する

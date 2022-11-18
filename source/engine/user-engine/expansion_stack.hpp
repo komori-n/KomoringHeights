@@ -9,14 +9,10 @@
 
 namespace komori {
 /**
- * @brief `LocalExpansion` を一元管理するクラス。合流検出に用いる。
+ * @brief `LocalExpansion` をスタックで管理するクラス。
  *
- * 基本的には `std::stack<LocalExpansion>` のように振る舞う。すなわち、`Emplace()` により新たな `LocalExpansion` を
+ * 基本的には `std::stack<LocalExpansion>` のように振る舞う。`Emplace()` により新たな `LocalExpansion` を
  * 構築し、`Pop()` により構築したインスタンスのうち最も新しいものを消す。最新のインスタンスは `Current()` で取得できる。
- *
- * `Emplace()` 時に合流検出の判定を行い、必要があれば親に遡って二重カウントの解消を試みる。
- *
- * @note 二重カウントの検出は未実装。
  */
 class ExpansionStack {
  public:
@@ -58,9 +54,9 @@ class ExpansionStack {
   const LocalExpansion& Current() const { return list_.back(); }
 
   /**
-   * @brief
-   * @param tt
-   * @param n
+   * @brief 現局面が終点となるの二重カウント解消を試みる
+   * @param tt 置換表
+   * @param n  現局面
    */
   void EliminateDoubleCount(tt::TranspositionTable& tt, const Node& n) {
     const auto& current = Current();
@@ -89,7 +85,6 @@ class ExpansionStack {
    *
    * @note `std::vector` のほうが若干高速に動作すると思われるが、
    *       `LocalExpansion` のような move 不可オブジェクトには用いることができない。
-   *       現時点では探索速度にそれほど影響ないと考えるので、実装は後回しにする。
    */
   std::deque<LocalExpansion> list_;
 };

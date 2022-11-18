@@ -116,7 +116,6 @@ class MateLenImpl : DefineNotEqualByEqual<MateLenImpl<T>>, DefineComparisonOpera
  * 範囲外の初期値がほしい場合は、`kMinus1MateLen` や `kDepthMaxPlus1MateLen` を用いる。
  */
 using MateLen = detail::MateLenImpl<std::uint32_t>;
-/// 詰み／不詰手数（`MateLen` の16ビット版）
 
 /**
  * @brief 詰み／不詰手数（`MateLen` の16ビット版）
@@ -140,7 +139,7 @@ inline constexpr MateLen kDepthMaxMateLen = MateLen{kDepthMax};
  * `kZeroMateLen` よりも小さな値を表す特別な定数。探索中に用いてはならず、変数の初期値としてのみ用いる。配列の中から
  * 最も大きな詰み手数を調べたい場合に用いる。
  *
- * ```c++
+ * ```cpp
  * MateLen max_len = kMinus1MateLen;
  * for (const auto& len : len_list) {  // len_list 内の値は [kZeroMateLen, kDepthMaxMateLen] の範囲
  *   max_len = std::max(max_len, len);

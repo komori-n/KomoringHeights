@@ -1,3 +1,6 @@
+/**
+ * @file board_key_hand_pair.hpp
+ */
 #ifndef KOMORI_BOARD_KEY_HAND_PAIR
 #define KOMORI_BOARD_KEY_HAND_PAIR
 

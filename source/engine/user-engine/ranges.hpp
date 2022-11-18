@@ -188,7 +188,7 @@ class WithIndexImpl {
  * オブジェクトを返す。テンプレート引数の順番が `IndexType` の方が手前なのは、インデックス型だけを手軽に
  * 変更できるようにするため。
  *
- * ```c++
+ * ```cpp
  * std::vector<int> vec{3, 3, 4};
  * for (auto&& [i, x] = WithIndex<std::uint32_t>(vec)) {
  *   ...

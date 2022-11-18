@@ -55,26 +55,23 @@ inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
  *
  * ## 実装詳細
  *
- * ### 生添字（`i_raw`）
+ * ### 生添字（i_raw）
  *
  * 同じ局面 `n` に対し、`MovePicker` は常に同じ順番の指し手を生成する。つまり、`MovePicker` の添字により指し手を
  * 一意に特定できる。このように、任意の指し手 `m` に対し、`MovePicker` における添字を `m` の生添字（raw index）と呼び、
  * 変数 `i_raw` により表現する。
  *
- * ### 添字スタック（`idx_`）
+ * ### 添字スタック（idx_）
  *
  * 探索中に「良さげ順」に生添字の並び替えを行いたい。このような生添字のリストが添え字スタック `idx`である。
  * 探索結果の配列 `results_` を直接並び替えるのではなく `idx_` を並び替えることで、並び替えにかかる命令数を
  * 削減することができる。また、添字スタックを経由してアクセスすることで、`mp_` や `sum_mask_` を「良さげ順」で
  * アクセスすることができる。
  *
- * `idx_` は、スタックの古い方から新しい方の順で `results_` が「良さげ順」になるように並んでいる。もし `results_` の
- * 更新があった場合、全体をソートし直すことなく挿入ソートの要領で「良さげ順」を保つことができる。
- *
- * また、スタック構造を活かして探索中に `idx_` へ生添字を追加することもできる。これは、
+ * スタック構造を活かして探索中に `idx_` へ生添字を追加することもできる。これは、
  * 指し手の遅延展開（`delayed_move_list_`）に用いられる。
  *
- * ### δ値の計算（`sum_delta_except_best_`, `max_delta_except_best_`, `sum_mask`）
+ * ### δ値の計算（sum_delta_except_best_, max_delta_except_best_, sum_mask）
  *
  * 現局面のδ値は、和で計上する子の集合 sum_child と最大値で計上する子の集合 max_child を用いて
  *    δ = Σ_[i in sum_child] δ_i + max_[i in max_child] δ_i
@@ -90,8 +87,10 @@ inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
  *
  * δ値を和で計上するか最大値で計上するかは `sum_mask_` で管理している。`sum_mask_` のビットが立っている子は
  * 和で、立っていない子は最大値でδ値を計上する。「和」の方にビットを立てるようにしている理由は、
- * 仮に子の個数が 64 個を超える場合は最大値で計上したいから。基本的には legacy df-pn のように和で計上するが、
- * `IsSumDeltaNode()` に当てはまるノードと二重カウント検出された子は最大値で計算することでδ値の発散を抑える。
+ * 仮に子の個数が 64 個を超える場合は最大値で計上したいから。
+ *
+ * 基本的には legacy df-pn のように和で計上するが、`IsSumDeltaNode()` に当てはまるノードと二重カウント検出された子は
+ * 最大値で計算することでδ値の発散を抑える。
  */
 class LocalExpansion {
  private:

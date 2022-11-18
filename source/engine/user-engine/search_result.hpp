@@ -152,7 +152,7 @@ class SearchResult {
 };
 
 /**
- * @brief `SearchResult` 同士の半順序を定義する
+ * @brief `SearchResult` 同士の半順序関係。
  *
  * φ値、δ値、千日手の有無を元にした `SearchResult` 同士の（狭義の）半順序関係を定義する。`operator()` の呼び出しにより、
  * 任意の 2 つの `SearchResult` のどちらがより「良い」かを調べることができる。自身の勝ちに近い探索結果（直感的には

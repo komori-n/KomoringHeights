@@ -142,13 +142,10 @@ inline constexpr std::uint64_t MakeInfIfNotPositive(std::uint64_t val) {
 }  // namespace detail
 
 /**
- * @brief エンジンオプションの事前読み込みおよび提供を行う
+ * @brief エンジンオプションの事前読み込みおよび提供を行うクラス。
  *
  * エンジン起動時に `Init()` によりエンジン独自定義のオプションを設定する。ここでは、 `NodesLimit`などの
- * 詰めエンジン独自のオプションを使えるようにする。
- *
- * USIプロトコルのオプションは若干クセが強いため、値読み出し時に若干計算が必要になる。
- * このクラスでは、探索開始時に `Reload()` をコールすることでエンジンオプションをメンバ変数に読み込む。
+ * 詰めエンジン独自のオプションを使えるようにする。設定したオプションは `Reload()` により読み込むことができる。
  */
 struct EngineOption {
   // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
