@@ -10,8 +10,6 @@
 #include "typedefs.hpp"
 
 namespace komori {
-/// pn/dn 値の単位。df-pn+ では「評価値0.5」のような小数を扱いたいので1より大きな値を用いれるようにする。
-inline constexpr PnDn kPnDnUnit = 2;
 namespace detail {
 /**
  * @brief df-pn+における OR node の pn/dn 初期値を計算する

@@ -183,10 +183,8 @@ inline constexpr Key kNullKey = Key{0x3343343343343340ULL};
 using PnDn = std::uint64_t;
 /// pn/dn の最大値。オーバーフローを避けるために、max() より少し小さな値を設定する。
 inline constexpr PnDn kInfinitePnDn = std::numeric_limits<PnDn>::max() / 2 - 1;
-/// pnの初期値。df-pn+やdeep df-pnへの拡張を考慮して 1 ではない値で初期化できるようにしておく。
-inline constexpr PnDn kInitialPn = 2;
-/// dnの初期値。df-pn+やdeep df-pnへの拡張を考慮して 1 ではない値で初期化できるようにしておく。
-inline constexpr PnDn kInitialDn = 2;
+/// pn/dn 値の単位。df-pn+ では「評価値0.5」のような小数を扱いたいので1より大きな値を用いれるようにする。
+inline constexpr PnDn kPnDnUnit = 2;
 /**
  * @brief pn/dn の値を [`min`, `max`] の範囲に収まるように丸める。
  * @param[in] val pnまたはdn

@@ -13,7 +13,6 @@
 #include "circular_array.hpp"
 #include "engine_option.hpp"
 #include "expansion_stack.hpp"
-#include "local_expansion.hpp"
 #include "score.hpp"
 #include "search_result.hpp"
 #include "transposition_table.hpp"
