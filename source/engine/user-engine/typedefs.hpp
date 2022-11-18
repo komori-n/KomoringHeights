@@ -176,6 +176,16 @@ inline constexpr Hand kNullHand = Hand{HAND_BORROW_MASK};
 inline constexpr Key kNullKey = Key{0x3343343343343340ULL};
 
 /**
+ * @brief 局面の探索状態。
+ */
+enum class NodeState {
+  kUnknown,     ///< 不明（探索中）
+  kProven,      ///< 詰み
+  kDisproven,   ///< 千日手ではない不詰
+  kRepetition,  ///< 千日手による不詰
+};
+
+/**
  * @brief 証明数／反証数を格納する型
  *
  * 32ビット整数だとすぐにオーバーフローしてしまうので、64ビット整数を用いる。

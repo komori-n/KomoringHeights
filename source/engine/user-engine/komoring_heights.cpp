@@ -13,17 +13,17 @@ inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
 }  // namespace
 
 namespace detail {
-void SearchMonitor::NewSearch(std::uint64_t gc_interval) {
+void SearchMonitor::NewSearch(std::uint64_t gc_interval, std::uint64_t move_limit) {
+  // この時点で stop_ が true ならすぐにやめなければならないので、stop_ の初期化はしない
+
   start_time_ = std::chrono::system_clock::now();
-  depth_ = 0;
+  max_depth_ = 0;
 
   tp_hist_.Clear();
   mc_hist_.Clear();
   hist_idx_ = 0;
 
-  move_limit_ = std::numeric_limits<std::uint64_t>::max();
-  limit_stack_ = {};
-
+  move_limit_ = move_limit;
   gc_interval_ = gc_interval;
   ResetNextGc();
 }
@@ -52,7 +52,7 @@ UsiInfo SearchMonitor::GetInfo() const {
   }
 
   UsiInfo output;
-  output.Set(UsiInfoKey::kSelDepth, depth_);
+  output.Set(UsiInfoKey::kSelDepth, max_depth_);
   output.Set(UsiInfoKey::kTime, time_ms);
   output.Set(UsiInfoKey::kNodes, move_count);
   output.Set(UsiInfoKey::kNps, nps);
@@ -63,24 +63,12 @@ UsiInfo SearchMonitor::GetInfo() const {
 void SearchMonitor::ResetNextGc() {
   next_gc_count_ = MoveCount() + gc_interval_;
 }
-
-void SearchMonitor::PushLimit(std::uint64_t move_limit) {
-  limit_stack_.push(move_limit_);
-  move_limit_ = std::min(move_limit_, move_limit);
-}
-
-void SearchMonitor::PopLimit() {
-  if (!limit_stack_.empty()) {
-    move_limit_ = limit_stack_.top();
-    limit_stack_.pop();
-  }
-}
 }  // namespace detail
 
 void KomoringHeights::Init(const EngineOption& option, Thread* thread) {
   option_ = option;
   tt_.Resize(option_.hash_mb);
-  monitor_.Init(thread);
+  monitor_.SetThread(thread);
 
   const auto& tt_read_path = option_.tt_read_path;
   if (!tt_read_path.empty()) {
@@ -103,15 +91,14 @@ UsiInfo KomoringHeights::CurrentInfo() const {
 NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
-  monitor_.NewSearch(GcInterval(option_.hash_mb));
-  monitor_.PushLimit(option_.nodes_limit);
+  monitor_.NewSearch(GcInterval(option_.hash_mb), option_.nodes_limit);
   best_moves_.clear();
   // </初期化>
 
   auto& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
 
-  auto [state, len] = SearchMainLoop(node, is_root_or_node);
+  auto [state, len] = SearchMainLoop(node);
   const bool proven = (state == NodeState::kProven);
 
   const auto tt_write_path = option_.tt_write_path;
@@ -133,7 +120,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   }
 }
 
-std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_root_or_node) {
+std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
   auto node_state{NodeState::kUnknown};
   auto len{kDepthMaxMateLen};
 
@@ -141,7 +128,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n, bool is_r
     // `result` が余詰探索による不詰だったとき、後から元の状態（詰み）に戻せるようにしておく
     const auto old_score = score_;
     const auto result = SearchEntry(n, len);
-    score_ = Score::Make(option_.score_method, result, is_root_or_node);
+    score_ = Score::Make(option_.score_method, result, n.IsRootOrNode());
 
     auto info = CurrentInfo();
 
