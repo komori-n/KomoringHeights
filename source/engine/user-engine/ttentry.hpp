@@ -267,6 +267,7 @@ class alignas(64) Entry {
    * @pre `len` > `disproven_len_`
    */
   constexpr void UpdateProven(MateLen16 len, SearchAmount amount) noexcept {
+    KOMORI_PRECONDITION(disproven_len_ < len);
     proven_len_ = std::min(proven_len_, len);
     amount_ = std::max(amount_, SaturatedAdd(amount, detail::kFinalAmountBonus));
   }
@@ -279,6 +280,7 @@ class alignas(64) Entry {
    * @pre `len` < `proven_len_`
    */
   constexpr void UpdateDisproven(MateLen16 len, SearchAmount amount) noexcept {
+    KOMORI_PRECONDITION(len < proven_len_);
     disproven_len_ = std::max(disproven_len_, len);
     amount_ = std::max(amount_, SaturatedAdd(amount, detail::kFinalAmountBonus));
   }
