@@ -21,6 +21,11 @@ repos:
   hooks:
   - id: clang-format
   - id: cpplint
+- repo: https://github.com/adrienverge/yamllint.git
+  rev: v1.28.0
+  hooks:
+  - id: yamllint
+    args: [-c=/path/to/.yamllint]
 - repo: local
   hooks:
   - id: gen-docs

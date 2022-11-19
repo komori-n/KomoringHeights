@@ -1,0 +1,35 @@
+---
+name: pre-commit
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  run:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout own repository
+      uses: actions/checkout@v2
+      with:
+        path: main
+
+    - name: install clang-14
+      run: |
+        # Remove packages that conflict with clang-14 installation
+        sudo apt remove -y \
+        liblldb-10 libomp-10-dev libomp5-10 lldb-10 python3-lldb-10 \
+        liblldb-11 libomp-11-dev libomp5-11 lldb-11 python3-lldb-11 \
+        liblldb-12 libomp-12-dev libomp5-12 lldb-12 python3-lldb-12
+        # install clang-14
+        wget https://apt.llvm.org/llvm.sh
+        sudo bash ./llvm.sh 14
+        sudo apt install build-essential libopenblas-dev clang-14 libomp-14-dev
+        sudo cat /etc/apt/sources.list
+        sudo ls -R /etc/apt/sources.list.d
+
+    - name: install pre-commit
+      run: pip install pre-commit
+
+    - name: run pre-commit
+      run: pre-commit run -a
