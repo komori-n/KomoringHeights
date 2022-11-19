@@ -1,3 +1,8 @@
 #!/bin/bash
 
-cd `dirname $0` && make -j4 coverage
+COMPILER=${CXX}
+if [ "${COMOPILER}" == "" ]; then
+    COMPILER=clang++
+fi
+
+cd `dirname $0` && make -j4 coverage COMPILER=${COMPILER}
