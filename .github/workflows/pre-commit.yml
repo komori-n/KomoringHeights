@@ -31,7 +31,7 @@ jobs:
     - name: install libraries
       run: |
         pip install pre-commit cpplint coverxygen
-        sudo apt install doxygen lcov
+        sudo apt-get update && sudo apt-get install doxygen graphviz lcov=1.16-1
 
     - name: run pre-commit
       run: |
