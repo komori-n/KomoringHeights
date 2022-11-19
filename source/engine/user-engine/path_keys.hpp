@@ -63,7 +63,7 @@ inline void PathKeyInit() {
  * 深さ `depth` により経路ハッシュ値が異なる。`depth` の値に応じてハッシュ値を変えることで、手順が前後して同じ局面に
  * 至る経路の間でハッシュ値がかぶらないようにしている。
  */
-constexpr inline Key PathKeyAfter(Key path_key, Move move, Depth depth) {
+inline Key PathKeyAfter(Key path_key, Move move, Depth depth) {
   const auto to = to_sq(move);
   path_key ^= detail::g_move_to[to][depth];
   if (is_drop(move)) {
@@ -94,7 +94,7 @@ constexpr inline Key PathKeyAfter(Key path_key, Move move, Depth depth) {
  *
  * @note `PathKeyAfter` は XOR に基づく差分計算をしているため、逆写像も全く同じ関数で実現できる
  */
-constexpr inline Key PathKeyBefore(Key path_key, Move move, Depth depth) {
+inline Key PathKeyBefore(Key path_key, Move move, Depth depth) {
   return PathKeyAfter(path_key, move, depth);
 }
 
@@ -105,7 +105,7 @@ constexpr inline Key PathKeyBefore(Key path_key, Move move, Depth depth) {
  * @param[in] depth      現在の探索深さ
  * @return 持ち駒を奪った直後のハッシュ値
  */
-constexpr inline Key PathKeyAfterSteal(Key path_key, PieceType stolen_pr, Depth depth) {
+inline Key PathKeyAfterSteal(Key path_key, PieceType stolen_pr, Depth depth) {
   return path_key ^ detail::g_stolen_pr[stolen_pr][depth];
 }
 
@@ -118,7 +118,7 @@ constexpr inline Key PathKeyAfterSteal(Key path_key, PieceType stolen_pr, Depth 
  *
  * @note `PathKeyAfterGive` は XOR に基づく差分計算をしているため、逆写像も全く同じ関数で実現できる
  */
-constexpr inline Key PathKeyAfterGive(Key path_key, PieceType given_pr, Depth depth) {
+inline Key PathKeyAfterGive(Key path_key, PieceType given_pr, Depth depth) {
   return PathKeyAfterSteal(path_key, given_pr, depth);
 }
 
