@@ -535,7 +535,7 @@ else ifeq ($(TARGET_CPU),GRAVITON2)
 	CPPFLAGS += -DIS_64BIT -DUSE_NEON -march=armv8.2-a+fp16+rcpc+dotprod+crypto
 else ifeq ($(TARGET_CPU),M1)
 	# for Apple M1
-	CPPFLAGS += -DIS_64BIT -DUSE_NEON -march=armv8.5-a+fp16+rcpc+dotprod+crypto -mcpu=apple-m1
+	CPPFLAGS += -DIS_64BIT -DUSE_NEON -target arm64-apple-macos11 -march=armv8.5-a
 
 else ifeq ($(TARGET_CPU),OTHER)
 	CPPFLAGS += -DNO_SSE
