@@ -27,7 +27,7 @@ jobs:
         include:
           - edition: USER_ENGINE
             compiler: clang++-14
-            target: ["normal"]
+            target: "normal"
             archcpu: "M1"
 
     steps:
