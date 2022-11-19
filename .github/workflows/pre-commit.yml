@@ -28,9 +28,6 @@ jobs:
         sudo cat /etc/apt/sources.list
         sudo ls -R /etc/apt/sources.list.d
 
-        export CC=clang-14
-        export CXX=clang++-14
-
     - name: install libraries
       run: |
         wget https://github.com/linux-test-project/lcov/releases/download/v1.16/lcov-1.16.tar.gz
@@ -43,5 +40,8 @@ jobs:
 
     - name: run pre-commit
       run: |
+        export CC=clang-14
+        export CXX=clang++-14
+
         cd main
         pre-commit run -a
