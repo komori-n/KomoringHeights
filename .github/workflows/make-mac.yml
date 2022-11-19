@@ -18,14 +18,16 @@ jobs:
         edition:
           - USER_ENGINE
         compiler: [clang++-14, clang++-12, clang++-11]
-        target: ["tournament"]
+        target: ["normal"]
         archcpu:
           [
             "AVX512,AVX2,SSE42,SSE2",
             "SSE41,SSSE3,OTHER",
           ]
         include:
-          - compiler: clang++-14
+          - edition: USER_ENGINE
+            compiler: clang++-14
+            target: ["normal"]
             archcpu: "M1"
 
     steps:
