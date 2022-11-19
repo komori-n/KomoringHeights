@@ -127,12 +127,13 @@ class WithIndexImpl {
         : index_{index}, iterator_{std::move(iterator)} {}
 
     /// イテレータから添え字と値を読み取る
-    constexpr std::pair<IndexType, decltype(*std::declval<Iterator>())> operator*() noexcept(noexcept(*iterator_)) {
+    constexpr std::pair<IndexType, decltype(*std::declval<Iterator&>())> operator*() noexcept(
+        noexcept(*std::declval<Iterator>())) {
       return {index_, std::forward<decltype(*iterator_)>(*iterator_)};
     }
 
     /// イテレータを進める
-    constexpr WithIndexIterator& operator++() noexcept(noexcept(++iterator_)) {
+    constexpr WithIndexIterator& operator++() noexcept(noexcept(++std::declval<Iterator&>())) {
       ++index_;
       ++iterator_;
       return *this;
@@ -164,13 +165,13 @@ class WithIndexImpl {
   WithIndexImpl() = delete;
 
   /// 添字付き範囲の先頭
-  constexpr auto begin() const noexcept(noexcept(call_begin(range_))) {
+  constexpr auto begin() const noexcept(noexcept(call_begin(std::declval<Range&>()))) {
     using ConstRangeBeginIterator = decltype(call_begin(range_));
     return WithIndexIterator<ConstRangeBeginIterator>{PrivateConstructionTag{}, IndexType{0}, call_begin(range_)};
   }
 
   /// 添字付き範囲の末尾（const）
-  constexpr auto end() const noexcept(noexcept(call_end(range_))) { return call_end(range_); }
+  constexpr auto end() const noexcept(noexcept(call_end(std::declval<Range&>()))) { return call_end(range_); }
 
  private:
   Range range_;  ///< もとの range
@@ -249,11 +250,11 @@ class SkipImpl {
   /**
    * @brief `SkipImpl` インスタンスを生成する
    */
-  constexpr explicit SkipImpl(Range range) noexcept(noexcept(Range{std::forward<Range>(range_)}))
+  constexpr explicit SkipImpl(Range range) noexcept(noexcept(Range{std::forward<Range>(range)}))
       : range_{std::forward<Range>(range)} {}
 
   /// 範囲の先頭
-  constexpr auto begin() const noexcept(noexcept(call_begin(range_) != end())) {
+  constexpr auto begin() const noexcept(noexcept(call_begin(std::declval<Range&>()) != end())) {
     auto itr = call_begin(range_);
     for (std::size_t i = 0; i < kSkip && itr != end(); ++i, ++itr) {
     }
@@ -262,7 +263,7 @@ class SkipImpl {
   }
 
   /// 範囲の末尾
-  constexpr auto end() const noexcept(noexcept(call_end(range_))) { return call_end(range_); }
+  constexpr auto end() const noexcept(noexcept(call_end(std::declval<Range&>()))) { return call_end(range_); }
 
  private:
   Range range_;  ///< もとの range
