@@ -99,7 +99,7 @@ struct BranchRootEdge {
  *         |                    Node                 v
  * ```
  */
-constexpr inline std::optional<BranchRootEdge> FindKnownAncestor(tt::TranspositionTable& tt, const Node& n, Move move) {
+inline std::optional<BranchRootEdge> FindKnownAncestor(tt::TranspositionTable& tt, const Node& n, Move move) {
   BoardKeyHandPair key_hand_pair = n.BoardKeyHandPairAfter(move);
   PnDn last_pn = kInfinitePnDn;
   PnDn last_dn = kInfinitePnDn;

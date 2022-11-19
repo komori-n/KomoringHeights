@@ -159,7 +159,7 @@ class WithIndexImpl {
   };
 
   /// 範囲 `range` を受け取るコンストラクタ
-  constexpr explicit WithIndexImpl(Range range) noexcept(noexcept(Range{std::forward<Range>(range)}))
+  constexpr explicit WithIndexImpl(Range range) noexcept(noexcept(Range{std::forward<Range&>(range)}))
       : range_{std::forward<Range>(range)} {}
   /// Default constructor(delete)
   WithIndexImpl() = delete;
