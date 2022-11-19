@@ -28,8 +28,10 @@ jobs:
         sudo cat /etc/apt/sources.list
         sudo ls -R /etc/apt/sources.list.d
 
-    - name: install pre-commit
-      run: pip install pre-commit
+    - name: install libraries
+      run: |
+        pip install pre-commit cpplint
+        sudo apt install doxygen
 
     - name: run pre-commit
       run: |
