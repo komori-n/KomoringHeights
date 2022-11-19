@@ -3,6 +3,8 @@ name: Deploy Design Documents
 
 on:
   push:
+    branches:
+      - main
 
 jobs:
   deploy:
