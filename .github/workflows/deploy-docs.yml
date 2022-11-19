@@ -1,0 +1,26 @@
+---
+name: Deploy Design Documents
+
+on:
+  push:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout own repository
+      uses: actions/checkout@v2
+      with:
+        path: main
+        submodules: true
+
+    - name: Install libraries
+      run: sudo apt-get update && sudo apt-get -y install doxygen graphbiz
+
+    - name: Generate Documents
+      run: ./main/source/engine/user-engine/tests/generate-docs
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: docs
+        path: ./main/source/engine/user-engine/tests/docs-html
