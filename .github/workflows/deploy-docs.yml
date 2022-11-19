@@ -42,3 +42,4 @@ jobs:
         destination-repository-name: 'komoring-heights-docs'
         user-email: komori-n@ymail.ne.jp
         target-branch: main
+        target-directory: html
