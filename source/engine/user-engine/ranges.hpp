@@ -254,7 +254,8 @@ class SkipImpl {
       : range_{std::forward<Range>(range)} {}
 
   /// 範囲の先頭
-  constexpr auto begin() const noexcept(noexcept(call_begin(std::declval<Range&>()) != end())) {
+  constexpr auto begin() const
+      noexcept(noexcept(call_begin(std::declval<Range&>()) != call_end(std::declval<Range&>()))) {
     auto itr = call_begin(range_);
     for (std::size_t i = 0; i < kSkip && itr != end(); ++i, ++itr) {
     }
