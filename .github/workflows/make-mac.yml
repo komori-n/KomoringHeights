@@ -22,8 +22,11 @@ jobs:
         archcpu:
           [
             "AVX512,AVX2,SSE42,SSE2",
-            "SSE41,SSSE3,M1,OTHER",
+            "SSE41,SSSE3,OTHER",
           ]
+        include:
+          - compiler: clang++-14
+            archcpu: "M1"
 
     steps:
       - name: Checkout own repository
