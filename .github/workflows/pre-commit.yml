@@ -31,7 +31,7 @@ jobs:
     - name: install libraries
       run: |
         pip install pre-commit cpplint coverxygen
-        sudo apt install doxygen
+        sudo apt install doxygen lcov
 
     - name: run pre-commit
       run: |

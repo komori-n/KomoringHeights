@@ -17,7 +17,7 @@ jobs:
     - name: Install libraries
       run: |
         pip install pre-commit coverxygen
-        sudo apt-get update && sudo apt-get -y install doxygen graphviz
+        sudo apt-get update && sudo apt-get -y install doxygen graphviz lcov
 
     - name: Generate Documents
       run: ./main/source/engine/user-engine/tests/generate-docs
