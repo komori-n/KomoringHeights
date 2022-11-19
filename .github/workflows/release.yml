@@ -107,7 +107,7 @@ jobs:
         archcpu:
           [
             "AVX512,AVX2,SSE42,SSE2",
-            "SSE41,SSSE3,OTHER",
+            "SSE41,SSSE3,M1,OTHER",
           ]
 
     steps:
