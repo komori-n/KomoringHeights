@@ -32,4 +32,6 @@ jobs:
       run: pip install pre-commit
 
     - name: run pre-commit
-      run: pre-commit run -a
+      run: |
+        git init
+        pre-commit run -a
