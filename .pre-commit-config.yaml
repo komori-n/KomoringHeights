@@ -27,9 +27,9 @@ repos:
     entry: source/engine/user-engine/tests/generate-docs
     language: script
     pass_filenames: false
-  - id: run-coverage
-    name: run-coverage
-    entry: source/engine/user-engine/tests/run-coverage
+  - id: run-test
+    name: run-test
+    entry: source/engine/user-engine/tests/run-test
     language: script
     pass_filenames: false
   - id: run-clang-tidy
