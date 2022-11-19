@@ -30,7 +30,7 @@ jobs:
 
     - name: install libraries
       run: |
-        pip install pre-commit cpplint
+        pip install pre-commit cpplint coverxygen
         sudo apt install doxygen
 
     - name: run pre-commit

@@ -15,7 +15,9 @@ jobs:
         submodules: true
 
     - name: Install libraries
-      run: sudo apt-get update && sudo apt-get -y install doxygen graphbiz
+      run: |
+        pip install pre-commit coverxygen
+        sudo apt-get update && sudo apt-get -y install doxygen graphbiz
 
     - name: Generate Documents
       run: ./main/source/engine/user-engine/tests/generate-docs
