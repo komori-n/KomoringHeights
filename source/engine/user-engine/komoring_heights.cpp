@@ -10,6 +10,33 @@ inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
 
   return entry_num / 2 * 3;
 }
+
+std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, MateLen len) {
+  Move best_move = MOVE_NONE;
+  MateLen best_len = n.IsOrNode() ? kDepthMaxMateLen : kZeroMateLen;
+  MateLen best_disproven_len = kZeroMateLen;
+  for (const auto move : MovePicker{n}) {
+    const auto query = tt.BuildChildQuery(n, move.move);
+    const auto [disproven_len, proven_len] = query.FinalRange();
+    if (n.IsOrNode() && proven_len < best_len) {
+      best_move = move.move;
+      best_len = proven_len;
+      best_disproven_len = disproven_len;
+    } else if (!n.IsOrNode()) {
+      if (proven_len > best_len || (proven_len == best_len && best_disproven_len < disproven_len)) {
+        best_move = move.move;
+        best_len = proven_len;
+        best_disproven_len = disproven_len;
+      }
+    }
+  }
+
+  if (len - 1 < best_len) {
+    best_move = MOVE_NONE;
+  }
+
+  return {best_move, best_len};
+}
 }  // namespace
 
 namespace detail {
@@ -287,39 +314,19 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
       break;
     }
 
-    const auto result = SearchEntry(n, len);
-    if (result.Pn() != 0) {
-      // `n` は詰みのはずなのに探索で詰みを示せなかった。このような現象は、余詰め探索に千日手が絡んでいるケースで
-      // しばしば発生する。千日手テーブルだけ消去して探索し直すことでこれを回避できる。
+    // 子ノードの中から最善っぽい手を選ぶ
+    auto [best_move, new_len] = LookUpBestMove(tt_, n, len);
+    if (best_move == MOVE_NONE) {
       tt_.NewSearch();
       SearchEntry(n, len);
-    }
 
-    // 子ノードの中から最善っぽい手を選ぶ
-    Move best_move = MOVE_NONE;
-    MateLen best_len = n.IsOrNode() ? kDepthMaxMateLen : kZeroMateLen;
-    MateLen best_disproven_len = kZeroMateLen;
-    for (const auto move : MovePicker{n}) {
-      const auto query = tt_.BuildChildQuery(n, move.move);
-      const auto [disproven_len, proven_len] = query.FinalRange();
-      if (n.IsOrNode() && proven_len < best_len) {
-        best_move = move.move;
-        best_len = proven_len;
-        best_disproven_len = disproven_len;
-      } else if (!n.IsOrNode()) {
-        if (proven_len > best_len || (proven_len == best_len && best_disproven_len < disproven_len)) {
-          best_move = move.move;
-          best_len = proven_len;
-          best_disproven_len = disproven_len;
-        }
+      std::tie(best_move, new_len) = LookUpBestMove(tt_, n, len);
+      if (best_move == MOVE_NONE) {
+        break;
       }
     }
 
-    if (best_move == MOVE_NONE) {
-      break;
-    }
-
-    len = len - 1;
+    len = new_len;
     n.DoMove(best_move);
     best_moves.push_back(best_move);
   }
