@@ -35,5 +35,5 @@ jobs:
       run: |
         git init
         git add .
-        git commit -m "tmp"
+        git -c user.name='foobar' -c user.email='foobar@example.com' commit -m 'tmp'
         pre-commit run -a
