@@ -159,7 +159,8 @@ class WithIndexImpl {
   };
 
   /// 範囲 `range` を受け取るコンストラクタ
-  constexpr explicit WithIndexImpl(Range range) noexcept(noexcept(Range{std::forward<Range&>(range)}))
+  constexpr explicit WithIndexImpl(Range range) noexcept(
+      std::is_nothrow_constructible_v<Range, decltype(std::forward<Range>(range))>)
       : range_{std::forward<Range>(range)} {}
   /// Default constructor(delete)
   WithIndexImpl() = delete;
@@ -250,7 +251,8 @@ class SkipImpl {
   /**
    * @brief `SkipImpl` インスタンスを生成する
    */
-  constexpr explicit SkipImpl(Range range) noexcept(noexcept(Range{std::forward<Range>(range)}))
+  constexpr explicit SkipImpl(Range range) noexcept(
+      std::is_nothrow_constructible_v<Range, decltype(std::forward<Range>(range))>)
       : range_{std::forward<Range>(range)} {}
 
   /// 範囲の先頭
