@@ -16,8 +16,13 @@ jobs:
 
     - name: Install libraries
       run: |
+        wget https://github.com/linux-test-project/lcov/releases/download/v1.16/lcov-1.16.tar.gz
+        tar xvf lcov-1.16.tar.gz
+        cd lcov-1.16
+        sudo make install
+
         pip install pre-commit coverxygen
-        sudo apt-get update && sudo apt-get -y install doxygen graphviz lcov=1.16-1
+        sudo apt-get update && sudo apt-get -y install doxygen graphviz
 
     - name: Generate Documents
       run: ./main/source/engine/user-engine/tests/generate-docs
