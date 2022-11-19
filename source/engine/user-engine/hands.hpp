@@ -1,8 +1,8 @@
 /**
  * @file hands.hpp
  */
-#ifndef KOMORI_PROOF_HAND_HPP_
-#define KOMORI_PROOF_HAND_HPP_
+#ifndef KOMORI_HANDS_HPP_
+#define KOMORI_HANDS_HPP_
 
 #include <algorithm>
 #include <array>
@@ -319,4 +319,4 @@ class HandSet {
 };
 }  // namespace komori
 
-#endif  // KOMORI_PROOF_HAND_HPP_
+#endif  // KOMORI_HANDS_HPP_
