@@ -17,10 +17,10 @@ jobs:
         compiler:
           - g++-11
           - g++-10
-          - clang-11
-          - clang-12
-          - clang-14
-          - clang-15
+          - clang++-11
+          - clang++-12
+          - clang++-14
+          - clang++-15
         target: ["normal"]
         archcpu:
           - "AVX512,AVX2,SSE42,SSE41,SSSE3,SSE2,OTHER,ZEN2,ZEN1,AVX512VNNI"
