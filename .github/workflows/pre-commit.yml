@@ -34,4 +34,6 @@ jobs:
     - name: run pre-commit
       run: |
         git init
+        git add .
+        git commit -m "tmp"
         pre-commit run -a
