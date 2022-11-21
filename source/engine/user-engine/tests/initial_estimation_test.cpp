@@ -8,6 +8,7 @@
 #include "test_lib.hpp"
 
 using komori::InitialPnDn;
+using komori::IsSumDeltaNode;
 
 TEST(InitialEstimationTest, InitialOrNode) {
   TestNode n{"2p1k1g2/1s3p1s1/4PP3/2R1L1R2/9/9/9/9/9 b L2b3g2s4n2l14p 1", true};
@@ -35,4 +36,82 @@ TEST(InitialEstimationTest, InitialAndNode) {
   EXPECT_EQ(InitialPnDn(*n, make_move(SQ_83, SQ_53, W_ROOK)).second, 2);
   EXPECT_EQ(InitialPnDn(*n, make_move_drop(PAWN, SQ_52, WHITE)).first, 2);
   EXPECT_EQ(InitialPnDn(*n, make_move_drop(PAWN, SQ_52, WHITE)).second, 4);
+}
+
+TEST(InitialEstimationTest, IsSumNode_OrDrop) {
+  TestNode n{"4k4/9/9/9/9/9/9/9/9 b RBGSNLPrb3g3s3n3l17p 1", true};
+
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(PAWN, SQ_52, BLACK)));
+  EXPECT_FALSE(IsSumDeltaNode(*n, make_move_drop(LANCE, SQ_52, BLACK)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(KNIGHT, SQ_43, BLACK)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(SILVER, SQ_52, BLACK)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(GOLD, SQ_52, BLACK)));
+  EXPECT_FALSE(IsSumDeltaNode(*n, make_move_drop(BISHOP, SQ_42, BLACK)));
+  EXPECT_FALSE(IsSumDeltaNode(*n, make_move_drop(ROOK, SQ_52, BLACK)));
+}
+
+TEST(InitialEstimationTest, IsSumNode_AndDrop) {
+  TestNode n{"9/9/9/9/k7R/9/9/9/9 w r2b4g4s4n4l18p 1", false};
+
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(PAWN, SQ_85, WHITE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(LANCE, SQ_85, WHITE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(KNIGHT, SQ_85, WHITE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(SILVER, SQ_85, WHITE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(GOLD, SQ_85, WHITE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(BISHOP, SQ_85, WHITE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(ROOK, SQ_85, WHITE)));
+}
+
+TEST(InitialEstimationTest, IsSumNode_OrHorse) {
+  TestNode n{"4k4/9/9/9/9/9/9/3B1+B3/9 b 2r4g4s4n4l18p 1", true};
+
+  EXPECT_FALSE(IsSumDeltaNode(*n, make_move(SQ_48, SQ_15, B_HORSE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move(SQ_68, SQ_95, B_BISHOP)));
+}
+
+TEST(InitialEstimationTest, IsSumNode_OrRook) {
+  TestNode n{"4k4/9/9/9/9/9/9/9/R7+R b 2b4g4s4n4l18p 1", true};
+
+  EXPECT_FALSE(IsSumDeltaNode(*n, make_move(SQ_19, SQ_59, B_DRAGON)));
+  EXPECT_TRUE(IsSumDeltaNode(*n, make_move(SQ_99, SQ_59, B_ROOK)));
+}
+
+TEST(InitialEstimationTest, IsSumNode_OrLance) {
+  TestNode n1{"9/8k/8p/9/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
+
+  EXPECT_FALSE(IsSumDeltaNode(*n1, make_move_promote(SQ_19, SQ_13, B_LANCE)));
+  EXPECT_FALSE(IsSumDeltaNode(*n1, make_move(SQ_19, SQ_13, B_LANCE)));
+
+  TestNode n2{"8k/8p/9/9/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
+
+  EXPECT_FALSE(IsSumDeltaNode(*n2, make_move_promote(SQ_19, SQ_12, B_LANCE)));
+  EXPECT_FALSE(IsSumDeltaNode(*n2, make_move(SQ_19, SQ_12, B_LANCE)));
+
+  TestNode n3{"9/7k1/8p/9/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
+  EXPECT_TRUE(IsSumDeltaNode(*n3, make_move_promote(SQ_19, SQ_13, B_LANCE)));
+
+  TestNode n4{"7k1/8p/9/9/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
+  EXPECT_TRUE(IsSumDeltaNode(*n4, make_move_promote(SQ_19, SQ_12, B_LANCE)));
+
+  TestNode n5{"9/9/8k/8p/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
+  EXPECT_TRUE(IsSumDeltaNode(*n4, make_move(SQ_19, SQ_14, B_LANCE)));
+
+  TestNode n6{"8l/9/9/9/9/9/8P/8K/9 w 2r2b4g4s4n3l17p 1", true};
+
+  EXPECT_FALSE(IsSumDeltaNode(*n6, make_move_promote(SQ_11, SQ_17, W_LANCE)));
+  EXPECT_FALSE(IsSumDeltaNode(*n6, make_move(SQ_11, SQ_17, W_LANCE)));
+
+  TestNode n7{"8l/9/9/9/9/9/9/8P/8K w 2r2b4g4s4n3l17p 1", true};
+
+  EXPECT_FALSE(IsSumDeltaNode(*n7, make_move_promote(SQ_11, SQ_18, W_LANCE)));
+  EXPECT_FALSE(IsSumDeltaNode(*n7, make_move(SQ_11, SQ_18, W_LANCE)));
+
+  TestNode n8{"8l/9/9/9/9/9/8P/7K1/9 w 2r2b4g4s4n3l17p 1", true};
+  EXPECT_TRUE(IsSumDeltaNode(*n8, make_move_promote(SQ_11, SQ_17, W_LANCE)));
+
+  TestNode n9{"8l/9/9/9/9/9/9/8P/7K1 w 2r2b4g4s4n3l17p 1", true};
+  EXPECT_TRUE(IsSumDeltaNode(*n9, make_move_promote(SQ_11, SQ_18, W_LANCE)));
+
+  TestNode n10{"8l/9/9/9/9/8P/8K/9/9 w 2r2b4g4s4n3l17p 1", true};
+  EXPECT_TRUE(IsSumDeltaNode(*n10, make_move(SQ_11, SQ_16, W_LANCE)));
 }

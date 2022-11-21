@@ -185,12 +185,11 @@ inline bool IsSumDeltaNode(const Node& n, Move move) {
         return false;
       }
 
-      // 3段目の香成と不成
+      // 2 or 3段目の香成と不成
       if (pt == LANCE) {
         const auto king_sq = n.Pos().king_square(n.AndColor());
-        const auto king_rank = rank_of(king_sq);
-        if ((n.Us() == BLACK && rank_of(to) == RANK_3 && king_rank == RANK_2) ||
-            (n.Us() == WHITE && rank_of(to) == RANK_7 && king_rank == RANK_8)) {
+        if ((n.Us() == BLACK && (rank_of(to) == RANK_3 || rank_of(to) == RANK_2) && king_sq == to + SQ_U) ||
+            (n.Us() == WHITE && (rank_of(to) == RANK_7 || rank_of(to) == RANK_8) && king_sq == to + SQ_D)) {
           return false;
         }
       }
