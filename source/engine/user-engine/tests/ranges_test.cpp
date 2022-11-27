@@ -102,7 +102,7 @@ TEST(AsRange, unordered_multimap) {
   std::unordered_multimap<std::int32_t, std::int32_t> map{{10, 1}, {10, 0}, {10, 1}, {3, 2}};
 
   std::unordered_multiset<std::int32_t> ans{1, 0, 1};
-  for (const auto& [key, value] : komori::AsRange{map.equal_range(10)}) {
+  for (const auto& [key, value] : komori::AsRange(map.equal_range(10))) {
     ASSERT_NE(ans.find(value), ans.end());
     ans.erase(ans.find(value));
   }

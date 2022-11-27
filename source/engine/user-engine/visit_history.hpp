@@ -56,7 +56,7 @@ class VisitHistory {
    */
   std::optional<Depth> Contains(Key board_key, Hand hand) const {
     const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hd] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+    for (const auto& [bk, history_hd] : AsRange(range)) {  // NOLINT(readability-use-anyofallof)
       const auto& [history_hand, history_depth] = history_hd;
       if (history_hand == hand) {
         return history_depth;
@@ -73,7 +73,7 @@ class VisitHistory {
    */
   std::optional<Depth> IsInferior(Key board_key, Hand hand) const {
     const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hd] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+    for (const auto& [bk, history_hd] : AsRange(range)) {  // NOLINT(readability-use-anyofallof)
       const auto& [history_hand, history_depth] = history_hd;
       if (hand_is_equal_or_superior(history_hand, hand)) {
         return history_depth;
@@ -90,7 +90,7 @@ class VisitHistory {
    */
   std::optional<Depth> IsSuperior(Key board_key, Hand hand) const {
     const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hd] : AsRange{range}) {  // NOLINT(readability-use-anyofallof)
+    for (const auto& [bk, history_hd] : AsRange(range)) {  // NOLINT(readability-use-anyofallof)
       const auto& [history_hand, history_depth] = history_hd;
       if (hand_is_equal_or_superior(hand, history_hand)) {
         return history_depth;

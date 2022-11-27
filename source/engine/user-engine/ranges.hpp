@@ -205,6 +205,30 @@ constexpr inline detail::WithIndexImpl<IndexType, Range> WithIndex(Range&& range
 }
 
 /**
+ * @brief イテレータの範囲を表す型。
+ * @tparam Iterator イテレータ
+ *
+ * `Range(begin, end)` の形式で [begin, end) の範囲を表現する。range-based for でイテレートすることもできる。
+ */
+template <typename Iterator>
+class Range {
+ public:
+  /// Default constructor(delete)
+  Range() = delete;
+  /// コンストラクタ
+  constexpr explicit Range(Iterator begin_itr, Iterator end_itr) noexcept
+      : begin_itr_{std::move(begin_itr)}, end_itr_{std::move(end_itr)} {}
+  /// 範囲の先頭
+  constexpr Iterator begin() const noexcept { return begin_itr_; }
+  /// 範囲の末尾
+  constexpr Iterator end() const noexcept { return end_itr_; }
+
+ private:
+  Iterator begin_itr_;  ///< 範囲の先頭
+  Iterator end_itr_;    ///< 範囲の末尾
+};
+
+/**
  * @brief イテレータのペアで range-based for をするためのアダプタ
  * @tparam Iterator イテレータ
  *
@@ -213,31 +237,15 @@ constexpr inline detail::WithIndexImpl<IndexType, Range> WithIndex(Range&& range
  *
  * ```cpp
  * std::unordered_multimap<std::int32_t, std::int32_t> map{ ... };
- * for (const auto& [key, value] : AsRange{map.equal_range(10)}) {
+ * for (const auto& [key, value] : AsRange(map.equal_range(10))) {
  *   ...
  * }
  * ```
  */
 template <typename Iterator>
-class AsRange {
- public:
-  /// Default constructor(delte)
-  AsRange() = delete;
-  /**
-   * @brief イテレータのペアから range を作成する
-   * @param p イテレータのペア（begin, end）
-   */
-  constexpr explicit AsRange(const std::pair<Iterator, Iterator>& p) noexcept
-      : begin_itr_{p.first}, end_itr_{p.second} {}
-  /// 範囲の先頭
-  constexpr Iterator begin() noexcept { return begin_itr_; }
-  /// 範囲の末尾
-  constexpr Iterator end() noexcept { return end_itr_; }
-
- private:
-  Iterator begin_itr_;  ///< 範囲の先頭
-  Iterator end_itr_;    ///< 範囲の末尾
-};
+auto AsRange(const std::pair<Iterator, Iterator>& p) noexcept {
+  return Range(p.first, p.second);
+}
 
 namespace detail {
 /**
