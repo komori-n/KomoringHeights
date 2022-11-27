@@ -8,8 +8,8 @@
 
 using komori::BitSet64;
 using komori::kDepthMax;
-using komori::RepetitionTable;
 using komori::tt::Cluster;
+using komori::tt::RepetitionTable;
 using komori::tt::detail::kGcRemoveElementNum;
 using komori::tt::detail::kGcThreshold;
 using komori::tt::detail::kRegularRepetitionRatio;

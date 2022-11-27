@@ -12,13 +12,13 @@ using komori::kPnDnUnit;
 using komori::MateLen;
 using komori::MateLen16;
 using komori::PnDn;
-using komori::RepetitionTable;
 using komori::SearchAmount;
 using komori::SearchResult;
 using komori::UnknownData;
 using komori::tt::Cluster;
 using komori::tt::Entry;
 using komori::tt::Query;
+using komori::tt::RepetitionTable;
 
 namespace {
 class QueryTest : public ::testing::Test {

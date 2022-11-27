@@ -2,7 +2,7 @@
 
 #include "../repetition_table.hpp"
 
-using komori::RepetitionTable;
+using komori::tt::RepetitionTable;
 
 TEST(RepetitionTable, Clear) {
   RepetitionTable rep_table;

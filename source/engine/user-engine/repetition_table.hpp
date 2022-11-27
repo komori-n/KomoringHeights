@@ -11,7 +11,7 @@
 
 #include "typedefs.hpp"
 
-namespace komori {
+namespace komori::tt {
 /**
  * @brief 千日手手順を記録する置換表
  *
@@ -90,6 +90,6 @@ class RepetitionTable {
   /// 置換表内に保存できる経路ハッシュ値の最大個数
   std::size_t size_max_{std::numeric_limits<std::size_t>::max()};
 };
-}  // namespace komori
+}  // namespace komori::tt
 
 #endif  // KOMORI_REPETITION_TABLE_HPP_
