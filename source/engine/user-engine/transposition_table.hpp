@@ -22,6 +22,9 @@ constexpr inline double kRegularRepetitionRatio = 0.90;
 /**
  * @brief 詰将棋エンジンの置換表本体
  * @tparam Query クエリクラス。単体テストしやすいように、外部から注入できるようにテンプレートパラメータにする。
+ * @tparam RegularTable 通常テーブル。単体テストしやすいように、外部から注入できるようにテンプレートパラメータにする。
+ * @tparam RepetitionTable 千日手テーブル。
+ *                         単体テストしやすいように、外部から注入できるようにテンプレートパラメータにする。
  *
  * 置換表は、大きく分けて通常テーブル（RegularTable）と千日手テーブル（RepetitionTable）に分けられる。
  * 通常テーブルは大部分の探索結果を保存する領域で、探索中局面の pn/dn 値および証明済／反証済局面の
@@ -36,12 +39,12 @@ constexpr inline double kRegularRepetitionRatio = 0.90;
  * また、置換表読み書きは詰将棋エンジン内で頻繁に呼び出す処理のため、現局面だけでなく1手進めた局面のクエリの
  * 構築することができる。（`CreateChildQuery()`）
  *
- * このクラスでは、`Query` をテンプレートパラメータ化している。これは、単体テスト時に `Query` をモック化して
- * 外部から注入するためのトリックである。本物の `Query` は外部から状態を観測しづらく、Look Up してみなければ
- * 内部変数がどうなっているかが把握できない。単体テストで知りたいのは `Query` のコンストラクト引数だけであるため、
- * `Query` だけ別物に差し替えて中身をチェックできるようにしている。
+ * このクラスでは、Query, RegularTable, RepetitionTable をテンプレートパラメータ化している。これは、単体テスト時に
+ * 外部から注入するためのトリックである。本物のクラスは外部から状態を観測しづらく、Look Up してみなければ
+ * 内部変数がどうなっているかが把握できない。単体テストで知りたいのは参照クラスのメンバ関数が正しく呼ばれているかどうか
+ * なので、別物に差し替えて中身をチェックできるようにしている。
  */
-template <typename Query>
+template <typename Query, typename RegularTable, typename RepetitionTable>
 class TranspositionTableImpl {
  public:
   /// Default constructor(default)
@@ -78,7 +81,6 @@ class TranspositionTableImpl {
 
     regular_table_.Resize(new_num_entries);
     repetition_table_.SetTableSizeMax(rep_num_entries);
-    Clear();
   }
 
   /**
@@ -172,10 +174,7 @@ class TranspositionTableImpl {
    *
    * 通常テーブルおよび千日手テーブルのうち、必要なさそうなエントリの削除を行う。
    */
-  void CollectGarbage() {
-    regular_table_.CollectGarbage();
-    repetition_table_.CollectGarbage();
-  }
+  void CollectGarbage() { regular_table_.CollectGarbage(); }
 
   /**
    * @brief エントリをできるだけ手前の方に移動させる（コンパクション）
@@ -201,12 +200,9 @@ class TranspositionTableImpl {
 
   // <テスト用>
   // 外部から内部変数を観測できないと厳しいので、直接アクセスできるようにしておく。
-  // ただし、書き換えられてしまうと面倒なので、必ずconstをつけて渡す。
 
-  /// 通常テーブルの先頭
-  constexpr auto begin() const noexcept { return regular_table_.begin(); }
-  /// 通常テーブルの末尾
-  constexpr auto end() const noexcept { return regular_table_.end(); }
+  auto& GetRegularTable() { return regular_table_; }
+  auto& GetRepetitionTable() { return repetition_table_; }
   // </テスト用>
 
  private:
@@ -220,7 +216,7 @@ class TranspositionTableImpl {
 /**
  * @brief 置換表の本体。詳しい実装は `detail::TranspositionTableImpl` を参照。
  */
-using TranspositionTable = detail::TranspositionTableImpl<Query>;
+using TranspositionTable = detail::TranspositionTableImpl<Query, RegularTable, RepetitionTable>;
 }  // namespace komori::tt
 
 #endif  // KOMORI_TRANSPOSITION_TABLE_HPP_

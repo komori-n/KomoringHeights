@@ -23,11 +23,6 @@ TEST(RepetitionTable, MaxSize) {
   EXPECT_LE(rep_table.Size(), 2);
 }
 
-TEST(RepetitionTable, CollectGarbage) {
-  RepetitionTable rep_table;
-  rep_table.CollectGarbage();
-}
-
 TEST(RepetitionTable, Insert) {
   RepetitionTable rep_table;
 

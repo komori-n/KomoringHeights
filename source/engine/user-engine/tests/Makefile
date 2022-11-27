@@ -1,8 +1,9 @@
 COMPILER = clang++
 
 GTEST_DIR=../../../../third-party/googletest/googletest
+GMOCK_DIR=../../../../third-party/googletest/googlemock
 
-CPPFLAGS += -isystem $(GTEST_DIR)/include
+CPPFLAGS += -isystem $(GTEST_DIR)/include -isystem $(GMOCK_DIR)/include
 CPPFLAGS += -std=c++17 -fno-exceptions -fno-rtti -Wunused-variable -Wextra -Ofast -MMD -MP -fpermissive
 CPPFLAGS  += -DUNICODE -DNO_EXCEPTIONS
 CPPFLAGS  += -fprofile-arcs -ftest-coverage
@@ -16,6 +17,8 @@ OBJDIR = ../../../../test_obj/source/engine/user-engine/tests
 
 INCLUDE = -I$(GTEST_DIR)/include/gtest/*.h \
           -I$(GTEST_DIR)/include/gtest/internal/*.h \
+          -I$(GMOCK_DIR)/include/gmock/*.h \
+          -I$(GMOCK_DIR)/include/gmock/internal/*.h \
           -I../../../ \
           -I../
 
@@ -66,7 +69,7 @@ CPPFLAGS += -DUSER_ENGINE
 OBJECTS  = $(addprefix $(OBJDIR)/, $(SOURCES:.cpp=.o))
 DEPENDS  = $(OBJECTS:.o=.d)
 
-LIBS    = $(OBJDIR)/gtest.a
+LIBS    = $(OBJDIR)/gtest.a $(OBJDIR)/gmock.a
 
 all: $(TARGET)
 .PHONY : all check test coverage clean docs
@@ -96,6 +99,22 @@ $(OBJDIR)/gtest.a : $(OBJDIR)/gtest-all.o
 	$(AR) $(ARFLAGS) $@ $^
 
 $(OBJDIR)/gtest_main.a : $(OBJDIR)/gtest-all.o $(OBJDIR)/gtest_main.o
+	$(AR) $(ARFLAGS) $@ $^
+
+GMOCK_SRCS_ = $(GMOCK_DIR)/src/*.cc $(GMOCK_HEADERS)
+
+$(OBJDIR)/gmock-all.o : $(GMOCK_SRCS_)
+	$(COMPILER) $(CPPFLAGS) -I$(GMOCK_DIR) $(CXXFLAGS) -c \
+            $(GMOCK_DIR)/src/gmock-all.cc -o $@
+
+$(OBJDIR)/gmock_main.o : $(GMOCK_SRCS_)
+	$(COMPILER) $(CPPFLAGS) -I$(GMOCK_DIR) $(CXXFLAGS) -c \
+            $(GMOCK_DIR)/src/gmock_main.cc -o $@
+
+$(OBJDIR)/gmock.a : $(OBJDIR)/gmock-all.o
+	$(AR) $(ARFLAGS) $@ $^
+
+$(OBJDIR)/gmock_main.a : $(OBJDIR)/gmock-all.o $(OBJDIR)/gmock_main.o
 	$(AR) $(ARFLAGS) $@ $^
 
 check:

@@ -109,6 +109,8 @@ class RegularTable {
     cluster_head_num_ = num_entries - Cluster::kSize;
     entries_.resize(num_entries);
     entries_.shrink_to_fit();
+
+    Clear();
   }
 
   /**

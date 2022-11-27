@@ -29,11 +29,9 @@ class RepetitionTable {
     }
   }
   /// 置換表に登録できる key の最大個数を設定する。
-  void SetTableSizeMax(std::size_t size_max) { size_max_ = size_max + 1; }
-
-  /// 置換表のうち古くなった部分を削除する。
-  void CollectGarbage() {
-    // GC 機能は `Insert()` 内部で行っているので、ここですべきことはなにもない
+  void SetTableSizeMax(std::size_t size_max) {
+    size_max_ = size_max + 1;
+    Clear();
   }
 
   /**
