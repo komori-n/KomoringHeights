@@ -12,7 +12,7 @@ using komori::RepetitionTable;
 using komori::tt::Cluster;
 using komori::tt::detail::kGcRemoveElementNum;
 using komori::tt::detail::kGcThreshold;
-using komori::tt::detail::kNormalRepetitionRatio;
+using komori::tt::detail::kRegularRepetitionRatio;
 using komori::tt::detail::TranspositionTableImpl;
 
 namespace {
@@ -152,7 +152,7 @@ TEST_F(TranspositionTableTest, Hashfull_Full) {
   }
 
   // RepetitionTable のハッシュ使用率は仕様がコロコロかわる気がするので生値を持ってくる
-  const auto expected_real = kNormalRepetitionRatio + (1.0 - kNormalRepetitionRatio) * query.rep_table.HashRate();
+  const auto expected_real = kRegularRepetitionRatio + (1.0 - kRegularRepetitionRatio) * query.rep_table.HashRate();
   EXPECT_EQ(tt_.Hashfull(), static_cast<std::int32_t>(1000 * expected_real));
 }
 
