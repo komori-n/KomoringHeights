@@ -201,7 +201,9 @@ class TranspositionTableImpl {
   // <テスト用>
   // 外部から内部変数を観測できないと厳しいので、直接アクセスできるようにしておく。
 
+  /// 通常テーブルを直接取得する
   auto& GetRegularTable() { return regular_table_; }
+  /// 千日手テーブルを直接取得する
   auto& GetRepetitionTable() { return repetition_table_; }
   // </テスト用>
 
