@@ -7,10 +7,44 @@
 #include <vector>
 
 #include "ttentry.hpp"
-#include "ttquery.hpp"
 #include "typedefs.hpp"
 
 namespace komori::tt {
+/// クラスタサイズ。for文をアンロールするためにプリプロリス中に値が必要なのでマクロ定数にする。
+#define KOMORI_REGULAR_TABLE_CLUSTER_SIZE 16
+/// クラスタの for ループのアンロール命令。for 文の前につけるとコンパイラがアンロールしてくれる。
+#define KOMORI_CLUSTER_UNROLL KOMORI_UNROLL(KOMORI_REGULAR_TABLE_CLUSTER_SIZE)
+
+/**
+ * @brief `Query` の読み書きで使用する `Entry` の連続領域を指す構造体
+ *
+ * 連続した `kSize` 個の `Entry` を持つ。クラスタの読み書きをする際、[`head_entry`, `head_entry + kSize`) の範囲への
+ * アクセスが発生する。
+ *
+ * ## 実装詳細
+ *
+ * 連続なエントリを管理する。クラスタサイズ（`kSize`）はコンパイル時定数。
+ * この `kSize` 個のエントリは他のクラスと一部を共有する可能性がある。
+ *
+ * クラスタサイズが定数なので、構造体内では領域の先頭へのポインタだけを保持する。
+ */
+struct Cluster {
+  /**
+   * @brief `Query` で参照する `Entry` の塊（クラスタ）のサイズ。
+   *
+   * この値を大きくすることで、`Entry` が格納可能な範囲が広がるため、探索済情報が消されづらくなる。一方、この値を
+   * 小さくすることで、`Entry` を探す範囲が狭まるので動作速度が向上する。
+   */
+  static constexpr inline std::size_t kSize{KOMORI_REGULAR_TABLE_CLUSTER_SIZE};
+
+  /**
+   * @brief クラスタの先頭へのポインタ。[`head_entry`, `head_entry + kSize`) の領域を使用する
+   *
+   * @note ムーブコンストラクト可能にするため `const` はあえて付与しない
+   */
+  Entry* head_entry;
+};
+
 namespace detail {
 /// TT をファイルへ書き出す最低の探索量。探索量の小さいエントリを書き出さないことでファイルサイズを小さくする。
 constexpr inline SearchAmount kTTSaveAmountThreshold = 10;
