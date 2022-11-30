@@ -103,7 +103,6 @@ class Query {
     BitSet64 sum_mask = BitSet64::Full();
 
     for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
-      /* `IsFor()` -> `IsNull()` の順で呼び出すことで2%高速化 */
       if (itr->IsFor(board_key_)) {
         if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {
           amount = std::max(amount, itr->Amount());
