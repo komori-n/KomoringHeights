@@ -4,45 +4,87 @@
 #ifndef KOMORI_REGULAR_TABLE_HPP_
 #define KOMORI_REGULAR_TABLE_HPP_
 
+#include <algorithm>
 #include <vector>
 
 #include "ttentry.hpp"
 #include "typedefs.hpp"
 
 namespace komori::tt {
-/// クラスタサイズ。for文をアンロールするためにプリプロリス中に値が必要なのでマクロ定数にする。
-#define KOMORI_REGULAR_TABLE_CLUSTER_SIZE 16
-/// クラスタの for ループのアンロール命令。for 文の前につけるとコンパイラがアンロールしてくれる。
-#define KOMORI_CLUSTER_UNROLL KOMORI_UNROLL(KOMORI_REGULAR_TABLE_CLUSTER_SIZE)
-
 /**
- * @brief `Query` の読み書きで使用する `Entry` の連続領域を指す構造体
+ * @brief `[begin_ptr, end_ptr)` の循環配列を指すポインタを管理するクラス。
  *
- * 連続した `kSize` 個の `Entry` を持つ。クラスタの読み書きをする際、[`head_entry`, `head_entry + kSize`) の範囲への
- * アクセスが発生する。
- *
- * ## 実装詳細
- *
- * 連続なエントリを管理する。クラスタサイズ（`kSize`）はコンパイル時定数。
- * この `kSize` 個のエントリは他のクラスと一部を共有する可能性がある。
- *
- * クラスタサイズが定数なので、構造体内では領域の先頭へのポインタだけを保持する。
+ * ポインタが範囲外へ移動したら `[begin_ptr, end_ptr)` の範囲内に移し直すだけのクラス。理論的には `Entry*` でなく
+ * 一般のイテレータに対して実装可能で、これ自体をイテレータ化（イテレータ要件を満たすようにメンバ定義）することも
+ * できるが、実装がとても面倒になるので必要になったら作ることにする。
  */
-struct Cluster {
+class CircularEntryPointer {
+ public:
   /**
-   * @brief `Query` で参照する `Entry` の塊（クラスタ）のサイズ。
-   *
-   * この値を大きくすることで、`Entry` が格納可能な範囲が広がるため、探索済情報が消されづらくなる。一方、この値を
-   * 小さくすることで、`Entry` を探す範囲が狭まるので動作速度が向上する。
+   * @brief コンストラクタ
+   * @param curr_ptr  現在のポインタ位置
+   * @param begin_ptr 区間の先頭
+   * @param end_ptr   区間の末尾
+   * @pre curr_ptr ∈ [begin_itr, end_ptr)
    */
-  static constexpr inline std::size_t kSize{KOMORI_REGULAR_TABLE_CLUSTER_SIZE};
+  constexpr CircularEntryPointer(Entry* curr_ptr, Entry* begin_ptr, Entry* end_ptr) noexcept
+      : curr_ptr_{curr_ptr}, begin_ptr_{begin_ptr}, end_ptr_{end_ptr} {}
+  /// Default constructor(default)
+  CircularEntryPointer() = default;
+  /// Copy constructor(default)
+  constexpr CircularEntryPointer(const CircularEntryPointer&) noexcept = default;
+  /// Move constructor(default)
+  constexpr CircularEntryPointer(CircularEntryPointer&&) noexcept = default;
+  /// Copy assignment operator(default)
+  constexpr CircularEntryPointer& operator=(const CircularEntryPointer&) noexcept = default;
+  /// Move assignment operator(default)
+  constexpr CircularEntryPointer& operator=(CircularEntryPointer&&) noexcept = default;
+  /// Destructor(default)
+  ~CircularEntryPointer() = default;
 
   /**
-   * @brief クラスタの先頭へのポインタ。[`head_entry`, `head_entry + kSize`) の領域を使用する
-   *
-   * @note ムーブコンストラクト可能にするため `const` はあえて付与しない
+   * @brief ポインタを1つ進める
+   * @return 新しいポインタ
    */
-  Entry* head_entry;
+  constexpr CircularEntryPointer& operator++() noexcept {
+    ++curr_ptr_;
+    if (curr_ptr_ == end_ptr_) {
+      curr_ptr_ = begin_ptr_;
+    }
+
+    return *this;
+  }
+
+  /**
+   * @brief ポインタを1つ戻す
+   * @return 新しいポインタ
+   */
+  constexpr CircularEntryPointer& operator--() noexcept {
+    if (curr_ptr_ == begin_ptr_) {
+      curr_ptr_ = end_ptr_ - 1;
+    } else {
+      --curr_ptr_;
+    }
+
+    return *this;
+  }
+
+  /// ポインタをdereferenceする
+  constexpr Entry& operator*() noexcept { return *curr_ptr_; }
+  /// ポインタをdereferenceする
+  constexpr const Entry& operator*() const noexcept { return *curr_ptr_; }
+  /// ポインタのメンバへアクセスする
+  constexpr Entry* operator->() noexcept { return curr_ptr_; }
+  /// ポインタのメンバへアクセスする
+  constexpr const Entry* operator->() const noexcept { return curr_ptr_; }
+
+  /// 生ポインタを取得する（テスト用）
+  constexpr Entry* data() const noexcept { return curr_ptr_; }
+
+ private:
+  Entry* curr_ptr_;   ///< 現在指している位置
+  Entry* begin_ptr_;  ///< 区間の先頭
+  Entry* end_ptr_;    ///< 区間の末尾
 };
 
 namespace detail {
@@ -73,49 +115,23 @@ constexpr inline SearchAmount kTTSaveAmountThreshold = 10;
  * 実行速度とのバランスを考えて n=10000 というのはある程度妥当な数字だと言える。
  */
 constexpr std::size_t kHashfullCalcEntries = 10000;
-/// エントリを消すしきい値。
-constexpr std::size_t kGcThreshold = Cluster::kSize - 1;
-/// GCで消すエントリ数
-constexpr std::size_t kGcRemoveElementNum = 6;
 
-/**
- * @brief [begin, end) の範囲内で使用中のエントリのうち最も探索量が小さいエントリを返す
- * @param begin エントリの探索開始位置
- * @param end  探索終了位置（`end` 自体は含まず）
- * @return 見つけたエントリ
- */
-inline Entry* GetMinAmountEntry(Entry* begin, Entry* end) noexcept {
-  Entry* ret = nullptr;
-  for (auto itr = begin; itr != end; itr++) {
-    if (!itr->IsNull()) {
-      if (ret == nullptr || ret->Amount() > itr->Amount()) {
-        ret = itr;
-      }
-    }
-  }
-
-  return ret;
-}
+/// GC で削除する SearchAmount のしきい値を決めるために見るエントリの数
+constexpr std::size_t kGcSamplingEntries = 10000;
+/// GC で削除するエントリの割合
+constexpr double kGcRemovalRatio = 0.5;
+/// `kGcSamplingEntries` 個のエントリのうち、削除するエントリの個数
+constexpr std::size_t kGcRemovalPivotEntries = static_cast<std::size_t>(kGcSamplingEntries * kGcRemovalRatio);
 }  // namespace detail
 
 /**
- * @brief 経路に依存しない探索結果を記録する置換表。
+ * @brief 経路に依存しない探索結果を記録する置換表。（通常テーブル）
  *
- * 通常テーブルは `entries_` という配列で管理している。この配列の一部を切り出してクラスタを作る。
- * クラスタは、`Cluster::kSize` （10~30ぐらい） 個の連続領域に保存されたエントリで構成される。
- * それぞれの局面に対し、盤面ハッシュ値に基づいてクラスタが一意に決まる。（詳しくは `ClusterOf()` を参照）
- * 違う局面同士が同じクラスタに割り当てられる可能性があるし、クラスタ間で領域が重複する可能性もある。
+ * このクラスは探索結果を循環配列で管理している。探索結果のデフォルト挿入位置は、`PointerOf()` により
+ * 決められる。もし挿入位置が衝突した場合、空きエントリが見つかるまで真後ろのエントリを参照する。
  *
- * ```
- *          0                                                                     m_clusters_          entries_.size()
- * entries_ |                   |<- overlap ->|                                        |                     |
- *                     ^^^^^^^^^^^^^^^^^^^^^^^                                         ^^^^^^^^^^^^^^^^^^^^^^^
- *                     |<- Cluster::kSize  ->|                                         |<- Cluster::kSize -->|
- *                         cluster for n1                                                  cluster for n3
- *                              ^^^^^^^^^^^^^^^^^^^^^^^
- *                              |<- Cluster::kSize  ->|
- *                                 cluster for n2
- * ```
+ * エントリの削除はガベージコレクションで行う。これは、探索中に動的にエントリを削除すると、以前保存したエントリに
+ * アクセスできなくなる可能性があるためである。
  */
 class RegularTable {
  public:
@@ -133,14 +149,13 @@ class RegularTable {
   ~RegularTable() = default;
 
   /**
-   * @brief 要素数が `num_entries` 個になるようにメモリの確保・解法を行う
+   * @brief 要素数が `num_entries` 個になるようにメモリの確保・解放を行う
    * @param num_entries 要素数
    */
   void Resize(std::uint64_t num_entries) {
-    // 通常テーブルに保存する要素数。最低でも `Cluster::kSize + 1` 以上になるようにする
-    num_entries = std::max<std::uint64_t>(num_entries, Cluster::kSize + 1);
+    // 通常テーブルに保存する要素数。最低でも 1 以上になるようにする
+    num_entries = std::max<std::uint64_t>(num_entries, 1);
 
-    cluster_head_num_ = num_entries - Cluster::kSize;
     entries_.resize(num_entries);
     entries_.shrink_to_fit();
 
@@ -157,39 +172,33 @@ class RegularTable {
   }
 
   /**
-   * @brief `board_key` に対応するクラスタを取得する
+   * @brief `board_key` に対応する循環領域へのポインタを取得する
    * @param board_key 盤面ハッシュ
-   * @return `board_key` に対応するクラスタ
+   * @return `board_key` に対応する循環領域ポインタ
    *
-   * @note クラスタの下位32ビットをもとにクラスタの位置を決定する
+   * @note 盤面ハッシュ値の下位32ビットをもとに循環領域の先頭位置を決定する
    */
-  Cluster ClusterOf(Key board_key) {
+  CircularEntryPointer PointerOf(Key board_key) {
     static_assert(sizeof(Key) == 8);
 
     // Stockfish の置換表と同じアイデア。少し工夫をすることで mod 演算を回避できる。
-    // hash_low が [0, 2^32) の一様分布にしたがうと仮定すると、idx はだいたい [0, cluster_head_num_)
+    // hash_low が [0, 2^32) の一様分布にしたがうと仮定すると、idx はだいたい [0, entries_.size())
     // の一様分布にしたがう。
     const Key hash_low = board_key & Key{0xffff'ffffULL};
-    auto idx = (hash_low * cluster_head_num_) >> 32;
-    return {&entries_[idx]};
+    auto idx = (hash_low * entries_.size()) >> 32;
+    auto data = entries_.data();
+    return {data + idx, data, data + entries_.size()};
   }
 
   /**
    * @brief 通常テーブルのメモリ使用率を見積もる。
    * @return メモリ使用率（通常テーブル）
    *
-   * `entries_` の中からいくつかのエントリをサンプリングしてメモリ使用率を求める。
-   *
-   * @note `entries_` の最初と最後の `Cluster::kSize` 個の要素はクラスタ同士のオーバーラップが小さいので、
-   * 他の領域と比べて使用される確率が低い。
+   * `entries_` の中から `kHashfullCalcEntries` 個のエントリをサンプリングしてメモリ使用率を求める。
    */
   double CalculateHashRate() const noexcept {
-    // entries_ の最初と最後はエントリ数が若干少ないので、真ん中から kHashfullCalcEntries 個のエントリを調べる
-    const std::size_t begin_idx = Cluster::kSize;
-    const std::size_t count_range_size = cluster_head_num_ - begin_idx;
-
     std::size_t used_count = 0;
-    std::size_t idx = begin_idx;
+    std::size_t idx = 0;
     for (std::size_t i = 0; i < detail::kHashfullCalcEntries; ++i) {
       if (!entries_[idx].IsNull()) {
         used_count++;
@@ -197,8 +206,8 @@ class RegularTable {
 
       // 連続領域をカウントすると偏りが出やすくなってしまうので、大きめの値を足す。
       idx += 334;
-      if (idx > cluster_head_num_) {
-        idx -= count_range_size;
+      if (idx >= entries_.size()) {
+        idx -= entries_.size();
       }
     }
 
@@ -206,75 +215,43 @@ class RegularTable {
   }
 
   /**
-   * @brief 通常テーブルの中で、メモリ使用率が高いクラスタのエントリを間引く
+   * @brief 通常テーブルの中で、メモリ使用率が高いエントリを間引く
+   * @pre 少なくとも1個のエントリが使用中
    *
-   * `kGcThreshold` 個以上のエントリが使用中のクラスタに対し、エントリの削除を行う。別の言い方をすると、
-   * この関数呼び出し終了後は、すべてのクラスタの使用中エントリ数は `kGcThreshold` 個未満にする。
+   * `entries_` の中から `GcSamplingEntries` 個のエントリの探索量を調べ、下位 `kGcRemovalRatio` のエントリを削除する。
    */
   void CollectGarbage() {
-    // start_idx から始まる cluster の末尾のインデックスを返す
-    auto cluster_end = [&](std::ptrdiff_t start_idx) {
-      return static_cast<std::ptrdiff_t>(std::min(entries_.size(), start_idx + Cluster::kSize));
-    };
-    // idx から Cluster::kSize 個の要素のうち使用中であるものの個数を数える
-    auto count_used = [&](std::ptrdiff_t start_idx) {
-      const auto end_idx = cluster_end(start_idx);
-      const auto used_count = std::count_if(entries_.begin() + start_idx, entries_.begin() + end_idx,
-                                            [](const Entry& entry) { return !entry.IsNull(); });
-      return static_cast<std::size_t>(used_count);
-    };
+    // Amount を kGcSamplingEntries 個だけサンプリングする
+    std::size_t counted_num = 0;
+    std::size_t idx = 0;
+    std::vector<SearchAmount> amounts;
+    amounts.reserve(detail::kGcSamplingEntries);
 
-    std::ptrdiff_t start_idx = 0;
-    auto used_in_range = count_used(0);
-    do {
-      if (used_in_range >= detail::kGcThreshold) {
-        // [start_idx, cluster_end(start_idx)) の使用率が高すぎるのでエントリを適当に間引く
-        for (std::size_t k = 0; k < detail::kGcRemoveElementNum; ++k) {
-          auto start_itr = entries_.begin() + start_idx;
-          auto end_itr = entries_.begin() + cluster_end(start_idx);
-          auto min_element = detail::GetMinAmountEntry(&*start_itr, &*end_itr);
-          min_element->SetNull();
-        }
-        start_idx = cluster_end(start_idx);
-        used_in_range = count_used(start_idx);
-      } else {
-        // しゃくとり法で used_in_range の更新をしておく
-        if (!entries_[start_idx].IsNull()) {
-          used_in_range--;
-        }
-
-        if (!entries_[cluster_end(start_idx)].IsNull()) {
-          used_in_range++;
-        }
-        start_idx++;
-      }
-    } while (cluster_end(start_idx) < static_cast<std::ptrdiff_t>(entries_.size()));
-  }
-
-  /**
-   * @brief エントリをできるだけ手前の方に移動させる（コンパクション）
-   */
-  void CompactEntries() {
-    for (auto& entry : entries_) {
-      if (entry.IsNull()) {
-        continue;
+    while (counted_num < detail::kGcSamplingEntries) {
+      if (!entries_[idx].IsNull()) {
+        amounts.push_back(entries_[idx].Amount());
+        counted_num++;
       }
 
-      auto cluster = ClusterOf(entry.BoardKey());
-      if (cluster.head_entry != &entry) {
-        decltype(cluster.head_entry) candidate = nullptr;
-        if (cluster.head_entry->IsNull()) {
-          candidate = cluster.head_entry;
-        } else if ((cluster.head_entry + 1)->IsNull()) {
-          candidate = cluster.head_entry + 1;
-        }
-
-        if (candidate != nullptr) {
-          *candidate = entry;
-          entry.SetNull();
-        }
+      idx += 334;
+      if (idx >= entries_.size()) {
+        idx -= entries_.size();
       }
     }
+
+    auto pivot_itr = amounts.begin() + detail::kGcRemovalPivotEntries;
+    std::nth_element(amounts.begin(), pivot_itr, amounts.end());
+    const auto amount_threshold = *pivot_itr;
+
+    // 探索料が amount_threshold を下回っているエントリをすべて削除する
+    for (auto&& entry : entries_) {
+      if (!entry.IsNull() && entry.Amount() <= amount_threshold) {
+        entry.SetNull();
+      }
+    }
+
+    // 置換表に歯抜けがあるとエントリにアクセスできないため、コンパクションは必須。
+    CompactEntries();
   }
 
   /**
@@ -314,56 +291,64 @@ class RegularTable {
    * @param is バイナリ入力ストリーム
    * @return `is`
    *
-   * `Save()` で書き出した情報を置換表へ読み込む。ストリームから読み込んだエントリを挿入するイメージであるため、
-   * `Save()` 時の置換表サイズより現在のサイズが小さくても問題なく動作する。
+   * `Save()` で書き出した情報を置換表へ読み込む。ストリームから読み込んだエントリを挿入するイメージで動作する。
    *
    * @see Save()
    */
   std::istream& Load(std::istream& is) {
     std::uint64_t used_entries{};
     is.read(reinterpret_cast<char*>(&used_entries), sizeof(used_entries));
+    const std::uint64_t loop_count = std::min<std::uint64_t>(used_entries, entries_.size() - 1);
 
-    for (std::uint64_t i = 0; i < used_entries && is; ++i) {
+    for (std::uint64_t i = 0; i < loop_count; ++i) {
       Entry entry;
       is.read(reinterpret_cast<char*>(&entry), sizeof(entry));
 
-      auto cluster = ClusterOf(entry.BoardKey());
-      auto itr = cluster.head_entry;
-      for (std::uint64_t j = 0; j < Cluster::kSize; ++j, ++itr) {
-        if (itr->IsNull()) {
-          *itr = entry;
-          break;
-        }
+      auto ptr = PointerOf(entry.BoardKey());
+      for (; !ptr->IsNull(); ++ptr) {
       }
+      *ptr = entry;
     }
 
     return is;
   }
 
   // <テスト用>
-  // 外部から内部変数を観測できないと厳しいので、直接アクセスできるようにしておく。
-  // ただし、書き換えられてしまうと面倒なので、必ずconstをつけて渡す。
 
   /// 通常テーブルの先頭
-  constexpr auto begin() const noexcept { return entries_.cbegin(); }
+  constexpr auto begin() noexcept { return entries_.data(); }
   /// 通常テーブルの末尾
-  constexpr auto end() const noexcept { return entries_.cend(); }
+  constexpr auto end() noexcept { return entries_.data() + entries_.size(); }
+
+  /**
+   * @brief エントリをできるだけ手前の方に移動させる（コンパクション）
+   *
+   * GC + コンパクションを同時に単体テストするのは厳しいので、コンパクションだけ行えるようにしておく。
+   */
+  void CompactEntries() {
+    // entries_ の最初の部分が若干コンパクションしきれない可能性があるが目を瞑る
+    for (auto&& entry : entries_) {
+      if (entry.IsNull()) {
+        continue;
+      }
+
+      // できるだけ手前の非 null な位置へ移動する
+      for (auto ptr = PointerOf(entry.BoardKey()); &*ptr != &entry; ++ptr) {
+        if (ptr->IsNull()) {
+          *ptr = entry;
+          entry.SetNull();
+          break;
+        }
+      }
+    }
+  }
   // </テスト用>
 
  private:
   /**
    * @brief 通常エントリの本体。
-   *
-   * クエリの初期化時にクラスタを渡す必要があるため、サイズは必ず `Cluster::kSize + 1` 以上。
    */
   std::vector<Entry> entries_;
-
-  /**
-   * @brief 現在確保しているエントリにうちクラスタ先頭にできる個数。
-   *
-   * 必ず1以上で、`entries_.size() - kSize` に一致する。
-   */
-  std::size_t cluster_head_num_{1};
 };
 }  // namespace komori::tt
 

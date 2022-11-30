@@ -23,36 +23,36 @@ TEST_F(RegularTableTest, Resize_ChangeSize) {
 }
 
 TEST_F(RegularTableTest, Resize_ClearEntries) {
-  auto& head_entry = *tt_.ClusterOf(0).head_entry;
-  head_entry.Init(0x334, HAND_ZERO);
+  auto& front = *tt_.begin();
+  front.Init(0x334, HAND_ZERO);
 
-  EXPECT_FALSE(head_entry.IsNull());
+  EXPECT_FALSE(front.IsNull());
   tt_.Resize(334);
-  auto& head_entry2 = *tt_.ClusterOf(0).head_entry;
-  EXPECT_TRUE(head_entry2.IsNull());
+  auto& front2 = *tt_.begin();
+  EXPECT_TRUE(front2.IsNull());
 }
 
 TEST_F(RegularTableTest, Clear) {
-  auto& head_entry = *tt_.ClusterOf(0).head_entry;
-  head_entry.Init(0x334, HAND_ZERO);
+  auto& front = *tt_.begin();
+  front.Init(0x334, HAND_ZERO);
 
-  EXPECT_FALSE(head_entry.IsNull());
+  EXPECT_FALSE(front.IsNull());
   tt_.Clear();
-  EXPECT_TRUE(head_entry.IsNull());
+  EXPECT_TRUE(front.IsNull());
 }
 
-TEST_F(RegularTableTest, ClusterOf) {
-  auto e1 = tt_.ClusterOf(0).head_entry;
-  auto e2 = tt_.ClusterOf(std::numeric_limits<Key>::max() / 2).head_entry;
+TEST_F(RegularTableTest, PointerOf) {
+  auto p1 = tt_.PointerOf(0);
+  auto p2 = tt_.PointerOf(std::numeric_limits<Key>::max() / 2);
 
-  EXPECT_EQ(&*tt_.begin(), e1);
-  EXPECT_LT(e1, e2);
-  EXPECT_LT(e2, &*tt_.end());
+  EXPECT_EQ(tt_.begin(), p1.data());
+  EXPECT_LT(p1.data(), p2.data());
+  EXPECT_LT(p2.data(), tt_.end());
 }
 
 TEST_F(RegularTableTest, CalculateHashRate_EmptyAfterClear) {
-  for (auto itr = tt_.ClusterOf(0).head_entry; itr != &*tt_.begin() + (tt_.end() - tt_.begin()); ++itr) {
-    itr->Init(0x334, HAND_ZERO);
+  for (auto&& entry : tt_) {
+    entry.Init(0x334, HAND_ZERO);
   }
 
   EXPECT_GT(tt_.CalculateHashRate(), 0);
@@ -61,8 +61,8 @@ TEST_F(RegularTableTest, CalculateHashRate_EmptyAfterClear) {
 }
 
 TEST_F(RegularTableTest, CalculateHashRate_Full) {
-  for (auto itr = tt_.ClusterOf(0).head_entry; itr != &*tt_.end(); ++itr) {
-    itr->Init(0x334, HAND_ZERO);
+  for (auto&& entry : tt_) {
+    entry.Init(0x334, HAND_ZERO);
   }
 
   EXPECT_EQ(tt_.CalculateHashRate(), 1.0);
@@ -71,11 +71,26 @@ TEST_F(RegularTableTest, CalculateHashRate_Full) {
 }
 
 TEST_F(RegularTableTest, CollectGarbage) {
-  // 近日変更予定なのでテストはしない
+  // 直接テストするのは難しいので、コール後にちゃんとエントリが消えているかどうかを調べる
+
+  komori::SearchAmount i = 1;
+  for (auto&& entry : tt_) {
+    entry.Init(0x334, HAND_ZERO);
+    entry.UpdateUnknown(0, 3, 3, i++, komori::BitSet64::Full(), 334, HAND_ZERO);
+  }
+
+  EXPECT_EQ(tt_.CalculateHashRate(), 1.0);
+  tt_.CollectGarbage();
+  EXPECT_LT(tt_.CalculateHashRate(), 1.0 - komori::tt::detail::kGcRemovalRatio + 0.1);
+  EXPECT_GT(tt_.CalculateHashRate(), 1.0 - komori::tt::detail::kGcRemovalRatio - 0.1);
 }
 
 TEST_F(RegularTableTest, CompactEntries) {
-  // 近日変更予定なのでテストはしない
+  tt_.begin()->Init(std::numeric_limits<Key>::max(), HAND_ZERO);
+  EXPECT_FALSE(tt_.begin()->IsNull());
+  tt_.CompactEntries();
+  EXPECT_TRUE(tt_.begin()->IsNull());
+  EXPECT_FALSE((tt_.end() - 1)->IsNull());
 }
 
 TEST_F(RegularTableTest, SaveLoad) {
@@ -84,27 +99,27 @@ TEST_F(RegularTableTest, SaveLoad) {
   const auto board_key2{0x264264264264264ull};
   const auto hand2 = MakeHand<PAWN>();
 
-  const auto e1 = tt_.ClusterOf(board_key1).head_entry;
-  e1->Init(board_key1, hand1);
-  e1->UpdateUnknown(334, 1, 1, komori::tt::detail::kTTSaveAmountThreshold + 1, komori::BitSet64::Full(), 0x334,
+  auto p1 = tt_.PointerOf(board_key1);
+  p1->Init(board_key1, hand1);
+  p1->UpdateUnknown(334, 1, 1, komori::tt::detail::kTTSaveAmountThreshold + 1, komori::BitSet64::Full(), 0x334,
                     HAND_ZERO);
-  const auto e2 = tt_.ClusterOf(board_key2).head_entry;
-  e2->Init(board_key2, hand2);
-  e2->UpdateUnknown(334, 1, 1, komori::tt::detail::kTTSaveAmountThreshold - 1, komori::BitSet64::Full(), 0x334,
+  auto p2 = tt_.PointerOf(board_key2);
+  p2->Init(board_key2, hand2);
+  p2->UpdateUnknown(334, 1, 1, komori::tt::detail::kTTSaveAmountThreshold - 1, komori::BitSet64::Full(), 0x334,
                     HAND_ZERO);
-  ASSERT_NE(e1, e2);
+  ASSERT_NE(&*p1, &*p2);
 
   std::stringstream ss;
   tt_.Save(ss);
   tt_.Clear();
-  EXPECT_FALSE(e1->IsFor(board_key1, hand1));
-  EXPECT_FALSE(e2->IsFor(board_key2, hand2));
+  EXPECT_FALSE(p1->IsFor(board_key1, hand1));
+  EXPECT_FALSE(p2->IsFor(board_key2, hand2));
 
-  // e1 の位置に entry2 を書き込む。次の load 後には entry2, entry1 の順に並ぶはず
-  e1->Init(board_key2, hand2);
+  // p1 の位置に entry2 を書き込む。次の load 後には entry2, entry1 の順に並ぶはず
+  p1->Init(board_key2, hand2);
 
   tt_.Load(ss);
-  EXPECT_TRUE(e1->IsFor(board_key2, hand2));
-  EXPECT_TRUE((e1 + 1)->IsFor(board_key1, hand1));
-  EXPECT_FALSE(e2->IsFor(board_key2, hand2));
+  EXPECT_TRUE(p1->IsFor(board_key2, hand2));
+  EXPECT_TRUE((&*p1 + 1)->IsFor(board_key1, hand1));
+  EXPECT_FALSE(p2->IsFor(board_key2, hand2));
 }

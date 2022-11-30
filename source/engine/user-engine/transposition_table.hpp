@@ -114,7 +114,7 @@ class TranspositionTableImpl {
     const auto hand = n.OrHand();
     const auto depth = n.GetDepth();
 
-    auto cluster = regular_table_.ClusterOf(board_key);
+    auto cluster = regular_table_.PointerOf(board_key);
     return {repetition_table_, cluster, path_key, board_key, hand, depth};
   }
 
@@ -132,7 +132,7 @@ class TranspositionTableImpl {
     const auto hand = n.OrHandAfter(move);
     const auto depth = n.GetDepth() + 1;
 
-    auto cluster = regular_table_.ClusterOf(board_key);
+    auto cluster = regular_table_.PointerOf(board_key);
     return {repetition_table_, cluster, path_key, board_key, hand, depth};
   }
 
@@ -145,7 +145,7 @@ class TranspositionTableImpl {
    */
   Query BuildQueryByKey(BoardKeyHandPair key_hand_pair, Key path_key = kNullKey) {
     const auto [board_key, hand] = key_hand_pair;
-    auto cluster = regular_table_.ClusterOf(board_key);
+    auto cluster = regular_table_.PointerOf(board_key);
     const auto depth = kDepthMax;
     return {repetition_table_, cluster, path_key, board_key, hand, depth};
   }

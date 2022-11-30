@@ -15,7 +15,7 @@ using komori::PnDn;
 using komori::SearchAmount;
 using komori::SearchResult;
 using komori::UnknownData;
-using komori::tt::Cluster;
+using komori::tt::CircularEntryPointer;
 using komori::tt::Entry;
 using komori::tt::Query;
 using komori::tt::RepetitionTable;
@@ -24,10 +24,11 @@ namespace {
 class QueryTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    entries_.resize(Cluster::kSize);
+    entries_.resize(16);
     rep_table_.SetTableSizeMax(334);
 
-    query_ = Query{rep_table_, {entries_.data()}, path_key_, board_key_, hand_, depth_};
+    query_ = Query{rep_table_, {entries_.data(), entries_.data(), entries_.data() + 16}, path_key_, board_key_, hand_,
+                   depth_};
   }
 
   Query query_;
@@ -58,7 +59,7 @@ TEST_F(QueryTest, LoopUp_None) {
 }
 
 TEST_F(QueryTest, LoopUp_UnknownExact) {
-  for (std::size_t i = 0; i < Cluster::kSize; ++i) {
+  for (std::size_t i = 0; i < 15; ++i) {
     const PnDn pn{33 * (i + 1)};
     const PnDn dn{4 * (i + 1)};
     const BitSet64 bs{0x334 * (i + 1)};
@@ -75,7 +76,7 @@ TEST_F(QueryTest, LoopUp_UnknownExact) {
     EXPECT_EQ(result.GetUnknownData().sum_mask, bs) << i;
     EXPECT_EQ(result.Amount(), entries_[i].Amount()) << i;
 
-    entries_[i].SetNull();
+    entries_[i].Init(0x264, HAND_ZERO);
   }
 }
 
@@ -231,8 +232,8 @@ TEST_F(QueryTest, LookUpParent_Exact) {
   const Key board_key{0x3304};
   const Hand hand{MakeHand<PAWN, LANCE, LANCE>()};
 
-  entries_[5].Init(board_key_, hand_);
-  entries_[5].UpdateUnknown(264, ans_pn, ans_dn, 1, BitSet64::Full(), board_key, hand);
+  entries_[0].Init(board_key_, hand_);
+  entries_[0].UpdateUnknown(264, ans_pn, ans_dn, 1, BitSet64::Full(), board_key, hand);
   PnDn pn{1}, dn{1};
   const auto parent_key_hand_pair = query_.LookUpParent(pn, dn);
   ASSERT_NE(parent_key_hand_pair, std::nullopt);
@@ -292,7 +293,7 @@ TEST_F(QueryTest, SetResult_UnknownNew) {
 }
 
 TEST_F(QueryTest, SetResult_UnknownUpdate) {
-  for (std::size_t i = 0; i < Cluster::kSize; ++i) {
+  for (std::size_t i = 0; i < 15; ++i) {
     const PnDn pn{33 * (i + 1)};
     const PnDn dn{4 * (i + 1)};
     const SearchAmount amount{static_cast<SearchAmount>(334 * (i + 1))};
@@ -306,28 +307,8 @@ TEST_F(QueryTest, SetResult_UnknownUpdate) {
     EXPECT_EQ(entries_[i].Dn(), dn) << i;
     EXPECT_EQ(entries_[i].Amount(), 1 / 2 + amount) << i;
 
-    entries_[i].SetNull();
-  }
-}
-
-TEST_F(QueryTest, SetResult_UnknownOverwrite) {
-  const PnDn pn{33};
-  const PnDn dn{4};
-  const SearchAmount amount{334};
-
-  for (std::size_t i = 0; i < Cluster::kSize; ++i) {
-    // entries_[8] の探索量が最小になるように初期化
     entries_[i].Init(0x264, HAND_ZERO);
-    entries_[i].UpdateUnknown(1, 1, 1, 1 + (8 - i) * (8 - i), BitSet64::Full(), 0, HAND_ZERO);
   }
-
-  const UnknownData unknown_data{};
-  const SearchResult result = SearchResult::MakeUnknown(pn, dn, MateLen{334}, amount, unknown_data);
-  query_.SetResult(result);
-
-  EXPECT_EQ(entries_[8].Pn(), pn);
-  EXPECT_EQ(entries_[8].Dn(), dn);
-  EXPECT_EQ(entries_[8].Amount(), amount);
 }
 
 TEST_F(QueryTest, SetResult_ProvenNew) {
@@ -344,9 +325,9 @@ TEST_F(QueryTest, SetResult_ProvenUpdate) {
   const MateLen len = MateLen{334};
   const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
 
-  entries_[2].Init(board_key_, hand);
+  entries_[0].Init(board_key_, hand);
   query_.SetResult(result);
-  EXPECT_EQ(entries_[2].ProvenLen(), MateLen16{len});
+  EXPECT_EQ(entries_[0].ProvenLen(), MateLen16{len});
 }
 
 TEST_F(QueryTest, SetResult_DisprovenNew) {
@@ -363,9 +344,9 @@ TEST_F(QueryTest, SetResult_DisprovenUpdate) {
   const MateLen len = MateLen{334};
   const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
 
-  entries_[2].Init(board_key_, hand);
+  entries_[0].Init(board_key_, hand);
   query_.SetResult(result);
-  EXPECT_EQ(entries_[2].DisprovenLen(), MateLen16{len});
+  EXPECT_EQ(entries_[0].DisprovenLen(), MateLen16{len});
 }
 
 TEST_F(QueryTest, SetResult_RepetitionNew) {

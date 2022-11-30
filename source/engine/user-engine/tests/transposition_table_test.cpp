@@ -9,10 +9,8 @@
 
 using komori::BitSet64;
 using komori::kDepthMax;
-using komori::tt::Cluster;
+using komori::tt::CircularEntryPointer;
 using komori::tt::RepetitionTable;
-using komori::tt::detail::kGcRemoveElementNum;
-using komori::tt::detail::kGcThreshold;
 using komori::tt::detail::kRegularRepetitionRatio;
 using komori::tt::detail::TranspositionTableImpl;
 using testing::Return;
@@ -22,7 +20,7 @@ namespace {
 struct RegularTableMock {
   MOCK_METHOD(void, Resize, (std::uint64_t));
   MOCK_METHOD(void, Clear, ());
-  MOCK_METHOD(komori::tt::Cluster, ClusterOf, (Key));
+  MOCK_METHOD(komori::tt::CircularEntryPointer, PointerOf, (Key));
   MOCK_METHOD(double, CalculateHashRate, (), (const));
   MOCK_METHOD(void, CollectGarbage, ());
   MOCK_METHOD(void, CompactEntries, ());
@@ -40,7 +38,7 @@ struct RepetitionTableMock {
 
 struct QueryMock {
   RepetitionTableMock& rep_table;
-  Cluster cluster;
+  CircularEntryPointer initial_entry_pointer;
   Key path_key;
   Key board_key;
   Hand hand;
@@ -86,11 +84,11 @@ TEST_F(TranspositionTableTest, Clear) {
 TEST_F(TranspositionTableTest, BuildQuery) {
   TestNode test_node{"4k4/9/4G4/9/9/9/9/9/9 b P2r2b3g4s4n4l17p 1", true};
 
-  EXPECT_CALL(tt_.GetRegularTable(), ClusterOf).WillOnce(Return(Cluster{nullptr}));
+  EXPECT_CALL(tt_.GetRegularTable(), PointerOf).WillOnce(Return(CircularEntryPointer{nullptr, nullptr, nullptr}));
   const auto query = tt_.BuildQuery(*test_node);
 
   EXPECT_EQ(&query.rep_table, &tt_.GetRepetitionTable());
-  EXPECT_EQ(query.cluster.head_entry, nullptr);
+  EXPECT_EQ(query.initial_entry_pointer.data(), nullptr);
   EXPECT_EQ(query.path_key, test_node->GetPathKey());
   EXPECT_EQ(query.board_key, test_node->Pos().state()->board_key());
   EXPECT_EQ(query.hand, test_node->OrHand());
@@ -101,11 +99,11 @@ TEST_F(TranspositionTableTest, BuildChildQuery) {
   TestNode test_node{"4k4/4+P4/9/9/9/9/9/9/9 w P2r2b4g4s4n4l16p 1", false};
   const Move move = make_move(SQ_51, SQ_52, W_KING);
 
-  EXPECT_CALL(tt_.GetRegularTable(), ClusterOf).WillOnce(Return(Cluster{nullptr}));
+  EXPECT_CALL(tt_.GetRegularTable(), PointerOf).WillOnce(Return(CircularEntryPointer{nullptr, nullptr, nullptr}));
   const auto query = tt_.BuildChildQuery(*test_node, move);
 
   EXPECT_EQ(&query.rep_table, &tt_.GetRepetitionTable());
-  EXPECT_EQ(query.cluster.head_entry, nullptr);
+  EXPECT_EQ(query.initial_entry_pointer.data(), nullptr);
   EXPECT_EQ(query.path_key, test_node->PathKeyAfter(move));
   EXPECT_EQ(query.board_key, test_node->Pos().board_key_after(move));
   EXPECT_EQ(query.hand, test_node->OrHandAfter(move));
@@ -117,11 +115,11 @@ TEST_F(TranspositionTableTest, BuildQueryByKey_Normal) {
   const Key path_key = 0x264264264264;
   const auto hand = MakeHand<PAWN, LANCE, LANCE>();
 
-  EXPECT_CALL(tt_.GetRegularTable(), ClusterOf).WillOnce(Return(Cluster{nullptr}));
+  EXPECT_CALL(tt_.GetRegularTable(), PointerOf).WillOnce(Return(CircularEntryPointer{nullptr, nullptr, nullptr}));
   const auto query = tt_.BuildQueryByKey({board_key, hand}, path_key);
 
   EXPECT_EQ(&query.rep_table, &tt_.GetRepetitionTable());
-  EXPECT_EQ(query.cluster.head_entry, nullptr);
+  EXPECT_EQ(query.initial_entry_pointer.data(), nullptr);
   EXPECT_EQ(query.path_key, path_key);
   EXPECT_EQ(query.board_key, board_key);
   EXPECT_EQ(query.hand, hand);
