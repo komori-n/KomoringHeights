@@ -4,6 +4,49 @@
 #include "test_lib.hpp"
 
 namespace {
+class CircularEntryPointerTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    auto begin = vals_.data();
+    auto back = vals_.data() + (vals_.size() - 1);
+    auto end = vals_.data() + vals_.size();
+    p_begin_ = komori::tt::CircularEntryPointer{begin, begin, end};
+    p_begin_plus_1_ = komori::tt::CircularEntryPointer{begin + 1, begin, end};
+    p_back_minus_1_ = komori::tt::CircularEntryPointer{back - 1, begin, end};
+    p_back_ = komori::tt::CircularEntryPointer{back, begin, end};
+  }
+
+  std::array<komori::tt::Entry, 10> vals_;
+  komori::tt::CircularEntryPointer p_begin_;
+  komori::tt::CircularEntryPointer p_begin_plus_1_;
+  komori::tt::CircularEntryPointer p_back_minus_1_;
+  komori::tt::CircularEntryPointer p_back_;
+};
+}  // namespace
+
+TEST_F(CircularEntryPointerTest, Increment) {
+  EXPECT_EQ(&*(++p_begin_), &*p_begin_plus_1_);
+  --p_begin_;
+  EXPECT_EQ(&*(++p_back_minus_1_), &*p_back_);
+  --p_back_minus_1_;
+  EXPECT_EQ(&*(++p_back_), &*p_begin_);
+}
+
+TEST_F(CircularEntryPointerTest, Decrement) {
+  EXPECT_EQ(&*(--p_begin_), &*p_back_);
+  ++p_begin_;
+  EXPECT_EQ(&*(--p_begin_plus_1_), &*p_begin_);
+  EXPECT_EQ(&*(--p_back_), &*p_back_minus_1_);
+}
+
+TEST_F(CircularEntryPointerTest, Access) {
+  EXPECT_EQ(&p_begin_.operator*(), p_begin_.operator->());
+
+  const auto& cp_begin = p_begin_;
+  EXPECT_EQ(&cp_begin.operator*(), cp_begin.operator->());
+}
+
+namespace {
 class RegularTableTest : public ::testing::Test {
  protected:
   void SetUp() override {
