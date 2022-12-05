@@ -70,34 +70,28 @@ TEST(InitialEstimationTest, IsSumNode_OrLance) {
 
   TestNode n2{"8k/8p/9/9/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
 
-  EXPECT_FALSE(IsSumDeltaNode(*n2, make_move_promote(SQ_19, SQ_12, B_LANCE)));
-  EXPECT_FALSE(IsSumDeltaNode(*n2, make_move(SQ_19, SQ_12, B_LANCE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n2, make_move_promote(SQ_19, SQ_12, B_LANCE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n2, make_move(SQ_19, SQ_12, B_LANCE)));
 
   TestNode n3{"9/7k1/8p/9/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
   EXPECT_TRUE(IsSumDeltaNode(*n3, make_move_promote(SQ_19, SQ_13, B_LANCE)));
 
-  TestNode n4{"7k1/8p/9/9/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
-  EXPECT_TRUE(IsSumDeltaNode(*n4, make_move_promote(SQ_19, SQ_12, B_LANCE)));
-
-  TestNode n5{"9/9/8k/8p/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
+  TestNode n4{"9/9/8k/8p/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
   EXPECT_TRUE(IsSumDeltaNode(*n4, make_move(SQ_19, SQ_14, B_LANCE)));
 
-  TestNode n6{"8l/9/9/9/9/9/8P/8K/9 w 2r2b4g4s4n3l17p 1", true};
+  TestNode n5{"8l/9/9/9/9/9/8P/8K/9 w 2r2b4g4s4n3l17p 1", true};
 
-  EXPECT_FALSE(IsSumDeltaNode(*n6, make_move_promote(SQ_11, SQ_17, W_LANCE)));
-  EXPECT_FALSE(IsSumDeltaNode(*n6, make_move(SQ_11, SQ_17, W_LANCE)));
+  EXPECT_FALSE(IsSumDeltaNode(*n5, make_move_promote(SQ_11, SQ_17, W_LANCE)));
+  EXPECT_FALSE(IsSumDeltaNode(*n5, make_move(SQ_11, SQ_17, W_LANCE)));
 
-  TestNode n7{"8l/9/9/9/9/9/9/8P/8K w 2r2b4g4s4n3l17p 1", true};
+  TestNode n6{"8l/9/9/9/9/9/9/8P/8K w 2r2b4g4s4n3l17p 1", true};
 
-  EXPECT_FALSE(IsSumDeltaNode(*n7, make_move_promote(SQ_11, SQ_18, W_LANCE)));
-  EXPECT_FALSE(IsSumDeltaNode(*n7, make_move(SQ_11, SQ_18, W_LANCE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n6, make_move_promote(SQ_11, SQ_18, W_LANCE)));
+  EXPECT_TRUE(IsSumDeltaNode(*n6, make_move(SQ_11, SQ_18, W_LANCE)));
 
-  TestNode n8{"8l/9/9/9/9/9/8P/7K1/9 w 2r2b4g4s4n3l17p 1", true};
-  EXPECT_TRUE(IsSumDeltaNode(*n8, make_move_promote(SQ_11, SQ_17, W_LANCE)));
+  TestNode n7{"8l/9/9/9/9/9/8P/7K1/9 w 2r2b4g4s4n3l17p 1", true};
+  EXPECT_TRUE(IsSumDeltaNode(*n7, make_move_promote(SQ_11, SQ_17, W_LANCE)));
 
-  TestNode n9{"8l/9/9/9/9/9/9/8P/7K1 w 2r2b4g4s4n3l17p 1", true};
-  EXPECT_TRUE(IsSumDeltaNode(*n9, make_move_promote(SQ_11, SQ_18, W_LANCE)));
-
-  TestNode n10{"8l/9/9/9/9/8P/8K/9/9 w 2r2b4g4s4n3l17p 1", true};
-  EXPECT_TRUE(IsSumDeltaNode(*n10, make_move(SQ_11, SQ_16, W_LANCE)));
+  TestNode n8{"8l/9/9/9/9/8P/8K/9/9 w 2r2b4g4s4n3l17p 1", true};
+  EXPECT_TRUE(IsSumDeltaNode(*n8, make_move(SQ_11, SQ_16, W_LANCE)));
 }
