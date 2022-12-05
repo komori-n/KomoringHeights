@@ -32,8 +32,3 @@ repos:
     entry: source/engine/user-engine/tests/run-test
     language: script
     pass_filenames: false
-  - id: run-clang-tidy
-    name: run-clang-tidy
-    entry: source/engine/user-engine/tests/run-clang-tidy
-    language: script
-    pass_filenames: false
