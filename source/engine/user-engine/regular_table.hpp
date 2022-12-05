@@ -247,6 +247,8 @@ class RegularTable {
     for (auto&& entry : entries_) {
       if (!entry.IsNull() && entry.Amount() <= amount_threshold) {
         entry.SetNull();
+      } else if (!entry.IsNull()) {
+        entry.CutAmount();
       }
     }
 

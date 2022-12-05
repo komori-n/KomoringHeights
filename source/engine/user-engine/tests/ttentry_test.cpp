@@ -53,6 +53,17 @@ TEST(EntryTest, GetHand) {
   EXPECT_EQ(entry.GetHand(), hand);
 }
 
+TEST(EntryTest, CutAmount) {
+  Entry entry;
+  entry.Init(0x334, HAND_ZERO);
+  entry.CutAmount();
+  EXPECT_GT(entry.Amount(), 0);
+
+  entry.UpdateUnknown(0, 1, 1, 334, BitSet64::Full(), 0, HAND_ZERO);
+  entry.CutAmount();
+  EXPECT_EQ(entry.Amount(), 334 / 2);
+}
+
 TEST(EntryTest, Init_SumMask) {
   Entry entry;
   entry.Init(0x334, HAND_ZERO);

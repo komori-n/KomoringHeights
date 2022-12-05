@@ -213,6 +213,9 @@ class alignas(64) Entry {
   /// 盤面ハッシュ値（コンパクション用）
   constexpr Key BoardKey() const noexcept { return board_key_; }
 
+  /// 探索量を小さくする。ただし 0 以下にはならない。
+  constexpr void CutAmount() noexcept { amount_ = std::max<SearchAmount>(amount_ / 2, 1); }
+
   /**
    * @brief 千日手の可能性ありフラグの設定および pn/dn の再初期化を行う。
    * @pre `!IsNull()`
