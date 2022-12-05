@@ -62,20 +62,6 @@ TEST(InitialEstimationTest, IsSumNode_AndDrop) {
   EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(ROOK, SQ_85, WHITE)));
 }
 
-TEST(InitialEstimationTest, IsSumNode_OrHorse) {
-  TestNode n{"4k4/9/9/9/9/9/9/3B1+B3/9 b 2r4g4s4n4l18p 1", true};
-
-  EXPECT_FALSE(IsSumDeltaNode(*n, make_move(SQ_48, SQ_15, B_HORSE)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move(SQ_68, SQ_95, B_BISHOP)));
-}
-
-TEST(InitialEstimationTest, IsSumNode_OrRook) {
-  TestNode n{"4k4/9/9/9/9/9/9/9/R7+R b 2b4g4s4n4l18p 1", true};
-
-  EXPECT_FALSE(IsSumDeltaNode(*n, make_move(SQ_19, SQ_59, B_DRAGON)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move(SQ_99, SQ_59, B_ROOK)));
-}
-
 TEST(InitialEstimationTest, IsSumNode_OrLance) {
   TestNode n1{"9/8k/8p/9/9/9/9/9/8L b 2r2b4g4s4n3l17p 1", true};
 

@@ -176,14 +176,10 @@ inline bool IsSumDeltaNode(const Node& n, Move move) {
   } else {
     // 駒打ち以外
     if (or_node) {
-      // 馬鋸／龍鋸
       const auto from = from_sq(move);
       const auto to = to_sq(move);
       const auto pc = n.Pos().piece_on(from);
       const auto pt = type_of(pc);
-      if (pt == DRAGON || pt == HORSE) {
-        return false;
-      }
 
       // 2 or 3段目の香成と不成
       if (pt == LANCE) {
