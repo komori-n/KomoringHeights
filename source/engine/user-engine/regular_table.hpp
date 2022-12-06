@@ -117,7 +117,7 @@ constexpr inline SearchAmount kTTSaveAmountThreshold = 10;
 constexpr std::size_t kHashfullCalcEntries = 10000;
 
 /// GC で削除する SearchAmount のしきい値を決めるために見るエントリの数
-constexpr std::size_t kGcSamplingEntries = 10000;
+constexpr std::size_t kGcSamplingEntries = 20000;
 /// GC で削除するエントリの割合
 constexpr double kGcRemovalRatio = 0.5;
 /// `kGcSamplingEntries` 個のエントリのうち、削除するエントリの個数
@@ -241,13 +241,15 @@ class RegularTable {
 
     auto pivot_itr = amounts.begin() + detail::kGcRemovalPivotEntries;
     std::nth_element(amounts.begin(), pivot_itr, amounts.end());
+    const SearchAmount max_amount = *std::max_element(amounts.begin(), amounts.end());
+    const bool should_cut = (max_amount > std::numeric_limits<SearchAmount>::max() / 8);
     const auto amount_threshold = *pivot_itr;
 
-    // 探索料が amount_threshold を下回っているエントリをすべて削除する
+    // 探索量が amount_threshold を下回っているエントリをすべて削除する
     for (auto&& entry : entries_) {
       if (!entry.IsNull() && entry.Amount() <= amount_threshold) {
         entry.SetNull();
-      } else if (!entry.IsNull()) {
+      } else if (!entry.IsNull() && should_cut) {
         entry.CutAmount();
       }
     }
