@@ -1,4 +1,4 @@
-#include "komoring_heights.hpp"
+﻿#include "komoring_heights.hpp"
 
 #include <fstream>
 #include <regex>
@@ -6,9 +6,7 @@
 namespace komori {
 namespace {
 inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
-  const std::uint64_t entry_num = hash_mb * 1024 * 1024 / sizeof(tt::Entry);
-
-  return entry_num / 2 * 3;
+  return hash_mb * 1024 * 1024 / sizeof(tt::Entry);
 }
 
 std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, MateLen len) {
@@ -120,6 +118,10 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   tt_.NewSearch();
   monitor_.NewSearch(GcInterval(option_.hash_mb), option_.nodes_limit);
   best_moves_.clear();
+
+  if (tt_.Hashfull() > 200) {
+    tt_.CollectGarbage();
+  }
   // </初期化>
 
   auto& nn = const_cast<Position&>(n);
