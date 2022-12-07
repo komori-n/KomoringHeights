@@ -80,16 +80,22 @@ TEST(SearchResultComparerTest, OrNode) {
   const auto u1 = SearchResult::MakeUnknown(33, 4, MateLen{264}, 10, unknown_data);
   const auto u2 = SearchResult::MakeUnknown(26, 4, MateLen{264}, 10, unknown_data);
   const auto u3 = SearchResult::MakeUnknown(33, 5, MateLen{264}, 10, unknown_data);
+  const auto u4 = SearchResult::MakeUnknown(33, 4, MateLen{264}, 13, unknown_data);
   const auto f1 = SearchResult::MakeFinal<false>(MakeHand<PAWN, SILVER>(), MateLen{334}, 20);
   const auto f2 = SearchResult::MakeRepetition(MakeHand<PAWN, SILVER>(), MateLen{334}, 20, 0);
+  const auto f3 = SearchResult::MakeFinal<false>(MakeHand<PAWN, SILVER>(), MateLen{334}, 24);
 
   EXPECT_EQ(sr_comparer(u2, u1), SearchResultComparer::Ordering::kLess);
   EXPECT_EQ(sr_comparer(u1, u2), SearchResultComparer::Ordering::kGreater);
   EXPECT_EQ(sr_comparer(u1, u3), SearchResultComparer::Ordering::kLess);
   EXPECT_EQ(sr_comparer(u3, u1), SearchResultComparer::Ordering::kGreater);
+  EXPECT_EQ(sr_comparer(u1, u4), SearchResultComparer::Ordering::kLess);
+  EXPECT_EQ(sr_comparer(u4, u1), SearchResultComparer::Ordering::kGreater);
 
   EXPECT_EQ(sr_comparer(f1, f2), SearchResultComparer::Ordering::kGreater);
   EXPECT_EQ(sr_comparer(f2, f1), SearchResultComparer::Ordering::kLess);
+  EXPECT_EQ(sr_comparer(f1, f3), SearchResultComparer::Ordering::kLess);
+  EXPECT_EQ(sr_comparer(f3, f1), SearchResultComparer::Ordering::kGreater);
 
   EXPECT_EQ(sr_comparer(u1, u1), SearchResultComparer::Ordering::kEquivalent);
   EXPECT_EQ(sr_comparer(f1, f1), SearchResultComparer::Ordering::kEquivalent);

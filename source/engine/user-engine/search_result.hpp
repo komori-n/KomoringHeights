@@ -230,6 +230,15 @@ class SearchResultComparer {
         }
       }
     }
+
+    if (lhs.Amount() != rhs.Amount()) {
+      if (lhs.Amount() < rhs.Amount()) {
+        return Ordering::kLess;
+      } else {
+        return Ordering::kGreater;
+      }
+    }
+
     return Ordering::kEquivalent;
   }
 
