@@ -209,7 +209,8 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
 
   expansion_list_.Emplace(tt_, n, len, true);
   while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
-    result = SearchImpl(n, thpn, thdn, len, false);
+    bool inc_flag = false;
+    result = SearchImpl(n, thpn, thdn, len, inc_flag);
     if (result.IsFinal()) {
       break;
     }
@@ -234,7 +235,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   return result;
 }
 
-SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool inc_flag) {
+SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool& inc_flag) {
   auto& local_expansion = expansion_list_.Current();
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);

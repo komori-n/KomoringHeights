@@ -164,7 +164,7 @@ class KomoringHeights {
    * @param inc_flag TCA の探索延長フラグ
    * @return 探索結果
    */
-  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool inc_flag);
+  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool& inc_flag);
 
   /**
    * @brief 現時点の探索結果から詰め手順を取得する
