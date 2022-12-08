@@ -133,6 +133,25 @@ class SearchResult {
     return os;
   }
 
+  /**
+   * @brief `result` をもとにしきい値 `thpn`, `thdn` を大きくして探索を延長する（TCA）
+   * @param result[in] 現在の探索結果
+   * @param thpn[inout] pnの探索しきい値
+   * @param thdn[inout] dnの探索しきい値
+   * @note `result.IsFinal() == true` ならしきい値を更新しないので注意。
+   */
+  friend constexpr void ExtendSearchThreshold(const SearchResult& result, PnDn& thpn, PnDn& thdn) noexcept {
+    if (!result.IsFinal()) {
+      if (result.Pn() < kInfinitePnDn) {
+        thpn = ClampPnDn(thpn, result.Pn() + 1);
+      }
+
+      if (result.Dn() < kInfinitePnDn) {
+        thdn = ClampPnDn(thdn, result.Dn() + 1);
+      }
+    }
+  }
+
  private:
   /// Unknown用の初期化関数。`MakeUnknown()` を使ってほしいので private に隠しておく。
   constexpr SearchResult(PnDn pn, PnDn dn, MateLen len, SearchAmount amount, UnknownData unknown_data)

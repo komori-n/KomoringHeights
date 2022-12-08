@@ -73,6 +73,39 @@ TEST(SearchResultTest, Delta) {
   EXPECT_EQ(result.Delta(false), 0);
 }
 
+TEST(SearchResultTest, Normal) {
+  const UnknownData unknown_data{true, BitSet64{445}};
+  const auto result = SearchResult::MakeUnknown(33, 4, MateLen{264}, 10, unknown_data);
+
+  komori::PnDn thpn = 1;
+  komori::PnDn thdn = 1;
+  ExtendSearchThreshold(result, thpn, thdn);
+  EXPECT_EQ(thpn, 33 + 1);
+  EXPECT_EQ(thdn, 4 + 1);
+}
+
+TEST(SearchResultTest, Final) {
+  const auto result = SearchResult::MakeFinal<true>(MakeHand<PAWN, SILVER>(), MateLen{334}, 20);
+
+  komori::PnDn thpn = 1;
+  komori::PnDn thdn = 1;
+  ExtendSearchThreshold(result, thpn, thdn);
+  EXPECT_EQ(thpn, 1);
+  EXPECT_EQ(thdn, 1);
+}
+
+TEST(SearchResultTest, Infinite) {
+  using komori::kInfinitePnDn;
+  const UnknownData unknown_data{true, BitSet64{445}};
+  const auto result = SearchResult::MakeUnknown(kInfinitePnDn, kInfinitePnDn, MateLen{264}, 10, unknown_data);
+
+  komori::PnDn thpn = 1;
+  komori::PnDn thdn = 1;
+  ExtendSearchThreshold(result, thpn, thdn);
+  EXPECT_EQ(thpn, 1);
+  EXPECT_EQ(thdn, 1);
+}
+
 TEST(SearchResultComparerTest, OrNode) {
   SearchResultComparer sr_comparer{true};
 

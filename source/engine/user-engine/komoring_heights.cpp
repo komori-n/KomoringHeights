@@ -220,7 +220,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
 
   expansion_list_.Emplace(tt_, n, len, true);
   while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
-    bool inc_flag = false;
+    std::uint32_t inc_flag = 0;
     result = SearchImpl(n, thpn, thdn, len, inc_flag);
     if (result.IsFinal()) {
       break;
@@ -246,7 +246,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   return result;
 }
 
-SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, bool& inc_flag) {
+SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag) {
   auto& local_expansion = expansion_list_.Current();
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);
@@ -261,15 +261,12 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   auto curr_result = local_expansion.CurrentResult(n);
   // Threshold Controlling Algorithm(TCA).
   // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
-  inc_flag = inc_flag || local_expansion.DoesHaveOldChild();
-  if (inc_flag && !curr_result.IsFinal()) {
-    if (curr_result.Pn() < kInfinitePnDn) {
-      thpn = ClampPnDn(thpn, curr_result.Pn() + 1);
-    }
+  if (local_expansion.DoesHaveOldChild()) {
+    inc_flag++;
+  }
 
-    if (curr_result.Dn() < kInfinitePnDn) {
-      thdn = ClampPnDn(thdn, curr_result.Dn() + 1);
-    }
+  if (inc_flag > 0) {
+    ExtendSearchThreshold(curr_result, thpn, thdn);
   }
 
   if (n.GetDepth() > 0 && monitor_.ShouldCheckHashfull()) {
@@ -295,8 +292,12 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     SearchResult child_result;
     if (is_first_search) {
       child_result = child_expansion.CurrentResult(n);
-      // 新規局面を展開したので、TCA による探索延長をこれ以上続ける必要はない
-      inc_flag = false;
+      // 新規局面を展開したので、inc_flag を 1 つ減らしておく
+      // オリジナルの TCA では inc_flag は bool 値なので単に false を代入していたが、KomoringHeights では
+      // 非負整数へ拡張している。
+      if (inc_flag > 0) {
+        inc_flag--;
+      }
 
       // 子局面を初展開する場合、child_result を計算した時点で threshold を超過する可能性がある
       // しかし、SearchImpl をコールしてしまうと TCA の探索延長によりすぐに返ってこない可能性がある
@@ -313,6 +314,10 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
 
     local_expansion.UpdateBestChild(child_result);
     curr_result = local_expansion.CurrentResult(n);
+
+    if (inc_flag > 0) {
+      ExtendSearchThreshold(curr_result, thpn, thdn);
+    }
   }
 
   return curr_result;
