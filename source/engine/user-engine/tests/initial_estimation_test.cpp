@@ -38,28 +38,10 @@ TEST(InitialEstimationTest, InitialAndNode) {
   EXPECT_EQ(InitialPnDn(*n, make_move_drop(PAWN, SQ_52, WHITE)).second, 4);
 }
 
-TEST(InitialEstimationTest, IsSumNode_OrDrop) {
+TEST(InitialEstimationTest, IsSumNode_Drop) {
   TestNode n{"4k4/9/9/9/9/9/9/9/9 b RBGSNLPrb3g3s3n3l17p 1", true};
 
   EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(PAWN, SQ_52, BLACK)));
-  EXPECT_FALSE(IsSumDeltaNode(*n, make_move_drop(LANCE, SQ_52, BLACK)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(KNIGHT, SQ_43, BLACK)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(SILVER, SQ_52, BLACK)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(GOLD, SQ_52, BLACK)));
-  EXPECT_FALSE(IsSumDeltaNode(*n, make_move_drop(BISHOP, SQ_42, BLACK)));
-  EXPECT_FALSE(IsSumDeltaNode(*n, make_move_drop(ROOK, SQ_52, BLACK)));
-}
-
-TEST(InitialEstimationTest, IsSumNode_AndDrop) {
-  TestNode n{"9/9/9/9/k7R/9/9/9/9 w r2b4g4s4n4l18p 1", false};
-
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(PAWN, SQ_85, WHITE)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(LANCE, SQ_85, WHITE)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(KNIGHT, SQ_85, WHITE)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(SILVER, SQ_85, WHITE)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(GOLD, SQ_85, WHITE)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(BISHOP, SQ_85, WHITE)));
-  EXPECT_TRUE(IsSumDeltaNode(*n, make_move_drop(ROOK, SQ_85, WHITE)));
 }
 
 TEST(InitialEstimationTest, IsSumNode_OrLance) {

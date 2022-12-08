@@ -162,18 +162,7 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
  */
 inline bool IsSumDeltaNode(const Node& n, Move move) {
   const bool or_node = n.IsOrNode();
-  if (is_drop(move)) {
-    // 駒打ち
-    if (or_node) {
-      const auto p = move_dropped_piece(move);
-      if (p == LANCE || p == BISHOP || p == ROOK) {
-        // 飛車と角はだいたいどこから打っても同じ
-        return false;
-      }
-    } else {
-      // AND node の駒打ち（合駒）は遅延展開でなんとかするので特に何も考えない
-    }
-  } else {
+  if (!is_drop(move)) {
     // 駒打ち以外
     if (or_node) {
       const auto from = from_sq(move);
