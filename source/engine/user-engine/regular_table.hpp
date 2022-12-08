@@ -118,10 +118,6 @@ constexpr std::size_t kHashfullCalcEntries = 10000;
 
 /// GC で削除する SearchAmount のしきい値を決めるために見るエントリの数
 constexpr std::size_t kGcSamplingEntries = 20000;
-/// GC で削除するエントリの割合
-constexpr double kGcRemovalRatio = 0.5;
-/// `kGcSamplingEntries` 個のエントリのうち、削除するエントリの個数
-constexpr std::size_t kGcRemovalPivotEntries = static_cast<std::size_t>(kGcSamplingEntries * kGcRemovalRatio);
 }  // namespace detail
 
 /**
@@ -216,11 +212,13 @@ class RegularTable {
 
   /**
    * @brief 通常テーブルの中で、メモリ使用率が高いエントリを間引く
+   * @param gc_removal_ratio GCで削除する割合
    * @pre 少なくとも1個のエントリが使用中
+   * @pre 0 < gc_removal_ratio < 1
    *
    * `entries_` の中から `GcSamplingEntries` 個のエントリの探索量を調べ、下位 `kGcRemovalRatio` のエントリを削除する。
    */
-  void CollectGarbage() {
+  void CollectGarbage(double gc_removal_ratio) {
     // Amount を kGcSamplingEntries 個だけサンプリングする
     std::size_t counted_num = 0;
     std::size_t idx = 0;
@@ -239,7 +237,9 @@ class RegularTable {
       }
     }
 
-    auto pivot_itr = amounts.begin() + detail::kGcRemovalPivotEntries;
+    const std::uint64_t gc_removal_pivot =
+        std::max<std::uint64_t>(static_cast<std::uint64_t>(detail::kGcSamplingEntries * gc_removal_ratio), 1);
+    auto pivot_itr = amounts.begin() + gc_removal_pivot;
     std::nth_element(amounts.begin(), pivot_itr, amounts.end());
     const SearchAmount max_amount = *std::max_element(amounts.begin(), amounts.end());
     const bool should_cut = (max_amount > std::numeric_limits<SearchAmount>::max() / 8);
@@ -316,6 +316,9 @@ class RegularTable {
 
     return is;
   }
+
+  /// 通常テーブルに保存可能な要素数。
+  constexpr std::size_t Capacity() const noexcept { return entries_.size(); }
 
   // <テスト用>
 

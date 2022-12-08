@@ -5,8 +5,19 @@
 
 namespace komori {
 namespace {
-inline std::uint64_t GcInterval(std::uint64_t hash_mb) {
-  return hash_mb * 1024 * 1024 / sizeof(tt::Entry);
+/// GC で削除するエントリの割合
+constexpr double kGcRemovalRatio = 0.5;
+static_assert(kGcRemovalRatio > 0 && kGcRemovalRatio < 1.0, "kGcRemovalRatio must be greater than 0 and less than 1");
+
+/// GC をするタイミング。置換表使用率がこの値を超えていたら GC を行う。
+constexpr double kExecuteGcHashRate = 0.6;
+static_assert(kExecuteGcHashRate > 0 && kExecuteGcHashRate < 1.0,
+              "kExecuteGcHashRate must be greater than 0 and less than 1");
+/// GC をする Hashfull のしきい値
+constexpr int kExecuteGcHashfullThreshold = std::max(static_cast<int>(1000 * kExecuteGcHashRate), 1);
+
+constexpr std::uint64_t HashfullCheckInterval(std::uint64_t capacity) noexcept {
+  return static_cast<std::uint64_t>(capacity * (1.0 - kExecuteGcHashRate));
 }
 
 std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, MateLen len) {
@@ -38,7 +49,7 @@ std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, Mat
 }  // namespace
 
 namespace detail {
-void SearchMonitor::NewSearch(std::uint64_t gc_interval, std::uint64_t move_limit) {
+void SearchMonitor::NewSearch(std::uint64_t hashfull_check_interval, std::uint64_t move_limit) {
   // この時点で stop_ が true ならすぐにやめなければならないので、stop_ の初期化はしない
 
   start_time_ = std::chrono::system_clock::now();
@@ -49,8 +60,8 @@ void SearchMonitor::NewSearch(std::uint64_t gc_interval, std::uint64_t move_limi
   hist_idx_ = 0;
 
   move_limit_ = move_limit;
-  gc_interval_ = gc_interval;
-  ResetNextGc();
+  hashfull_check_interval_ = hashfull_check_interval;
+  ResetNextHashfullCheck();
 }
 
 void SearchMonitor::Tick() {
@@ -85,8 +96,8 @@ UsiInfo SearchMonitor::GetInfo() const {
   return output;
 }
 
-void SearchMonitor::ResetNextGc() {
-  next_gc_count_ = MoveCount() + gc_interval_;
+void SearchMonitor::ResetNextHashfullCheck() {
+  next_hashfull_check_ = MoveCount() + hashfull_check_interval_;
 }
 }  // namespace detail
 
@@ -116,11 +127,11 @@ UsiInfo KomoringHeights::CurrentInfo() const {
 NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   // <初期化>
   tt_.NewSearch();
-  monitor_.NewSearch(GcInterval(option_.hash_mb), option_.nodes_limit);
+  monitor_.NewSearch(HashfullCheckInterval(tt_.Capacity()), option_.nodes_limit);
   best_moves_.clear();
 
-  if (tt_.Hashfull() > 200) {
-    tt_.CollectGarbage();
+  if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
+    tt_.CollectGarbage(kGcRemovalRatio);
   }
   // </初期化>
 
@@ -261,9 +272,11 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     }
   }
 
-  if (n.GetDepth() > 0 && monitor_.ShouldGc()) {
-    tt_.CollectGarbage();
-    monitor_.ResetNextGc();
+  if (n.GetDepth() > 0 && monitor_.ShouldCheckHashfull()) {
+    if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
+      tt_.CollectGarbage(kGcRemovalRatio);
+    }
+    monitor_.ResetNextHashfullCheck();
   }
 
   while (!monitor_.ShouldStop() && (curr_result.Pn() < thpn && curr_result.Dn() < thdn)) {

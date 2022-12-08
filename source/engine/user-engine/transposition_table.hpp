@@ -174,12 +174,7 @@ class TranspositionTableImpl {
    *
    * 通常テーブルおよび千日手テーブルのうち、必要なさそうなエントリの削除を行う。
    */
-  void CollectGarbage() { regular_table_.CollectGarbage(); }
-
-  /**
-   * @brief エントリをできるだけ手前の方に移動させる（コンパクション）
-   */
-  void CompactEntries() { regular_table_.CompactEntries(); }
+  void CollectGarbage(double gc_removal_ratio) { regular_table_.CollectGarbage(gc_removal_ratio); }
 
   /**
    * @brief 置換表の中身をバイナリ出力ストリーム `os` へ出力する
@@ -197,6 +192,12 @@ class TranspositionTableImpl {
    * @return `is`
    */
   std::istream& Load(std::istream& is) { return regular_table_.Load(is); }
+
+  /**
+   * @brief  置換表に保存可能な要素数の概算値を取得する。
+   * @return 置換表に保存可能な要素数（概算値）
+   */
+  std::uint64_t Capacity() const noexcept { return regular_table_.Capacity(); }
 
   // <テスト用>
   // 外部から内部変数を観測できないと厳しいので、直接アクセスできるようにしておく。

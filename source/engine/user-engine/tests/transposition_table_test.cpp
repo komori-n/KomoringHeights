@@ -22,10 +22,10 @@ struct RegularTableMock {
   MOCK_METHOD(void, Clear, ());
   MOCK_METHOD(komori::tt::CircularEntryPointer, PointerOf, (Key));
   MOCK_METHOD(double, CalculateHashRate, (), (const));
-  MOCK_METHOD(void, CollectGarbage, ());
-  MOCK_METHOD(void, CompactEntries, ());
+  MOCK_METHOD(void, CollectGarbage, (double));
   MOCK_METHOD(std::ostream&, Save, (std::ostream&));
   MOCK_METHOD(std::istream&, Load, (std::istream&));
+  MOCK_METHOD(std::uint64_t, Capacity, (), (const));
   MOCK_METHOD(komori::tt::Entry*, begin, (), (const));
   MOCK_METHOD(komori::tt::Entry*, end, (), (const));
 };
@@ -136,11 +136,11 @@ TEST_F(TranspositionTableTest, Hashfull) {
 }
 
 TEST_F(TranspositionTableTest, CollectGarbage) {
-  EXPECT_CALL(tt_.GetRegularTable(), CollectGarbage).Times(1);
-  tt_.CollectGarbage();
+  EXPECT_CALL(tt_.GetRegularTable(), CollectGarbage(0.334)).Times(1);
+  tt_.CollectGarbage(0.334);
 }
 
-TEST_F(TranspositionTableTest, CompactEntries) {
-  EXPECT_CALL(tt_.GetRegularTable(), CompactEntries).Times(1);
-  tt_.CompactEntries();
+TEST_F(TranspositionTableTest, Capacity) {
+  EXPECT_CALL(tt_.GetRegularTable(), Capacity()).WillOnce(Return(334));
+  EXPECT_EQ(tt_.Capacity(), 334);
 }

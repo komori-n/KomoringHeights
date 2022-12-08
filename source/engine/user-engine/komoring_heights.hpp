@@ -32,9 +32,9 @@ class SearchMonitor {
   void SetThread(Thread* thread) { thread_ = thread; }
   /**
    * @brief 変数を初期化して探索を開始する。
-   * @param gc_interval GC 周期（/探索局面数）
+   * @param hashfull_check_interval 置換表使用率チェック周期（/探索局面数）
    */
-  void NewSearch(std::uint64_t gc_interval, std::uint64_t move_limit);
+  void NewSearch(std::uint64_t hashfull_check_interval, std::uint64_t move_limit);
 
   /**
    * @brief 深さ `depth` の局面に訪れたことを報告する
@@ -57,10 +57,10 @@ class SearchMonitor {
   std::uint64_t MoveCount() const { return thread_->nodes; }
   /// 今すぐ探索をやめるべきなら true
   bool ShouldStop() const { return MoveCount() >= move_limit_ || stop_.load(std::memory_order_relaxed); }
-  /// 今すぐ GC を行うべきなら true
-  bool ShouldGc() const { return MoveCount() >= next_gc_count_; }
-  /// 次回の GC タイミングを再設定する
-  void ResetNextGc();
+  /// 今すぐ置換表使用率をチェックすべきなら true
+  bool ShouldCheckHashfull() const { return MoveCount() >= next_hashfull_check_; }
+  /// 次回の置換表使用率チェックタイミングを更新する
+  void ResetNextHashfullCheck();
   /// 今すぐ探索をやめさせる
   void SetStop(bool stop = true) { stop_.store(stop, std::memory_order_relaxed); }
 
@@ -77,10 +77,10 @@ class SearchMonitor {
   CircularArray<std::uint64_t, kHistLen> mc_hist_;                          ///< 各時点での探索局面数
   std::size_t hist_idx_;  ///< `tp_hist_` と `mc_hist_` の現在の添字
 
-  std::uint64_t move_limit_;     ///< 探索局面数の上限
-  std::uint64_t gc_interval_;    ///< GC 周期（/探索局面数）
-  std::uint64_t next_gc_count_;  ///< 次回の GC をすべき探索局面数
-  Thread* thread_{nullptr};      ///< 探索に用いるスレッド。探索局面数の取得に用いる。
+  std::uint64_t move_limit_;               ///< 探索局面数の上限
+  std::uint64_t hashfull_check_interval_;  ///< 置換表使用率をチェックする周期[探索局面数]
+  std::uint64_t next_hashfull_check_;  ///< 次に置換表使用率をチェックするタイミング[探索局面数]
+  Thread* thread_{nullptr};            ///< 探索に用いるスレッド。探索局面数の取得に用いる。
 };
 }  // namespace detail
 

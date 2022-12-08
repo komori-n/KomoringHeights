@@ -115,6 +115,7 @@ TEST_F(RegularTableTest, CalculateHashRate_Full) {
 
 TEST_F(RegularTableTest, CollectGarbage) {
   // 直接テストするのは難しいので、コール後にちゃんとエントリが消えているかどうかを調べる
+  const auto removal_ratio = 0.5;
 
   komori::SearchAmount i = 1;
   for (auto&& entry : tt_) {
@@ -123,9 +124,9 @@ TEST_F(RegularTableTest, CollectGarbage) {
   }
 
   EXPECT_EQ(tt_.CalculateHashRate(), 1.0);
-  tt_.CollectGarbage();
-  EXPECT_LT(tt_.CalculateHashRate(), 1.0 - komori::tt::detail::kGcRemovalRatio + 0.1);
-  EXPECT_GT(tt_.CalculateHashRate(), 1.0 - komori::tt::detail::kGcRemovalRatio - 0.1);
+  tt_.CollectGarbage(removal_ratio);
+  EXPECT_LT(tt_.CalculateHashRate(), 1.0 - removal_ratio + 0.1);
+  EXPECT_GT(tt_.CalculateHashRate(), 1.0 - removal_ratio - 0.1);
 }
 
 TEST_F(RegularTableTest, CompactEntries) {
@@ -165,4 +166,8 @@ TEST_F(RegularTableTest, SaveLoad) {
   EXPECT_TRUE(p1->IsFor(board_key2, hand2));
   EXPECT_TRUE((&*p1 + 1)->IsFor(board_key1, hand1));
   EXPECT_FALSE(p2->IsFor(board_key2, hand2));
+}
+
+TEST_F(RegularTableTest, Capacity) {
+  EXPECT_EQ(tt_.Capacity(), 2604);
 }
