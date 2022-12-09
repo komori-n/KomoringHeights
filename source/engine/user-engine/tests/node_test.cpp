@@ -14,6 +14,7 @@ TEST(NodeTest, PositionValues) {
   EXPECT_EQ(n->OrHand(), p.hand_of(WHITE));
   EXPECT_EQ(n->AndHand(), p.hand_of(BLACK));
   EXPECT_TRUE(n->IsRootOrNode());
+  EXPECT_EQ(n->KingSquare(), SQ_48);
   EXPECT_EQ(n->GetDepth(), 4);
   EXPECT_EQ(n->GetKey(), p.key());
   EXPECT_EQ(n->BoardKey(), p.state()->board_key());

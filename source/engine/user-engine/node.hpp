@@ -81,6 +81,9 @@ class Node {
   /// 開始局面が OR Node かどうか
   bool IsRootOrNode() const { return IsOrNode() ^ (GetDepth() % 2 == 1); }
 
+  /// 玉の位置
+  Square KingSquare() const { return Pos().king_square(AndColor()); }
+
   /// 現在の探索深さ
   Depth GetDepth() const { return depth_; }
 
@@ -156,7 +159,7 @@ class Node {
 
     auto last_move = Pos().state()->lastMove;
     auto checker_sq = Pos().state()->previous->checkersBB.pop_c();
-    auto king_sq = Pos().king_square(~Pos().side_to_move());
+    auto king_sq = KingSquare();
 
     auto between = between_bb(king_sq, checker_sq);
     if (!between.test(to_sq(last_move))) {

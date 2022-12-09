@@ -128,8 +128,7 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
   };
 
   auto us = n.Us();
-  auto king_color = n.AndColor();
-  auto king_sq = n.Pos().king_square(king_color);
+  auto king_sq = n.KingSquare();
   auto to = to_sq(move);
 
   int value = 0;
