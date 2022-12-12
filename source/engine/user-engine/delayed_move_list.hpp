@@ -151,8 +151,7 @@ class DelayedMoveList {
       // 逆王手でない中合いはだいたい無意味なので後回し
       const auto support_cnt1 = n.Pos().attackers_to(n.Us(), to1).pop_count();
       const auto support_cnt2 = n.Pos().attackers_to(n.Us(), to2).pop_count();
-      if (!n.IsOrNode() && support_cnt1 == 0 && support_cnt2 == 0 && !n.Pos().gives_check(m1) &&
-          !n.Pos().gives_check(m2)) {
+      if (support_cnt1 == 0 && support_cnt2 == 0 && !n.Pos().gives_check(m1) && !n.Pos().gives_check(m2)) {
         return true;
       }
     } else if (!is_drop(m1) && !is_drop(m2)) {
