@@ -124,6 +124,13 @@ inline std::optional<BranchRootEdge> FindKnownAncestor(tt::TranspositionTable& t
       break;
     }
 
+    if (dn > last_dn + kAncestorSearchThreshold) {
+      dn_flag = false;
+    }
+    if (pn > last_pn + kAncestorSearchThreshold) {
+      pn_flag = false;
+    }
+
     if (n.ContainsInPath(parent_key_hand_pair.board_key, parent_key_hand_pair.hand)) {
       if ((or_node && dn_flag) || (!or_node && pn_flag)) {
         // OR node なら dn、AND node なら pn を二重カウントしている
@@ -131,13 +138,6 @@ inline std::optional<BranchRootEdge> FindKnownAncestor(tt::TranspositionTable& t
       } else {
         break;
       }
-    }
-
-    if (dn > last_dn + kAncestorSearchThreshold) {
-      dn_flag = false;
-    }
-    if (pn > last_pn + kAncestorSearchThreshold) {
-      pn_flag = false;
     }
 
     key_hand_pair = parent_key_hand_pair;
