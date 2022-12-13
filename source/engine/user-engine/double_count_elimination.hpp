@@ -133,9 +133,10 @@ inline std::optional<BranchRootEdge> FindKnownAncestor(tt::TranspositionTable& t
       }
     }
 
-    if (or_node && dn > last_dn + kAncestorSearchThreshold) {
+    if (dn > last_dn + kAncestorSearchThreshold) {
       dn_flag = false;
-    } else if (!or_node && pn > last_pn + kAncestorSearchThreshold) {
+    }
+    if (pn > last_pn + kAncestorSearchThreshold) {
       pn_flag = false;
     }
 
