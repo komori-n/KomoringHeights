@@ -249,6 +249,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
 SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag) {
   const PnDn orig_thpn = thpn;
   const PnDn orig_thdn = thdn;
+  const std::uint32_t orig_inc_flag = inc_flag;
 
   auto& local_expansion = expansion_list_.Current();
   monitor_.Visit(n.GetDepth());
@@ -300,10 +301,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
       // 非負整数へ拡張している。
       if (inc_flag > 0) {
         inc_flag--;
-        if (inc_flag == 0) {
-          thpn = orig_thpn;
-          thdn = orig_thdn;
-        }
       }
 
       // 子局面を初展開する場合、child_result を計算した時点で threshold を超過する可能性がある
@@ -314,10 +311,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
       }
     }
     child_result = SearchImpl(n, child_thpn, child_thdn, len - 1, inc_flag);
-    if (inc_flag == 0) {
-      thpn = orig_thpn;
-      thdn = orig_thdn;
-    }
 
   CHILD_SEARCH_END:
     expansion_list_.Pop();
@@ -326,8 +319,15 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     local_expansion.UpdateBestChild(child_result);
     curr_result = local_expansion.CurrentResult(n);
 
+    // TCA で延長したしきい値はいったん戻す
+    thpn = orig_thpn;
+    thdn = orig_thdn;
     if (inc_flag > 0) {
+      // TCA 継続中ならしきい値を伸ばす
       ExtendSearchThreshold(curr_result, thpn, thdn);
+    } else if (inc_flag == 0 && orig_inc_flag > 0) {
+      // TCA の展開が終わったので、いったん親局面に戻る
+      break;
     }
   }
 
