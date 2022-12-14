@@ -331,6 +331,8 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     }
   }
 
+  /// `inc_flag` の値は探索前より小さくなっているはず
+  inc_flag = std::min(inc_flag, orig_inc_flag);
   return curr_result;
 }
 
