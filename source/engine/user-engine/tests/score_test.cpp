@@ -97,3 +97,17 @@ TEST(ScoreTest, MakeUnknown_Repetition) {
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kMinusPn, result, false));
   EXPECT_EQ(s2, Score::Make(ScoreCalculationMethod::kPonanza, result, false));
 }
+
+TEST(ScoreTest, IsFinal) {
+  const SearchResult r1 = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
+  const auto s1 = Score::Make(ScoreCalculationMethod::kNone, r1, true);
+  EXPECT_FALSE(s1.IsFinal());
+
+  const SearchResult r2 = SearchResult::MakeFinal<true>(HAND_ZERO, MateLen{264}, 1);
+  const auto s2 = Score::Make(ScoreCalculationMethod::kNone, r2, true);
+  EXPECT_TRUE(s2.IsFinal());
+
+  const SearchResult r3 = SearchResult::MakeFinal<false>(HAND_ZERO, MateLen{264}, 1);
+  const auto s3 = Score::Make(ScoreCalculationMethod::kNone, r3, true);
+  EXPECT_TRUE(s2.IsFinal());
+}

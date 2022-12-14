@@ -76,6 +76,9 @@ class Score : DefineNotEqualByEqual<Score> {
     }
   }
 
+  /// 評価値が詰み／不詰かどうか。
+  bool IsFinal() const { return kind_ != Kind::kUnknown; }
+
   /// 評価値の正負を反転させる
   Score operator-() const {
     switch (kind_) {

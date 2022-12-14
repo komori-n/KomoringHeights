@@ -155,6 +155,7 @@ struct EngineOption {
   std::uint64_t nodes_limit;         ///< 探索局面数制限。探索量に制限がないとき、2^64-1。
   std::uint64_t pv_interval;         ///< 探索進捗を表示する間隔[ms]。0 ならば全く出力しない。
   bool root_is_and_node_if_checked;  ///< 開始局面が王手されているとき、玉方手番として扱うフラグ。
+  bool show_pv_after_mate;           ///< 詰みを見つけた後に PV を表示するかどうか。
 
   ScoreCalculationMethod score_method;  ///< スコアの計算法
   PostSearchLevel post_search_level;    ///< 余詰探索の度合い
@@ -189,6 +190,8 @@ struct EngineOption {
 
     o["TTReadPath"] << USI::Option("");
     o["TTWritePath"] << USI::Option("");
+
+    o["ShowPVAfterMate"] << USI::Option(true);
   }
 
   /**
@@ -219,6 +222,8 @@ struct EngineOption {
 
     tt_read_path = detail::ReadOption<std::string>(o, "TTReadPath");
     tt_write_path = detail::ReadOption<std::string>(o, "TTWritePath");
+
+    show_pv_after_mate = (detail::ReadOption(o, "ShowPVAfterMate") != 0);
   }
 };
 }  // namespace komori
