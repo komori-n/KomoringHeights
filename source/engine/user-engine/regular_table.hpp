@@ -318,14 +318,14 @@ class RegularTable {
   }
 
   /// 通常テーブルに保存可能な要素数。
-  constexpr std::size_t Capacity() const noexcept { return entries_.size(); }
+  std::size_t Capacity() const noexcept { return entries_.size(); }
 
   // <テスト用>
 
   /// 通常テーブルの先頭
-  constexpr auto begin() noexcept { return entries_.data(); }
+  auto begin() noexcept { return entries_.data(); }
   /// 通常テーブルの末尾
-  constexpr auto end() noexcept { return entries_.data() + entries_.size(); }
+  auto end() noexcept { return entries_.data() + entries_.size(); }
 
   /**
    * @brief エントリをできるだけ手前の方に移動させる（コンパクション）
