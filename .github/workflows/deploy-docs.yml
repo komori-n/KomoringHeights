@@ -1,0 +1,47 @@
+---
+name: Deploy Design Documents
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout own repository
+      uses: actions/checkout@v2
+      with:
+        path: main
+        submodules: true
+
+    - name: Install libraries
+      run: |
+        wget https://github.com/linux-test-project/lcov/releases/download/v1.16/lcov-1.16.tar.gz
+        tar xvf lcov-1.16.tar.gz
+        cd lcov-1.16
+        sudo make install
+
+        pip install pre-commit coverxygen
+        sudo apt-get update && sudo apt-get -y install doxygen graphviz
+
+    - name: Generate Documents
+      run: ./main/source/engine/user-engine/tests/generate-docs
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: docs
+        path: ./main/source/engine/user-engine/tests/docs-html
+
+    - name: Push documents
+      uses: cpina/github-action-push-to-another-repository@main
+      env:
+        SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+      with:
+        source-directory: 'main/source/engine/user-engine/tests/docs-html'
+        destination-github-username: 'komori-n'
+        destination-repository-name: 'komoring-heights-docs'
+        user-email: komori-n@ymail.ne.jp
+        target-branch: main
+        target-directory: docs

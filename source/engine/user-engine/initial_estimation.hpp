@@ -1,5 +1,8 @@
-#ifndef PNDN_ESTIMATION_HPP_
-#define PNDN_ESTIMATION_HPP_
+/**
+ * @file initial_estimation.hpp
+ */
+#ifndef KOMORI_PNDN_ESTIMATION_HPP_
+#define KOMORI_PNDN_ESTIMATION_HPP_
 
 #include <utility>
 
@@ -8,28 +11,32 @@
 
 namespace komori {
 namespace detail {
-inline constexpr PnDn kPnDnUnit = 2;
-
+/**
+ * @brief df-pn+における OR node の pn/dn 初期値を計算する
+ * @param n     現局面
+ * @param move  次の手
+ * @return `n` を `move` で動かした局面の pn/dn の初期値
+ */
 inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move) {
   PnDn pn = kPnDnUnit;
   PnDn dn = kPnDnUnit;
 
-  Color us = n.side_to_move();
-  Color them = ~us;
-  Square to = to_sq(move);
-  auto attack_support = n.attackers_to(us, to).pop_count();
-  auto defence_support = n.attackers_to(them, to).pop_count();
+  const Color us = n.side_to_move();
+  const Color them = ~us;
+  const Square to = to_sq(move);
+  const auto attack_support = n.attackers_to(us, to).pop_count();
+  const auto defense_support = n.attackers_to(them, to).pop_count();
 
-  if (defence_support >= 2) {
+  if (defense_support >= 2) {
     // たくさん受け駒が利いている場合は後回し
     pn += kPnDnUnit;
   }
 
-  if (attack_support + (is_drop(move) ? 1 : 0) > defence_support) {
+  if (attack_support + (is_drop(move) ? 1 : 0) > defense_support) {
     // 攻め駒がたくさんあるときは探索を優先する
     dn += kPnDnUnit;
   } else if (auto captured_pc = n.piece_on(to); captured_pc != NO_PIECE) {
-    auto captured_pr = raw_type_of(captured_pc);
+    const auto captured_pr = raw_type_of(captured_pc);
     if (captured_pr == GOLD || captured_pr == SILVER) {
       dn += kPnDnUnit;
     } else {
@@ -42,11 +49,17 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move)
   return {pn, dn};
 }
 
+/**
+ * @brief df-pn+における AND node の pn/dn 初期値を計算する
+ * @param n     現局面
+ * @param move  次の手
+ * @return `n` を `move` で動かした局面の pn/dn の初期値
+ */
 inline std::pair<PnDn, PnDn> InitialPnDnPlusAndNode(const Position& n, Move move) {
-  Color us = n.side_to_move();
-  Color them = ~us;
-  Square to = to_sq(move);
-  Square king_sq = n.king_square(us);
+  const Color us = n.side_to_move();
+  const Color them = ~us;
+  const Square to = to_sq(move);
+  const Square king_sq = n.king_square(us);
 
   if (n.piece_on(to) != NO_PIECE) {
     // コマを取る手は探索を優先する
@@ -58,10 +71,10 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusAndNode(const Position& n, Move move
     return {1 * kPnDnUnit, 1 * kPnDnUnit};
   }
 
-  auto attack_support = n.attackers_to(them, to).pop_count();
-  auto defence_support = n.attackers_to(us, to).pop_count();
+  const auto attack_support = n.attackers_to(them, to).pop_count();
+  const auto defense_support = n.attackers_to(us, to).pop_count();
 
-  if (attack_support < defence_support + (is_drop(move) ? 1 : 0)) {
+  if (attack_support < defense_support + (is_drop(move) ? 1 : 0)) {
     return {2 * kPnDnUnit, 1 * kPnDnUnit};
   }
   return {1 * kPnDnUnit, 2 * kPnDnUnit};
@@ -75,24 +88,31 @@ void DeepDfpnInit(Depth d, double e);
 PnDn InitialDeepPnDn(Depth depth);
 #endif
 
+/**
+ * @brief 初めて訪れた局面の pn/dn 初期値を計算する
+ * @param n     現局面
+ * @param move  次の手
+ * @return `n` を `move` で動かした局面の pn/dn の初期値
+ *
+ * 局面の pn/dn 初期値を与える関数。古典的な df-pn アルゴリズムでは (pn, dn) = (1, 1) だが、この値を
+ * 詰みやすさ／詰み逃れやすさに応じて増減させることで探索性能を向上させられる。
+ */
 inline std::pair<PnDn, PnDn> InitialPnDn(const Node& n, Move move) {
-#if defined(USE_DFPN_PLUS)
+#if !defined(USE_DEEP_DFPN)
   // df-pn+
   // 評価関数の設計は GPS 将棋を参考にした。
   // https://gps.tanaka.ecc.u-tokyo.ac.jp/cgi-bin/viewvc.cgi/trunk/osl/std/osl/checkmate/libertyEstimator.h?view=markup
 
-  bool or_node = n.IsOrNode();
+  const bool or_node = n.IsOrNode();
   if (or_node) {
     return detail::InitialPnDnPlusOrNode(n.Pos(), move);
   } else {
     return detail::InitialPnDnPlusAndNode(n.Pos(), move);
   }
-#elif defined(USE_DEEP_DFPN)
+#else   // !defined(USE_DEEP_DFPN)
   PnDn pndn = InitialDeepPnDn(n.GetDepth());
   return {pndn, pndn};
-#else
-  return {kInitialPn, kInitialDn};
-#endif
+#endif  // !defined(USE_DEEP_DFPN)
 }
 
 /**
@@ -107,9 +127,8 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
       0, 1, 2, 2, 3, 5, 5, 5, 8, 5, 5, 5, 5, 8, 8, 8,
   };
 
-  auto us = n.Pos().side_to_move();
-  auto king_color = n.AndColor();
-  auto king_sq = n.Pos().king_square(king_color);
+  auto us = n.Us();
+  auto king_sq = n.KingSquare();
   auto to = to_sq(move);
 
   int value = 0;
@@ -141,13 +160,22 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
  * @return false  move に対するδ値は max で計上すべき
  */
 inline bool IsSumDeltaNode(const Node& n, Move move) {
-  bool or_node = n.IsOrNode();
-  if (is_drop(move)) {
-    // 駒打ち
+  const bool or_node = n.IsOrNode();
+  if (!is_drop(move)) {
+    // 駒打ち以外
     if (or_node) {
-      if (move_dropped_piece(move) == LANCE || move_dropped_piece(move) == BISHOP || move_dropped_piece(move) == ROOK) {
-        // 飛車と角はだいたいどこから打っても同じ
-        return false;
+      const auto from = from_sq(move);
+      const auto to = to_sq(move);
+      const auto pc = n.Pos().piece_on(from);
+      const auto pt = type_of(pc);
+
+      // 2 or 3段目の香成と不成
+      if (pt == LANCE) {
+        const auto king_sq = n.Pos().king_square(n.AndColor());
+        if ((n.Us() == BLACK && (rank_of(to) == RANK_3 || rank_of(to) == RANK_2) && king_sq == to + SQ_U) ||
+            (n.Us() == WHITE && (rank_of(to) == RANK_7 || rank_of(to) == RANK_8) && king_sq == to + SQ_D)) {
+          return false;
+        }
       }
     }
   }
@@ -156,4 +184,4 @@ inline bool IsSumDeltaNode(const Node& n, Move move) {
 }
 }  // namespace komori
 
-#endif  // PNDN_ESTIMATION_HPP_
+#endif  // KOMORI_PNDN_ESTIMATION_HPP_

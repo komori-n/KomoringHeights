@@ -344,7 +344,7 @@ static bool aligned(Square sq1, Square sq2, Square sq3/* is ksq */)
 constexpr int MAX_PLY = MAX_PLY_NUM;
 
 // 探索深さを表現する型
-typedef int Depth;
+typedef std::int32_t Depth;
 
 enum : int {
 

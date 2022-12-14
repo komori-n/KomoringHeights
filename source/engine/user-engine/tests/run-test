@@ -1,0 +1,8 @@
+#!/bin/bash
+
+COMPILER=${CXX}
+if [ "${COMPILER}" == "" ]; then
+    COMPILER=clang++
+fi
+
+cd `dirname $0` && make -j4 test COMPILER=${COMPILER}

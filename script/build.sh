@@ -67,6 +67,7 @@ ARCHCPUS=(
   SSE2
   NO_SSE
   GRAVITON2
+  M1
   OTHER
 )
 

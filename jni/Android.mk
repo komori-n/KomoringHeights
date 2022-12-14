@@ -244,17 +244,9 @@ endif
 
 ifeq ($(YANEURAOU_EDITION),USER_ENGINE)
 LOCAL_SRC_FILES += \
-		../source/engine/user-engine/children_cache.cpp \
-		../source/engine/user-engine/engine_option.cpp \
-		../source/engine/user-engine/hands.cpp \
-    ../source/engine/user-engine/initial_estimation.cpp \
+		../source/engine/user-engine/initial_estimation.cpp \
 		../source/engine/user-engine/komoring_heights.cpp \
-		../source/engine/user-engine/path_keys.cpp \
-		../source/engine/user-engine/pv_tree.cpp \
-		../source/engine/user-engine/transposition_table.cpp\
-		../source/engine/user-engine/ttentry.cpp \
-		../source/engine/user-engine/user-search.cpp \
-    ../source/engine/user-engine/usi.cpp
+		../source/engine/user-engine/user-search.cpp
 endif
 
 ifneq ($(ENGINE_NAME),)

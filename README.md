@@ -4,36 +4,45 @@
 ![Make CI (for Mac)](https://github.com/komori-n/KomoringHeights/workflows/Make%20CI%20(for%20Mac)/badge.svg?event=push)
 ![NDK CI (for Android)](https://github.com/komori-n/KomoringHeights/workflows/NDK%20CI%20(for%20Android)/badge.svg?event=push)
 
-# About this project
+# KomoringHeights
 
-KomoringHeights は、df-pn+アルゴリズムを用いたやねうら王ベースの詰将棋ソルバーです。
-中〜長編の詰将棋を高速に解くことを目指して開発をしています。
+[English](README.en.md)
+
+KomoringHeights は、df-pn+アルゴリズムを用いた[やねうら王](https://github.com/yaneurao/YaneuraOu/)ベースの詰将棋エンジンです。
+局面の優劣関係、厳密な千日手検出、局面の合流検出と二重カウント回避など、詰将棋特有の探索技法が実装されており、
+詰み／不詰の判定を高速に行うことができます。
 
 KomoringHeights 本体は `source/engine/user-engine` 以下に格納されています。
+それ以外はほぼすべてやねうら王由来のファイルとなっています。
 
-# How to use
+## How to use
 
 [Releases](https://github.com/komori-n/KomoringHeights/releases) からお使いのOSに合ったバイナリをダウンロードしてください。
 KomoringHeightsを動かすには、[将棋所](http://shogidokoro.starfree.jp/)、[ShogiGUI](http://shogigui.siganus.com/)、
 [ShogiDroid](http://shogidroid.siganus.com/)などのUSIプロトコルに対応したGUIを利用してください。
 
-エンジンオプションについては [EngineOptions](docs/EngineOptions.txt) を参照。
+USIプロトコルの検討機能（`go ...`）および詰将棋解答機能（`go mate ...`）の両方に対応しています。
+使用するGUIソフトの仕様に応じて使い分けてください。
 
-# 技術解説
+詳細なエンジンオプションについては [EngineOptions](source/engine/suer-engine/docs/EngineOptions.txt) を参照してください。
 
-* [詰将棋に対するdf-pnアルゴリズムの解説 | コウモリのちょーおんぱ](https://komorinfo.com/blog/df-pn-basics/)
-* [詰将棋探索における証明駒／反証駒の活用方法 | コウモリのちょーおんぱ](https://komorinfo.com/blog/proof-piece-and-disproof-piece/)
-* [高速な詰将棋ソルバー『KomoringHeights』v0.4.0を公開した | コウモリのちょーおんぱ](https://komorinfo.com/blog/komoring-heights-v040/)
+## References
 
-# Contributing
+詰将棋エンジンを作る上で参考にした文献等については[References](source/engine/user-engine/docs/refs.md)を参照してください。
+
+## 開発者向けドキュメント
+
+Doxygenから自動生成したドキュメントは以下を参照してください。
+
+- <https://komori-n.github.io/komoring-heights-docs/index.html>
+
+## Contributing
 
 バグの報告や機能要望などはIssueへお願いします。
-Pull Requestも大歓迎です。
+Pull Requestも大歓迎です。Pull Requestを作成する場合、事前に `.pre-commit-config.yaml` の pre-commit チェックが通ることを確認してください。
 
-# ライセンス
+## ライセンス
 
 Licensed under GPLv3.
 
-やねうら王プロジェクトのソースコードはStockfishをそのまま用いている部分が多々あり、Apery/SilentMajorityを参考にしている部分もありますので、やねうら王プロジェクトは、それらのプロジェクトのライセンス(GPLv3)に従うものとします。
-
-「リゼロ評価関数ファイル」については、やねうら王プロジェクトのオリジナルですが、一切の権利は主張しませんのでご自由にお使いください。
+`source/engine/user-engine/` 以下は komori-n、それ以外は [やねうら王](https://github.com/yaneurao/YaneuraOu/) がベースです。

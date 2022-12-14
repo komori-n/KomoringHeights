@@ -8,7 +8,7 @@
 
 // 思考エンジンのバージョンとしてUSIプロトコルの"usi"コマンドに応答するときの文字列。
 // ただし、この値を数値として使用することがあるので数値化できる文字列にしておく必要がある。
-#define ENGINE_VERSION "0.5.0"
+#define ENGINE_VERSION "1.0.0-dev"
 
 // --------------------
 //  思考エンジンの種類
@@ -486,7 +486,6 @@ constexpr int MAX_PLY_NUM = 246;
 #define KEEP_LAST_MOVE
 #define USE_KEY_AFTER
 #define USE_BOARD_KEY_AFTER
-#define USE_DFPN_PLUS
 // #define USE_DEEP_DFPN
 #endif
 

@@ -1,10 +1,9 @@
-﻿#include <cmath>
+#include <cmath>
 #include <condition_variable>
 #include <mutex>
 
 #include "../../extra/all.h"
 
-#include "initial_estimation.hpp"
 #include "komoring_heights.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
@@ -22,7 +21,7 @@ std::mutex g_end_mtx;
 std::condition_variable g_end_cv;
 // </探索終了同期>
 
-komori::NodeState g_search_result = komori::NodeState::kNullState;
+komori::NodeState g_search_result = komori::NodeState::kUnknown;
 
 /// 局面が OR node っぽいかどうかを調べる。困ったら OR node として処理する。
 bool IsPosOrNode(const Position& root_pos) {
@@ -61,36 +60,18 @@ void PrintResult(bool is_mate_search, LoseKind kind, const std::string& pv_moves
     }
   } else {
     auto usi_output = g_searcher.CurrentInfo();
-    usi_output.Set(komori::UsiInfo::KeyKind::kDepth, 0).Set(komori::UsiInfo::KeyKind::kPv, pv_moves);
+    usi_output.Set(komori::UsiInfoKey::kDepth, 0);
+    usi_output.Set(komori::UsiInfoKey::kPv, pv_moves);
     sync_cout << usi_output << sync_endl;
   }
 }
 
 void ShowCommand(Position& pos, std::istringstream& is) {
-  std::vector<Move> moves;
-  std::vector<StateInfo> st_info;
-  std::string token;
-  Move m;
-  while (is >> token && (m = USI::to_move(pos, token)) != MOVE_NONE) {
-    moves.emplace_back(m);
-    pos.do_move(m, st_info.emplace_back());
-    sync_cout << m << sync_endl;
-  }
-
-  sync_cout << pos << sync_endl;
-
-  for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
-    pos.undo_move(*itr);
-    st_info.pop_back();
-  }
-
-  bool is_root_or_node = IsPosOrNode(pos);
-  g_searcher.ShowValues(pos, is_root_or_node, moves);
+  // unimplemented
 }
 
 void PvCommand(Position& pos, std::istringstream& /* is */) {
-  bool is_root_or_node = IsPosOrNode(pos);
-  g_searcher.ShowPv(pos, is_root_or_node);
+  // unimplemented
 }
 
 void WaitSearchEnd() {
@@ -141,7 +122,7 @@ void user_test(Position& pos, std::istringstream& is) {
 // USIに追加オプションを設定したいときは、この関数を定義すること。
 // USI::init()のなかからコールバックされる。
 void USI::extra_option(USI::OptionsMap& o) {
-  g_option.Init(o);
+  komori::EngineOption::Init(o);
 }
 
 // 起動時に呼び出される。時間のかからない探索関係の初期化処理はここに書くこと。
@@ -201,7 +182,7 @@ void MainThread::search() {
   }
 
   Move best_move = MOVE_NONE;
-  if (g_search_result == komori::NodeState::kProvenState) {
+  if (g_search_result == komori::NodeState::kProven) {
     auto best_moves = g_searcher.BestMoves();
     std::ostringstream oss;
     for (const auto& move : best_moves) {
@@ -213,8 +194,7 @@ void MainThread::search() {
       best_move = best_moves[0];
     }
   } else {
-    if (g_search_result == komori::NodeState::kDisprovenState ||
-        g_search_result == komori::NodeState::kRepetitionState) {
+    if (g_search_result == komori::NodeState::kDisproven || g_search_result == komori::NodeState::kRepetition) {
       PrintResult(is_mate_search, LoseKind::kNoMate);
     } else {
       PrintResult(is_mate_search, LoseKind::kTimeout);

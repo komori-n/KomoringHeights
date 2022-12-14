@@ -246,6 +246,8 @@ ModelManifest.xml
 # binary
 YaneuraOu-by-*
 KomoringHeights-by-*
+kh-test
+*.bin
 
 # personal debugging files
 source/test
@@ -253,3 +255,19 @@ source/resource
 
 # MacOS
 .DS_Store
+
+# vscode
+.vscode/
+
+# coverage
+coverage-html/
+test_obj/
+debug_obj/
+cov.info
+
+# Doxygen
+docs-*/
+doc-coverage.info
+
+# en-check
+comments.md

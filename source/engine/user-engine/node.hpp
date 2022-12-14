@@ -1,73 +1,153 @@
-#ifndef NODE_HPP_
-#define NODE_HPP_
+/**
+ * @file node.hpp
+ */
+#ifndef KOMORI_NODE_HPP_
+#define KOMORI_NODE_HPP_
 
+#include <functional>
 #include <stack>
+#include <utility>
 #include <vector>
 
+#include "../../mate/mate.h"
+#include "board_key_hand_pair.hpp"
 #include "hands.hpp"
-#include "node_history.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
+#include "visit_history.hpp"
 
 namespace komori {
 /**
- * @brief Position を wrap して千日手判定や OR/AND node の区別など詰将棋探索に必要な機能を追加したクラス
+ * @brief `Position` をラップして詰将棋特有の判定を追加するクラス。
+ *
+ * 詰将棋探索では、`Position` とセットで以下の情報をしばしば使用する。
+ *
+ * - OR node（攻方） / AND node（玉方）
+ * - 攻方の持ち駒
+ * - 経路ハッシュ値
+ * - 探索深さ
+ * - 千日手、優等ループ、劣等ループの高速な判定
+ *   - `Position` でも可能だが、手数が長いと判定が遅い
+ * - 1手後の XXX
+ *   - XXX は持ち駒、ハッシュ値、千日手判定など
+ *
+ * @note このクラスでは、`Position` を参照として保持する。よって、クラス外で `Position` を書き換えると
+ * `Node` の内部状態も狂ってしまうので注意すること。
  */
 class Node {
  public:
+  /**
+   * @brief コンストラクタ
+   * @param n         開始局面
+   * @param or_node   開始局面が OR Node かどうか
+   * @param path_key  開始局面の path key。この値を基準に子局面の path key を差分計算する
+   * @param depth     開始局面の探索深さ
+   */
   explicit Node(Position& n, bool or_node, Key path_key = 0, Depth depth = 0)
-      : n_{n}, or_color_{or_node ? n.side_to_move() : ~n.side_to_move()}, depth_{depth}, path_key_{path_key} {}
+      : n_{std::ref(n)},
+        or_color_{or_node ? n.side_to_move() : ~n.side_to_move()},
+        depth_{depth},
+        path_key_{path_key} {}
+  /// Default constructor(delete)
+  Node() = delete;
+  /// Copy constructor(delete)
+  Node(const Node&) = delete;
+  /// Move constructor(default)
+  Node(Node&&) noexcept = default;
+  /// Copy assign operator(delete)
+  Node& operator=(const Node&) = delete;
+  /// Move assign operator(delete)
+  Node& operator=(Node&&) noexcept = default;
+  /// Destructor(default)
+  ~Node() = default;
 
-  /// 探索履歴を削除した node を作成する。局面の参照は内部で共有しているので、片方の局面を動かすともう片方の局面も
-  /// 変わってしまうので注意。
-  Node HistoryClearedNode() { return Node{n_, or_color_ == n_.side_to_move(), path_key_, depth_}; }
+  /// このクラスが保持する `Position` への参照
+  Position& Pos() { return n_.get(); }
+  /// このクラスが保持する `Position` への参照
+  const Position& Pos() const { return n_.get(); }
 
-  void DoMove(Move m) {
-    path_key_ = PathKeyAfter(m);
-    node_history_.Visit(n_.state()->board_key(), this->OrHand());
-    n_.do_move(m, st_info_.emplace());
-    depth_++;
-  }
+  /// 現在の手番
+  Color Us() const { return Pos().side_to_move(); }
+  /// OR node（攻め方）の手番
+  Color OrColor() const { return or_color_; }
+  /// AND node（玉方）の手番
+  Color AndColor() const { return ~or_color_; }
+  /// 現在 OR node かどうか
+  bool IsOrNode() const { return Us() == or_color_; }
+  /// 現在の攻め方の持ち駒
+  Hand OrHand() const { return Pos().hand_of(or_color_); }
+  /// 現在の玉方の持ち駒
+  Hand AndHand() const { return Pos().hand_of(~or_color_); }
+  /// 開始局面が OR Node かどうか
+  bool IsRootOrNode() const { return IsOrNode() ^ (GetDepth() % 2 == 1); }
 
-  void UndoMove(Move m) {
-    depth_--;
-    n_.undo_move(m);
-    st_info_.pop();
-    node_history_.Leave(n_.state()->board_key(), this->OrHand());
-    path_key_ = PathKeyBefore(path_key_, m, depth_);
-  }
+  /// 玉の位置
+  Square KingSquare() const { return Pos().king_square(AndColor()); }
 
-  Square KingSquare() const {
-    const auto side_to_move = n_.side_to_move();
-    const auto or_node = IsOrNode();
-    const auto king_side = or_node ? ~side_to_move : side_to_move;
+  /// 現在の探索深さ
+  Depth GetDepth() const { return depth_; }
 
-    return n_.king_square(king_side);
-  }
+  /// 現在のハッシュ値
+  Key GetKey() const { return Pos().key(); }
+  /// 現在の盤面ハッシュ値
+  Key BoardKey() const { return Pos().state()->board_key(); }
+  /// 現在の経路ハッシュ値
+  Key GetPathKey() const { return path_key_; }
+  /// 盤面ハッシュ値と攻め方の持ち駒を同時に取得する
+  BoardKeyHandPair GetBoardKeyHandPair() const { return {BoardKey(), OrHand()}; }
 
-  void StealCapturedPiece() {
-    auto captured_pr = raw_type_of(n_.state()->capturedPiece);
-    path_key_ = PathKeyAfterSteal(path_key_, captured_pr, depth_);
-    n_.steal_hand(captured_pr);
-  }
-
-  void UnstealCapturedPiece() {
-    auto captured_pr = raw_type_of(n_.state()->capturedPiece);
-    path_key_ = PathKeyAfterGive(path_key_, captured_pr, depth_);
-    n_.give_hand(captured_pr);
-  }
-
-  Hand OrHand() const { return n_.hand_of(or_color_); }
-  Hand AndHand() const { return n_.hand_of(~or_color_); }
+  /// `move` 後のハッシュ値
+  Key KeyAfter(Move move) const { return Pos().key_after(move); }
+  /// `move` 後の盤面ハッシュ値
+  Key BoardKeyAfter(Move move) const { return Pos().board_key_after(move); }
+  /// `move` 後の経路ハッシュ値
+  Key PathKeyAfter(Move move) const { return ::komori::PathKeyAfter(path_key_, move, depth_); }
+  /// `move` 後の攻め方の持ち駒
   Hand OrHandAfter(Move move) const {
     if (IsOrNode()) {
-      return AfterHand(n_, move, OrHand());
+      return AfterHand(Pos(), move, OrHand());
     } else {
       return OrHand();
     }
   }
+  /// `move` 後の盤面ハッシュ値と攻め方の持ち駒を同時に取得する
+  BoardKeyHandPair BoardKeyHandPairAfter(Move move) const { return {BoardKeyAfter(move), OrHandAfter(move)}; }
 
-  Move ImmidiateCapture() const {
+  /// `move` で1手進める
+  void DoMove(Move move) {
+    path_key_ = PathKeyAfter(move);
+    visit_history_.Visit(BoardKey(), this->OrHand(), depth_);
+    Pos().do_move(move, st_info_.emplace());
+    depth_++;
+  }
+
+  /// `DoMove()` で勧めた局面を元に戻す
+  void UndoMove() {
+    const auto last_move = Pos().state()->lastMove;
+
+    depth_--;
+    Pos().undo_move(last_move);
+    st_info_.pop();
+    visit_history_.Leave(BoardKey(), this->OrHand(), depth_);
+    path_key_ = PathKeyBefore(last_move);
+  }
+
+  /// (not maintained) 直前に相手が取った駒を奪う。`UnstealCapturedPiece()` をするまでは `UndoMove()` してはいけない。
+  [[deprecated]] void StealCapturedPiece() {
+    auto captured_pr = raw_type_of(Pos().state()->capturedPiece);
+    path_key_ = PathKeyAfterSteal(path_key_, captured_pr, depth_);
+    Pos().steal_hand(captured_pr);
+  }
+
+  /// (not maintained) `StealCapturedPiece()` で奪った駒を返す
+  [[deprecated]] void UnstealCapturedPiece() {
+    auto captured_pr = raw_type_of(Pos().state()->capturedPiece);
+    path_key_ = PathKeyAfterGive(path_key_, captured_pr, depth_);
+    Pos().give_hand(captured_pr);
+  }
+
+  /// (not maintained) 直前の王手駒をすぐに取り返す手を生成する。もしできなければ `MOVE_NONE` を返す。
+  [[deprecated]] Move ImmediateCapture() const {
     if (!IsOrNode() || GetDepth() < 1) {
       return MOVE_NONE;
     }
@@ -77,64 +157,68 @@ class Node {
     // - 遠隔王手駒がchecker_sq: between_bb へ駒を打ったり移動したりする手は王手回避にならない。
     //   つまり、必ず次の if 文の中に入る
 
-    auto last_move = n_.state()->lastMove;
-    auto checker_sq = n_.state()->previous->checkersBB.pop_c();
-    auto king_sq = n_.king_square(~n_.side_to_move());
+    auto last_move = Pos().state()->lastMove;
+    auto checker_sq = Pos().state()->previous->checkersBB.pop_c();
+    auto king_sq = KingSquare();
 
     auto between = between_bb(king_sq, checker_sq);
     if (!between.test(to_sq(last_move))) {
       return MOVE_NONE;
     }
 
-    auto checker = n_.piece_on(checker_sq);
+    auto checker = Pos().piece_on(checker_sq);
     auto capture_move = make_move(checker_sq, to_sq(last_move), checker);
-    if (n_.pseudo_legal(capture_move) && n_.legal(capture_move)) {
+    if (Pos().pseudo_legal(capture_move) && Pos().legal(capture_move)) {
       return capture_move;
     }
     return MOVE_NONE;
   }
 
-  bool IsRepetition() const { return node_history_.Contains(n_.state()->board_key(), this->OrHand()); }
+  /// 現局面が千日手かどうか
+  std::optional<Depth> IsRepetition() const { return visit_history_.Contains(BoardKey(), this->OrHand()); }
 
-  bool IsRepetitionAfter(Move move) const {
-    return node_history_.Contains(n_.board_key_after(move), this->OrHandAfter(move));
+  /// `move` をすると千日手になるかどうか
+  std::optional<Depth> IsRepetitionAfter(Move move) const {
+    return visit_history_.Contains(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
-  bool IsRepetitionOrInferior() const { return node_history_.IsInferior(n_.state()->board_key(), this->OrHand()); }
+  /// 現局面が千日手または劣等局面か
+  std::optional<Depth> IsRepetitionOrInferior() const { return visit_history_.IsInferior(BoardKey(), this->OrHand()); }
 
-  bool IsRepetitionOrInferiorAfter(Move move) const {
-    return node_history_.IsInferior(n_.board_key_after(move), this->OrHandAfter(move));
+  /// `move` をすると千日手または劣等局面になるかどうか
+  std::optional<Depth> IsRepetitionOrInferiorAfter(Move move) const {
+    return visit_history_.IsInferior(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
-  bool IsRepetitionOrSuperior() const { return node_history_.IsSuperior(n_.state()->board_key(), this->OrHand()); }
+  /// 現局面が千日手または優等局面か
+  std::optional<Depth> IsRepetitionOrSuperior() const { return visit_history_.IsSuperior(BoardKey(), this->OrHand()); }
 
-  bool IsRepetitionOrSuperiorAfter(Move move) const {
-    return node_history_.IsSuperior(n_.board_key_after(move), this->OrHandAfter(move));
+  /// `move` をすると千日手または優等局面になるかどうか
+  std::optional<Depth> IsRepetitionOrSuperiorAfter(Move move) const {
+    return visit_history_.IsSuperior(BoardKeyAfter(move), this->OrHandAfter(move));
   }
 
-  bool ContainsInPath(Key key, Hand hand) const {
-    return node_history_.Contains(key, hand) || (n_.state()->board_key() == key && OrHand() == hand);
+  /// (`board_key`, `hand`) が経路に含まれているかどうか
+  std::optional<Depth> ContainsInPath(Key board_key, Hand hand) const {
+    if (const auto opt = visit_history_.Contains(board_key, hand)) {
+      return opt;
+    }
+
+    if (BoardKey() == board_key && OrHand() == hand) {
+      return depth_;
+    }
+    return std::nullopt;
   }
-
-  bool ContainsInPath(Key key) const { return node_history_.Contains(key) || n_.state()->board_key() == key; }
-
-  bool IsExceedLimit(Depth max_depth) const { return depth_ >= max_depth; }
-
-  auto& Pos() { return n_; }
-  auto& Pos() const { return n_; }
-  Depth GetDepth() const { return depth_; }
-  Key GetPathKey() const { return path_key_; }
-  Key PathKeyAfter(Move m) const { return ::komori::PathKeyAfter(path_key_, m, depth_); }
-  bool IsOrNode() const { return n_.side_to_move() == or_color_; }
-
-  Color OrColor() const { return or_color_; }
-  Color AndColor() const { return ~or_color_; }
 
  private:
-  Position& n_;                      ///< 現在の局面
+  /// `move` 直前の経路ハッシュ値
+  Key PathKeyBefore(Move move) const { return ::komori::PathKeyBefore(path_key_, move, depth_); }
+
+  /// 現在の局面。move construct 可能にするために生参照ではなく `std::reference_wrapper` で持つ。
+  std::reference_wrapper<Position> n_;
   Color or_color_;                   ///< OR node（攻め方）の手番
   Depth depth_{};                    ///< root から数えた探索深さ
-  NodeHistory node_history_{};       ///< 千日手・優等局面の一覧
+  VisitHistory visit_history_{};     ///< 千日手・優等局面の一覧
   std::stack<StateInfo> st_info_{};  ///< do_move で必要な一時領域
   Key path_key_{};                   ///< 経路ハッシュ値。差分計算により求める。
 };
@@ -149,8 +233,28 @@ inline void RollForward(Node& n, const std::vector<Move>& moves) {
 /// 局面 n から moves で手を一気に戻す。n に対し、moves の後ろから順に n.UndoMove(m) を適用する。
 inline void RollBack(Node& n, const std::vector<Move>& moves) {
   for (auto itr = moves.crbegin(); itr != moves.crend(); ++itr) {
-    n.UndoMove(*itr);
+    n.UndoMove();
   }
 }
+
+/**
+ * @brief (OR node限定) `n` が 1 手詰かどうか判定する。
+ * @param n 現局面
+ * @return `Move` 1手詰があればその手。なければ `MOVE_NONE`。
+ * @return `Hand` 1手詰があればその証明駒。なければ `kNullHand`。
+ * @note 攻め方の玉に王手がかかっている等、一部局面では1手詰が見つけられない事がある。
+ */
+inline std::pair<Move, Hand> CheckMate1Ply(Node& n) {
+  if (!n.Pos().in_check()) {
+    if (auto move = Mate::mate_1ply(n.Pos()); move != MOVE_NONE) {
+      n.DoMove(move);
+      auto hand = HandSet{ProofHandTag{}}.Get(n.Pos());
+      n.UndoMove();
+
+      return {move, BeforeHand(n.Pos(), move, hand)};
+    }
+  }
+  return {MOVE_NONE, kNullHand};
+}
 }  // namespace komori
-#endif  // NODE_HPP_
+#endif  // KOMORI_NODE_HPP_
