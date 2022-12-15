@@ -106,6 +106,7 @@ void KomoringHeights::Init(const EngineOption& option, Thread* thread) {
   tt_.Resize(option_.hash_mb);
   monitor_.SetThread(thread);
 
+#if defined(USE_TT_SAVE_AND_LOAD)
   const auto& tt_read_path = option_.tt_read_path;
   if (!tt_read_path.empty()) {
     std::ifstream ifs(tt_read_path, std::ios::binary);
@@ -114,6 +115,7 @@ void KomoringHeights::Init(const EngineOption& option, Thread* thread) {
       tt_.Load(ifs);
     }
   }
+#endif  // defined(USE_TT_SAVE_AND_LOAD)
 }
 
 UsiInfo KomoringHeights::CurrentInfo() const {
@@ -141,6 +143,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   auto [state, len] = SearchMainLoop(node);
   const bool proven = (state == NodeState::kProven);
 
+#if defined(USE_TT_SAVE_AND_LOAD)
   const auto tt_write_path = option_.tt_write_path;
   if (!tt_write_path.empty()) {
     std::ofstream ofs(tt_write_path, std::ios::binary);
@@ -149,6 +152,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
       tt_.Save(ofs);
     }
   }
+#endif  // defined(USE_TT_SAVE_AND_LOAD)
 
   if (proven) {
     if (best_moves_.size() % 2 != static_cast<int>(is_root_or_node)) {

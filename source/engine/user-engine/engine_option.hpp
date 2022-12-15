@@ -162,12 +162,12 @@ struct EngineOption {
 
   std::string tt_read_path;   ///< TTを読み込むファイル名
   std::string tt_write_path;  ///< TTを書き込むファイル名
-  // NOLINTEND(misc-non-private-member-variables-in-classes)
 
 #if defined(USE_DEEP_DFPN)
   Depth deep_dfpn_d;   ///< deep df-pn の D 値
   double deep_dfpn_e;  ///< deep df-pn の E 値
 #endif
+  // NOLINTEND(misc-non-private-member-variables-in-classes)
 
   /**
    * @brief 詰めエンジン独自のエンジンオプションを設定する
@@ -188,8 +188,10 @@ struct EngineOption {
                                          detail::score_caluclation_option.DefaultKey());
     o["PostSearchLevel"] << USI::Option(detail::post_search_level.Keys(), detail::post_search_level.DefaultKey());
 
+#if defined(USE_TT_SAVE_AND_LOAD)
     o["TTReadPath"] << USI::Option("");
     o["TTWritePath"] << USI::Option("");
+#endif  // defined(USE_TT_SAVE_AND_LOAD)
 
     o["ShowPVAfterMate"] << USI::Option(true);
   }
@@ -220,8 +222,10 @@ struct EngineOption {
     score_method = detail::score_caluclation_option.Get(detail::ReadOption<std::string>(o, "ScoreCalculation"));
     post_search_level = detail::post_search_level.Get(detail::ReadOption<std::string>(o, "PostSearchLevel"));
 
+#if defined(USE_TT_SAVE_AND_LOAD)
     tt_read_path = detail::ReadOption<std::string>(o, "TTReadPath");
     tt_write_path = detail::ReadOption<std::string>(o, "TTWritePath");
+#endif  // defined(USE_TT_SAVE_AND_LOAD)
 
     show_pv_after_mate = (detail::ReadOption(o, "ShowPVAfterMate") != 0);
   }
