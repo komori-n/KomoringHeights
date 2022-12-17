@@ -50,7 +50,8 @@ class Query {
         path_key_{path_key},
         board_key_{board_key},
         hand_{hand},
-        depth_{depth} {};
+        depth_{depth},
+        cached_entry_{&*initial_entry_pointer} {};
 
   /**
    * @brief Default constructor(default)
@@ -119,6 +120,7 @@ class Query {
 
             found_exact = true;
             sum_mask = itr->SumMask();
+            cached_entry_ = &*itr;
           }
         }
       }
@@ -219,14 +221,18 @@ class Query {
    * @return 見つけた or 作成したエントリ
    */
   Entry* FindOrCreate(Hand hand) const noexcept {
+    if (cached_entry_->IsFor(board_key_, hand)) {
+      return cached_entry_;
+    }
+
     auto itr = initial_entry_pointer_;
     for (; !itr->IsNull(); ++itr) {
       if (itr->IsFor(board_key_, hand)) {
-        return &*itr;
+        return cached_entry_ = &*itr;
       }
     }
     itr->Init(board_key_, hand);
-    return &*itr;
+    return cached_entry_ = &*itr;
   }
 
   /**
@@ -280,6 +286,7 @@ class Query {
   Key board_key_;                               ///< 現局面の盤面ハッシュ値
   Hand hand_;                                   ///< 現局面の持ち駒
   Depth depth_;                                 ///< 現局面の探索深さ
+  mutable Entry* cached_entry_;                 ///< 前回アクセスしたエントリ
 };
 }  // namespace komori::tt
 
