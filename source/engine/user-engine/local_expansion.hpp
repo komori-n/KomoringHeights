@@ -211,10 +211,6 @@ class LocalExpansion {
   ~LocalExpansion() = default;
 
   /**
-   * @brief 探索中の残り手数を返す
-   */
-  MateLen Len() const noexcept { return len_; }
-  /**
    * @brief 合法手がないかどうか
    * @see CurrentResult
    */
