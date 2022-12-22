@@ -24,7 +24,7 @@ KomoringHeightsを動かすには、[将棋所](http://shogidokoro.starfree.jp/)
 USIプロトコルの検討機能（`go ...`）および詰将棋解答機能（`go mate ...`）の両方に対応しています。
 使用するGUIソフトの仕様に応じて使い分けてください。
 
-詳細なエンジンオプションについては [EngineOptions](source/engine/suer-engine/docs/EngineOptions.txt) を参照してください。
+詳細なエンジンオプションについては [EngineOptions](source/engine/user-engine/docs/EngineOptions.txt) を参照してください。
 
 ## How to Build
 
