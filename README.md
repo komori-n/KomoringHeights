@@ -19,7 +19,7 @@ KomoringHeights 本体は `source/engine/user-engine` 以下に格納されて�
 
 [Releases](https://github.com/komori-n/KomoringHeights/releases) からお使いのOSに合ったバイナリをダウンロードしてください。
 KomoringHeightsを動かすには、[将棋所](http://shogidokoro.starfree.jp/)、[ShogiGUI](http://shogigui.siganus.com/)、
-[ShogiDroid](http://shogidroid.siganus.com/)などのUSIプロトコルに対応したGUIを利用してください。
+[Electron将棋](https://sunfish-shogi.github.io/electron-shogi/)、 [ShogiDroid](http://shogidroid.siganus.com/)などのUSIプロトコルに対応したGUIを利用してください。
 
 USIプロトコルの検討機能（`go ...`）および詰将棋解答機能（`go mate ...`）の両方に対応しています。
 使用するGUIソフトの仕様に応じて使い分けてください。

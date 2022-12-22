@@ -15,7 +15,7 @@ The other files mostly came from YaneuraOu.
 ## How to use
 
 Please download binaries from [Releases](https://github.com/komori-n/KomoringHeights/releases).
-As KomoringHeights complies with the USI protocol (universal shogi interface protocol), GUI software such as [Shogidokoro](http://shogidokoro.starfree.jp/), [ShogiGUI](http://shogigui.siganus.com/), and [ShogiDroid](http://shogidroid.siganus.com/) is needed to run.
+As KomoringHeights complies with the USI protocol (universal shogi interface protocol), GUI software such as [Shogidokoro](http://shogidokoro.starfree.jp/), [ShogiGUI](http://shogigui.siganus.com/), [Electron Shogi](https://sunfish-shogi.github.io/electron-shogi/), and [ShogiDroid](http://shogidroid.siganus.com/) is needed to run.
 
 For available engine options, please see [EngineOptions](source/engine/suer-engine/docs/EngineOptions.txt).
 
