@@ -26,6 +26,23 @@ USIプロトコルの検討機能（`go ...`）および詰将棋解答機能（
 
 詳細なエンジンオプションについては [EngineOptions](source/engine/suer-engine/docs/EngineOptions.txt) を参照してください。
 
+## How to Build
+
+ソースからビルドするには以下のコマンドを使用します。
+
+```sh
+git clone https://github.com/komori-n/KomoringHeights.git
+cd KomoringHeights/source
+make normal TARGET_CPU=AVX2 COMPILER=clang++
+```
+
+お使いのCPUに合わせて `TARGET_CPU=` の部分を書き換えてください。
+`TARGET_CPU` に指定可能な文字列の一覧は `source/Makefile` を参照してください。
+
+また、ビルドには C++17 対応のコンパイラが必要になります。
+GCC 10、Clang 11 より新しいコンパイラのみ動作確認をしています。
+これらより古い環境ではサポート対象外となるのがご注意ください。
+
 ## References
 
 詰将棋エンジンを作る上で参考にした文献等については[References](source/engine/user-engine/docs/refs.md)を参照してください。

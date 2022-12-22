@@ -19,6 +19,22 @@ As KomoringHeights complies with the USI protocol (universal shogi interface pro
 
 For available engine options, please see [EngineOptions](source/engine/suer-engine/docs/EngineOptions.txt).
 
+## How to Build
+
+To build a binary from the source, use the following commands:
+
+```sh
+git clone https://github.com/komori-n/KomoringHeights.git
+cd KomoringHeights/source
+make normal TARGET_CPU=AVX2 COMPILER=clang++
+```
+
+Specify appropriate `TARGET_CPU` according to your environment.
+You can find the list of available options in `source/Makefile`.
+
+A compiler for C++17 is required to build. We confirmed to build
+by GCC 10+ and Clang 11+. Compilers older than them are not supported.
+
 ## References
 
 See [References](source/engine/user-engine/docs/refs.md).
