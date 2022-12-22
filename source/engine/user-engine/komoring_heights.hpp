@@ -158,13 +158,12 @@ class KomoringHeights {
   /**
    * @brief 詰め探索の本体。（再帰関数）
    * @param n 現局面
-   * @param thpn pn のしきい値
-   * @param thdn dn のしきい値
-   * @param len  残り手数
    * @param inc_flag TCA の探索延長フラグ
    * @return 探索結果
+   *
+   * @note 引数をへらすために、pn/dn のしきい値 thpn/thdn は `search_thresholds_` に持たせる。
    */
-  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag);
+  SearchResult SearchImpl(Node& n, std::uint32_t& inc_flag);
 
   /**
    * @brief 現時点の探索結果から詰め手順を取得する
@@ -189,6 +188,11 @@ class KomoringHeights {
 
   std::vector<Move> best_moves_;     ///< 詰み手順
   ExpansionStack expansion_list_{};  ///< 局面展開のための一時領域
+
+  /// 探索しきい値一覧。スタックオーバーフローを防ぐためにメンバで持つ
+  std::vector<std::pair<PnDn, PnDn>> search_thresholds_{};
+  /// SearchImpl() が呼ばれた際のinc_flag の初期値。スタックオーバーフローを防ぐためにメンバで持つ
+  std::vector<std::uint32_t> inc_flag_caches_{};
 };
 }  // namespace komori
 

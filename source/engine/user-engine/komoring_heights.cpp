@@ -1,4 +1,4 @@
-﻿#include "komoring_heights.hpp"
+#include "komoring_heights.hpp"
 
 #include <fstream>
 #include <regex>
@@ -105,6 +105,8 @@ void KomoringHeights::Init(const EngineOption& option, Thread* thread) {
   option_ = option;
   tt_.Resize(option_.hash_mb);
   monitor_.SetThread(thread);
+  search_thresholds_.reserve(kDepthMax + 1);
+  inc_flag_caches_.reserve(kDepthMax + 1);
 
 #if defined(USE_TT_SAVE_AND_LOAD)
   const auto& tt_read_path = option_.tt_read_path;
@@ -225,7 +227,9 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   expansion_list_.Emplace(tt_, n, len, true);
   while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
     std::uint32_t inc_flag = 0;
-    result = SearchImpl(n, thpn, thdn, len, inc_flag);
+    search_thresholds_.push_back({thpn, thdn});
+    result = SearchImpl(n, inc_flag);
+    search_thresholds_.pop_back();
     if (result.IsFinal()) {
       break;
     }
@@ -250,16 +254,15 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   return result;
 }
 
-SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag) {
-  const PnDn orig_thpn = thpn;
-  const PnDn orig_thdn = thdn;
-  const std::uint32_t orig_inc_flag = inc_flag;
+SearchResult KomoringHeights::SearchImpl(Node& n, std::uint32_t& inc_flag) {
+  auto [thpn, thdn] = search_thresholds_.back();
 
   auto& local_expansion = expansion_list_.Current();
   monitor_.Visit(n.GetDepth());
   PrintIfNeeded(n);
 
   if (n.GetDepth() >= kDepthMax) {
+    const auto len = local_expansion.Len();
     return SearchResult::MakeRepetition(n.OrHand(), len, 1, 0);
   }
 
@@ -269,6 +272,8 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   auto curr_result = local_expansion.CurrentResult(n);
   // Threshold Controlling Algorithm(TCA).
   // 浅い結果を参照している場合、無限ループになる可能性があるので少しだけ探索を延長する
+
+  inc_flag_caches_.push_back(inc_flag);
   if (local_expansion.DoesHaveOldChild()) {
     inc_flag++;
   }
@@ -291,11 +296,12 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     const bool is_first_search = local_expansion.FrontIsFirstVisit();
     const BitSet64 sum_mask = local_expansion.FrontSumMask();
     const auto [child_thpn, child_thdn] = local_expansion.FrontPnDnThresholds(thpn, thdn);
+    const auto len = local_expansion.Len() - 1;
 
     n.DoMove(best_move);
 
     // 子局面を展開する。展開した expansion は UndoMove() の直前に忘れずに開放しなければならない。
-    auto& child_expansion = expansion_list_.Emplace(tt_, n, len - 1, is_first_search, sum_mask);
+    auto& child_expansion = expansion_list_.Emplace(tt_, n, len, is_first_search, sum_mask);
 
     SearchResult child_result;
     if (is_first_search) {
@@ -314,7 +320,9 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
         goto CHILD_SEARCH_END;
       }
     }
-    child_result = SearchImpl(n, child_thpn, child_thdn, len - 1, inc_flag);
+    search_thresholds_.push_back({child_thpn, child_thdn});
+    child_result = SearchImpl(n, inc_flag);
+    search_thresholds_.pop_back();
 
   CHILD_SEARCH_END:
     expansion_list_.Pop();
@@ -324,19 +332,19 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     curr_result = local_expansion.CurrentResult(n);
 
     // TCA で延長したしきい値はいったん戻す
-    thpn = orig_thpn;
-    thdn = orig_thdn;
+    std::tie(thpn, thdn) = search_thresholds_.back();
     if (inc_flag > 0) {
       // TCA 継続中ならしきい値を伸ばす
       ExtendSearchThreshold(curr_result, thpn, thdn);
-    } else if (inc_flag == 0 && orig_inc_flag > 0) {
+    } else if (inc_flag == 0 && inc_flag_caches_.back() > 0) {
       // TCA の展開が終わったので、いったん親局面に戻る
       break;
     }
   }
 
   /// `inc_flag` の値は探索前より小さくなっているはず
-  inc_flag = std::min(inc_flag, orig_inc_flag);
+  inc_flag = std::min(inc_flag, inc_flag_caches_.back());
+  inc_flag_caches_.pop_back();
   return curr_result;
 }
 
