@@ -79,10 +79,10 @@ jobs:
           - USER_ENGINE
 
     steps:
-      - name: Setup Android NDK r23b
+      - name: Setup Android NDK r25b
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r23b
+          ndk-version: r25b
 
       - name: Checkout own repository
         uses: actions/checkout@v2
