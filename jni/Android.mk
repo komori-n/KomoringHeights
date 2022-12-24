@@ -16,7 +16,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-CPPFLAGS := -DTARGET_ARCH="$(TARGET_ARCH_ABI)"
+CPPFLAGS := -DTARGET_ARCH="$(TARGET_ARCH_ABI)" -DUSE_PTHREADS
 
 # example: (default build target)
 # $ ndk-build
