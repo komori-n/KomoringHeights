@@ -207,7 +207,7 @@ jobs:
       - name: Create release note
         id: create-release-note
         run: |
-          echo ::set-output name=body::$(cat main/source/engine/user-engine/ReleaseNote.md)
+          echo ::set-output name=body::$(cat main/source/engine/user-engine/docs/ReleaseNote.md)
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
