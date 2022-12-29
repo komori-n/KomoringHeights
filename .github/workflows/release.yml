@@ -221,12 +221,6 @@ jobs:
           body: |
             ${{ steps.create-release-note.outputs.RELEASE_BODY }}
 
-            - [${{ steps.version.outputs.filename }}-windows.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.zip) (${{ steps.archive_size.outputs.windows_zip }})
-            - [${{ steps.version.outputs.filename }}-windows.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.7z) (${{ steps.archive_size.outputs.windows_7z }})
-            - [${{ steps.version.outputs.filename }}-android.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-android.zip) (${{ steps.archive_size.outputs.android_zip }})
-            - [${{ steps.version.outputs.filename }}-mac.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-mac.zip) (${{ steps.archive_size.outputs.mac_zip }})
-            - [${{ steps.version.outputs.filename }}-mac.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-mac.7z) (${{ steps.archive_size.outputs.mac_7z }})
-
           # ドラフト（下書き）状態にしない(false)
           draft: false
           # 先行リリースのフラグを付ける(true)
