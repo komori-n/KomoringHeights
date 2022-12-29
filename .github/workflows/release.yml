@@ -175,11 +175,18 @@ jobs:
           cp main/Copying.txt release-windows/windows
           cp -r main/source/ release-windows/windows
           cp -r main/docs/ release-windows/windows
+          chmod +x release-windows/windows/USER/*.exe
+
           cp main/Copying.txt release-android/android/KomoringHeights
           cp -r main/docs/ release-android/android/KomoringHeights
+          chmod +x release-android/android/KomoringHeights_*
+
           cp main/Copying.txt release-mac/mac
           cp -r main/source/ release-mac/mac
           cp -r main/docs/ release-mac/mac
+          find release-mac/mac/KomoringHeights -type F | \
+            grep -v '.log$' | \
+            xargs chmod +x
       - name: Display structure of downloaded files
         run: ls -R release-windows release-android
       - name: make build-windows zip/7z
