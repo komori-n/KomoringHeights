@@ -230,8 +230,8 @@ jobs:
 
           # ドラフト（下書き）状態にしない(false)
           draft: false
-          # 先行リリースのフラグを付ける(true)
-          prerelease: true
+          # 先行リリースのフラグを付ける(false)
+          prerelease: false
       - name: Upload release asset build-windows.zip
         uses: actions/upload-release-asset@v1.0.1
         env:
