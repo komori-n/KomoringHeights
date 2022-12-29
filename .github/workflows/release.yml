@@ -181,7 +181,7 @@ jobs:
           cp main/Copying.txt release-android/android/KomoringHeights
           cp -r main/docs/ release-android/android/KomoringHeights
           cp -r main/source/engine/user-engine/docs/ release-android/android/KomoringHeights
-          chmod +x release-android/android/KomoringHeights_*
+          chmod +x release-android/android/KomoringHeights/KomoringHeights_*
 
           cp main/Copying.txt release-mac/mac
           cp -r main/source/ release-mac/mac
