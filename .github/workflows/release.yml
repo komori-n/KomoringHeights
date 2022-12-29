@@ -207,7 +207,9 @@ jobs:
       - name: Create release note
         id: create-release-note
         run: |
-          echo ::set-output name=body::$(cat main/source/engine/user-engine/docs/ReleaseNote.md)
+          echo 'RELEASE_BODY<<END' >> $GITHUB_OUTPUT
+          cat main/source/engine/user-engine/docs/ReleaseNote.md >> $GITHUB_OUTPUT
+          echo 'END' >> $GITHUB_OUTPUT
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
@@ -217,7 +219,7 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: KomoringHeights ${{ steps.version.outputs.version }}
           body: |
-            ${{ steps.create-release-note.outputs.body }}
+            ${{ steps.create-release-note.outputs.RELEASE_BODY }}
 
             - [${{ steps.version.outputs.filename }}-windows.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.zip) (${{ steps.archive_size.outputs.windows_zip }})
             - [${{ steps.version.outputs.filename }}-windows.7z](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.filename }}-windows.7z) (${{ steps.archive_size.outputs.windows_7z }})
