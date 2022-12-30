@@ -16,7 +16,7 @@ namespace komori {
  */
 class Score : DefineNotEqualByEqual<Score> {
   /// 内部で用いる整数型
-  using ScoreValue = std::int32_t;
+  using ScoreValue = std::int64_t;
 
  public:
   /// デフォルトコンストラクタ
