@@ -187,7 +187,7 @@ jobs:
           cp -r main/source/ release-mac/mac
           cp -r main/docs/ release-mac/mac
           cp -r main/source/engine/user-engine/docs/ release-mac/mac
-          find release-mac/mac/KomoringHeights -type F | \
+          find release-mac/mac/KomoringHeights -type f | \
             grep -v '.log$' | \
             xargs chmod +x
       - name: Display structure of downloaded files
