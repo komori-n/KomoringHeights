@@ -4,6 +4,8 @@ English follows Japanese.
 
 ## 変更点
 
+[詳細](https://komorinfo.com/blog/komoring-heights-v1)
+
 ### 機能改善
 
 - [エンジンオプション](source/engine/user-engine/docs/EngineOptions.txt)の整理
