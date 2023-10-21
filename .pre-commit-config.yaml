@@ -20,6 +20,7 @@ repos:
   hooks:
   - id: clang-format
   - id: cpplint
+    exclude: '^source/engine/user-engine/benchmark/.*$'
 - repo: local
   hooks:
   - id: gen-docs
