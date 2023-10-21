@@ -122,10 +122,12 @@ class RepetitionTable {
   std::size_t Size() const { return hash_table_.size(); }
 
   /// 置換表のメモリ使用率を求める。
-  double HashRate() const { /* todo */
-    // 計算がめんどくさいので、4.5 * entries_per_generation_ だけ埋まっていることにする
+  double HashRate() const {
+    const auto prev_gc = (next_gc_ - kGcKeepGeneration - kGcDuration);
+    const auto num_entries =
+        (generation_ - prev_gc) * entries_per_generation_ + (entry_count_ % entries_per_generation_);
 
-    return 0.45;
+    return static_cast<double>(num_entries) / static_cast<double>(Size());
   }
 
   Generation GetGeneration() const { return generation_; }

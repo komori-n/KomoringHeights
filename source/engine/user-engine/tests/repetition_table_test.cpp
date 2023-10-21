@@ -70,6 +70,16 @@ TEST(RepetitionTable, GenerationUpdate) {
   EXPECT_EQ(rep_table.GetGeneration(), 1);
 }
 
+TEST(RepetitionTable, HashRate) {
+  RepetitionTable rep_table(20);
+  for (std::size_t i = 0; i < 6; ++i) {
+    EXPECT_NEAR(rep_table.HashRate(), i / 20.0, 0.001) << i;
+    rep_table.Insert(i, i);
+  }
+
+  EXPECT_NEAR(rep_table.HashRate(), 3 / 20.0, 0.001);
+}
+
 TEST(RepetitionTable, CollectGarbageFirstTime) {
   // 1 entry per 1 generation
   RepetitionTable rep_table(20);
