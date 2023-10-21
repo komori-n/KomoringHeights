@@ -50,7 +50,7 @@ class DefaultOrderedMap : private std::vector<std::pair<K, V>> {
    * @brief コンストラクタ
    */
   explicit constexpr DefaultOrderedMap(K default_key, V default_value, std::initializer_list<std::pair<K, V>> list)
-      : default_key_{std::move(default_key)}, default_val_{std::move(default_value)}, Base{std::move(list)} {}
+      : Base{std::move(list)}, default_key_{std::move(default_key)}, default_val_{std::move(default_value)} {}
 
   /**
    * @brief `key` に対応する値を取得する。`key` が存在しなければデフォルト値が返る。
