@@ -118,10 +118,11 @@ $(OBJDIR)/gmock_main.a : $(OBJDIR)/gmock-all.o $(OBJDIR)/gmock_main.o
 	$(AR) $(ARFLAGS) $@ $^
 
 coverage: test
-	lcov --rc lcov_branch_coverage=1 --directory ../../../../test_obj --base-directory . --capture -o cov.info
-	lcov --rc lcov_branch_coverage=1 -e cov.info -o cov.info "**/user-engine/*"
-	lcov --rc lcov_branch_coverage=1 -r cov.info -o cov.info "**/tests/*"
-	genhtml --dark-mode --rc lcov_branch_coverage=1 cov.info -o coverage-html
+	lcov --rc branch_coverage=1 --directory ../../../../test_obj --base-directory . --capture -o cov.info -ignore-errors inconsistent
+	lcov --rc branch_coverage=1 -e cov.info -o cov.info "**/user-engine/*" -ignore-errors inconsistent
+	lcov --rc branch_coverage=1 -r cov.info -o cov.info "**/tests/*" -ignore-errors inconsistent
+	lcov --rc branch_coverage=1 -r cov.info -o cov.info "**/dummy_engine*" -ignore-errors inconsistent
+	genhtml --dark-mode --rc branch_coverage=1 cov.info -o coverage-html -ignore-errors inconsistent
 
 docs:
 	doxygen
