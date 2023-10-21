@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file komoring_heights.hpp
  */
 #ifndef KOMORI_KOMORING_HEIGHTS_HPP_
@@ -108,6 +108,8 @@ class KomoringHeights {
    * @param thread 探索スレッド
    */
   void Init(const EngineOption& option, Thread* thread);
+  /// 置換表の内容をすべて削除する。ベンチマーク用。
+  void Clear();
 
   /// 探索を今すぐやめさせる
   void SetStop() { monitor_.SetStop(true); }

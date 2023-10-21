@@ -118,6 +118,10 @@ void KomoringHeights::Init(const EngineOption& option, Thread* thread) {
 #endif  // defined(USE_TT_SAVE_AND_LOAD)
 }
 
+void KomoringHeights::Clear() {
+  tt_.Clear();
+}
+
 UsiInfo KomoringHeights::CurrentInfo() const {
   UsiInfo usi_output = monitor_.GetInfo();
   usi_output.Set(UsiInfoKey::kHashfull, tt_.Hashfull());
@@ -136,6 +140,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
     tt_.CollectGarbage(kGcRemovalRatio);
   }
   // </初期化>
+  return NodeState{};
 
   auto& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
@@ -181,14 +186,17 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       KOMORI_PRECONDITION(result.Len().Len() <= len.Len());
       best_moves_ = GetMatePath(n, result.Len());
 
-      sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: mate in " << best_moves_.size()
-                << "(upper_bound:" << result.Len() << ")" << sync_endl;
-      std::ostringstream oss;
-      for (const auto move : best_moves_) {
-        oss << move << " ";
+      if (!option_.disable_info_print) {
+        sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: mate in " << best_moves_.size()
+                  << "(upper_bound:" << result.Len() << ")" << sync_endl;
+        std::ostringstream oss;
+        for (const auto move : best_moves_) {
+          oss << move << " ";
+        }
+        info.Set(UsiInfoKey::kPv, oss.str());
+        sync_cout << info << sync_endl;
       }
-      info.Set(UsiInfoKey::kPv, oss.str());
-      sync_cout << info << sync_endl;
+
       node_state = NodeState::kProven;
       if (result.Len().Len() <= 1) {
         break;
@@ -201,10 +209,13 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
 
       len = result.Len() - 2;
     } else {
-      sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
-      if (result.Dn() == 0 && result.Len() < len) {
-        sync_cout << info << "Failed to detect PV" << sync_endl;
+      if (!option_.disable_info_print) {
+        sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
+        if (result.Dn() == 0 && result.Len() < len) {
+          sync_cout << info << "Failed to detect PV" << sync_endl;
+        }
       }
+
       if (node_state == NodeState::kProven) {
         len = len + 2;
         score_ = old_score;

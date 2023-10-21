@@ -13,6 +13,7 @@ add_subdirectory(../../../../third-party/benchmark benchmark)
 add_executable(
     kh-benchmark
     repetition_table_benchmark.cpp
+    overall_benchmark.cpp
     main.cpp
 
     # yaneuraou
@@ -46,6 +47,9 @@ add_executable(
     ../../../testcmd/mate_test_cmd.cpp
     ../../../testcmd/normal_test_cmd.cpp
     ../../../testcmd/benchmark.cpp
+
+    # komoring heights
+    ../komoring_heights.cpp
 
     # dummy engine
     ../dummy_engine.cpp
