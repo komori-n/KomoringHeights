@@ -4,12 +4,12 @@
 using komori::tt::RepetitionTable;
 
 namespace {
-constexpr std::size_t kTableSize = 10000;
+constexpr std::size_t kTableSize = 100000;
 
 void RepetitionTable_Insert(benchmark::State& state) {
   RepetitionTable table{};
 
-  table.SetTableSizeMax(kTableSize);
+  table.Resize(kTableSize);
   const auto collision_threshold = static_cast<int>(std::numeric_limits<int>::max() * 0.2);
   const std::uint64_t collision_key = 0x334334334334ULL;
 
@@ -27,7 +27,7 @@ void RepetitionTable_Insert(benchmark::State& state) {
 void RepetitionTable_Contains(benchmark::State& state) {
   RepetitionTable table{};
 
-  table.SetTableSizeMax(kTableSize);
+  table.Resize(kTableSize);
   const auto collision_threshold = static_cast<int>(std::numeric_limits<int>::max() * 0.2);
   const std::uint64_t collision_key = 0x334334334334ULL;
 

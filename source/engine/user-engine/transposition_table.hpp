@@ -74,13 +74,11 @@ class TranspositionTableImpl {
     const auto rep_bytes = new_bytes - regular_bytes;
     // 通常テーブルに保存する要素数
     const auto new_num_entries = regular_bytes / sizeof(Entry);
-    // 千日手テーブルに保存する要素数。最低でも 1 以上になるようにする
-    // 千日手テーブルは `std::unordered_map` により実現されているので、N 個のエントリを保存するためには
-    // 6N * sizeof(Key) バイト程度が必要になる。（環境依存）
-    const auto rep_num_entries = std::max(decltype(rep_bytes){1}, rep_bytes / 6 / sizeof(Key));
+    // 千日手テーブルはキー1個あたり 16 bytes 使用する。
+    const auto rep_table_size = std::max(decltype(rep_bytes){1}, rep_bytes / 16);
 
     regular_table_.Resize(new_num_entries);
-    repetition_table_.SetTableSizeMax(rep_num_entries);
+    repetition_table_.Resize(rep_table_size);
   }
 
   /**

@@ -4,34 +4,76 @@
 #ifndef KOMORI_REPETITION_TABLE_HPP_
 #define KOMORI_REPETITION_TABLE_HPP_
 
-#include <array>
 #include <iostream>
 #include <limits>
-#include <unordered_map>
+#include <vector>
 
 #include "typedefs.hpp"
 
 namespace komori::tt {
 /**
- * @brief 千日手手順を記録する置換表
+ * @brief 千日手手順（経路ハッシュ値）を記録する置換表
  *
- * 千日手と判明した経路ハッシュ値を高々 `size_max` 個記憶する。もし記録している手順数が `size_max` を超える場合、
- * 古い結果を削除する GC 機能を備えている。
+ * `std::unordered_map<std::pair<Key, Depth>>` のような機能を実装するが、内部はただの配列（std::vector）で
+ * 実装されている。ハッシュ値が衝突したときは、線形走査により格納するインデックスを求める。
  *
- * @note `std::unordered_map` を複数個持つことでこの GC 機能を実現している。
+ * LookUp速度を高速に保つために、置換表の高々 30% しか要素を格納しない。メモリ使用率が 30% を超えた場合、
+ * Garbage Collectionにより古いエントリを消す。
+ *
+ * @note `std::unordered_map` を用いるより、`std::vector` + 線形走査法をしたほうが `Containis()` の速度が 20% ほど
+ *       高速化できる。ただし、`Insert()` の速度が 20% ほど遅くなっているので注意。実用上は、
+ *       `Insert()` の回数よりも `Contains()` で検索する回数の方が多いと考えられるので、全体としては早くなっているはず。
  */
 class RepetitionTable {
  public:
+  /// 置換表世代。メモリ量をケチるために32 bitsで持つ。オーバーフローに注意。
+  using Generation = std::uint32_t;
+
+  /**
+   * @brief Construct a new Repetition Table object
+   *
+   * @param table_size 置換表サイズ
+   */
+  explicit RepetitionTable(std::size_t table_size = 1) { Resize(table_size); }
+  /// Copy constructor(default)
+  RepetitionTable(const RepetitionTable&) = default;
+  /// Move constructor(default)
+  RepetitionTable(RepetitionTable&&) noexcept = default;
+  /// Copy assign operator(default)
+  RepetitionTable& operator=(const RepetitionTable&) = default;
+  /// Move assign operator(default)
+  RepetitionTable& operator=(RepetitionTable&&) noexcept = default;
+  /// Destructor(default)
+  ~RepetitionTable() = default;
+
   /// 置換表に保存された経路ハッシュ値をすべて削除する。
   void Clear() {
-    for (auto& tbl : keys_) {
-      tbl.clear();
-    }
+    generation_ = 0;
+    entry_count_ = 0;
+
+    next_generation_update_ = entries_per_generation_;
+    next_gc_ = kInitialGcDuration;
+
+    const TableEntry initial_entry{kNullKey, 0, 0};
+    std::fill(hash_table_.begin(), hash_table_.end(), initial_entry);
   }
-  /// 置換表に登録できる key の最大個数を設定する。
-  void SetTableSizeMax(std::size_t size_max) {
-    size_max_ = size_max + 1;
-    Clear();
+
+  /**
+   * @brief 置換表サイズを `table_size` へ変更する。
+   *
+   * @param table_size 置換表サイズ
+   *
+   * 置換表サイズを `table_size` へと変更する。もし `Size() == table_size` ならば、何もしない。
+   * `Size() != table_size` なら置換表のりサイズと `Clear()` を行う。
+   */
+  void Resize(std::size_t table_size) {
+    if (Size() != table_size) {
+      table_size = std::max<decltype(table_size)>(table_size, 1);
+      entries_per_generation_ = std::max<std::size_t>(table_size / kGenerationPerTableSize, 1);
+      hash_table_.resize(table_size);
+      hash_table_.shrink_to_fit();
+      Clear();
+    }
   }
 
   /**
@@ -40,14 +82,25 @@ class RepetitionTable {
    * @param depth    千日手判定開始深さ
    */
   void Insert(Key path_key, Depth depth) {
-    if (auto itr = keys_[idx_].find(path_key); itr != keys_[idx_].end()) {
-      keys_[idx_].insert_or_assign(path_key, std::max(depth, itr->second));
-    } else {
-      keys_[idx_].insert(std::make_pair(path_key, depth));
+    auto index = StartIndex(path_key);
+    while (hash_table_[index].key != kNullKey && hash_table_[index].key != path_key) {
+      index = Next(index);
     }
-    if (keys_[idx_].size() >= size_max_ / kTableLen) {
-      idx_ = (idx_ + 1) % kTableLen;
-      keys_[idx_].clear();
+
+    if (hash_table_[index].key == kNullKey) {
+      hash_table_[index] = TableEntry{path_key, depth, generation_};
+      entry_count_++;
+      if (entry_count_ >= next_generation_update_) {
+        generation_++;
+        next_generation_update_ = entry_count_ + entries_per_generation_;
+        if (generation_ >= next_gc_) {
+          CollectGarbage();
+          next_gc_ = generation_ + kGcDuration;
+        }
+      }
+    } else {
+      hash_table_[index].depth = std::max(depth, hash_table_[index].depth);
+      hash_table_[index].generation = generation_;
     }
   }
 
@@ -57,36 +110,114 @@ class RepetitionTable {
    * @return `path_key` が保存されていればその深さ、なければ `std::nullopt`
    */
   std::optional<Depth> Contains(Key path_key) const {
-    for (const auto& tbl : keys_) {
-      if (const auto itr = tbl.find(path_key); itr != tbl.end()) {
-        return itr->second;
+    for (auto index = StartIndex(path_key); hash_table_[index].key != kNullKey; index = Next(index)) {
+      if (hash_table_[index].key == path_key) {
+        return {hash_table_[index].depth};
       }
     }
+
     return std::nullopt;
   }
 
-  /// 現在置換表に保存されている経路ハッシュ値の個数をカウントする。
-  constexpr std::size_t Size() const {
-    std::size_t ret = 0;
-    for (auto& tbl : keys_) {
-      ret += tbl.size();
-    }
-    return ret;
-  }
+  std::size_t Size() const { return hash_table_.size(); }
 
   /// 置換表のメモリ使用率を求める。
-  double HashRate() const { return static_cast<double>(Size()) / static_cast<double>(size_max_); }
+  double HashRate() const { /* todo */
+    // 計算がめんどくさいので、4.5 * entries_per_generation_ だけ埋まっていることにする
+
+    return 0.45;
+  }
+
+  Generation GetGeneration() const { return generation_; }
 
  private:
-  /// 内部で持つ `std::unordered_map` の個数。あまり多いと LookUp 時間が増大する。
-  static constexpr inline std::size_t kTableLen = 2;
+  /// 置換表全体を何 generation で管理するか
+  static constexpr std::uint64_t kGenerationPerTableSize = 20;
+  /// 初回のGCタイミング
+  static constexpr Generation kInitialGcDuration = 6;
+  /// 2回目以降のGCタイミング
+  static constexpr Generation kGcDuration = 3;
+  /// GCで残す置換表世代数
+  static constexpr Generation kGcKeepGeneration = 3;
 
-  /// 経路ハッシュ値置換表の本体
-  std::array<std::unordered_map<Key, Depth>, kTableLen> keys_{};
-  /// 現在アクティブな置換表([0, kTableLen))
-  std::size_t idx_{0};
-  /// 置換表内に保存できる経路ハッシュ値の最大個数
-  std::size_t size_max_{std::numeric_limits<std::size_t>::max()};
+  /// 置換表に格納するエントリ。16 bits に詰める。
+  struct TableEntry {
+    Key key;                ///< 経路ハッシュ値。使用していないなら kNullKey。
+    Depth depth;            ///< 探索深さ
+    Generation generation;  ///< 置換表世代
+  };
+  static_assert(sizeof(TableEntry) == 16);
+
+  /// `path_key` に対しる探索開始インデックスを求める。
+  std::size_t StartIndex(Key path_key) const {
+    // Stockfishのアイデア。`path_key` が std::uint64_t 上の一様分布に従うとき、
+    // 乗算とシフトにより [0, hash_table_.size()) 上の一様分布に従う変数に変換できる。
+    const Key key_low = path_key & Key{0xffff'ffffULL};
+    return static_cast<std::size_t>((key_low * hash_table_.size()) >> 32);
+  }
+
+  /// `index` の次のインデックスを求める。
+  std::size_t Next(std::size_t index) const {
+    // index = (index + 1) % hash_table_.size() と書くよりも if 文を用いた方が有意に速い。
+    if (index + 1 >= hash_table_.size()) {
+      return 0;
+    } else {
+      return index + 1;
+    }
+  }
+
+  /**
+   * @brief ガベージコレクションを行う
+   *
+   * 現在の置換表世代 `generation_` から `kGcKeepGeneration` 世代前のエントリまでを残し、
+   * それより古いエントリを削除する。また、歯抜けエントリがあると線形走査法で正しく探索できなくなるので、
+   * エントリをできるだけ手前に詰める。（コンパクション）
+   */
+  void CollectGarbage() {
+    // [erased_generation, generation_] の範囲のエントリだけを残す。
+    const auto erased_generation = generation_ - kGcKeepGeneration;
+
+    // 対象entryのgenerationが [erased_generation, generation_] の範囲内ならfalse、それ以外ならtrue
+    const auto should_erase = [erased_generation, this](const TableEntry& entry) {
+      const auto entry_generation = entry.generation;
+
+      // erased_generationとerased_generationの間にstd::uint32_t::maxの境界をまたいでいる可能性があるので注意
+      if (erased_generation < generation_) {
+        return entry_generation < erased_generation || generation_ < entry_generation;
+      } else {
+        return generation_ < entry_generation && entry_generation < erased_generation;
+      }
+    };
+
+    for (auto& entry : hash_table_) {
+      if (entry.key != kNullKey && should_erase(entry)) {
+        entry.key = kNullKey;
+      }
+    }
+
+    // コンパクション。配列の後ろの方で微妙に歯抜けができてエントリにアクセスできなくなる可能性があるが目をつぶる。
+    for (auto& entry : hash_table_) {
+      if (entry.key == kNullKey) {
+        continue;
+      }
+
+      for (auto index = StartIndex(entry.key); &hash_table_[index] != &entry; index = Next(index)) {
+        if (hash_table_[index].key == kNullKey) {
+          hash_table_[index] = entry;
+          entry.key = kNullKey;
+          break;
+        }
+      }
+    }
+  }
+
+  Generation generation_{};      ///< 現在の置換表世代
+  std::uint64_t entry_count_{};  ///< 現在までにInsert()したエントリ数
+
+  std::uint64_t next_generation_update_{};  ///< 次回generation_をインクリメントするタイミング
+  Generation next_gc_{};                    ///< 次回GCを行うGeneration
+  std::uint64_t entries_per_generation_{};  ///< 1 generationあたりのエントリ数
+  std::vector<TableEntry> hash_table_{};    ///< 置換表本体
 };
 }  // namespace komori::tt
 

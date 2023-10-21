@@ -25,7 +25,7 @@ class QueryTest : public ::testing::Test {
  protected:
   void SetUp() override {
     entries_.resize(16);
-    rep_table_.SetTableSizeMax(334);
+    rep_table_.Resize(334);
 
     query_ = Query{rep_table_, {entries_.data(), entries_.data(), entries_.data() + 16}, path_key_, board_key_, hand_,
                    depth_};

@@ -31,7 +31,7 @@ struct RegularTableMock {
 };
 
 struct RepetitionTableMock {
-  MOCK_METHOD(void, SetTableSizeMax, (std::uint64_t));
+  MOCK_METHOD(void, Resize, (std::uint64_t));
   MOCK_METHOD(void, Clear, ());
   MOCK_METHOD(double, HashRate, (), (const));
 };
@@ -49,7 +49,7 @@ class TranspositionTableTest : public ::testing::Test {
  protected:
   void SetUp() override {
     EXPECT_CALL(tt_.GetRegularTable(), Resize);
-    EXPECT_CALL(tt_.GetRepetitionTable(), SetTableSizeMax);
+    EXPECT_CALL(tt_.GetRepetitionTable(), Resize);
     tt_.Resize(1);
   }
 
@@ -63,11 +63,10 @@ TEST_F(TranspositionTableTest, Resize) {
   std::uint64_t n = 1;
   std::uint64_t m = 1;
   EXPECT_CALL(tt_.GetRegularTable(), Resize).WillOnce([&](std::uint64_t a) { n = a; });
-  EXPECT_CALL(tt_.GetRepetitionTable(), SetTableSizeMax).WillOnce([&](std::uint64_t b) { m = b; });
+  EXPECT_CALL(tt_.GetRepetitionTable(), Resize).WillOnce([&](std::uint64_t b) { m = b; });
   tt_.Resize(usi_hash_mb);
 
-  EXPECT_FLOAT_EQ((1 - kRegularRepetitionRatio) * n * sizeof(komori::tt::Entry),
-                  kRegularRepetitionRatio * m * sizeof(Key) * 6);
+  EXPECT_FLOAT_EQ((1 - kRegularRepetitionRatio) * n * sizeof(komori::tt::Entry), kRegularRepetitionRatio * m * 16);
 }
 
 TEST_F(TranspositionTableTest, NewSearch) {
