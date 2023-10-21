@@ -24,7 +24,7 @@ jobs:
         # install clang-14
         wget https://apt.llvm.org/llvm.sh
         sudo bash ./llvm.sh 14
-        sudo apt install build-essential libopenblas-dev clang-14 libomp-14-dev
+        sudo apt install build-essential libopenblas-dev clang-14 libomp-14-dev libclang-rt-14-dev
         sudo cat /etc/apt/sources.list
         sudo ls -R /etc/apt/sources.list.d
 
