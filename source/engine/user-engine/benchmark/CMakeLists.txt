@@ -12,6 +12,7 @@ add_subdirectory(../../../../third-party/benchmark benchmark)
 ## <repetition table>
 add_executable(
     kh-benchmark
+    node_benchmark.cpp
     repetition_table_benchmark.cpp
     overall_benchmark.cpp
     visit_history_benchmark.cpp
