@@ -137,48 +137,6 @@ class Node {
     path_key_ = PathKeyBefore(last_move);
   }
 
-  /// (not maintained) 直前に相手が取った駒を奪う。`UnstealCapturedPiece()` をするまでは `UndoMove()` してはいけない。
-  [[deprecated]] void StealCapturedPiece() {
-    auto captured_pr = raw_type_of(Pos().state()->capturedPiece);
-    path_key_ = PathKeyAfterSteal(path_key_, captured_pr, depth_);
-    Pos().steal_hand(captured_pr);
-  }
-
-  /// (not maintained) `StealCapturedPiece()` で奪った駒を返す
-  [[deprecated]] void UnstealCapturedPiece() {
-    auto captured_pr = raw_type_of(Pos().state()->capturedPiece);
-    path_key_ = PathKeyAfterGive(path_key_, captured_pr, depth_);
-    Pos().give_hand(captured_pr);
-  }
-
-  /// (not maintained) 直前の王手駒をすぐに取り返す手を生成する。もしできなければ `MOVE_NONE` を返す。
-  [[deprecated]] Move ImmediateCapture() const {
-    if (!IsOrNode() || GetDepth() < 1) {
-      return MOVE_NONE;
-    }
-
-    // 両王手のときは少しだけ注意が必要。以下のコードで問題ない
-    // - 近接王手駒がchecker_sq: between_bb の結果が空なので次の if 文の中に入る
-    // - 遠隔王手駒がchecker_sq: between_bb へ駒を打ったり移動したりする手は王手回避にならない。
-    //   つまり、必ず次の if 文の中に入る
-
-    auto last_move = Pos().state()->lastMove;
-    auto checker_sq = Pos().state()->previous->checkersBB.pop_c();
-    auto king_sq = KingSquare();
-
-    auto between = between_bb(king_sq, checker_sq);
-    if (!between.test(to_sq(last_move))) {
-      return MOVE_NONE;
-    }
-
-    auto checker = Pos().piece_on(checker_sq);
-    auto capture_move = make_move(checker_sq, to_sq(last_move), checker);
-    if (Pos().pseudo_legal(capture_move) && Pos().legal(capture_move)) {
-      return capture_move;
-    }
-    return MOVE_NONE;
-  }
-
   /// 現局面が千日手かどうか
   std::optional<Depth> IsRepetition() const { return visit_history_.Contains(BoardKey(), this->OrHand()); }
 
