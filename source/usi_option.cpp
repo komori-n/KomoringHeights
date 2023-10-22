@@ -45,6 +45,7 @@ namespace USI {
 
 #if defined(USER_ENGINE)
 		o["Threads"] << Option(1, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
+		o["MultiPV"] << Option(1, 1, 800);
 #else
 		o["Threads"] << Option(4, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
 #endif
