@@ -30,7 +30,7 @@ class VisitHistory {
   /// Construct a new Visit History object
   VisitHistory() {
     for (auto& entry : hash_table_) {
-      entry.hand = kNullHand;
+      entry.SetNull();
     }
   }
 
@@ -55,7 +55,7 @@ class VisitHistory {
    */
   void Visit(Key board_key, Hand hand, Depth depth) {
     auto index = StartIndex(board_key);
-    for (; hash_table_[index].hand != kNullHand; index = Next(index)) {
+    for (; !hash_table_[index].IsNull(); index = Next(index)) {
     }
 
     hash_table_[index].board_key = board_key;
@@ -77,7 +77,7 @@ class VisitHistory {
       // ↑ 細かいところだが、hand を先に判定したほうが 10% 高速。
     }
 
-    hash_table_[index].hand = kNullHand;
+    hash_table_[index].SetNull();
   }
 
   /**
@@ -87,7 +87,7 @@ class VisitHistory {
    */
   std::optional<Depth> Contains(Key board_key, Hand hand) const {
     auto index = StartIndex(board_key);
-    for (; hash_table_[index].hand != kNullHand; index = Next(index)) {
+    for (; !hash_table_[index].IsNull(); index = Next(index)) {
       const auto& entry = hash_table_[index];
       if (entry.hand == hand && entry.board_key == board_key) {
         return {entry.depth};
@@ -104,7 +104,7 @@ class VisitHistory {
    */
   std::optional<Depth> IsInferior(Key board_key, Hand hand) const {
     auto index = StartIndex(board_key);
-    for (; hash_table_[index].hand != kNullHand; index = Next(index)) {
+    for (; !hash_table_[index].IsNull(); index = Next(index)) {
       const auto& entry = hash_table_[index];
       if (entry.board_key == board_key && hand_is_equal_or_superior(entry.hand, hand)) {
         return {entry.depth};
@@ -121,7 +121,7 @@ class VisitHistory {
    */
   std::optional<Depth> IsSuperior(Key board_key, Hand hand) const {
     auto index = StartIndex(board_key);
-    for (; hash_table_[index].hand != kNullHand; index = Next(index)) {
+    for (; !hash_table_[index].IsNull(); index = Next(index)) {
       const auto& entry = hash_table_[index];
       if (entry.board_key == board_key && hand_is_equal_or_superior(hand, entry.hand)) {
         return {entry.depth};
@@ -145,8 +145,14 @@ class VisitHistory {
     Key board_key;  ///< 盤面ハッシュ値。
     Hand hand;      ///< 攻め方の持ち駒。使用していないなら kNullHand。
     Depth depth;    ///< 探索深さ
+
+    /// 未使用状態にする
+    void SetNull() noexcept { hand = kNullHand; }
+    /// 未使用状態かどうか判定する
+    bool IsNull() const noexcept { return hand == kNullHand; }
   };
   static_assert(sizeof(TableEntry) == 16);
+  static_assert(std::is_trivial_v<TableEntry>);
 
   /// `board_key` に対する探索開始インデックスを求める
   constexpr std::size_t StartIndex(Key board_key) const noexcept { return (board_key >> 32) & kTableIndexMask; }
