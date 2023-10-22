@@ -11,6 +11,7 @@
 
 #include "../../mate/mate.h"
 #include "board_key_hand_pair.hpp"
+#include "fixed_size_stack.hpp"
 #include "hands.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
@@ -117,7 +118,8 @@ class Node {
   void DoMove(Move move) {
     path_key_ = PathKeyAfter(move);
     visit_history_.Visit(BoardKey(), this->OrHand(), depth_);
-    Pos().do_move(move, st_info_.emplace());
+    st_info_.Push(StateInfo{});
+    Pos().do_move(move, st_info_.back());
     depth_++;
   }
 
@@ -127,7 +129,7 @@ class Node {
 
     depth_--;
     Pos().undo_move(last_move);
-    st_info_.pop();
+    st_info_.Pop();
     visit_history_.Leave(BoardKey(), this->OrHand(), depth_);
     path_key_ = PathKeyBefore(last_move);
   }
@@ -216,11 +218,11 @@ class Node {
 
   /// 現在の局面。move construct 可能にするために生参照ではなく `std::reference_wrapper` で持つ。
   std::reference_wrapper<Position> n_;
-  Color or_color_;                   ///< OR node（攻め方）の手番
-  Depth depth_{};                    ///< root から数えた探索深さ
-  VisitHistory visit_history_{};     ///< 千日手・優等局面の一覧
-  std::stack<StateInfo> st_info_{};  ///< do_move で必要な一時領域
-  Key path_key_{};                   ///< 経路ハッシュ値。差分計算により求める。
+  Color or_color_;                                  ///< OR node（攻め方）の手番
+  Depth depth_{};                                   ///< root から数えた探索深さ
+  VisitHistory visit_history_{};                    ///< 千日手・優等局面の一覧
+  FixedSizeStack<StateInfo, kDepthMax> st_info_{};  ///< do_move で必要な一時領域
+  Key path_key_{};                                  ///< 経路ハッシュ値。差分計算により求める。
 };
 
 /// 局面 n から moves で手を一気に進める。nに対し、moves の前から順に n.DoMove(m) を適用する。

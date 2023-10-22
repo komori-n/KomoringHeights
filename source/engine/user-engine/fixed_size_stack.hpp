@@ -12,7 +12,7 @@
 namespace komori {
 /**
  * @brief サイズ固定のスタック。
- * @tparam T 保存する要素の型（トリビアルコンストラクト可能かつトリビアルデストラクト可能）
+ * @tparam T 保存する要素の型（トリビアルデストラクト可能）
  * @tparam kSize 保存可能な添字の最大個数（`kSize`>0）
  *
  * `Push()` および `Pop()` により要素を追加および削除ができるスタック。動的メモリ確保は行わず、`std::array` にて
@@ -30,7 +30,6 @@ template <typename T, std::size_t kSize>
 class FixedSizeStack {
  public:
   static_assert(kSize > 0, "kSize shall be greater than 0");
-  static_assert(std::is_trivially_constructible_v<T>, "T shall be trivially default constructible");
   static_assert(std::is_trivially_destructible_v<T>, "T shall be trivially destructible");
 
   /// `val` をスタックに追加する
