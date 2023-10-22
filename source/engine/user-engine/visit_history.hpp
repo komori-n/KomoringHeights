@@ -23,13 +23,14 @@ namespace komori {
  * 探索履歴の保存に特化したクラスなので、`kDepthMax` 個より多くのエントリを保存することは想定していない。
  *
  * @note std::unordered_multimap の実装と比較して、std::array を用いる実装では約2倍高速に動作する
+ * @note 空エントリを kNullKey で表現するより kNullHand で表現したほうが 10% 高速。
  */
 class VisitHistory {
  public:
   /// Construct a new Visit History object
   VisitHistory() {
     for (auto& entry : hash_table_) {
-      entry.board_key = kNullKey;
+      entry.hand = kNullHand;
     }
   }
 
@@ -54,7 +55,7 @@ class VisitHistory {
    */
   void Visit(Key board_key, Hand hand, Depth depth) {
     auto index = StartIndex(board_key);
-    for (; hash_table_[index].board_key != kNullKey; index = Next(index)) {
+    for (; hash_table_[index].hand != kNullHand; index = Next(index)) {
     }
 
     hash_table_[index].board_key = board_key;
@@ -75,7 +76,7 @@ class VisitHistory {
     for (; hash_table_[index].board_key != board_key || hash_table_[index].hand != hand; index = Next(index)) {
     }
 
-    hash_table_[index].board_key = kNullKey;
+    hash_table_[index].hand = kNullHand;
   }
 
   /**
@@ -85,7 +86,7 @@ class VisitHistory {
    */
   std::optional<Depth> Contains(Key board_key, Hand hand) const {
     auto index = StartIndex(board_key);
-    for (; hash_table_[index].board_key != kNullKey; index = Next(index)) {
+    for (; hash_table_[index].hand != kNullHand; index = Next(index)) {
       const auto& entry = hash_table_[index];
       if (entry.board_key == board_key && entry.hand == hand) {
         return {entry.depth};
@@ -102,7 +103,7 @@ class VisitHistory {
    */
   std::optional<Depth> IsInferior(Key board_key, Hand hand) const {
     auto index = StartIndex(board_key);
-    for (; hash_table_[index].board_key != kNullKey; index = Next(index)) {
+    for (; hash_table_[index].hand != kNullHand; index = Next(index)) {
       const auto& entry = hash_table_[index];
       if (entry.board_key == board_key && hand_is_equal_or_superior(entry.hand, hand)) {
         return {entry.depth};
@@ -119,7 +120,7 @@ class VisitHistory {
    */
   std::optional<Depth> IsSuperior(Key board_key, Hand hand) const {
     auto index = StartIndex(board_key);
-    for (; hash_table_[index].board_key != kNullKey; index = Next(index)) {
+    for (; hash_table_[index].hand != kNullHand; index = Next(index)) {
       const auto& entry = hash_table_[index];
       if (entry.board_key == board_key && hand_is_equal_or_superior(hand, entry.hand)) {
         return {entry.depth};
@@ -140,8 +141,8 @@ class VisitHistory {
 
   /// ハッシュテーブルに格納するエントリ。16 bits に詰める。
   struct TableEntry {
-    Key board_key;  ///< 盤面ハッシュ値。使用していないなら kNullKey。
-    Hand hand;      ///< 攻め方の持ち駒。
+    Key board_key;  ///< 盤面ハッシュ値。
+    Hand hand;      ///< 攻め方の持ち駒。使用していないなら kNullHand。
     Depth depth;    ///< 探索深さ
   };
   static_assert(sizeof(TableEntry) == 16);
