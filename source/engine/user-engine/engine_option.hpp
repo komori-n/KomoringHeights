@@ -133,9 +133,9 @@ inline OutType ReadOption(const USI::OptionsMap& o, const std::string& name) {
  * @param val 値
  * @return `val` が正ならその値、それ以外なら 2^64-1 を返す。
  */
-inline constexpr std::uint64_t MakeInfIfNotPositive(std::uint64_t val) {
+inline constexpr std::uint64_t MakeInfIfNotPositive(std::int64_t val) {
   if (val > 0) {
-    return val;
+    return static_cast<std::uint64_t>(val);
   }
   return std::numeric_limits<std::uint64_t>::max();
 }
