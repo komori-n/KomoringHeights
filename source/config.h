@@ -486,6 +486,7 @@ constexpr int MAX_PLY_NUM = 246;
 #define KEEP_LAST_MOVE
 #define USE_KEY_AFTER
 #define USE_BOARD_KEY_AFTER
+#define NO_PREFETCH
 // #define USE_DEEP_DFPN
 // #define USE_TT_SAVE_AND_LOAD
 #endif
