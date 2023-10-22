@@ -4,8 +4,8 @@
 #ifndef KOMORI_VISIT_HISTORY_HPP_
 #define KOMORI_VISIT_HISTORY_HPP_
 
+#include <array>
 #include <optional>
-#include <unordered_map>
 
 #include "ranges.hpp"
 #include "typedefs.hpp"
@@ -19,9 +19,31 @@ namespace komori {
  * あったかどうかを判定する。
  *
  * `Visit()` で新たな局面に訪れ、`Leave()` で訪れた局面の削除ができる。
+ *
+ * 探索履歴の保存に特化したクラスなので、`kDepthMax` 個より多くのエントリを保存することは想定していない。
+ *
+ * @note std::unordered_multimap の実装と比較して、std::array を用いる実装では約2倍高速に動作する
  */
 class VisitHistory {
  public:
+  /// Construct a new Visit History object
+  VisitHistory() {
+    for (auto& entry : hash_table_) {
+      entry.board_key = kNullKey;
+    }
+  }
+
+  /// Copy constructor(delete)
+  VisitHistory(const VisitHistory&) = delete;
+  /// Move constructor(default)
+  VisitHistory(VisitHistory&&) noexcept = default;
+  /// Copy assign operator(delete)
+  VisitHistory& operator=(const VisitHistory&) = delete;
+  /// Move assign operator(default)
+  VisitHistory& operator=(VisitHistory&&) noexcept = default;
+  /// Destructor(default)
+  ~VisitHistory() = default;
+
   /**
    * @brief (`board_key`, `hand`) を履歴に登録する
    * @param board_key   局面のハッシュ
@@ -30,7 +52,15 @@ class VisitHistory {
    *
    * `Contains(board_key, hand) == true` の場合、呼び出し禁止。
    */
-  void Visit(Key board_key, Hand hand, Depth depth) { visited_.emplace(board_key, std::make_pair(hand, depth)); }
+  void Visit(Key board_key, Hand hand, Depth depth) {
+    auto index = StartIndex(board_key);
+    for (; hash_table_[index].board_key != kNullKey; index = Next(index)) {
+    }
+
+    hash_table_[index].board_key = board_key;
+    hash_table_[index].hand = hand;
+    hash_table_[index].depth = depth;
+  }
 
   /**
    * @brief (`board_key`, `hand`) を履歴から消す
@@ -41,13 +71,11 @@ class VisitHistory {
    * (`board_key`, `hand`) は必ず `Visit()` で登録された局面でなければならない。
    */
   void Leave(Key board_key, Hand hand, Depth /* depth */) {
-    auto [begin, end] = visited_.equal_range(board_key);
-    for (auto itr = begin; itr != end; ++itr) {
-      if (itr->second.first == hand) {
-        visited_.erase(itr);
-        return;
-      }
+    auto index = StartIndex(board_key);
+    for (; hash_table_[index].board_key != board_key || hash_table_[index].hand != hand; index = Next(index)) {
     }
+
+    hash_table_[index].board_key = kNullKey;
   }
 
   /**
@@ -56,11 +84,11 @@ class VisitHistory {
    * @param hand      攻め方の持ち駒
    */
   std::optional<Depth> Contains(Key board_key, Hand hand) const {
-    const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hd] : AsRange(range)) {  // NOLINT(readability-use-anyofallof)
-      const auto& [history_hand, history_depth] = history_hd;
-      if (history_hand == hand) {
-        return history_depth;
+    auto index = StartIndex(board_key);
+    for (; hash_table_[index].board_key != kNullKey; index = Next(index)) {
+      const auto& entry = hash_table_[index];
+      if (entry.board_key == board_key && entry.hand == hand) {
+        return {entry.depth};
       }
     }
 
@@ -73,11 +101,11 @@ class VisitHistory {
    * @param hand        攻め方の持ち駒
    */
   std::optional<Depth> IsInferior(Key board_key, Hand hand) const {
-    const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hd] : AsRange(range)) {  // NOLINT(readability-use-anyofallof)
-      const auto& [history_hand, history_depth] = history_hd;
-      if (hand_is_equal_or_superior(history_hand, hand)) {
-        return history_depth;
+    auto index = StartIndex(board_key);
+    for (; hash_table_[index].board_key != kNullKey; index = Next(index)) {
+      const auto& entry = hash_table_[index];
+      if (entry.board_key == board_key && hand_is_equal_or_superior(entry.hand, hand)) {
+        return {entry.depth};
       }
     }
 
@@ -90,11 +118,11 @@ class VisitHistory {
    * @param hand        攻め方の持ち駒
    */
   std::optional<Depth> IsSuperior(Key board_key, Hand hand) const {
-    const auto range = visited_.equal_range(board_key);
-    for (const auto& [bk, history_hd] : AsRange(range)) {  // NOLINT(readability-use-anyofallof)
-      const auto& [history_hand, history_depth] = history_hd;
-      if (hand_is_equal_or_superior(hand, history_hand)) {
-        return history_depth;
+    auto index = StartIndex(board_key);
+    for (; hash_table_[index].board_key != kNullKey; index = Next(index)) {
+      const auto& entry = hash_table_[index];
+      if (entry.board_key == board_key && hand_is_equal_or_superior(hand, entry.hand)) {
+        return {entry.depth};
       }
     }
 
@@ -102,10 +130,29 @@ class VisitHistory {
   }
 
  private:
-  /// 攻め方の持ち駒と探索深さのペア
-  using HandDepthPair = std::pair<Hand, Depth>;
-  /// 経路上で訪れたことがある局面一覧。局面の優等性を利用したいためmultisetを用いる。
-  std::unordered_multimap<Key, HandDepthPair> visited_;
+  /// HashTable のテーブルサイズ。2のべき乗かつ `kDepthMax` 以上の値にしなければならない
+  static constexpr std::size_t kTableSize = 4096 * 8;
+  /// テーブルにアクセスするための添字に対するマスク。
+  static constexpr std::size_t kTableIndexMask = kTableSize - 1;
+
+  static_assert((kTableSize & (kTableSize - 1)) == 0);
+  static_assert(kTableSize >= kDepthMax);
+
+  /// ハッシュテーブルに格納するエントリ。16 bits に詰める。
+  struct TableEntry {
+    Key board_key;  ///< 盤面ハッシュ値。使用していないなら kNullKey。
+    Hand hand;      ///< 攻め方の持ち駒。
+    Depth depth;    ///< 探索深さ
+  };
+  static_assert(sizeof(TableEntry) == 16);
+
+  /// `board_key` に対する探索開始インデックスを求める
+  constexpr std::size_t StartIndex(Key board_key) const noexcept { return (board_key >> 32) & kTableIndexMask; }
+  /// `index` の次のインデックスを求める
+  constexpr std::size_t Next(std::size_t index) const noexcept { return (index + 1) & kTableIndexMask; }
+
+  /// ハッシュテーブル本体
+  alignas(64) std::array<TableEntry, kTableSize> hash_table_;
 };
 }  // namespace komori
 
