@@ -140,7 +140,6 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
     tt_.CollectGarbage(kGcRemovalRatio);
   }
   // </初期化>
-  return NodeState{};
 
   auto& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
