@@ -152,7 +152,7 @@ class RepetitionTable {
   };
   static_assert(sizeof(TableEntry) == 16);
 
-  /// `path_key` に対しる探索開始インデックスを求める。
+  /// `path_key` に対する探索開始インデックスを求める。
   std::size_t StartIndex(Key path_key) const {
     // Stockfishのアイデア。`path_key` が std::uint64_t 上の一様分布に従うとき、
     // 乗算とシフトにより [0, hash_table_.size()) 上の一様分布に従う変数に変換できる。
