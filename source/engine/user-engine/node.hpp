@@ -97,6 +97,17 @@ class Node {
   /// 盤面ハッシュ値と攻め方の持ち駒を同時に取得する
   BoardKeyHandPair GetBoardKeyHandPair() const { return {BoardKey(), OrHand()}; }
 
+  /// 開始局面の指し手
+  std::optional<Move> RootMove() const {
+    if (moves_.empty()) {
+      return std::nullopt;
+    } else {
+      return {moves_.front()};
+    }
+  }
+  /// 開始局面からの指し手
+  const FixedSizeStack<Move, kDepthMax>& MovesFromStart() const { return moves_; }
+
   /// `move` 後のハッシュ値
   Key KeyAfter(Move move) const { return Pos().key_after(move); }
   /// `move` 後の盤面ハッシュ値
@@ -116,6 +127,7 @@ class Node {
 
   /// `move` で1手進める
   void DoMove(Move move) {
+    moves_.Push(move);
     path_key_ = PathKeyAfter(move);
     visit_history_.Visit(BoardKey(), this->OrHand(), depth_);
 
@@ -125,16 +137,16 @@ class Node {
     depth_++;
   }
 
-  /// `DoMove()` で勧めた局面を元に戻す
+  /// `DoMove()` で進めた局面を元に戻す
   void UndoMove() {
-    const auto last_move = Pos().state()->lastMove;
-
+    const auto last_move = moves_.back();
     depth_--;
     Pos().undo_move(last_move);
 
     st_info_.Pop();
     visit_history_.Leave(BoardKey(), this->OrHand(), depth_);
     path_key_ = PathKeyBefore(last_move);
+    moves_.Pop();
   }
 
   /// 現局面が千日手かどうか
@@ -182,6 +194,7 @@ class Node {
   Color or_color_;                                  ///< OR node（攻め方）の手番
   Depth depth_{};                                   ///< root から数えた探索深さ
   VisitHistory visit_history_{};                    ///< 千日手・優等局面の一覧
+  FixedSizeStack<Move, kDepthMax> moves_{};         ///< 開始局面からの指し手
   FixedSizeStack<StateInfo, kDepthMax> st_info_{};  ///< do_move で必要な一時領域
   Key path_key_{};                                  ///< 経路ハッシュ値。差分計算により求める。
 };

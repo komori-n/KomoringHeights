@@ -40,6 +40,32 @@ TEST(NodeTest, IsRootOrNode) {
   EXPECT_FALSE(n->IsRootOrNode());
 }
 
+TEST(NodeTest, RootMove) {
+  TestNode n{"ln1gkg1nl/6+P2/2sppps1p/2p3p2/p8/P1P1P3P/2NP1PP2/3s1KSR1/L1+b2G1NL w R2Pbgp 1", true};
+  EXPECT_FALSE(n->RootMove());
+
+  const auto m = make_move(SQ_68, SQ_57, W_SILVER);
+  n->DoMove(m);
+  EXPECT_EQ(n->RootMove(), std::optional<Move>(m));
+  n->UndoMove();
+  EXPECT_FALSE(n->RootMove());
+}
+
+TEST(NodeTest, MovesFromStart) {
+  TestNode n{"ln1gkg1nl/6+P2/2sppps1p/2p3p2/p8/P1P1P3P/2NP1PP2/3s1KSR1/L1+b2G1NL w R2Pbgp 1", true};
+
+  const auto m1 = make_move(SQ_68, SQ_57, W_SILVER);
+  const auto m2 = make_move(SQ_48, SQ_59, B_KING);
+  const auto m3 = make_move(SQ_57, SQ_68, W_SILVER);
+  n->DoMove(m1);
+  n->DoMove(m2);
+  n->DoMove(m3);
+
+  const auto& moves_from_start = n->MovesFromStart();
+  const auto vec = std::vector<Move>(moves_from_start.begin(), moves_from_start.end());
+  EXPECT_EQ(vec, (std::vector<Move>{m1, m2, m3}));
+}
+
 TEST(NodeTest, Repetitions) {
   TestNode n{"ln1gkg1nl/6+P2/2sppps1p/2p3p2/p8/P1P1P3P/2NP1PP2/3s1KSR1/L1+b2G1NL w R2Pbgp 1", true};
 
