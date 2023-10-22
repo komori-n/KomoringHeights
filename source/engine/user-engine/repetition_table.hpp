@@ -54,7 +54,7 @@ class RepetitionTable {
     next_generation_update_ = entries_per_generation_;
     next_gc_ = kInitialGcDuration;
 
-    const TableEntry initial_entry{kNullKey, 0, 0};
+    const TableEntry initial_entry{kEmptyKey, 0, 0};
     std::fill(hash_table_.begin(), hash_table_.end(), initial_entry);
   }
 
@@ -83,11 +83,11 @@ class RepetitionTable {
    */
   void Insert(Key path_key, Depth depth) {
     auto index = StartIndex(path_key);
-    while (hash_table_[index].key != kNullKey && hash_table_[index].key != path_key) {
+    while (hash_table_[index].key != kEmptyKey && hash_table_[index].key != path_key) {
       index = Next(index);
     }
 
-    if (hash_table_[index].key == kNullKey) {
+    if (hash_table_[index].key == kEmptyKey) {
       hash_table_[index] = TableEntry{path_key, depth, generation_};
       entry_count_++;
       if (entry_count_ >= next_generation_update_) {
@@ -110,7 +110,7 @@ class RepetitionTable {
    * @return `path_key` が保存されていればその深さ、なければ `std::nullopt`
    */
   std::optional<Depth> Contains(Key path_key) const {
-    for (auto index = StartIndex(path_key); hash_table_[index].key != kNullKey; index = Next(index)) {
+    for (auto index = StartIndex(path_key); hash_table_[index].key != kEmptyKey; index = Next(index)) {
       if (hash_table_[index].key == path_key) {
         return {hash_table_[index].depth};
       }
@@ -141,10 +141,12 @@ class RepetitionTable {
   static constexpr Generation kGcDuration = 3;
   /// GCで残す置換表世代数
   static constexpr Generation kGcKeepGeneration = 3;
+  /// 空を表す経路ハッシュ値。`kEmptyKey` ではなく 0 を用いることで、`Clear()` が倍近く高速化できる。
+  static constexpr Key kEmptyKey = 0;
 
   /// 置換表に格納するエントリ。16 bits に詰める。
   struct TableEntry {
-    Key key;                ///< 経路ハッシュ値。使用していないなら kNullKey。
+    Key key;                ///< 経路ハッシュ値。使用していないなら kEmptyKey。
     Depth depth;            ///< 探索深さ
     Generation generation;  ///< 置換表世代
   };
@@ -192,21 +194,21 @@ class RepetitionTable {
     };
 
     for (auto& entry : hash_table_) {
-      if (entry.key != kNullKey && should_erase(entry)) {
-        entry.key = kNullKey;
+      if (entry.key != kEmptyKey && should_erase(entry)) {
+        entry.key = kEmptyKey;
       }
     }
 
     // コンパクション。配列の後ろの方で微妙に歯抜けができてエントリにアクセスできなくなる可能性があるが目をつぶる。
     for (auto& entry : hash_table_) {
-      if (entry.key == kNullKey) {
+      if (entry.key == kEmptyKey) {
         continue;
       }
 
       for (auto index = StartIndex(entry.key); &hash_table_[index] != &entry; index = Next(index)) {
-        if (hash_table_[index].key == kNullKey) {
+        if (hash_table_[index].key == kEmptyKey) {
           hash_table_[index] = entry;
-          entry.key = kNullKey;
+          entry.key = kEmptyKey;
           break;
         }
       }

@@ -6,6 +6,15 @@ using komori::tt::RepetitionTable;
 namespace {
 constexpr std::size_t kTableSize = 100000;
 
+void RepetitionTable_Clear(benchmark::State& state) {
+  RepetitionTable table{};
+
+  table.Resize(100 * kTableSize);
+  for (auto _ : state) {
+    table.Clear();
+  }
+}
+
 void RepetitionTable_Insert(benchmark::State& state) {
   RepetitionTable table{};
 
@@ -53,5 +62,6 @@ void RepetitionTable_Contains(benchmark::State& state) {
 }
 }  // namespace
 
+BENCHMARK(RepetitionTable_Clear);
 BENCHMARK(RepetitionTable_Insert);
 BENCHMARK(RepetitionTable_Contains);
