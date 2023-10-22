@@ -118,7 +118,9 @@ class Node {
   void DoMove(Move move) {
     path_key_ = PathKeyAfter(move);
     visit_history_.Visit(BoardKey(), this->OrHand(), depth_);
-    st_info_.Push(StateInfo{});
+
+    StateInfo st;
+    st_info_.Push(std::move(st));
     Pos().do_move(move, st_info_.back());
     depth_++;
   }
@@ -129,6 +131,7 @@ class Node {
 
     depth_--;
     Pos().undo_move(last_move);
+
     st_info_.Pop();
     visit_history_.Leave(BoardKey(), this->OrHand(), depth_);
     path_key_ = PathKeyBefore(last_move);
