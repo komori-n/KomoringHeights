@@ -14,6 +14,7 @@ add_executable(
     kh-benchmark
     repetition_table_benchmark.cpp
     overall_benchmark.cpp
+    visit_history_benchmark.cpp
     main.cpp
 
     # yaneuraou

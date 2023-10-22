@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "ranges.hpp"
+#include "typedefs.hpp"
 
 namespace komori {
 /**
