@@ -109,6 +109,21 @@ class SearchResult {
   /// Final部分の結果。`IsFinal()` の場合のみ呼び出し可能。
   constexpr const FinalData& GetFinalData() const { return final_data_; }
 
+  /// 探索結果に基づくノード状態（詰み／不詰／千日手／不明）
+  constexpr NodeState GetNodeState() const {
+    if (Pn() == 0) {
+      return NodeState::kProven;
+    } else if (Dn() == 0) {
+      if (!GetFinalData().IsRepetition()) {
+        return NodeState::kDisproven;
+      } else {
+        return NodeState::kRepetition;
+      }
+    } else {
+      return NodeState::kUnknown;
+    }
+  }
+
   /// `result` を出力ストリームへ出力する。
   friend std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
     os << "{";

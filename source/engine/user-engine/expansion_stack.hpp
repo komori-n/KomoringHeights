@@ -53,6 +53,15 @@ class ExpansionStack {
   /// スタック先頭要素を返す。
   const LocalExpansion& Current() const { return list_.back(); }
 
+  /// スタックが空かどうか判定する
+  bool IsEmpty() const { return list_.empty(); }
+  /**
+   * @brief スタックの最も古い要素を返す
+   * @return スタックの最も古い要素
+   * @pre `!IsEmpty()`
+   */
+  const LocalExpansion& Root() const { return list_.front(); }
+
   /**
    * @brief 現局面が終点となるの二重カウント解消を試みる
    * @param tt 置換表

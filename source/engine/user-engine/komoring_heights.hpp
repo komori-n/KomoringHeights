@@ -186,11 +186,11 @@ class KomoringHeights {
   EngineOption option_;        ///< エンジンオプション
 
   detail::SearchMonitor monitor_;       ///< 探索モニター
-  Score score_{};                       ///< 現時点の評価値
   std::atomic_bool print_flag_{false};  ///< 標準出力フラグ
 
   std::vector<Move> best_moves_;     ///< 詰み手順
   ExpansionStack expansion_list_{};  ///< 局面展開のための一時領域
+  bool after_final_{false};          ///< 余詰探索中かどうか
 };
 }  // namespace komori
 

@@ -127,7 +127,6 @@ void KomoringHeights::Clear() {
 UsiInfo KomoringHeights::CurrentInfo() const {
   UsiInfo usi_output = monitor_.GetInfo();
   usi_output.Set(UsiInfoKey::kHashfull, tt_.Hashfull());
-  usi_output.Set(UsiInfoKey::kScore, score_.ToString());
 
   return usi_output;
 }
@@ -137,6 +136,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   tt_.NewSearch();
   monitor_.NewSearch(HashfullCheckInterval(tt_.Capacity()), option_.nodes_limit);
   best_moves_.clear();
+  after_final_ = false;
 
   if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
     tt_.CollectGarbage(kGcRemovalRatio);
@@ -147,7 +147,6 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   Node node{nn, is_root_or_node};
 
   auto [state, len] = SearchMainLoop(node);
-  const bool proven = (state == NodeState::kProven);
 
 #if defined(USE_TT_SAVE_AND_LOAD)
   const auto tt_write_path = option_.tt_write_path;
@@ -160,27 +159,25 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   }
 #endif  // defined(USE_TT_SAVE_AND_LOAD)
 
-  if (proven) {
+  if (state == NodeState::kProven) {
     if (best_moves_.size() % 2 != static_cast<int>(is_root_or_node)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
-    return NodeState::kProven;
-  } else {
-    return NodeState::kDisproven;
   }
+
+  return state;
 }
 
 std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
-  auto node_state{NodeState::kUnknown};
+  NodeState node_state = NodeState::kUnknown;
   auto len{kDepthMaxMateLen};
 
   for (Depth i = 0; i < kDepthMax; ++i) {
-    // `result` が余詰探索による不詰だったとき、後から元の状態（詰み）に戻せるようにしておく
-    const auto old_score = score_;
     const auto result = SearchEntry(n, len);
-    score_ = Score::Make(option_.score_method, result, n.IsRootOrNode());
+    const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
 
     auto info = CurrentInfo();
+    info.Set(UsiInfoKey::kScore, score.ToString());
 
     if (result.Pn() == 0) {
       // len 以下の手数の詰みが帰ってくるはず
@@ -209,6 +206,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       }
 
       len = result.Len() - 2;
+      after_final_ = true;
     } else {
       if (!option_.disable_info_print) {
         sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
@@ -217,9 +215,10 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
         }
       }
 
-      if (node_state == NodeState::kProven) {
+      if (node_state == NodeState::kUnknown) {
+        node_state = result.GetNodeState();
+      } else if (node_state == NodeState::kProven) {
         len = len + 2;
-        score_ = old_score;
         best_moves_ = GetMatePath(n, len);
       }
       break;
@@ -249,7 +248,6 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
       break;
     }
 
-    score_ = Score::Make(option_.score_method, result, n.IsRootOrNode());
     // 反復深化のしきい値を適当に伸ばす
     thpn = ClampPnDn(thpn, SaturatedMultiply<PnDn>(result.Pn(), 2), kInfinitePnDn);
     thdn = ClampPnDn(thdn, SaturatedMultiply<PnDn>(result.Dn(), 2), kInfinitePnDn);
@@ -391,11 +389,18 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
 
   auto usi_output = CurrentInfo();
   usi_output.Set(UsiInfoKey::kDepth, n.GetDepth());
-  if (!score_.IsFinal() || option_.show_pv_after_mate) {
-    const auto moves = ToString(n.MovesFromStart());
-    usi_output.Set(UsiInfoKey::kPv, moves);
-    if (const auto root_move = n.RootMove()) {
-      usi_output.Set(UsiInfoKey::kCurrMove, USI::move(*root_move));
+  if (!after_final_ || option_.show_pv_after_mate) {
+    if (!expansion_list_.IsEmpty()) {
+      const auto& root = expansion_list_.Root();
+      if (!root.empty()) {
+        const auto root_best_move = root.BestMove();
+        const auto root_best_result = root.BestResult();
+        const auto score = Score::Make(option_.score_method, root_best_result, n.IsRootOrNode());
+
+        usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root_best_move));
+        usi_output.Set(UsiInfoKey::kPv, ToString(n.MovesFromStart()));
+        usi_output.Set(UsiInfoKey::kScore, score.ToString());
+      }
     }
   }
 

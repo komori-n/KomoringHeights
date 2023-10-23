@@ -221,6 +221,11 @@ class LocalExpansion {
    */
   Move BestMove() const { return mp_[idx_.front()].move; }
   /**
+   * @brief 現時点の最善手に対する探索結果
+   * @return !empty()
+   */
+  SearchResult BestResult() const { return results_[idx_.front()]; }
+  /**
    * @brief unproven old child がいるかどうか
    */
   bool DoesHaveOldChild() const { return does_have_old_child_; }
