@@ -10,6 +10,14 @@ using komori::ScoreCalculationMethod;
 using komori::SearchResult;
 using komori::UnknownData;
 
+TEST(ScoreTest, MakeProven) {
+  const auto s1 = Score::MakeProven(ScoreCalculationMethod::kNone, 334);
+  EXPECT_EQ(s1.ToString(), "mate 334");
+
+  const auto s2 = Score::MakeProven(ScoreCalculationMethod::kNone, 335);
+  EXPECT_EQ(s2.ToString(), "mate 335");
+}
+
 TEST(ScoreTest, MakeUnknown_None) {
   const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
 

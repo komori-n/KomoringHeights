@@ -127,6 +127,7 @@ void KomoringHeights::Clear() {
 UsiInfo KomoringHeights::CurrentInfo() const {
   UsiInfo usi_output = monitor_.GetInfo();
   usi_output.Set(UsiInfoKey::kHashfull, tt_.Hashfull());
+  usi_output.Set(UsiInfoKey::kScore, score_.ToString());
 
   return usi_output;
 }
@@ -137,6 +138,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   monitor_.NewSearch(HashfullCheckInterval(tt_.Capacity()), option_.nodes_limit);
   best_moves_.clear();
   after_final_ = false;
+  score_ = Score{};
 
   if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
     tt_.CollectGarbage(kGcRemovalRatio);
@@ -174,10 +176,11 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
 
   for (Depth i = 0; i < kDepthMax; ++i) {
     const auto result = SearchEntry(n, len);
+    const auto old_score = score_;
     const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
 
+    score_ = score;
     auto info = CurrentInfo();
-    info.Set(UsiInfoKey::kScore, score.ToString());
 
     if (result.Pn() == 0) {
       // len 以下の手数の詰みが帰ってくるはず
@@ -187,11 +190,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       if (!option_.disable_info_print) {
         sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: mate in " << best_moves_.size()
                   << "(upper_bound:" << result.Len() << ")" << sync_endl;
-        std::ostringstream oss;
-        for (const auto move : best_moves_) {
-          oss << move << " ";
-        }
-        info.Set(UsiInfoKey::kPv, oss.str());
+        info.PushPVFront(0, score.ToString(), ToString(best_moves_));
         sync_cout << info << sync_endl;
       }
 
@@ -220,6 +219,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       } else if (node_state == NodeState::kProven) {
         len = len + 2;
         best_moves_ = GetMatePath(n, len);
+        score_ = old_score;
       }
       break;
     }
@@ -388,7 +388,6 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
   }
 
   auto usi_output = CurrentInfo();
-  usi_output.Set(UsiInfoKey::kDepth, n.GetDepth());
   if (!after_final_ || option_.show_pv_after_mate) {
     if (!expansion_list_.IsEmpty()) {
       const auto& root = expansion_list_.Root();
@@ -398,8 +397,7 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
         const auto score = Score::Make(option_.score_method, root_best_result, n.IsRootOrNode());
 
         usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root_best_move));
-        usi_output.Set(UsiInfoKey::kPv, ToString(n.MovesFromStart()));
-        usi_output.Set(UsiInfoKey::kScore, score.ToString());
+        usi_output.PushPVFront(n.GetDepth(), score.ToString(), ToString(n.MovesFromStart()));
       }
     }
   }

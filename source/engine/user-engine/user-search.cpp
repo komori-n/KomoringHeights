@@ -1,4 +1,4 @@
-#include <cmath>
+﻿#include <cmath>
 #include <condition_variable>
 #include <mutex>
 
@@ -60,8 +60,8 @@ void PrintResult(bool is_mate_search, LoseKind kind, const std::string& pv_moves
     }
   } else {
     auto usi_output = g_searcher.CurrentInfo();
-    usi_output.Set(komori::UsiInfoKey::kDepth, 0);
-    usi_output.Set(komori::UsiInfoKey::kPv, pv_moves);
+    const auto score = komori::Score::MakeProven(g_option.score_method, g_searcher.BestMoves().size());
+    usi_output.PushPVFront(0, score.ToString(), pv_moves);
     sync_cout << usi_output << sync_endl;
   }
 }

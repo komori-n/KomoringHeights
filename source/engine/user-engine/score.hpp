@@ -23,6 +23,15 @@ class Score : DefineNotEqualByEqual<Score> {
   constexpr Score() noexcept = default;
 
   /**
+   * @brief 詰み状態の `Score` オブジェクトを構築する。
+   * @param method `Score` の計算方法
+   * @param mate_len 詰み手数
+   */
+  static Score MakeProven(ScoreCalculationMethod /* method */, std::size_t mate_len) {
+    return Score(Kind::kWin, static_cast<ScoreValue>(mate_len));
+  }
+
+  /**
    * @brief `Score` オブジェクトを構築する。
    * @param method `Score` の計算方法
    * @param result `result` 現在の探索結果
