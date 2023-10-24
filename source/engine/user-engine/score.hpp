@@ -27,8 +27,9 @@ class Score : DefineNotEqualByEqual<Score> {
    * @param method `Score` の計算方法
    * @param mate_len 詰み手数
    */
-  static Score MakeProven(ScoreCalculationMethod /* method */, std::size_t mate_len) {
-    return Score(Kind::kWin, static_cast<ScoreValue>(mate_len));
+  static Score MakeProven(ScoreCalculationMethod /* method */, std::size_t mate_len, bool is_root_or_node) {
+    const auto score = Score(Kind::kWin, static_cast<ScoreValue>(mate_len));
+    return is_root_or_node ? score : -score;
   }
 
   /**

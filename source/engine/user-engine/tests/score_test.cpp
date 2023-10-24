@@ -11,11 +11,11 @@ using komori::SearchResult;
 using komori::UnknownData;
 
 TEST(ScoreTest, MakeProven) {
-  const auto s1 = Score::MakeProven(ScoreCalculationMethod::kNone, 334);
+  const auto s1 = Score::MakeProven(ScoreCalculationMethod::kNone, 334, true);
   EXPECT_EQ(s1.ToString(), "mate 334");
 
-  const auto s2 = Score::MakeProven(ScoreCalculationMethod::kNone, 335);
-  EXPECT_EQ(s2.ToString(), "mate 335");
+  const auto s2 = Score::MakeProven(ScoreCalculationMethod::kNone, 334, false);
+  EXPECT_EQ(s2.ToString(), "mate -334");
 }
 
 TEST(ScoreTest, MakeUnknown_None) {
