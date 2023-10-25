@@ -243,6 +243,16 @@ class LocalExpansion {
     return result.GetUnknownData().sum_mask;
   }
 
+  std::vector<std::pair<Move, SearchResult>> GetAllResults() const {
+    std::vector<std::pair<Move, SearchResult>> ret;
+    ret.reserve(idx_.size());
+    for (const auto i_raw : idx_) {
+      ret.push_back(std::make_pair(mp_[i_raw].move, results_[i_raw]));
+    }
+
+    return ret;
+  }
+
   /**
    * @brief 現局面における探索結果を返す
    * @param n 現局面

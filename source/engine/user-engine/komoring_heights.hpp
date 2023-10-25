@@ -192,6 +192,8 @@ class KomoringHeights {
   ExpansionStack expansion_list_{};  ///< 局面展開のための一時領域
   bool after_final_{false};          ///< 余詰探索中かどうか
   Score score_{};  ///< 現在の探索評価値。余詰探索中に CurrentInfo() で取得できるようにここにおいておく
+
+  std::unordered_map<Move, std::pair<bool, std::string>> pv_caches_;
 };
 }  // namespace komori
 

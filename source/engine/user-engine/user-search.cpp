@@ -61,7 +61,7 @@ void PrintResult(bool is_root_or_node, bool is_mate_search, LoseKind kind, const
   } else {
     auto usi_output = g_searcher.CurrentInfo();
     const auto score = komori::Score::MakeProven(g_option.score_method, g_searcher.BestMoves().size(), is_root_or_node);
-    usi_output.PushPVFront(0, score.ToString(), pv_moves);
+    usi_output.PushPVBack(0, score.ToString(), pv_moves);
     sync_cout << usi_output << sync_endl;
   }
 }

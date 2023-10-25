@@ -139,6 +139,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   best_moves_.clear();
   after_final_ = false;
   score_ = Score{};
+  pv_caches_.clear();
 
   if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
     tt_.CollectGarbage(kGcRemovalRatio);
@@ -190,7 +191,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       if (!option_.disable_info_print) {
         sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: mate in " << best_moves_.size()
                   << "(upper_bound:" << result.Len() << ")" << sync_endl;
-        info.PushPVFront(0, score.ToString(), ToString(best_moves_));
+        info.PushPVBack(0, score.ToString(), ToString(best_moves_));
         sync_cout << info << sync_endl;
       }
 
@@ -237,6 +238,23 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
     std::uint32_t inc_flag = 0;
     result = SearchImpl(n, thpn, thdn, len, inc_flag);
+
+    if (!n.IsOrNode() && len == kDepthMaxMateLen) {
+      const auto& root = expansion_list_.Root();
+      for (const auto& [move, result] : root.GetAllResults()) {
+        if (result.Pn() != 0) {
+          continue;
+        }
+
+        if (const auto it = pv_caches_.find(move); it == pv_caches_.end() || !it->second.first) {
+          n.DoMove(move);
+          const auto pv = GetMatePath(n, result.Len());
+          n.UndoMove();
+          pv_caches_[move] = std::make_pair(true, USI::move(move) + " " + ToString(pv));
+        }
+      }
+    }
+
     if (result.IsFinal()) {
       break;
     }
@@ -252,10 +270,16 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
     thpn = ClampPnDn(thpn, SaturatedMultiply<PnDn>(result.Pn(), 2), kInfinitePnDn);
     thdn = ClampPnDn(thdn, SaturatedMultiply<PnDn>(result.Dn(), 2), kInfinitePnDn);
   }
-  expansion_list_.Pop();
 
   auto query = tt_.BuildQuery(n);
   query.SetResult(result);
+
+  if (len == kDepthMaxMateLen) {
+    print_flag_ = true;
+    PrintIfNeeded(n);
+  }
+
+  expansion_list_.Pop();
 
   return result;
 }
@@ -388,17 +412,23 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
   }
 
   auto usi_output = CurrentInfo();
-  if (!after_final_ || option_.show_pv_after_mate) {
-    if (!expansion_list_.IsEmpty()) {
-      const auto& root = expansion_list_.Root();
-      if (!root.empty()) {
-        const auto root_best_move = root.BestMove();
-        const auto root_best_result = root.BestResult();
-        const auto score = Score::Make(option_.score_method, root_best_result, n.IsRootOrNode());
+  if ((!after_final_ || option_.show_pv_after_mate) && !expansion_list_.IsEmpty()) {
+    const auto& root = expansion_list_.Root();
+    usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root.BestMove()));
 
-        usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root_best_move));
-        usi_output.PushPVFront(n.GetDepth(), score.ToString(), ToString(n.MovesFromStart()));
+    pv_caches_[root.BestMove()] = std::make_pair(false, ToString(n.MovesFromStart()));
+    for (const auto& [move, result] : root.GetAllResults()) {
+      const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
+      const auto depth = move == root.BestMove() ? n.GetDepth() : 0;
+
+      std::string pv;
+      if (const auto it = pv_caches_.find(move); it != pv_caches_.end()) {
+        pv = it->second.second;
+      } else {
+        pv = USI::move(move);
       }
+
+      usi_output.PushPVBack(depth, score.ToString(), pv);
     }
   }
 

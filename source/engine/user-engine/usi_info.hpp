@@ -111,7 +111,7 @@ class UsiInfo {
         os << " pv " << pv;
 
         if (index != usi_info.multi_pv_.size() - 1) {
-          os << std::endl;
+          os << "\n";
         }
       }
     }
@@ -147,8 +147,8 @@ class UsiInfo {
    * @param score 探索評価値
    * @param pv    PV
    */
-  void PushPVFront(Depth depth, std::string_view score, std::string_view pv) {
-    multi_pv_.emplace_front(PVInfo{depth, std::string{score}, std::string{pv}});
+  void PushPVBack(Depth depth, std::string_view score, std::string_view pv) {
+    multi_pv_.emplace_back(PVInfo{depth, std::string{score}, std::string{pv}});
   }
 
  private:
@@ -165,7 +165,7 @@ class UsiInfo {
   /// オプションと設定値のペア。
   std::unordered_map<UsiInfoKey, std::string> options_;
   /// 現在のPVたち（良い順）
-  std::deque<PVInfo> multi_pv_;
+  std::vector<PVInfo> multi_pv_;
 };
 }  // namespace komori
 

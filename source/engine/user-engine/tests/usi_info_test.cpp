@@ -62,7 +62,7 @@ TEST_F(UsiInfoTest, NoPV) {
 
 TEST_F(UsiInfoTest, OnePV) {
   UsiInfo info;
-  info.PushPVFront(33, "4", "hoge");
+  info.PushPVBack(33, "4", "hoge");
 
   std::unordered_map<std::string, std::string> expected{{"depth", "33"}, {"score", "4"}, {"pv", "hoge"}};
 
@@ -73,8 +73,8 @@ TEST_F(UsiInfoTest, OnePV) {
 
 TEST_F(UsiInfoTest, TwoPV) {
   UsiInfo info;
-  info.PushPVFront(33, "4", "hoge");
-  info.PushPVFront(334, "334", "fuga");
+  info.PushPVBack(334, "334", "fuga");
+  info.PushPVBack(33, "4", "hoge");
 
   std::stringstream ss;
   ss << info;
