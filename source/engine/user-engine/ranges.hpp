@@ -293,6 +293,69 @@ constexpr inline auto Skip(Range&& range) noexcept(noexcept(detail::SkipImpl<Ran
     std::forward<Range>(range)})) {
   return detail::SkipImpl<Range, kSkip>{std::forward<Range>(range)};
 }
+
+namespace detail {
+template <typename Range1, typename Range2>
+class ZipImpl {
+ public:
+  template <typename Iterator1, typename Iterator2>
+  class Iterator {
+   public:
+    constexpr Iterator(Iterator1 itr1, Iterator2 itr2) noexcept(std::is_nothrow_copy_assignable_v<Iterator1> &&
+                                                                std::is_nothrow_copy_assignable_v<Iterator2>)
+        : itr1_{itr1}, itr2_{itr2} {}
+
+    constexpr auto operator*() noexcept(noexcept(*itr1_, *itr2_)) { return std::make_pair(*itr1_, *itr2_); }
+
+    constexpr Iterator& operator++() noexcept(noexcept(itr1_++, itr2_++)) {
+      itr1_++;
+      itr2_++;
+
+      return *this;
+    }
+
+    template <typename LI1, typename LI2, typename RI1, typename RI2>
+    friend constexpr bool operator!=(const Iterator<LI1, LI2>& lhs,
+                                     const Iterator<RI1, RI2>& rhs) noexcept(noexcept(lhs.itr1_ == rhs.itr1_ ||
+                                                                                      lhs.itr2_ == rhs.itr2_)) {
+      return lhs.itr1_ != rhs.itr1_ && lhs.itr2_ != rhs.itr2_;
+    }
+
+   private:
+    Iterator1 itr1_;
+    Iterator2 itr2_;
+  };
+
+  constexpr ZipImpl(Range1 range1, Range2 range2) noexcept(
+      std::is_nothrow_constructible_v<Range1, decltype(std::forward<Range1>(range1))> &&
+      std::is_nothrow_constructible_v<Range2, decltype(std::forward<Range2>(range2))>)
+      : range1_{std::forward<Range1>(range1)}, range2_{std::forward<Range2>(range2)} {}
+
+  constexpr auto begin() const noexcept(noexcept(range1_.begin(), range2_.begin())) {
+    return Iterator<decltype(range1_.begin()), decltype(range2_.begin())>(range1_.begin(), range2_.begin());
+  }
+
+  constexpr auto end() const noexcept(noexcept(range1_.end(), range2_.end())) {
+    return Iterator<decltype(range1_.end()), decltype(range2_.end())>(range1_.end(), range2_.end());
+  }
+
+ private:
+  Range1 range1_;
+  Range2 range2_;
+};
+}  // namespace detail
+
+/**
+ * @brief 2つのrangeをpairでまとめたようなrangeを返す。
+ * @param range1 range1
+ * @param range2 range2
+ * @return 2つのrangeをpairでまとめたようにiterateできるrangeを返す。
+ */
+template <typename Range1, typename Range2>
+constexpr inline auto Zip(Range1&& range1, Range2&& range2) noexcept(
+    noexcept(detail::ZipImpl<Range1, Range2>(std::forward<Range1>(range1), std::forward<Range2>(range2)))) {
+  return detail::ZipImpl<Range1, Range2>(std::forward<Range1>(range1), std::forward<Range2>(range2));
+}
 }  // namespace komori
 
 #endif  // KOMORI_RANGES_HPP_

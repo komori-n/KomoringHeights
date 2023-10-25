@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include "../ranges.hpp"
 
@@ -137,4 +138,19 @@ TEST(Skip, ConstRange) {
   for (const auto& x : range) {
     EXPECT_EQ(x, 2);
   }
+}
+
+TEST(Zip, ZipTest) {
+  std::vector<int> a{3, 3, 4, 3, 3, 4};
+  std::vector<std::string> b{"hoge", "fuga", "piyo"};
+
+  std::vector<std::pair<int, std::string>> ans{{3, "hoge"}, {3, "fuga"}, {4, "piyo"}};
+  std::size_t idx = 0;
+
+  for (const auto& [x, y] : komori::Zip(a, std::move(b))) {
+    EXPECT_EQ(x, ans[idx].first) << idx;
+    EXPECT_EQ(y, ans[idx].second) << idx;
+    idx++;
+  }
+  EXPECT_EQ(idx, 3);
 }
