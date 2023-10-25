@@ -158,6 +158,16 @@ class KomoringHeights {
   SearchResult SearchEntry(Node& n, MateLen len);
 
   /**
+   * @brief 詰め探索の本体。root node専用の `SearchImpl()`。
+   * @param n 現局面（root node）
+   * @param thpn pn のしきい値
+   * @param thdn dn のしきい値
+   * @param len  残り手数
+   * @return 探索結果
+   */
+  SearchResult SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, MateLen len);
+
+  /**
    * @brief 詰め探索の本体。（再帰関数）
    * @param n 現局面
    * @param thpn pn のしきい値

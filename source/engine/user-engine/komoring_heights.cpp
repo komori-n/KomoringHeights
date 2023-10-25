@@ -236,25 +236,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
 
   expansion_list_.Emplace(tt_, n, len, true);
   while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
-    std::uint32_t inc_flag = 0;
-    result = SearchImpl(n, thpn, thdn, len, inc_flag);
-
-    if (!n.IsOrNode() && len == kDepthMaxMateLen) {
-      const auto& root = expansion_list_.Root();
-      for (const auto& [move, result] : root.GetAllResults()) {
-        if (result.Pn() != 0) {
-          continue;
-        }
-
-        if (const auto it = pv_caches_.find(move); it == pv_caches_.end() || !it->second.first) {
-          n.DoMove(move);
-          const auto pv = GetMatePath(n, result.Len());
-          n.UndoMove();
-          pv_caches_[move] = std::make_pair(true, USI::move(move) + " " + ToString(pv));
-        }
-      }
-    }
-
+    result = SearchImplForRoot(n, thpn, thdn, len);
     if (result.IsFinal()) {
       break;
     }
@@ -282,6 +264,70 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   expansion_list_.Pop();
 
   return result;
+}
+
+SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, MateLen len) {
+  // 実装内容は SearchImpl() とほぼ同様なので詳しいロジックについてはそちらも参照。
+
+  const auto orig_thpn = thpn;
+  const auto orig_thdn = thdn;
+  std::uint32_t inc_flag = 0;
+  auto& local_expansion = expansion_list_.Current();
+
+  expansion_list_.EliminateDoubleCount(tt_, n);
+
+  auto curr_result = local_expansion.CurrentResult(n);
+  if (local_expansion.DoesHaveOldChild()) {
+    inc_flag++;
+    ExtendSearchThreshold(curr_result, thpn, thdn);
+  }
+
+  while (!monitor_.ShouldStop() && (curr_result.Pn() < thpn && curr_result.Dn() < thdn)) {
+    const auto best_move = local_expansion.BestMove();
+    const bool is_first_search = local_expansion.FrontIsFirstVisit();
+    const BitSet64 sum_mask = local_expansion.FrontSumMask();
+    const auto [child_thpn, child_thdn] = local_expansion.FrontPnDnThresholds(thpn, thdn);
+
+    n.DoMove(best_move);
+    auto& child_expansion = expansion_list_.Emplace(tt_, n, len - 1, is_first_search, sum_mask);
+
+    SearchResult child_result;
+    if (is_first_search) {
+      child_result = child_expansion.CurrentResult(n);
+      if (inc_flag > 0) {
+        inc_flag--;
+      }
+
+      if (child_result.Pn() >= child_thpn || child_result.Dn() >= child_thdn) {
+        goto CHILD_SEARCH_END;
+      }
+    }
+    child_result = SearchImpl(n, child_thpn, child_thdn, len - 1, inc_flag);
+
+  CHILD_SEARCH_END:
+    expansion_list_.Pop();
+    n.UndoMove();
+
+    local_expansion.UpdateBestChild(child_result);
+    curr_result = local_expansion.CurrentResult(n);
+
+    // root が AND node で詰みを見つけたのなら、MultiPV へ詰み手順を登録しておく
+    if (!n.IsRootOrNode() && len == kDepthMaxMateLen && child_result.Pn() == 0) {
+      n.DoMove(best_move);
+      const auto pv = GetMatePath(n, child_result.Len());
+      n.UndoMove();
+      pv_caches_[best_move] = std::make_pair(true, USI::move(best_move) + " " + ToString(pv));
+    }
+
+    thpn = orig_thpn;
+    thdn = orig_thdn;
+
+    if (inc_flag > 0) {
+      ExtendSearchThreshold(curr_result, thpn, thdn);
+    }
+  }
+
+  return curr_result;
 }
 
 SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag) {
