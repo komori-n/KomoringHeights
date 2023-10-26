@@ -81,7 +81,13 @@ class MateLenImpl : DefineNotEqualByEqual<MateLenImpl<T>>, DefineComparisonOpera
 
   /// `lhs` から `rhs` を引いた手数
   friend constexpr MateLenImpl operator-(const MateLenImpl& lhs, const T& rhs) noexcept {
-    return MateLenImpl{DirectConstructTag{}, static_cast<T>(lhs.len_plus_1_ - rhs)};
+    auto new_len_plus_1 = static_cast<T>(lhs.len_plus_1_ - rhs);
+    // 無限からは何を引いても無限
+    const auto depth_max_plus_1 = static_cast<T>(kDepthMax + 1);
+    if (lhs.len_plus_1_ >= depth_max_plus_1 && new_len_plus_1 < depth_max_plus_1) {
+      new_len_plus_1 = depth_max_plus_1;
+    }
+    return MateLenImpl{DirectConstructTag{}, new_len_plus_1};
   }
 
   /// 出力ストリームへの出力
