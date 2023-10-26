@@ -311,12 +311,24 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
     local_expansion.UpdateBestChild(child_result);
     curr_result = local_expansion.CurrentResult(n);
 
-    // root が AND node で詰みを見つけたのなら、MultiPV へ詰み手順を登録しておく
-    if (!n.IsRootOrNode() && len == kDepthMaxMateLen && child_result.Pn() == 0) {
-      n.DoMove(best_move);
-      const auto pv = GetMatePath(n, child_result.Len());
-      n.UndoMove();
-      pv_caches_[best_move] = std::make_pair(true, USI::move(best_move) + " " + ToString(pv));
+    if (len == kDepthMaxMateLen) {
+      // もう探索は関係ない手を見つけたとき、pv_caches_ へその手順を記録しておく
+      if (!n.IsRootOrNode() && child_result.Pn() == 0) {
+        n.DoMove(best_move);
+        const auto pv = GetMatePath(n, child_result.Len());
+        n.UndoMove();
+        pv_caches_[best_move] = std::make_pair(true, USI::move(best_move) + " " + ToString(pv));
+      } else if (n.IsRootOrNode() && child_result.Dn() == 0) {
+        n.DoMove(best_move);
+        const auto evasion_move = GetEvasion(n);
+        n.UndoMove();
+
+        auto pv = USI::move(best_move);
+        if (evasion_move) {
+          pv += " " + USI::move(*evasion_move);
+        }
+        pv_caches_[best_move] = std::make_pair(true, pv);
+      }
     }
 
     thpn = orig_thpn;
@@ -418,6 +430,20 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   /// `inc_flag` の値は探索前より小さくなっているはず
   inc_flag = std::min(inc_flag, orig_inc_flag);
   return curr_result;
+}
+
+std::optional<Move> KomoringHeights::GetEvasion(Node& n) {
+  for (const auto move : MovePicker{n}) {
+    const auto query = tt_.BuildChildQuery(n, move);
+    bool does_have_old_child = false;
+    const auto result =
+        query.LookUp(does_have_old_child, kDepthMaxMateLen, [&n, &move = move]() { return InitialPnDn(n, move.move); });
+    if (result.Dn() == 0) {
+      return {move};
+    }
+  }
+
+  return std::nullopt;
 }
 
 std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {

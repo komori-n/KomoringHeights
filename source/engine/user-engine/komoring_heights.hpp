@@ -179,6 +179,13 @@ class KomoringHeights {
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag);
 
   /**
+   * @brief `n` が AND node かつ不詰のとき、不詰になるような手を1つ返す
+   * @param n 現局面
+   * @return 不詰になる応手
+   */
+  std::optional<Move> GetEvasion(Node& n);
+
+  /**
    * @brief 現時点の探索結果から詰め手順を取得する
    * @param n 現局面
    * @param len 詰み手数の上限値
