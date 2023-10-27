@@ -210,7 +210,8 @@ class KomoringHeights {
   bool after_final_{false};          ///< 余詰探索中かどうか
   Score score_{};  ///< 現在の探索評価値。余詰探索中に CurrentInfo() で取得できるようにここにおいておく
 
-  std::unordered_map<Move, std::string> pv_caches_;
+  /// 各手に対する探索深さとPVのペア
+  std::unordered_map<Move, std::pair<Depth, std::string>> pv_caches_;
 };
 }  // namespace komori
 
