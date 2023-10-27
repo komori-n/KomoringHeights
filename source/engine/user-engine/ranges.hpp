@@ -372,12 +372,13 @@ class ZipImpl {
       std::is_nothrow_constructible_v<Range2, decltype(std::forward<Range2>(range2))>)
       : range1_{std::forward<Range1>(range1)}, range2_{std::forward<Range2>(range2)} {}
 
-  constexpr auto begin() const noexcept(noexcept(range1_.begin(), range2_.begin())) {
-    return Iterator<decltype(range1_.begin()), decltype(range2_.begin())>(range1_.begin(), range2_.begin());
+  constexpr auto begin() const noexcept(noexcept(call_begin(range1_), call_begin(range2_))) {
+    return Iterator<decltype(call_begin(range1_)), decltype(call_begin(range2_))>(call_begin(range1_),
+                                                                                  call_begin(range2_));
   }
 
-  constexpr auto end() const noexcept(noexcept(range1_.end(), range2_.end())) {
-    return Iterator<decltype(range1_.end()), decltype(range2_.end())>(range1_.end(), range2_.end());
+  constexpr auto end() const noexcept(noexcept(call_end(range1_), call_end(range2_))) {
+    return Iterator<decltype(call_end(range1_)), decltype(call_end(range2_))>(call_end(range1_), call_end(range2_));
   }
 
  private:
