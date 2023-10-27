@@ -314,7 +314,7 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
     local_expansion.UpdateBestChild(child_result);
     curr_result = local_expansion.CurrentResult(n);
 
-    if (len == kDepthMaxMateLen) {
+    if (option_.multi_pv > 1 && len == kDepthMaxMateLen) {
       // もう探索は関係ない手を見つけたとき、pv_caches_ へその手順を記録しておく
       if (!n.IsRootOrNode() && child_result.Pn() == 0) {
         n.DoMove(best_move);
@@ -492,7 +492,7 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
     usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root.BestMove()));
 
     pv_caches_[root.BestMove()] = std::make_pair(n.GetDepth(), ToString(n.MovesFromStart()));
-    for (const auto& [move, result] : root.GetAllResults()) {
+    for (const auto& [move, result] : Take(root.GetAllResults(), option_.multi_pv)) {
       const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
       const auto& [depth, pv] = pv_caches_[move];
 
