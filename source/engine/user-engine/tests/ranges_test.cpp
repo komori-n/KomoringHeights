@@ -140,6 +140,40 @@ TEST(Skip, ConstRange) {
   }
 }
 
+TEST(Take, MutableVector) {
+  std::vector<int> vec{10, 1, 4, 0, 10, 1, 3, 2};
+
+  for (auto&& x : komori::Take<2>(vec)) {
+    x = 3;
+  }
+
+  EXPECT_EQ(vec[0], 3);
+  EXPECT_EQ(vec[1], 3);
+  EXPECT_EQ(vec[2], 4);
+}
+
+TEST(Take, TakeStepIsGreaterThanLength) {
+  std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
+
+  std::vector<int> res{};
+  for (auto&& x : komori::Take<334>(vec)) {
+    res.push_back(x);
+  }
+
+  EXPECT_EQ(vec, res);
+}
+
+TEST(Take, ArrayIsShorterThanTake) {
+  std::vector<int> vec{33, 4};
+
+  std::vector<int> res{};
+  for (auto&& x : komori::Take<334>(vec)) {
+    res.push_back(x);
+  }
+
+  EXPECT_EQ(vec, res);
+}
+
 TEST(Zip, ZipTest) {
   std::vector<int> a{3, 3, 4, 3, 3, 4};
   std::vector<std::string> b{"hoge", "fuga", "piyo"};

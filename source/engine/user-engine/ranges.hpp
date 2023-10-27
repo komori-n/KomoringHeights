@@ -295,6 +295,47 @@ constexpr inline auto Skip(Range&& range) noexcept(noexcept(detail::SkipImpl<Ran
 }
 
 namespace detail {
+template <typename Range, std::size_t kTake>
+class TakeImpl {
+ public:
+  /**
+   * @brief `TakeImpl` インスタンスを生成する
+   */
+  constexpr explicit TakeImpl(Range range) noexcept(
+      std::is_nothrow_constructible_v<Range, decltype(std::forward<Range>(range))>)
+      : range_{std::forward<Range>(range)} {}
+
+  /// 範囲の先頭
+  constexpr auto begin() const noexcept(noexcept(call_begin(std::declval<Range&>()))) { return call_begin(range_); }
+
+  /// 範囲の末尾
+  constexpr auto end() const noexcept(noexcept(call_begin(std::declval<Range>()), call_end(std::declval<Range&>()))) {
+    if (static_cast<std::size_t>(std::distance(call_begin(range_), call_end(range_))) > kTake) {
+      return std::next(call_begin(range_), kTake);
+    } else {
+      return call_end(range_);
+    }
+  }
+
+ private:
+  Range range_;  ///< もとの range
+};
+}  // namespace detail
+
+/**
+ * @brief Iterable の先頭 `kTake` 要素だけを取ってくる
+ * @tparam kTake 取ってくる要素数
+ * @tparam Range iterableの型
+ * @param range iterable
+ * @return range-based for で先頭 `kTake` 要素を飛ばした要素が取れるような iterable
+ */
+template <std::size_t kTake, typename Range>
+constexpr inline auto Take(Range&& range) noexcept(noexcept(detail::TakeImpl<Range, kTake>{
+    std::forward<Range>(range)})) {
+  return detail::TakeImpl<Range, kTake>{std::forward<Range>(range)};
+}
+
+namespace detail {
 template <typename Range1, typename Range2>
 class ZipImpl {
  public:
