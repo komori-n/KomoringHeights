@@ -251,23 +251,22 @@ namespace detail {
 /**
  * @brief `Skep` の実装本体
  * @tparam Range Iterable
- * @tparam kSkip スキップする要素数
  */
-template <typename Range, std::size_t kSkip>
+template <typename Range>
 class SkipImpl {
  public:
   /**
    * @brief `SkipImpl` インスタンスを生成する
    */
-  constexpr explicit SkipImpl(Range range) noexcept(
+  constexpr SkipImpl(Range range, std::size_t skip) noexcept(
       std::is_nothrow_constructible_v<Range, decltype(std::forward<Range>(range))>)
-      : range_{std::forward<Range>(range)} {}
+      : range_{std::forward<Range>(range)}, skip_{skip} {}
 
   /// 範囲の先頭
   constexpr auto begin() const
       noexcept(noexcept(call_begin(std::declval<Range&>()) != call_end(std::declval<Range&>()))) {
     auto itr = call_begin(range_);
-    for (std::size_t i = 0; i < kSkip && itr != end(); ++i, ++itr) {
+    for (std::size_t i = 0; i < skip_ && itr != end(); ++i, ++itr) {
     }
 
     return itr;
@@ -277,62 +276,64 @@ class SkipImpl {
   constexpr auto end() const noexcept(noexcept(call_end(std::declval<Range&>()))) { return call_end(range_); }
 
  private:
-  Range range_;  ///< もとの range
+  Range range_;       ///< もとの range
+  std::size_t skip_;  ///< スキップする要素数
 };
 }  // namespace detail
 
 /**
  * @brief Iterable の先頭 `kSkip` 要素をスキップする
- * @tparam kSkip スキップする要素数
  * @tparam Range iterableの型
  * @param range iterable
+ * @param skip スキップする要素数
  * @return range-based for で先頭 `kSize` 要素を飛ばした要素が取れるような iterable
  */
-template <std::size_t kSkip, typename Range>
-constexpr inline auto Skip(Range&& range) noexcept(noexcept(detail::SkipImpl<Range, kSkip>{
-    std::forward<Range>(range)})) {
-  return detail::SkipImpl<Range, kSkip>{std::forward<Range>(range)};
+template <typename Range>
+constexpr inline auto Skip(Range&& range, std::size_t skip) noexcept(noexcept(detail::SkipImpl<Range>{
+    std::forward<Range>(range), skip})) {
+  return detail::SkipImpl<Range>{std::forward<Range>(range), skip};
 }
 
 namespace detail {
-template <typename Range, std::size_t kTake>
+template <typename Range>
 class TakeImpl {
  public:
   /**
    * @brief `TakeImpl` インスタンスを生成する
    */
-  constexpr explicit TakeImpl(Range range) noexcept(
+  constexpr TakeImpl(Range range, std::size_t take) noexcept(
       std::is_nothrow_constructible_v<Range, decltype(std::forward<Range>(range))>)
-      : range_{std::forward<Range>(range)} {}
+      : range_{std::forward<Range>(range)}, take_{take} {}
 
   /// 範囲の先頭
   constexpr auto begin() const noexcept(noexcept(call_begin(std::declval<Range&>()))) { return call_begin(range_); }
 
   /// 範囲の末尾
   constexpr auto end() const noexcept(noexcept(call_begin(std::declval<Range>()), call_end(std::declval<Range&>()))) {
-    if (static_cast<std::size_t>(std::distance(call_begin(range_), call_end(range_))) > kTake) {
-      return std::next(call_begin(range_), kTake);
+    if (static_cast<std::size_t>(std::distance(call_begin(range_), call_end(range_))) > take_) {
+      return std::next(call_begin(range_), take_);
     } else {
       return call_end(range_);
     }
   }
 
  private:
-  Range range_;  ///< もとの range
+  Range range_;       ///< もとの range
+  std::size_t take_;  ///< 取ってくる要素数
 };
 }  // namespace detail
 
 /**
  * @brief Iterable の先頭 `kTake` 要素だけを取ってくる
- * @tparam kTake 取ってくる要素数
  * @tparam Range iterableの型
  * @param range iterable
+ * @param take 取ってくる要素数
  * @return range-based for で先頭 `kTake` 要素を飛ばした要素が取れるような iterable
  */
-template <std::size_t kTake, typename Range>
-constexpr inline auto Take(Range&& range) noexcept(noexcept(detail::TakeImpl<Range, kTake>{
-    std::forward<Range>(range)})) {
-  return detail::TakeImpl<Range, kTake>{std::forward<Range>(range)};
+template <typename Range>
+constexpr inline auto Take(Range&& range, std::size_t take) noexcept(noexcept(detail::TakeImpl<Range>{
+    std::forward<Range>(range), take})) {
+  return detail::TakeImpl<Range>{std::forward<Range>(range), take};
 }
 
 namespace detail {

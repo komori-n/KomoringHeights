@@ -360,7 +360,7 @@ class LocalExpansion {
   bool ResolveDoubleCountIfBranchRoot(BranchRootEdge edge) {
     if (edge.branch_root_key_hand_pair == key_hand_pair_) {
       sum_mask_.Reset(idx_.front());
-      for (const auto i_raw : Skip<1>(idx_)) {
+      for (const auto i_raw : Skip(idx_, 1)) {
         const auto& query = queries_[i_raw];
         const auto& child_key_hand_pair = query.GetBoardKeyHandPair();
         if (child_key_hand_pair == edge.child_key_hand_pair) {
@@ -490,7 +490,7 @@ class LocalExpansion {
     sum_delta_except_best_ = 0;
     max_delta_except_best_ = 0;
 
-    for (const auto& i_raw : Skip<1>(idx_)) {
+    for (const auto& i_raw : Skip(idx_, 1)) {
       const auto delta_i = results_[i_raw].Delta(or_node_);
       if (sum_mask_[i_raw]) {
         sum_delta_except_best_ = ClampPnDn(sum_delta_except_best_ + delta_i);

@@ -112,7 +112,7 @@ TEST(AsRange, unordered_multimap) {
 TEST(Skip, MutableVector) {
   std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
 
-  for (auto&& x : komori::Skip<6>(vec)) {
+  for (auto&& x : komori::Skip(vec, 6)) {
     x = 10;
   }
 
@@ -124,7 +124,7 @@ TEST(Skip, MutableVector) {
 TEST(Skip, SkipStepIsGreaterThanLength) {
   std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
 
-  for (auto&& x : komori::Skip<334>(vec)) {
+  for (auto&& x : komori::Skip(vec, 334)) {
     EXPECT_EQ(334, x);
   }
 
@@ -133,7 +133,7 @@ TEST(Skip, SkipStepIsGreaterThanLength) {
 
 TEST(Skip, ConstRange) {
   const std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
-  const auto range = komori::Skip<7>(vec);
+  const auto range = komori::Skip(vec, 7);
 
   for (const auto& x : range) {
     EXPECT_EQ(x, 2);
@@ -143,7 +143,7 @@ TEST(Skip, ConstRange) {
 TEST(Take, MutableVector) {
   std::vector<int> vec{10, 1, 4, 0, 10, 1, 3, 2};
 
-  for (auto&& x : komori::Take<2>(vec)) {
+  for (auto&& x : komori::Take(vec, 2)) {
     x = 3;
   }
 
@@ -156,7 +156,7 @@ TEST(Take, TakeStepIsGreaterThanLength) {
   std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
 
   std::vector<int> res{};
-  for (auto&& x : komori::Take<334>(vec)) {
+  for (auto&& x : komori::Take(vec, 334)) {
     res.push_back(x);
   }
 
@@ -167,7 +167,7 @@ TEST(Take, ArrayIsShorterThanTake) {
   std::vector<int> vec{33, 4};
 
   std::vector<int> res{};
-  for (auto&& x : komori::Take<334>(vec)) {
+  for (auto&& x : komori::Take(vec, 334)) {
     res.push_back(x);
   }
 
