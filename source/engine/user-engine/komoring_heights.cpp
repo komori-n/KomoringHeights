@@ -133,6 +133,9 @@ UsiInfo KomoringHeights::CurrentInfo() const {
 }
 
 NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
+  auto& nn = const_cast<Position&>(n);
+  Node node{nn, is_root_or_node};
+
   // <初期化>
   tt_.NewSearch();
   monitor_.NewSearch(HashfullCheckInterval(tt_.Capacity()), option_.nodes_limit);
@@ -140,14 +143,14 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   after_final_ = false;
   score_ = Score{};
   pv_caches_.clear();
+  for (const auto& move : MovePicker{node}) {
+    pv_caches_[move] = USI::move(move);
+  }
 
   if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
     tt_.CollectGarbage(kGcRemovalRatio);
   }
   // </初期化>
-
-  auto& nn = const_cast<Position&>(n);
-  Node node{nn, is_root_or_node};
 
   auto [state, len] = SearchMainLoop(node);
 
@@ -317,7 +320,7 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
         n.DoMove(best_move);
         const auto pv = GetMatePath(n, child_result.Len());
         n.UndoMove();
-        pv_caches_[best_move] = std::make_pair(true, USI::move(best_move) + " " + ToString(pv));
+        pv_caches_[best_move] = USI::move(best_move) + " " + ToString(pv);
       } else if (n.IsRootOrNode() && child_result.Dn() == 0) {
         n.DoMove(best_move);
         const auto evasion_move = GetEvasion(n);
@@ -327,7 +330,7 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
         if (evasion_move) {
           pv += " " + USI::move(*evasion_move);
         }
-        pv_caches_[best_move] = std::make_pair(true, pv);
+        pv_caches_[best_move] = pv;
       }
     }
 
@@ -488,19 +491,12 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
     const auto& root = expansion_list_.Root();
     usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root.BestMove()));
 
-    pv_caches_[root.BestMove()] = std::make_pair(false, ToString(n.MovesFromStart()));
+    pv_caches_[root.BestMove()] = ToString(n.MovesFromStart());
     for (const auto& [move, result] : root.GetAllResults()) {
       const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
       const auto depth = move == root.BestMove() ? n.GetDepth() : 0;
 
-      std::string pv;
-      if (const auto it = pv_caches_.find(move); it != pv_caches_.end()) {
-        pv = it->second.second;
-      } else {
-        pv = USI::move(move);
-      }
-
-      usi_output.PushPVBack(depth, score.ToString(), pv);
+      usi_output.PushPVBack(depth, score.ToString(), pv_caches_[move]);
     }
   }
 
