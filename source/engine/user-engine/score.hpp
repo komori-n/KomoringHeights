@@ -89,6 +89,17 @@ class Score : DefineNotEqualByEqual<Score> {
   /// 評価値が詰み／不詰かどうか。
   bool IsFinal() const { return kind_ != Kind::kUnknown; }
 
+  /**
+   * @brief 評価値が詰みまたは不詰のとき、手数を1手伸ばす
+   *
+   * 探索開始局面で評価値を出力するとき、詰み手数が1手ズレてしまうのを直す用。
+   */
+  void AddOneIfFinal() {
+    if (kind_ == Kind::kWin || kind_ == Kind::kLose) {
+      value_ = std::min<ScoreValue>(value_ + 1, kDepthMax);
+    }
+  }
+
   /// 評価値の正負を反転させる
   Score operator-() const {
     switch (kind_) {

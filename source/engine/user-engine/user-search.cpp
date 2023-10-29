@@ -59,10 +59,7 @@ void PrintResult(bool is_root_or_node, bool is_mate_search, LoseKind kind, const
         sync_cout << "checkmate " << pv_moves << sync_endl;
     }
   } else {
-    auto usi_output = g_searcher.CurrentInfo();
-    const auto score = komori::Score::MakeProven(g_option.score_method, g_searcher.BestMoves().size(), is_root_or_node);
-    usi_output.PushPVBack(0, score.ToString(), pv_moves);
-    sync_cout << usi_output << sync_endl;
+    // `KomoringHeights::Search()` 内で出力しているはずなので、ここでは何もする必要がない。
   }
 }
 

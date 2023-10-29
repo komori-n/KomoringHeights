@@ -124,14 +124,6 @@ void KomoringHeights::Clear() {
   tt_.Clear();
 }
 
-UsiInfo KomoringHeights::CurrentInfo() const {
-  UsiInfo usi_output = monitor_.GetInfo();
-  usi_output.Set(UsiInfoKey::kHashfull, tt_.Hashfull());
-  usi_output.Set(UsiInfoKey::kScore, score_.ToString());
-
-  return usi_output;
-}
-
 NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   auto& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
@@ -187,12 +179,12 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       // len 以下の手数の詰みが帰ってくるはず
       KOMORI_PRECONDITION(result.Len().Len() <= len.Len());
       best_moves_ = GetMatePath(n, result.Len());
+      multi_pv_.Update(best_moves_[0], 0, ToString(best_moves_));
 
       if (!option_.disable_info_print) {
-        sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: mate in " << best_moves_.size()
+        sync_cout << CurrentInfo() << "# " << OrdinalNumber(i + 1) << " result: mate in " << best_moves_.size()
                   << "(upper_bound:" << result.Len() << ")" << sync_endl;
-        info.PushPVBack(0, score.ToString(), ToString(best_moves_));
-        sync_cout << info << sync_endl;
+        PrintAtRoot(n);
       }
 
       node_state = NodeState::kProven;
@@ -208,19 +200,22 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       len = result.Len() - 2;
       after_final_ = true;
     } else {
-      if (!option_.disable_info_print) {
-        sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
-        if (result.Dn() == 0 && result.Len() < len) {
-          sync_cout << info << "Failed to detect PV" << sync_endl;
-        }
+      if (result.Dn() == 0 && result.Len() < len) {
+        sync_cout << info << "Failed to detect PV" << sync_endl;
       }
 
-      if (node_state == NodeState::kUnknown) {
-        node_state = result.GetNodeState();
-      } else if (node_state == NodeState::kProven) {
+      if (after_final_) {
         len = len + 2;
         best_moves_ = GetMatePath(n, len);
+        multi_pv_.Update(best_moves_[0], 0, ToString(best_moves_));
         score_ = old_score;
+      } else {
+        node_state = result.GetNodeState();
+      }
+
+      if (!option_.disable_info_print) {
+        sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
+        PrintAtRoot(n);
       }
       break;
     }
@@ -268,6 +263,7 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
   std::uint32_t inc_flag = 0;
   auto& local_expansion = expansion_list_.Current();
 
+  PrintIfNeeded(n);
   expansion_list_.EliminateDoubleCount(tt_, n);
 
   auto curr_result = local_expansion.CurrentResult(n);
@@ -472,27 +468,53 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
   return best_moves;
 }
 
+UsiInfo KomoringHeights::CurrentInfo() const {
+  UsiInfo usi_output = monitor_.GetInfo();
+  usi_output.Set(UsiInfoKey::kHashfull, tt_.Hashfull());
+  usi_output.Set(UsiInfoKey::kScore, score_.ToString());
+
+  return usi_output;
+}
+
 void KomoringHeights::PrintIfNeeded(const Node& n) {
-  if (!print_flag_.exchange(false, std::memory_order_relaxed)) {
-    return;
+  if (print_flag_.exchange(false, std::memory_order_relaxed)) {
+    Print(n);
+    monitor_.Tick();
+  }
+}
+
+void KomoringHeights::Print(const Node& n, bool force_print) {
+  auto usi_output = CurrentInfo();
+  if (!expansion_list_.IsEmpty()) {
+    // 探索中なら現在の探索情報で multi_pv_ を更新する
+    const auto& root = expansion_list_.Root();
+    if (n.GetDepth() > 0) {
+      multi_pv_.Update(root.BestMove(), n.GetDepth(), ToString(n.MovesFromStart()));
+    }
+    usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root.BestMove()));
+  } else {
+    usi_output.Set(UsiInfoKey::kCurrMove, USI::move(best_moves_[0]));
   }
 
-  auto usi_output = CurrentInfo();
-  if ((!after_final_ || option_.show_pv_after_mate) && !expansion_list_.IsEmpty()) {
-    const auto& root = expansion_list_.Root();
-    usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root.BestMove()));
+  if (force_print || (!after_final_ || option_.show_pv_after_mate)) {
+    if (!expansion_list_.IsEmpty()) {
+      const auto& root = expansion_list_.Root();
+      for (const auto& [move, result] : Take(root.GetAllResults(), option_.multi_pv)) {
+        auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
+        score.AddOneIfFinal();
+        const auto& [depth, pv] = multi_pv_[move];
 
-    multi_pv_.Update(root.BestMove(), n.GetDepth(), ToString(n.MovesFromStart()));
-    for (const auto& [move, result] : Take(root.GetAllResults(), option_.multi_pv)) {
-      const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
-      const auto& [depth, pv] = multi_pv_[move];
-
-      usi_output.PushPVBack(depth, score.ToString(), pv);
+        usi_output.PushPVBack(depth, score.ToString(), pv);
+      }
     }
   }
 
   sync_cout << usi_output << sync_endl;
+}
 
-  monitor_.Tick();
+void KomoringHeights::PrintAtRoot(const Node& n) {
+  expansion_list_.Emplace(tt_, n, kDepthMaxMateLen, true, BitSet64::Full(), true);
+  Print(n, true);
+  expansion_list_.Pop();
 }
 }  // namespace komori

@@ -118,8 +118,6 @@ class KomoringHeights {
   void ResetStop() { monitor_.SetStop(false); }
   /// 探索情報の出力を要請する
   void RequestPrint() { print_flag_.store(true, std::memory_order_relaxed); }
-  /// 現在の探索情報を取得する
-  UsiInfo CurrentInfo() const;
   /**
    * @brief 詰み手順を取得する
    * @pre Search() の戻り値が `NodeState::kProven`
@@ -194,11 +192,27 @@ class KomoringHeights {
    */
   std::vector<Move> GetMatePath(Node& n, MateLen len);
 
+  /// 現在の探索情報を取得する
+  UsiInfo CurrentInfo() const;
+
   /**
    * @brief `print_flag_` が立っていたら off にした上で探索情報を出力する
    * @param n 現局面
    */
   void PrintIfNeeded(const Node& n);
+
+  /**
+   * @brief `print_flag_` に関係なく探索情報を出力する
+   * @param n 現局面
+   * @param force_print show_pv_after_mate オプションがついていても構わず出力するか[default=false]
+   */
+  void Print(const Node& n, bool force_print = false);
+
+  /**
+   * @brief Root 局面 `n` における探索情報を出力する
+   * @param n 探索開始局面
+   */
+  void PrintAtRoot(const Node& n);
 
   tt::TranspositionTable tt_;  ///< 置換表
   EngineOption option_;        ///< エンジンオプション

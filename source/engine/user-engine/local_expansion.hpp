@@ -125,12 +125,14 @@ class LocalExpansion {
    * @param len 残り詰み手数
    * @param first_search 初回探索なら `true`。`true` なら高速 1 手詰めルーチンを走らせる。
    * @param sum_mask δ値を和で計算する子の集合
+   * @param force_expansion 勝ちになる手を見つけても局面展開を続ける
    */ // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   LocalExpansion(tt::TranspositionTable& tt,
                  const Node& n,
                  MateLen len,
                  bool first_search,
-                 BitSet64 sum_mask = BitSet64::Full())
+                 BitSet64 sum_mask = BitSet64::Full(),
+                 bool force_expansion = false)
       : or_node_{n.IsOrNode()},
         mp_{n, true},
         delayed_move_list_{n, mp_},
@@ -190,7 +192,7 @@ class LocalExpansion {
       }
 
     CHILD_LOOP_END:
-      if (result.Phi(or_node_) == 0) {
+      if (!force_expansion && result.Phi(or_node_) == 0) {
         break;
       }
     }
