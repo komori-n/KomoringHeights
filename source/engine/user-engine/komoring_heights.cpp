@@ -142,10 +142,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   best_moves_.clear();
   after_final_ = false;
   score_ = Score{};
-  pv_caches_.clear();
-  for (const auto& move : MovePicker{node}) {
-    pv_caches_[move] = std::make_pair(0, USI::move(move));
-  }
+  multi_pv_.NewSearch(node);
 
   if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
     tt_.CollectGarbage(kGcRemovalRatio);
@@ -309,12 +306,12 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
     curr_result = local_expansion.CurrentResult(n);
 
     if (option_.multi_pv > 1 && len == kDepthMaxMateLen) {
-      // もう探索は関係ない手を見つけたとき、pv_caches_ へその手順を記録しておく
+      // もう探索は関係ない手を見つけたとき、multi_pv_ へその手順を記録しておく
       if (!n.IsRootOrNode() && child_result.Pn() == 0) {
         n.DoMove(best_move);
         const auto pv = GetMatePath(n, child_result.Len());
         n.UndoMove();
-        pv_caches_[best_move] = std::make_pair(0, USI::move(best_move) + " " + ToString(pv));
+        multi_pv_.Update(best_move, 0, USI::move(best_move) + " " + ToString(pv));
       } else if (n.IsRootOrNode() && child_result.Dn() == 0) {
         n.DoMove(best_move);
         const auto evasion_move = GetEvasion(n);
@@ -324,7 +321,7 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
         if (evasion_move) {
           pv += " " + USI::move(*evasion_move);
         }
-        pv_caches_[best_move] = std::make_pair(0, std::move(pv));
+        multi_pv_.Update(best_move, 0, pv);
       }
     }
 
@@ -485,10 +482,10 @@ void KomoringHeights::PrintIfNeeded(const Node& n) {
     const auto& root = expansion_list_.Root();
     usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root.BestMove()));
 
-    pv_caches_[root.BestMove()] = std::make_pair(n.GetDepth(), ToString(n.MovesFromStart()));
+    multi_pv_.Update(root.BestMove(), n.GetDepth(), ToString(n.MovesFromStart()));
     for (const auto& [move, result] : Take(root.GetAllResults(), option_.multi_pv)) {
       const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
-      const auto& [depth, pv] = pv_caches_[move];
+      const auto& [depth, pv] = multi_pv_[move];
 
       usi_output.PushPVBack(depth, score.ToString(), pv);
     }

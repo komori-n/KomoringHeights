@@ -13,6 +13,7 @@
 #include "circular_array.hpp"
 #include "engine_option.hpp"
 #include "expansion_stack.hpp"
+#include "multi_pv.hpp"
 #include "score.hpp"
 #include "search_result.hpp"
 #include "transposition_table.hpp"
@@ -210,8 +211,7 @@ class KomoringHeights {
   bool after_final_{false};          ///< 余詰探索中かどうか
   Score score_{};  ///< 現在の探索評価値。余詰探索中に CurrentInfo() で取得できるようにここにおいておく
 
-  /// 各手に対する探索深さとPVのペア
-  std::unordered_map<Move, std::pair<Depth, std::string>> pv_caches_;
+  MultiPv multi_pv_;  ///< 各手に対する PV の一覧
 };
 }  // namespace komori
 
