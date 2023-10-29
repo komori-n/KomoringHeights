@@ -258,12 +258,6 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
 
   auto query = tt_.BuildQuery(n);
   query.SetResult(result);
-
-  if (len == kDepthMaxMateLen) {
-    print_flag_ = true;
-    PrintIfNeeded(n);
-  }
-
   expansion_list_.Pop();
 
   return result;
