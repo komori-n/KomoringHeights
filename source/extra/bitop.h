@@ -123,6 +123,13 @@ inline uint64_t PEXT64(uint64_t a, uint64_t b) { return pext(a, b); }
 #define POPCNT64(a) (POPCNT32((a)>>32) + POPCNT32(a))
 #endif
 
+#elif defined (__GNUC__)
+inline int32_t POPCNT32(uint32_t a) {
+  return (int32_t)__builtin_popcount(a);
+}
+inline int32_t POPCNT64(uint64_t a) {
+  return (int32_t)__builtin_popcountll(a);
+}
 #else
 
 // software emulationによるpopcnt(やや遅い)
