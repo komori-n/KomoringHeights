@@ -676,7 +676,7 @@ class LocalExpansion {
   const DelayedMoveList delayed_move_list_;  ///< 後回しにしている手のグラフ構造
   const MateLen len_;                        ///< 現局面における残り探索手数
   const BoardKeyHandPair key_hand_pair_;  ///< 現局面の盤面ハッシュ値と持ち駒。二重カウント対策で用いる。
-  const std::uint32_t multi_pv_;  ///< 何個の手を探索するか
+  const std::uint32_t multi_pv_;  ///< MultiPv の値。1以上でなければならない
 
   /// 子の現在の評価値結果一覧
   std::array<SearchResult, kMaxCheckMovesPerNode> results_;
@@ -694,7 +694,10 @@ class LocalExpansion {
   /// 現在有効な生添字の一覧。「良さ順」で並んでいる。
   FixedSizeStack<std::uint32_t, kMaxCheckMovesPerNode> idx_;
 
-  std::uint32_t excluded_moves_{0};  ///< いくつ勝ちになる手を見つけたか
+  /// 勝ちになる手を見つけた個数
+  /// multi_pv_ == 1 のときは、この値は常に 0 である。multi_pv_ > 1 のとき、勝ち（phi==0）を見つけた後に探索を続ける
+  /// 際に用いる。常に excluded_moves_ < multi_pv_ - 1 かつ excluded_moves_ < mp_.size() である。
+  std::uint32_t excluded_moves_{0};
 };
 }  // namespace komori
 
