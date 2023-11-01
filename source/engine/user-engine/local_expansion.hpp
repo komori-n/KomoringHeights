@@ -125,19 +125,20 @@ class LocalExpansion {
    * @param len 残り詰み手数
    * @param first_search 初回探索なら `true`。`true` なら高速 1 手詰めルーチンを走らせる。
    * @param sum_mask δ値を和で計算する子の集合
-   * @param force_expansion 勝ちになる手を見つけても局面展開を続ける
+   * @param multi_pv 勝ちになる手をいくつ見つけるか。1以上でなければならない
    */ // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   LocalExpansion(tt::TranspositionTable& tt,
                  const Node& n,
                  MateLen len,
                  bool first_search,
                  BitSet64 sum_mask = BitSet64::Full(),
-                 bool force_expansion = false)
+                 std::uint32_t multi_pv = 1)
       : or_node_{n.IsOrNode()},
         mp_{n, true},
         delayed_move_list_{n, mp_},
         len_{len},
         key_hand_pair_{n.GetBoardKeyHandPair()},
+        multi_pv_{multi_pv},
         sum_mask_{sum_mask} {
     // 1手詰め／1手不詰判定のために、const を一時的に外す
     Node& nn = const_cast<Node&>(n);
@@ -192,8 +193,11 @@ class LocalExpansion {
       }
 
     CHILD_LOOP_END:
-      if (!force_expansion && result.Phi(or_node_) == 0) {
-        break;
+      if (result.Phi(or_node_) == 0) {
+        if (excluded_moves_ >= multi_pv_ - 1) {
+          break;
+        }
+        excluded_moves_++;
       }
     }
 
@@ -219,26 +223,21 @@ class LocalExpansion {
   bool empty() const noexcept { return idx_.empty(); }
   /**
    * @brief 現時点の最善手
-   * @pre !empty()
+   * @pre !Current().IsFinal()
    */
-  Move BestMove() const { return mp_[idx_.front()].move; }
-  /**
-   * @brief 現時点の最善手に対する探索結果
-   * @return !empty()
-   */
-  SearchResult BestResult() const { return results_[idx_.front()]; }
+  Move BestMove() const { return mp_[idx_[excluded_moves_]].move; }
   /**
    * @brief unproven old child がいるかどうか
    */
   bool DoesHaveOldChild() const { return does_have_old_child_; }
   /**
    * @brief 最善手の子ノードが初探索かどうか
-   * @pre !empty()
+   * @pre !CurrentResult().IsFinal()
    */
   bool FrontIsFirstVisit() const { return FrontResult().GetUnknownData().is_first_visit; }
   /**
    * @brief 最善手の Sum Mask
-   * @pre !empty()
+   * @pre !CurrentResult().IsFinal()
    */
   BitSet64 FrontSumMask() const {
     const auto& result = FrontResult();
@@ -278,7 +277,7 @@ class LocalExpansion {
    * @pre !empty()
    */
   void UpdateBestChild(const SearchResult& search_result) {
-    const auto old_i_raw = idx_[0];
+    const auto old_i_raw = idx_[excluded_moves_];
     const auto& query = queries_[old_i_raw];
     auto& result = results_[old_i_raw];
 
@@ -288,8 +287,25 @@ class LocalExpansion {
       sum_mask_.Reset(old_i_raw);
     }
 
-    if (search_result.Delta(or_node_) == 0 && delayed_move_list_.Next(old_i_raw)) {
-      ResortFront();
+    if (search_result.Phi(or_node_) == 0) {
+      // 後から見つかった手のほうがいい手かもしれないので、前半部分をソートし直しておく
+      ResortExcludedBack();
+      if (excluded_moves_ >= multi_pv_ - 1) {
+        // multi_pv_ 個の勝ちになる手を見つけたので、これ以上探索を続ける必要はない
+        return;
+      }
+      excluded_moves_++;
+      if (excluded_moves_ >= mp_.size()) {
+        // 全合法手が勝ちだとわかったので、これ以上探索を続ける必要はない
+        return;
+      }
+    }
+
+    if (search_result.IsFinal() && delayed_move_list_.Next(old_i_raw)) {
+      if (search_result.Delta(or_node_) == 0) {
+        // delta==0 の手は最悪手なので並び替えで最後尾へ移動させる
+        ResortFront();
+      }
 
       // 後回しにした手があるならそれを復活させる
       // curr_i_raw の次に調べるべき子
@@ -308,16 +324,19 @@ class LocalExpansion {
 
       RecalcDelta();
     } else {
-      const bool old_is_sum_delta = sum_mask_[old_i_raw];
-      if (old_is_sum_delta) {
-        sum_delta_except_best_ += result.Delta(or_node_);
-      } else {
-        max_delta_except_best_ = std::max(max_delta_except_best_, result.Delta(or_node_));
+      if (search_result.Phi(or_node_) > 0) {
+        // 現在探索していた手が delta_except_best_ に加わるので差分計算する
+        const bool old_is_sum_delta = sum_mask_[old_i_raw];
+        if (old_is_sum_delta) {
+          sum_delta_except_best_ += result.Delta(or_node_);
+        } else {
+          max_delta_except_best_ = std::max(max_delta_except_best_, result.Delta(or_node_));
+        }
+
+        ResortFront();
       }
 
-      ResortFront();
-
-      const auto new_i_raw = idx_[0];
+      const auto new_i_raw = idx_[excluded_moves_];
       const auto new_result = results_[new_i_raw];
       const bool new_is_sum_delta = sum_mask_[new_i_raw];
       if (new_is_sum_delta) {
@@ -362,7 +381,7 @@ class LocalExpansion {
   bool ResolveDoubleCountIfBranchRoot(BranchRootEdge edge) {
     if (edge.branch_root_key_hand_pair == key_hand_pair_) {
       sum_mask_.Reset(idx_.front());
-      for (const auto i_raw : Skip(idx_, 1)) {
+      for (const auto i_raw : Skip(idx_, excluded_moves_ + 1)) {
         const auto& query = queries_[i_raw];
         const auto& child_key_hand_pair = query.GetBoardKeyHandPair();
         if (child_key_hand_pair == edge.child_key_hand_pair) {
@@ -395,7 +414,7 @@ class LocalExpansion {
 
  private:
   /// 最善の子の探索結果を取得する
-  const SearchResult& FrontResult() const { return results_[idx_.front()]; }
+  const SearchResult& FrontResult() const { return results_[idx_[excluded_moves_]]; }
 
   // <PnDn>
   /// Pn を計算する
@@ -418,10 +437,17 @@ class LocalExpansion {
 
   /// phi 値を計算する
   constexpr PnDn GetPhi() const {
-    if (idx_.empty()) {
-      return kInfinitePnDn;
+    PnDn front_phi = 0;
+    if (excluded_moves_ < idx_.size()) {
+      front_phi = FrontResult().Phi(or_node_);
+    } else {
+      front_phi = kInfinitePnDn;
     }
-    return FrontResult().Phi(or_node_);
+
+    if (front_phi >= kInfinitePnDn && excluded_moves_ > 0) {
+      return 0;
+    }
+    return front_phi;
   }
 
   /// delta 値を計算する
@@ -434,7 +460,7 @@ class LocalExpansion {
     // 差分計算用の値を予め持っているので、高速に計算できる
     auto sum_delta = sum_delta_except_best_;
     auto max_delta = max_delta_except_best_;
-    if (sum_mask_[idx_.front()]) {
+    if (sum_mask_[idx_[excluded_moves_]]) {
       sum_delta = ClampPnDn(sum_delta + best_result.Delta(or_node_));
     } else {
       max_delta = std::max(max_delta, best_result.Delta(or_node_));
@@ -450,15 +476,19 @@ class LocalExpansion {
       sum_delta += std::max<std::size_t>((mp_.size() - idx_.size()) / 8, 1);
     }
 
-    return ClampPnDn(sum_delta + max_delta);
+    const auto raw_delta = ClampPnDn(sum_delta + max_delta);
+    if (excluded_moves_ > 0 && raw_delta == 0) {
+      return kInfinitePnDn;
+    }
+    return raw_delta;
   }
 
   /// 2番目の子の phi 値を計算する
   constexpr PnDn GetSecondPhi() const {
-    if (idx_.size() <= 1) {
+    if (idx_.size() <= excluded_moves_ + 1) {
       return kInfinitePnDn;
     }
-    const auto& second_best_result = results_[idx_[1]];
+    const auto& second_best_result = results_[idx_[excluded_moves_ + 1]];
     return second_best_result.Phi(or_node_);
   }
 
@@ -472,7 +502,7 @@ class LocalExpansion {
       delta_except_best += std::max<std::size_t>((mp_.size() - idx_.size()) / 8, 1);
     }
 
-    if (sum_mask_[idx_[0]]) {
+    if (sum_mask_[idx_[excluded_moves_]]) {
       delta_except_best = SaturatedAdd(delta_except_best, max_delta_except_best_);
     }
 
@@ -492,7 +522,7 @@ class LocalExpansion {
     sum_delta_except_best_ = 0;
     max_delta_except_best_ = 0;
 
-    for (const auto& i_raw : Skip(idx_, 1)) {
+    for (const auto& i_raw : Skip(idx_, excluded_moves_ + 1)) {
       const auto delta_i = results_[i_raw].Delta(or_node_);
       if (sum_mask_[i_raw]) {
         sum_delta_except_best_ = ClampPnDn(sum_delta_except_best_ + delta_i);
@@ -505,7 +535,8 @@ class LocalExpansion {
   /// 探索結果を取得する（詰み局面）
   SearchResult GetProvenResult(const Node& n) const {
     if (or_node_) {
-      const auto& result = FrontResult();
+      // excluded_moves_ に関係なく最も良い手がほしいので FrontResult() は使えない
+      const auto& result = results_[idx_.front()];
       const auto best_move = mp_[idx_[0]];
       const auto proof_hand = BeforeHand(n.Pos(), best_move, result.GetFinalData().hand);
       const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
@@ -540,7 +571,8 @@ class LocalExpansion {
   SearchResult GetDisprovenResult(const Node& n) const {
     // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
     if (!mp_.empty()) {
-      if (const auto& result = FrontResult(); result.GetFinalData().IsRepetition()) {
+      // excluded_moves_ に関係なく最も良い手がほしいので FrontResult() は使えない
+      if (const auto& result = results_[idx_.front()]; result.GetFinalData().IsRepetition()) {
         const auto depth = result.GetFinalData().repetition_start;
         const auto amount = result.Amount();
         if (depth < n.GetDepth()) {
@@ -607,10 +639,11 @@ class LocalExpansion {
    * @brief 先頭以外がソートされた状態のとき、先頭要素を適切な位置に挿入する
    */
   void ResortFront() {
-    if (idx_.size() > 1) {
+    if (idx_.size() > excluded_moves_ + 1) {
       const auto comparer = MakeComparer();
-      const auto itr = std::lower_bound(idx_.begin() + 1, idx_.end(), idx_.front(), comparer);
-      std::rotate(idx_.begin(), idx_.begin() + 1, itr);
+      const auto begin = idx_.begin() + excluded_moves_;
+      const auto itr = std::lower_bound(begin + 1, idx_.end(), idx_[excluded_moves_], comparer);
+      std::rotate(begin, begin + 1, itr);
     }
   }
 
@@ -618,10 +651,23 @@ class LocalExpansion {
    * @brief 末尾以外がソートされた状態のとき、末尾要素を適切な位置に挿入する
    */
   void ResortBack() {
-    if (idx_.size() > 1) {
+    if (idx_.size() > excluded_moves_ + 1) {
       const auto comparer = MakeComparer();
-      const auto itr = std::lower_bound(idx_.begin(), idx_.end() - 1, idx_.back(), comparer);
+      const auto begin = idx_.begin() + excluded_moves_;
+      const auto itr = std::lower_bound(begin, idx_.end() - 1, idx_.back(), comparer);
       std::rotate(itr, idx_.end() - 1, idx_.end());
+    }
+  }
+
+  /**
+   * @brief [0, excluded_moves_] の末尾以外がソートされた状態のとき、末尾要素を適切な位置に挿入する
+   */
+  void ResortExcludedBack() {
+    if (excluded_moves_ > 0) {
+      const auto comparer = MakeComparer();
+      const auto end = idx_.begin() + excluded_moves_ + 1;
+      const auto itr = std::lower_bound(idx_.begin(), end - 1, idx_[excluded_moves_], comparer);
+      std::rotate(itr, end - 1, end);
     }
   }
 
@@ -630,6 +676,7 @@ class LocalExpansion {
   const DelayedMoveList delayed_move_list_;  ///< 後回しにしている手のグラフ構造
   const MateLen len_;                        ///< 現局面における残り探索手数
   const BoardKeyHandPair key_hand_pair_;  ///< 現局面の盤面ハッシュ値と持ち駒。二重カウント対策で用いる。
+  const std::uint32_t multi_pv_;  ///< 何個の手を探索するか
 
   /// 子の現在の評価値結果一覧
   std::array<SearchResult, kMaxCheckMovesPerNode> results_;
@@ -646,6 +693,8 @@ class LocalExpansion {
   BitSet64 sum_mask_;
   /// 現在有効な生添字の一覧。「良さ順」で並んでいる。
   FixedSizeStack<std::uint32_t, kMaxCheckMovesPerNode> idx_;
+
+  std::uint32_t excluded_moves_{0};  ///< いくつ勝ちになる手を見つけたか
 };
 }  // namespace komori
 

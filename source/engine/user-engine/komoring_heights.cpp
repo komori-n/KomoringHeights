@@ -229,7 +229,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   PnDn thpn = (len == kDepthMaxMateLen) ? 1 : kInfinitePnDn;
   PnDn thdn = (len == kDepthMaxMateLen) ? 1 : kInfinitePnDn;
 
-  expansion_list_.Emplace(tt_, n, len, true);
+  expansion_list_.Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
   while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
     result = SearchImplForRoot(n, thpn, thdn, len);
     if (result.IsFinal()) {
@@ -513,7 +513,7 @@ void KomoringHeights::Print(const Node& n, bool force_print) {
 }
 
 void KomoringHeights::PrintAtRoot(const Node& n) {
-  expansion_list_.Emplace(tt_, n, kDepthMaxMateLen, true, BitSet64::Full(), true);
+  expansion_list_.Emplace(tt_, n, kDepthMaxMateLen, true, BitSet64::Full(), option_.multi_pv);
   Print(n, true);
   expansion_list_.Pop();
 }
