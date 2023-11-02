@@ -604,7 +604,7 @@ class LocalExpansion {
 
       return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
     } else {
-      const auto& result = FrontResult();
+      const auto& result = results_[idx_.front()];
       auto disproof_hand = result.GetFinalData().hand;
       const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
       const auto amount = result.Amount() + mp_.size() - 1;

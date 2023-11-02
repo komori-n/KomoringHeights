@@ -302,13 +302,13 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
     curr_result = local_expansion.CurrentResult(n);
 
     if (option_.multi_pv > 1 && len == kDepthMaxMateLen) {
-      // もう探索は関係ない手を見つけたとき、multi_pv_ へその手順を記録しておく
-      if (!n.IsRootOrNode() && child_result.Pn() == 0) {
+      // Final な手を見つけたとき、multi_pv_ へその手順を記録しておく
+      if (child_result.Pn() == 0) {
         n.DoMove(best_move);
         const auto pv = GetMatePath(n, child_result.Len());
         n.UndoMove();
         multi_pv_.Update(best_move, 0, USI::move(best_move) + " " + ToString(pv));
-      } else if (n.IsRootOrNode() && child_result.Dn() == 0) {
+      } else if (child_result.Dn() == 0) {
         n.DoMove(best_move);
         const auto evasion_move = GetEvasion(n);
         n.UndoMove();

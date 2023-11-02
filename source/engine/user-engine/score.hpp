@@ -76,11 +76,12 @@ class Score : DefineNotEqualByEqual<Score> {
 
   /// 現在の評価値を USI 文字列で返す
   std::string ToString() const {
+    const auto depth_max_to_print_max = [](ScoreValue value) { return value >= kDepthMax ? kMatePrintMax : value; };
     switch (kind_) {
       case Kind::kWin:
-        return std::string{"mate "} + std::to_string(value_);
+        return std::string{"mate "} + std::to_string(depth_max_to_print_max(value_));
       case Kind::kLose:
-        return std::string{"mate -"} + std::to_string(value_);
+        return std::string{"mate -"} + std::to_string(depth_max_to_print_max(value_));
       default:
         return std::string{"cp "} + std::to_string(value_);
     }
@@ -118,6 +119,7 @@ class Score : DefineNotEqualByEqual<Score> {
   }
 
  private:
+  static constexpr ScoreValue kMatePrintMax = 9999;
   /// 評価値の種別（勝ちとか負けとか）
   enum class Kind {
     kUnknown,  ///< 詰み／不詰未確定
