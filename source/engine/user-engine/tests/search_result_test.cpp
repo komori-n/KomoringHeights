@@ -6,6 +6,7 @@
 using komori::BitSet64;
 using komori::FinalData;
 using komori::MateLen;
+using komori::NodeState;
 using komori::SearchResult;
 using komori::SearchResultComparer;
 using komori::UnknownData;
@@ -21,6 +22,7 @@ TEST(SearchResultTest, ConstructUnknown) {
   EXPECT_FALSE(result.IsFinal());
   EXPECT_TRUE(result.GetUnknownData().is_first_visit);
   EXPECT_EQ(result.GetUnknownData().sum_mask, BitSet64{445});
+  EXPECT_EQ(result.GetNodeState(), NodeState::kUnknown);
 }
 
 TEST(SearchResultTest, MakeProven) {
@@ -33,6 +35,7 @@ TEST(SearchResultTest, MakeProven) {
   EXPECT_TRUE(result.IsFinal());
   EXPECT_FALSE(result.GetFinalData().IsRepetition());
   EXPECT_EQ(result.GetFinalData().hand, (MakeHand<PAWN, SILVER>()));
+  EXPECT_EQ(result.GetNodeState(), NodeState::kProven);
 }
 
 TEST(SearchResultTest, MakeDisproven) {
@@ -45,6 +48,7 @@ TEST(SearchResultTest, MakeDisproven) {
   EXPECT_TRUE(result.IsFinal());
   EXPECT_FALSE(result.GetFinalData().IsRepetition());
   EXPECT_EQ(result.GetFinalData().hand, (MakeHand<GOLD, GOLD>()));
+  EXPECT_EQ(result.GetNodeState(), NodeState::kDisproven);
 }
 
 TEST(SearchResultTest, MakeRepetition) {
@@ -57,6 +61,7 @@ TEST(SearchResultTest, MakeRepetition) {
   EXPECT_TRUE(result.IsFinal());
   EXPECT_EQ(result.GetFinalData().repetition_start, 334);
   EXPECT_EQ(result.GetFinalData().hand, (MakeHand<ROOK, BISHOP>()));
+  EXPECT_EQ(result.GetNodeState(), NodeState::kRepetition);
 }
 
 TEST(SearchResultTest, Phi) {

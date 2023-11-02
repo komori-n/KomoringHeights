@@ -1,4 +1,4 @@
-#include <cmath>
+﻿#include <cmath>
 #include <condition_variable>
 #include <mutex>
 
@@ -46,7 +46,7 @@ enum class LoseKind {
   kMate,
 };
 
-void PrintResult(bool is_mate_search, LoseKind kind, const std::string& pv_moves = "resign") {
+void PrintResult(bool is_root_or_node, bool is_mate_search, LoseKind kind, const std::string& pv_moves = "resign") {
   if (is_mate_search) {
     switch (kind) {
       case LoseKind::kTimeout:
@@ -59,10 +59,7 @@ void PrintResult(bool is_mate_search, LoseKind kind, const std::string& pv_moves
         sync_cout << "checkmate " << pv_moves << sync_endl;
     }
   } else {
-    auto usi_output = g_searcher.CurrentInfo();
-    usi_output.Set(komori::UsiInfoKey::kDepth, 0);
-    usi_output.Set(komori::UsiInfoKey::kPv, pv_moves);
-    sync_cout << usi_output << sync_endl;
+    // `KomoringHeights::Search()` 内で出力しているはずなので、ここでは何もする必要がない。
   }
 }
 
@@ -184,20 +181,16 @@ void MainThread::search() {
   Move best_move = MOVE_NONE;
   if (g_search_result == komori::NodeState::kProven) {
     auto best_moves = g_searcher.BestMoves();
-    std::ostringstream oss;
-    for (const auto& move : best_moves) {
-      oss << move << " ";
-    }
-    PrintResult(is_mate_search, LoseKind::kMate, oss.str());
+    PrintResult(is_root_or_node, is_mate_search, LoseKind::kMate, komori::ToString(best_moves));
 
     if (!best_moves.empty()) {
       best_move = best_moves[0];
     }
   } else {
     if (g_search_result == komori::NodeState::kDisproven || g_search_result == komori::NodeState::kRepetition) {
-      PrintResult(is_mate_search, LoseKind::kNoMate);
+      PrintResult(is_root_or_node, is_mate_search, LoseKind::kNoMate);
     } else {
-      PrintResult(is_mate_search, LoseKind::kTimeout);
+      PrintResult(is_root_or_node, is_mate_search, LoseKind::kTimeout);
     }
   }
 

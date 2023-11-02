@@ -83,6 +83,13 @@ TEST(PnDnTest, ToString) {
   EXPECT_EQ(ToString(334), "334");
 }
 
+TEST(MoveRange, ToString) {
+  EXPECT_EQ(ToString(std::vector<Move>{}), "");
+  EXPECT_EQ(ToString(std::vector<Move>{make_move(SQ_33, SQ_34, W_PAWN), make_move_promote(SQ_11, SQ_99, B_BISHOP),
+                                       make_move_drop(ROOK, SQ_44, WHITE)}),
+            "3c3d 1a9i+ R*4d");
+}
+
 TEST(OrdinalNumberTest, All) {
   EXPECT_EQ(OrdinalNumber(1), "1st");
   EXPECT_EQ(OrdinalNumber(2), "2nd");

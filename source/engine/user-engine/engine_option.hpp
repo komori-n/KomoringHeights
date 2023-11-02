@@ -149,8 +149,9 @@ inline constexpr std::uint64_t MakeInfIfNotPositive(std::int64_t val) {
  */
 struct EngineOption {
   // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-  std::uint64_t hash_mb;  ///< ハッシュサイズ[MB]
-  int threads;            ///< スレッド数
+  std::uint64_t hash_mb;   ///< ハッシュサイズ[MB]
+  int threads;             ///< スレッド数
+  std::uint32_t multi_pv;  ///< MultiPV
 
   std::uint64_t nodes_limit;         ///< 探索局面数制限。探索量に制限がないとき、2^64-1。
   std::uint64_t pv_interval;         ///< 探索進捗を表示する間隔[ms]。0 ならば全く出力しない。
@@ -206,6 +207,7 @@ struct EngineOption {
   void Reload(const USI::OptionsMap& o) {
     hash_mb = detail::ReadOption(o, "USI_Hash");
     threads = static_cast<int>(detail::ReadOption(o, "Threads"));
+    multi_pv = static_cast<std::uint32_t>(detail::MakeInfIfNotPositive(detail::ReadOption(o, "MultiPV")));
 
     nodes_limit = detail::MakeInfIfNotPositive(detail::ReadOption(o, "NodesLimit"));
     pv_interval = detail::MakeInfIfNotPositive(detail::ReadOption(o, "PvInterval"));

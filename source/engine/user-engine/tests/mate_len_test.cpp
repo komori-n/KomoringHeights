@@ -41,6 +41,9 @@ TYPED_TEST(MateLenTest, OperatorPlus) {
 TYPED_TEST(MateLenTest, OperatorMinus) {
   const TypeParam m1{334};
   EXPECT_EQ(m1 - 70, TypeParam{264});
+
+  const TypeParam m2{komori::kDepthMaxMateLen16};
+  EXPECT_EQ(m2 - 30, m2);
 }
 
 TYPED_TEST(MateLenTest, OutputOperator) {

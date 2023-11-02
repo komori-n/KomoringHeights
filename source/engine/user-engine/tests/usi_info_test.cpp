@@ -2,8 +2,10 @@
 
 #include <string>
 
+#include "../score.hpp"
 #include "../usi_info.hpp"
 
+using komori::Score;
 using komori::UsiInfo;
 using komori::UsiInfoKey;
 
@@ -31,26 +33,24 @@ class UsiInfoTest : public ::testing::Test {
 
 TEST_F(UsiInfoTest, Set) {
   UsiInfo info;
-  info.Set(UsiInfoKey::kDepth, 334);
   info.Set(UsiInfoKey::kSelDepth, 3340);
   info.Set(UsiInfoKey::kTime, 264);
   info.Set(UsiInfoKey::kNodes, 2640);
   info.Set(UsiInfoKey::kNps, 33400);
   info.Set(UsiInfoKey::kHashfull, 445);
   info.Set(UsiInfoKey::kCurrMove, "resign");
-  info.Set(UsiInfoKey::kPv, "hoge");
 
   std::unordered_map<std::string, std::string> expected{
-      {"depth", "334"}, {"seldepth", "3340"}, {"time", "264"},        {"nodes", "2640"},
-      {"nps", "33400"}, {"hashfull", "445"},  {"currmove", "resign"}, {"pv", "hoge"},
-  };
+      {"depth", "0"},   {"seldepth", "3340"}, {"time", "264"},       {"nodes", "2640"},
+      {"nps", "33400"}, {"hashfull", "445"},  {"currmove", "resign"}};
 
   std::stringstream ss;
   ss << info;
+  std::cout << ss.str() << std::endl;
   ExecTest(ss, std::move(expected), __LINE__);
 }
 
-TEST_F(UsiInfoTest, Default) {
+TEST_F(UsiInfoTest, NoPV) {
   UsiInfo info;
 
   std::unordered_map<std::string, std::string> expected{{"string", "hoge"}};
@@ -60,24 +60,25 @@ TEST_F(UsiInfoTest, Default) {
   ExecTest(ss, std::move(expected), __LINE__);
 }
 
-TEST_F(UsiInfoTest, String) {
+TEST_F(UsiInfoTest, OnePV) {
   UsiInfo info;
-  info.Set(UsiInfoKey::kString, "hoge");
+  info.PushPVBack(33, "4", "hoge");
 
-  std::unordered_map<std::string, std::string> expected{{"string", "hoge"}};
+  std::unordered_map<std::string, std::string> expected{{"depth", "33"}, {"score", "4"}, {"pv", "hoge"}};
 
   std::stringstream ss;
   ss << info;
   ExecTest(ss, std::move(expected), __LINE__);
 }
 
-TEST_F(UsiInfoTest, SelDepth) {
+TEST_F(UsiInfoTest, TwoPV) {
   UsiInfo info;
-  info.Set(UsiInfoKey::kSelDepth, "334");
-
-  std::unordered_map<std::string, std::string> expected{{"seldepth", "334"}, {"depth", "0"}, {"string", "264"}};
+  info.PushPVBack(334, "334", "fuga");
+  info.PushPVBack(33, "4", "hoge");
 
   std::stringstream ss;
-  ss << info << 264;
-  ExecTest(ss, std::move(expected), __LINE__);
+  ss << info;
+
+  const auto ret = ss.str();
+  EXPECT_EQ(ret, "info score 334 depth 334 multipv 1 pv fuga\ninfo score 4 depth 33 multipv 2 pv hoge");
 }

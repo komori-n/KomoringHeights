@@ -13,6 +13,7 @@
 #include "circular_array.hpp"
 #include "engine_option.hpp"
 #include "expansion_stack.hpp"
+#include "multi_pv.hpp"
 #include "score.hpp"
 #include "search_result.hpp"
 #include "transposition_table.hpp"
@@ -117,8 +118,6 @@ class KomoringHeights {
   void ResetStop() { monitor_.SetStop(false); }
   /// 探索情報の出力を要請する
   void RequestPrint() { print_flag_.store(true, std::memory_order_relaxed); }
-  /// 現在の探索情報を取得する
-  UsiInfo CurrentInfo() const;
   /**
    * @brief 詰み手順を取得する
    * @pre Search() の戻り値が `NodeState::kProven`
@@ -158,6 +157,16 @@ class KomoringHeights {
   SearchResult SearchEntry(Node& n, MateLen len);
 
   /**
+   * @brief 詰め探索の本体。root node専用の `SearchImpl()`。
+   * @param n 現局面（root node）
+   * @param thpn pn のしきい値
+   * @param thdn dn のしきい値
+   * @param len  残り手数
+   * @return 探索結果
+   */
+  SearchResult SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, MateLen len);
+
+  /**
    * @brief 詰め探索の本体。（再帰関数）
    * @param n 現局面
    * @param thpn pn のしきい値
@@ -169,6 +178,13 @@ class KomoringHeights {
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag);
 
   /**
+   * @brief `n` が AND node かつ不詰のとき、不詰になるような手を1つ返す
+   * @param n 現局面
+   * @return 不詰になる応手
+   */
+  std::optional<Move> GetEvasion(Node& n);
+
+  /**
    * @brief 現時点の探索結果から詰め手順を取得する
    * @param n 現局面
    * @param len 詰み手数の上限値
@@ -176,21 +192,40 @@ class KomoringHeights {
    */
   std::vector<Move> GetMatePath(Node& n, MateLen len);
 
+  /// 現在の探索情報を取得する
+  UsiInfo CurrentInfo() const;
+
   /**
    * @brief `print_flag_` が立っていたら off にした上で探索情報を出力する
    * @param n 現局面
    */
   void PrintIfNeeded(const Node& n);
 
+  /**
+   * @brief `print_flag_` に関係なく探索情報を出力する
+   * @param n 現局面
+   * @param force_print show_pv_after_mate オプションがついていても構わず出力するか[default=false]
+   */
+  void Print(const Node& n, bool force_print = false);
+
+  /**
+   * @brief Root 局面 `n` における探索情報を出力する
+   * @param n 探索開始局面
+   */
+  void PrintAtRoot(const Node& n);
+
   tt::TranspositionTable tt_;  ///< 置換表
   EngineOption option_;        ///< エンジンオプション
 
   detail::SearchMonitor monitor_;       ///< 探索モニター
-  Score score_{};                       ///< 現時点の評価値
   std::atomic_bool print_flag_{false};  ///< 標準出力フラグ
 
   std::vector<Move> best_moves_;     ///< 詰み手順
   ExpansionStack expansion_list_{};  ///< 局面展開のための一時領域
+  bool after_final_{false};          ///< 余詰探索中かどうか
+  Score score_{};  ///< 現在の探索評価値。余詰探索中に CurrentInfo() で取得できるようにここにおいておく
+
+  MultiPv multi_pv_;  ///< 各手に対する PV の一覧
 };
 }  // namespace komori
 

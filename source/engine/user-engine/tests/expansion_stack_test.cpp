@@ -17,6 +17,34 @@ TEST(ExpansionStackTest, Emplace) {
   EXPECT_EQ(&expansion, &expansion_list.Current());
 }
 
+TEST(ExpansionStackTest, IsEmpty) {
+  TestNode n("4k4/9/9/9/9/9/9/9/9 b P2r2b4g4s4n4l17p 1", true);
+  TranspositionTable tt;
+  tt.Resize(1);
+  ExpansionStack expansion_list;
+
+  EXPECT_TRUE(expansion_list.IsEmpty());
+
+  auto& expansion = expansion_list.Emplace(tt, *n, kDepthMaxMateLen, false);
+  EXPECT_FALSE(expansion_list.IsEmpty());
+
+  expansion_list.Pop();
+  EXPECT_TRUE(expansion_list.IsEmpty());
+}
+
+TEST(ExpansionStackTest, Root) {
+  TestNode n("4k4/9/9/9/9/9/9/9/9 b P2r2b4g4s4n4l17p 1", true);
+  TranspositionTable tt;
+  tt.Resize(1);
+  ExpansionStack expansion_list;
+
+  auto& expansion1 = expansion_list.Emplace(tt, *n, kDepthMaxMateLen, false);
+  EXPECT_EQ(&expansion_list.Root(), &expansion1);
+
+  auto& expansion2 = expansion_list.Emplace(tt, *n, kDepthMaxMateLen, false);
+  EXPECT_EQ(&expansion_list.Root(), &expansion1);
+}
+
 TEST(ExpansionStackTest, Pop) {
   TestNode n("4k4/9/9/9/9/9/9/9/9 b P2r2b4g4s4n4l17p 1", true);
   TranspositionTable tt;

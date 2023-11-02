@@ -109,6 +109,21 @@ class SearchResult {
   /// Final部分の結果。`IsFinal()` の場合のみ呼び出し可能。
   constexpr const FinalData& GetFinalData() const { return final_data_; }
 
+  /// 探索結果に基づくノード状態（詰み／不詰／千日手／不明）
+  constexpr NodeState GetNodeState() const {
+    if (Pn() == 0) {
+      return NodeState::kProven;
+    } else if (Dn() == 0) {
+      if (!GetFinalData().IsRepetition()) {
+        return NodeState::kDisproven;
+      } else {
+        return NodeState::kRepetition;
+      }
+    } else {
+      return NodeState::kUnknown;
+    }
+  }
+
   /// `result` を出力ストリームへ出力する。
   friend std::ostream& operator<<(std::ostream& os, const SearchResult& result) {
     os << "{";
@@ -222,16 +237,20 @@ class SearchResultComparer {
    * 4. Equivalent を返す
    */
   constexpr Ordering operator()(const SearchResult& lhs, const SearchResult& rhs) const noexcept {
-    if (lhs.Phi(or_node_) != rhs.Phi(or_node_)) {
-      if (lhs.Phi(or_node_) < rhs.Phi(or_node_)) {
+    if (lhs.Phi(or_node_) < rhs.Phi(or_node_)) {
+      return Ordering::kLess;
+    } else if (lhs.Phi(or_node_) > rhs.Phi(or_node_)) {
+      return Ordering::kGreater;
+    } else if (lhs.Delta(or_node_) < rhs.Delta(or_node_)) {
+      return Ordering::kLess;
+    } else if (lhs.Delta(or_node_) > rhs.Delta(or_node_)) {
+      return Ordering::kGreater;
+    }
+
+    if (!or_node_ && lhs.Pn() == 0 /* && rhs.Pn() == 0 */) {
+      if (lhs.Len() > rhs.Len()) {
         return Ordering::kLess;
-      } else {
-        return Ordering::kGreater;
-      }
-    } else if (lhs.Delta(or_node_) != rhs.Delta(or_node_)) {
-      if (lhs.Delta(or_node_) < rhs.Delta(or_node_)) {
-        return Ordering::kLess;
-      } else {
+      } else if (lhs.Len() < rhs.Len()) {
         return Ordering::kGreater;
       }
     }

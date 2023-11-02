@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include "../ranges.hpp"
 
@@ -111,7 +112,7 @@ TEST(AsRange, unordered_multimap) {
 TEST(Skip, MutableVector) {
   std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
 
-  for (auto&& x : komori::Skip<6>(vec)) {
+  for (auto&& x : komori::Skip(vec, 6)) {
     x = 10;
   }
 
@@ -123,7 +124,7 @@ TEST(Skip, MutableVector) {
 TEST(Skip, SkipStepIsGreaterThanLength) {
   std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
 
-  for (auto&& x : komori::Skip<334>(vec)) {
+  for (auto&& x : komori::Skip(vec, 334)) {
     EXPECT_EQ(334, x);
   }
 
@@ -132,9 +133,58 @@ TEST(Skip, SkipStepIsGreaterThanLength) {
 
 TEST(Skip, ConstRange) {
   const std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
-  const auto range = komori::Skip<7>(vec);
+  const auto range = komori::Skip(vec, 7);
 
   for (const auto& x : range) {
     EXPECT_EQ(x, 2);
   }
+}
+
+TEST(Take, MutableVector) {
+  std::vector<int> vec{10, 1, 4, 0, 10, 1, 3, 2};
+
+  for (auto&& x : komori::Take(vec, 2)) {
+    x = 3;
+  }
+
+  EXPECT_EQ(vec[0], 3);
+  EXPECT_EQ(vec[1], 3);
+  EXPECT_EQ(vec[2], 4);
+}
+
+TEST(Take, TakeStepIsGreaterThanLength) {
+  std::vector<int> vec{10, 1, 10, 0, 10, 1, 3, 2};
+
+  std::vector<int> res{};
+  for (auto&& x : komori::Take(vec, 334)) {
+    res.push_back(x);
+  }
+
+  EXPECT_EQ(vec, res);
+}
+
+TEST(Take, ArrayIsShorterThanTake) {
+  std::vector<int> vec{33, 4};
+
+  std::vector<int> res{};
+  for (auto&& x : komori::Take(vec, 334)) {
+    res.push_back(x);
+  }
+
+  EXPECT_EQ(vec, res);
+}
+
+TEST(Zip, ZipTest) {
+  std::vector<int> a{3, 3, 4, 3, 3, 4};
+  std::vector<std::string> b{"hoge", "fuga", "piyo"};
+
+  std::vector<std::pair<int, std::string>> ans{{3, "hoge"}, {3, "fuga"}, {4, "piyo"}};
+  std::size_t idx = 0;
+
+  for (const auto& [x, y] : komori::Zip(a, std::move(b))) {
+    EXPECT_EQ(x, ans[idx].first) << idx;
+    EXPECT_EQ(y, ans[idx].second) << idx;
+    idx++;
+  }
+  EXPECT_EQ(idx, 3);
 }

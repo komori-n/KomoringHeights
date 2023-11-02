@@ -23,6 +23,16 @@ class Score : DefineNotEqualByEqual<Score> {
   constexpr Score() noexcept = default;
 
   /**
+   * @brief 詰み状態の `Score` オブジェクトを構築する。
+   * @param method `Score` の計算方法
+   * @param mate_len 詰み手数
+   */
+  static Score MakeProven(ScoreCalculationMethod /* method */, std::size_t mate_len, bool is_root_or_node) {
+    const auto score = Score(Kind::kWin, static_cast<ScoreValue>(mate_len));
+    return is_root_or_node ? score : -score;
+  }
+
+  /**
    * @brief `Score` オブジェクトを構築する。
    * @param method `Score` の計算方法
    * @param result `result` 現在の探索結果
@@ -66,11 +76,12 @@ class Score : DefineNotEqualByEqual<Score> {
 
   /// 現在の評価値を USI 文字列で返す
   std::string ToString() const {
+    const auto depth_max_to_print_max = [](ScoreValue value) { return value >= kDepthMax ? kMatePrintMax : value; };
     switch (kind_) {
       case Kind::kWin:
-        return std::string{"mate "} + std::to_string(value_);
+        return std::string{"mate "} + std::to_string(depth_max_to_print_max(value_));
       case Kind::kLose:
-        return std::string{"mate -"} + std::to_string(value_);
+        return std::string{"mate -"} + std::to_string(depth_max_to_print_max(value_));
       default:
         return std::string{"cp "} + std::to_string(value_);
     }
@@ -78,6 +89,17 @@ class Score : DefineNotEqualByEqual<Score> {
 
   /// 評価値が詰み／不詰かどうか。
   bool IsFinal() const { return kind_ != Kind::kUnknown; }
+
+  /**
+   * @brief 評価値が詰みまたは不詰のとき、手数を1手伸ばす
+   *
+   * 探索開始局面で評価値を出力するとき、詰み手数が1手ズレてしまうのを直す用。
+   */
+  void AddOneIfFinal() {
+    if (kind_ == Kind::kWin || kind_ == Kind::kLose) {
+      value_ = std::min<ScoreValue>(value_ + 1, kDepthMax);
+    }
+  }
 
   /// 評価値の正負を反転させる
   Score operator-() const {
@@ -97,6 +119,7 @@ class Score : DefineNotEqualByEqual<Score> {
   }
 
  private:
+  static constexpr ScoreValue kMatePrintMax = 9999;
   /// 評価値の種別（勝ちとか負けとか）
   enum class Kind {
     kUnknown,  ///< 詰み／不詰未確定

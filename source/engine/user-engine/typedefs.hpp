@@ -15,6 +15,7 @@
 #include "../../bitboard.h"
 #include "../../position.h"
 #include "../../types.h"
+#include "../../usi.h"
 #include "type_traits.hpp"
 
 #if defined(KOMORI_DEBUG)
@@ -244,6 +245,28 @@ inline std::string ToString(PnDn val) {
   } else {
     return std::to_string(val);
   }
+}
+
+/**
+ * @brief `Move` の Range オブジェクトをスペース区切りの `std::string` へ変換する
+ *
+ * @param range `Move` のリスト
+ * @return `range` をスペース区切りで文字列化したもの
+ */
+template <typename Range,
+          Constraints<decltype(std::declval<Range>().begin()), decltype(std::declval<Range>().end())> = nullptr>
+inline std::string ToString(Range&& range) {
+  std::string ret;
+  for (auto&& move : std::forward<Range>(range)) {
+    ret += USI::move(move);
+    ret += ' ';
+  }
+
+  if (!ret.empty()) {
+    ret.pop_back();
+  }
+
+  return ret;
 }
 
 /**

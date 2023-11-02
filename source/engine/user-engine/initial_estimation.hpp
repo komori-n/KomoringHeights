@@ -24,8 +24,10 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move)
   const Color us = n.side_to_move();
   const Color them = ~us;
   const Square to = to_sq(move);
-  const auto attack_support = n.attackers_to(us, to).pop_count();
-  const auto defense_support = n.attackers_to(them, to).pop_count();
+  // n.attackers_to(color, to) はそこそこ重い処理なので、n.attackers_to(to) の結果を使い回すことで高速化できる
+  const auto attacker_bb = n.attackers_to(to);
+  const auto attack_support = (attacker_bb & n.pieces(us)).pop_count();
+  const auto defense_support = (attacker_bb & n.pieces(them)).pop_count();
 
   if (defense_support >= 2) {
     // たくさん受け駒が利いている場合は後回し
@@ -71,8 +73,9 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusAndNode(const Position& n, Move move
     return {1 * kPnDnUnit, 1 * kPnDnUnit};
   }
 
-  const auto attack_support = n.attackers_to(them, to).pop_count();
-  const auto defense_support = n.attackers_to(us, to).pop_count();
+  const auto attacker_bb = n.attackers_to(to);
+  const auto attack_support = (attacker_bb & n.pieces(them)).pop_count();
+  const auto defense_support = (attacker_bb & n.pieces(us)).pop_count();
 
   if (attack_support < defense_support + (is_drop(move) ? 1 : 0)) {
     return {2 * kPnDnUnit, 1 * kPnDnUnit};

@@ -251,23 +251,22 @@ namespace detail {
 /**
  * @brief `Skep` の実装本体
  * @tparam Range Iterable
- * @tparam kSkip スキップする要素数
  */
-template <typename Range, std::size_t kSkip>
+template <typename Range>
 class SkipImpl {
  public:
   /**
    * @brief `SkipImpl` インスタンスを生成する
    */
-  constexpr explicit SkipImpl(Range range) noexcept(
+  constexpr SkipImpl(Range range, std::size_t skip) noexcept(
       std::is_nothrow_constructible_v<Range, decltype(std::forward<Range>(range))>)
-      : range_{std::forward<Range>(range)} {}
+      : range_{std::forward<Range>(range)}, skip_{skip} {}
 
   /// 範囲の先頭
   constexpr auto begin() const
       noexcept(noexcept(call_begin(std::declval<Range&>()) != call_end(std::declval<Range&>()))) {
     auto itr = call_begin(range_);
-    for (std::size_t i = 0; i < kSkip && itr != end(); ++i, ++itr) {
+    for (std::size_t i = 0; i < skip_ && itr != end(); ++i, ++itr) {
     }
 
     return itr;
@@ -277,21 +276,128 @@ class SkipImpl {
   constexpr auto end() const noexcept(noexcept(call_end(std::declval<Range&>()))) { return call_end(range_); }
 
  private:
-  Range range_;  ///< もとの range
+  Range range_;       ///< もとの range
+  std::size_t skip_;  ///< スキップする要素数
 };
 }  // namespace detail
 
 /**
  * @brief Iterable の先頭 `kSkip` 要素をスキップする
- * @tparam kSkip スキップする要素数
  * @tparam Range iterableの型
  * @param range iterable
+ * @param skip スキップする要素数
  * @return range-based for で先頭 `kSize` 要素を飛ばした要素が取れるような iterable
  */
-template <std::size_t kSkip, typename Range>
-constexpr inline auto Skip(Range&& range) noexcept(noexcept(detail::SkipImpl<Range, kSkip>{
-    std::forward<Range>(range)})) {
-  return detail::SkipImpl<Range, kSkip>{std::forward<Range>(range)};
+template <typename Range>
+constexpr inline auto Skip(Range&& range, std::size_t skip) noexcept(noexcept(detail::SkipImpl<Range>{
+    std::forward<Range>(range), skip})) {
+  return detail::SkipImpl<Range>{std::forward<Range>(range), skip};
+}
+
+namespace detail {
+template <typename Range>
+class TakeImpl {
+ public:
+  /**
+   * @brief `TakeImpl` インスタンスを生成する
+   */
+  constexpr TakeImpl(Range range, std::size_t take) noexcept(
+      std::is_nothrow_constructible_v<Range, decltype(std::forward<Range>(range))>)
+      : range_{std::forward<Range>(range)}, take_{take} {}
+
+  /// 範囲の先頭
+  constexpr auto begin() const noexcept(noexcept(call_begin(std::declval<Range&>()))) { return call_begin(range_); }
+
+  /// 範囲の末尾
+  constexpr auto end() const noexcept(noexcept(call_begin(std::declval<Range>()), call_end(std::declval<Range&>()))) {
+    if (static_cast<std::size_t>(std::distance(call_begin(range_), call_end(range_))) > take_) {
+      return std::next(call_begin(range_), take_);
+    } else {
+      return call_end(range_);
+    }
+  }
+
+ private:
+  Range range_;       ///< もとの range
+  std::size_t take_;  ///< 取ってくる要素数
+};
+}  // namespace detail
+
+/**
+ * @brief Iterable の先頭 `kTake` 要素だけを取ってくる
+ * @tparam Range iterableの型
+ * @param range iterable
+ * @param take 取ってくる要素数
+ * @return range-based for で先頭 `kTake` 要素を飛ばした要素が取れるような iterable
+ */
+template <typename Range>
+constexpr inline auto Take(Range&& range, std::size_t take) noexcept(noexcept(detail::TakeImpl<Range>{
+    std::forward<Range>(range), take})) {
+  return detail::TakeImpl<Range>{std::forward<Range>(range), take};
+}
+
+namespace detail {
+template <typename Range1, typename Range2>
+class ZipImpl {
+ public:
+  template <typename Iterator1, typename Iterator2>
+  class Iterator {
+   public:
+    constexpr Iterator(Iterator1 itr1, Iterator2 itr2) noexcept(std::is_nothrow_copy_assignable_v<Iterator1> &&
+                                                                std::is_nothrow_copy_assignable_v<Iterator2>)
+        : itr1_{itr1}, itr2_{itr2} {}
+
+    constexpr auto operator*() noexcept(noexcept(*itr1_, *itr2_)) { return std::make_pair(*itr1_, *itr2_); }
+
+    constexpr Iterator& operator++() noexcept(noexcept(itr1_++, itr2_++)) {
+      itr1_++;
+      itr2_++;
+
+      return *this;
+    }
+
+    template <typename LI1, typename LI2, typename RI1, typename RI2>
+    friend constexpr bool operator!=(const Iterator<LI1, LI2>& lhs,
+                                     const Iterator<RI1, RI2>& rhs) noexcept(noexcept(lhs.itr1_ == rhs.itr1_ ||
+                                                                                      lhs.itr2_ == rhs.itr2_)) {
+      return lhs.itr1_ != rhs.itr1_ && lhs.itr2_ != rhs.itr2_;
+    }
+
+   private:
+    Iterator1 itr1_;
+    Iterator2 itr2_;
+  };
+
+  constexpr ZipImpl(Range1 range1, Range2 range2) noexcept(
+      std::is_nothrow_constructible_v<Range1, decltype(std::forward<Range1>(range1))> &&
+      std::is_nothrow_constructible_v<Range2, decltype(std::forward<Range2>(range2))>)
+      : range1_{std::forward<Range1>(range1)}, range2_{std::forward<Range2>(range2)} {}
+
+  constexpr auto begin() const noexcept(noexcept(call_begin(range1_), call_begin(range2_))) {
+    return Iterator<decltype(call_begin(range1_)), decltype(call_begin(range2_))>(call_begin(range1_),
+                                                                                  call_begin(range2_));
+  }
+
+  constexpr auto end() const noexcept(noexcept(call_end(range1_), call_end(range2_))) {
+    return Iterator<decltype(call_end(range1_)), decltype(call_end(range2_))>(call_end(range1_), call_end(range2_));
+  }
+
+ private:
+  Range1 range1_;
+  Range2 range2_;
+};
+}  // namespace detail
+
+/**
+ * @brief 2つのrangeをpairでまとめたようなrangeを返す。
+ * @param range1 range1
+ * @param range2 range2
+ * @return 2つのrangeをpairでまとめたようにiterateできるrangeを返す。
+ */
+template <typename Range1, typename Range2>
+constexpr inline auto Zip(Range1&& range1, Range2&& range2) noexcept(
+    noexcept(detail::ZipImpl<Range1, Range2>(std::forward<Range1>(range1), std::forward<Range2>(range2)))) {
+  return detail::ZipImpl<Range1, Range2>(std::forward<Range1>(range1), std::forward<Range2>(range2));
 }
 }  // namespace komori
 
