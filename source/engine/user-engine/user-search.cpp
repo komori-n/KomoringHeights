@@ -15,12 +15,6 @@ komori::KomoringHeights g_searcher;
 komori::EngineOption g_option;
 std::atomic_bool g_path_key_init_flag;
 
-// <探索終了同期>
-bool g_search_end = false;
-std::mutex g_end_mtx;
-std::condition_variable g_end_cv;
-// </探索終了同期>
-
 komori::NodeState g_search_result = komori::NodeState::kUnknown;
 
 /// 局面が OR node っぽいかどうかを調べる。困ったら OR node として処理する。
@@ -70,39 +64,6 @@ void ShowCommand(Position& pos, std::istringstream& is) {
 void PvCommand(Position& pos, std::istringstream& /* is */) {
   // unimplemented
 }
-
-void WaitSearchEnd() {
-  Timer timer;
-  timer.reset();
-
-  const bool is_mate_search = Search::Limits.mate != 0;
-  const auto is_end = [&]() {
-    return Threads.stop || g_search_end || (is_mate_search && timer.elapsed() >= Search::Limits.mate);
-  };
-  constexpr TimePoint kTimePointMax = std::numeric_limits<TimePoint>::max();
-  const TimePoint pv_interval =
-      g_option.pv_interval > kTimePointMax ? kTimePointMax : static_cast<TimePoint>(g_option.pv_interval);
-
-  TimePoint next_pv_out = pv_interval;
-  std::unique_lock<std::mutex> lock(g_end_mtx);
-  while (!is_end()) {
-    auto sleep_duration = 100;
-    if (next_pv_out < timer.elapsed() + sleep_duration) {
-      // このまま sleep_duration だけ寝ると予定時刻を過ぎてしまう
-      if (next_pv_out > timer.elapsed()) {
-        sleep_duration = next_pv_out - timer.elapsed();
-      } else {
-        sleep_duration = 1;
-      }
-    }
-
-    g_end_cv.wait_for(lock, std::chrono::milliseconds(sleep_duration), is_end);
-    if (pv_interval > 0 && timer.elapsed() >= next_pv_out) {
-      g_searcher.RequestPrint();
-      next_pv_out = timer.elapsed() + pv_interval;
-    }
-  }
-}
 }  // namespace
 
 // USI拡張コマンド"user"が送られてくるとこの関数が呼び出される。実験に使ってください。
@@ -150,33 +111,7 @@ void MainThread::search() {
   bool is_mate_search = Search::Limits.mate != 0;
   bool is_root_or_node = IsPosOrNode(rootPos);
 
-  g_searcher.ResetStop();
-  g_search_end = false;
-  // thread が 2 つ以上使える場合、main thread ではない方をタイマースレッドとして使いたい
-  if (Threads.size() > 1) {
-    Threads[1]->start_searching();
-
-    g_search_result = g_searcher.Search(rootPos, is_root_or_node);
-    {
-      std::lock_guard<std::mutex> lock(g_end_mtx);
-      g_search_end = true;
-    }
-    g_end_cv.notify_one();
-
-    Threads[1]->wait_for_search_finished();
-  } else {
-    // thread が 1 つしか使いない場合、しれっと thread を起動してタイマー役をしてもらう
-    std::thread th{[this]() { Thread::search(); }};
-
-    g_search_result = g_searcher.Search(rootPos, is_root_or_node);
-    {
-      std::lock_guard<std::mutex> lock(g_end_mtx);
-      g_search_end = true;
-    }
-    g_end_cv.notify_one();
-
-    th.join();
-  }
+  g_search_result = g_searcher.Search(rootPos, is_root_or_node);
 
   Move best_move = MOVE_NONE;
   if (g_search_result == komori::NodeState::kProven) {
@@ -210,9 +145,6 @@ void MainThread::search() {
 }
 
 // 探索本体。並列化している場合、ここがslaveのエントリーポイント。
-void Thread::search() {
-  WaitSearchEnd();
-  g_searcher.SetStop();
-}
+void Thread::search() {}
 
 #endif  // USER_ENGINE

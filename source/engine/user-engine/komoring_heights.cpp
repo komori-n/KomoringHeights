@@ -51,7 +51,9 @@ std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, Mat
 }  // namespace
 
 namespace detail {
-void SearchMonitor::NewSearch(std::uint64_t hashfull_check_interval, std::uint64_t move_limit) {
+void SearchMonitor::NewSearch(std::uint64_t hashfull_check_interval,
+                              std::uint64_t pv_interval,
+                              std::uint64_t move_limit) {
   // この時点で stop_ が true ならすぐにやめなければならないので、stop_ の初期化はしない
 
   start_time_ = std::chrono::system_clock::now();
@@ -62,14 +64,20 @@ void SearchMonitor::NewSearch(std::uint64_t hashfull_check_interval, std::uint64
   hist_idx_ = 0;
 
   move_limit_ = move_limit;
+  if (Search::Limits.mate > 0) {
+    time_limit_ = Search::Limits.mate;
+  } else if (Search::Limits.movetime > 0) {
+    time_limit_ = Search::Limits.movetime;
+  } else {
+    time_limit_ = std::numeric_limits<TimePoint>::max();
+  }
+
   hashfull_check_interval_ = hashfull_check_interval;
   ResetNextHashfullCheck();
-}
 
-void SearchMonitor::Tick() {
-  tp_hist_[hist_idx_] = std::chrono::system_clock::now();
-  mc_hist_[hist_idx_] = MoveCount();
-  hist_idx_++;
+  print_alarm_.Start(pv_interval);
+  stop_check_.Start(100);
+  stop_ = false;
 }
 
 UsiInfo SearchMonitor::GetInfo() const {
@@ -101,6 +109,32 @@ UsiInfo SearchMonitor::GetInfo() const {
 void SearchMonitor::ResetNextHashfullCheck() {
   next_hashfull_check_ = MoveCount() + hashfull_check_interval_;
 }
+
+bool SearchMonitor::ShouldStop() {
+  if (stop_) {
+    // tick 状態に関係なく stop_ なら終了。
+    return true;
+  } else if (!stop_check_.Tick()) {
+    return false;
+  }
+
+  // stop_ かどうか改めて判定し直す
+  const auto elapsed = Time.elapsed_from_ponderhit();
+  stop_ = MoveCount() >= move_limit_ || elapsed >= time_limit_ || Threads.stop;
+  return stop_;
+}
+
+bool SearchMonitor::ShouldPrint() {
+  if (!print_alarm_.Tick()) {
+    return false;
+  }
+  // print のタイミングで nps も更新しておく
+  tp_hist_[hist_idx_] = std::chrono::system_clock::now();
+  mc_hist_[hist_idx_] = MoveCount();
+  hist_idx_++;
+
+  return true;
+}
 }  // namespace detail
 
 void KomoringHeights::Init(const EngineOption& option, Thread* thread) {
@@ -130,7 +164,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
 
   // <初期化>
   tt_.NewSearch();
-  monitor_.NewSearch(HashfullCheckInterval(tt_.Capacity()), option_.nodes_limit);
+  monitor_.NewSearch(HashfullCheckInterval(tt_.Capacity()), option_.pv_interval, option_.nodes_limit);
   best_moves_.clear();
   after_final_ = false;
   score_ = Score{};
@@ -263,7 +297,9 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
   std::uint32_t inc_flag = 0;
   auto& local_expansion = expansion_list_.Current();
 
-  PrintIfNeeded(n);
+  if (monitor_.ShouldPrint()) {
+    Print(n);
+  }
   expansion_list_.EliminateDoubleCount(tt_, n);
 
   auto curr_result = local_expansion.CurrentResult(n);
@@ -339,7 +375,9 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
 
   auto& local_expansion = expansion_list_.Current();
   monitor_.Visit(n.GetDepth());
-  PrintIfNeeded(n);
+  if (monitor_.ShouldPrint()) {
+    Print(n);
+  }
 
   if (n.GetDepth() >= kDepthMax) {
     return SearchResult::MakeRepetition(n.OrHand(), len, 1, 0);
@@ -474,13 +512,6 @@ UsiInfo KomoringHeights::CurrentInfo() const {
   usi_output.Set(UsiInfoKey::kScore, score_.ToString());
 
   return usi_output;
-}
-
-void KomoringHeights::PrintIfNeeded(const Node& n) {
-  if (print_flag_.exchange(false, std::memory_order_relaxed)) {
-    Print(n);
-    monitor_.Tick();
-  }
 }
 
 void KomoringHeights::Print(const Node& n, bool force_print) {

@@ -68,7 +68,7 @@ class PeriodicAlarm {
 
  private:
   /// `Tick()` でタイマーを実際に確認する頻度。
-  static constexpr std::uint32_t kCheckSkip = 4096;
+  static constexpr std::uint32_t kCheckSkip = 32768;
 
   /// Time Point をミリ秒で取得する
   std::uint64_t Now() {

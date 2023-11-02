@@ -14,6 +14,7 @@
 #include "engine_option.hpp"
 #include "expansion_stack.hpp"
 #include "multi_pv.hpp"
+#include "periodic_alarm.hpp"
 #include "score.hpp"
 #include "search_result.hpp"
 #include "transposition_table.hpp"
@@ -35,18 +36,13 @@ class SearchMonitor {
    * @brief 変数を初期化して探索を開始する。
    * @param hashfull_check_interval 置換表使用率チェック周期（/探索局面数）
    */
-  void NewSearch(std::uint64_t hashfull_check_interval, std::uint64_t move_limit);
+  void NewSearch(std::uint64_t hashfull_check_interval, std::uint64_t pv_interval, std::uint64_t move_limit);
 
   /**
    * @brief 深さ `depth` の局面に訪れたことを報告する
    * @param depth 深さ
    */
   void Visit(Depth depth) { max_depth_ = std::max(max_depth_, depth); }
-
-  /**
-   * @brief 探索局面数を観測する。nps を正しく計算するためには定期的に呼び出しが必要。
-   */
-  void Tick();
 
   /**
    * @brief 現在の探索情報を `UsiInfo` に詰めて返す。
@@ -56,20 +52,18 @@ class SearchMonitor {
 
   /// 現在の探索局面数
   std::uint64_t MoveCount() const { return thread_->nodes; }
-  /// 今すぐ探索をやめるべきなら true
-  bool ShouldStop() const { return MoveCount() >= move_limit_ || stop_.load(std::memory_order_relaxed); }
   /// 今すぐ置換表使用率をチェックすべきなら true
   bool ShouldCheckHashfull() const { return MoveCount() >= next_hashfull_check_; }
   /// 次回の置換表使用率チェックタイミングを更新する
   void ResetNextHashfullCheck();
-  /// 今すぐ探索をやめさせる
-  void SetStop(bool stop = true) { stop_.store(stop, std::memory_order_relaxed); }
+  /// 今すぐ探索をやめるべきなら true
+  bool ShouldStop();
+  /// 今すぐ評価値を出力すべきかどうか。定期的に呼び出す必要がある。
+  bool ShouldPrint();
 
  private:
   /// nps の計算のために保持する探索局面数の履歴数
   static constexpr inline std::size_t kHistLen = 16;
-
-  std::atomic_bool stop_{false};  ///< 探索を今すぐ中止すべきなら true
 
   std::chrono::system_clock::time_point start_time_;  ///< 探索開始時刻
   Depth max_depth_;                                   ///< 最大探索深さ
@@ -79,9 +73,14 @@ class SearchMonitor {
   std::size_t hist_idx_;  ///< `tp_hist_` と `mc_hist_` の現在の添字
 
   std::uint64_t move_limit_;               ///< 探索局面数の上限
+  TimePoint time_limit_;                   ///< 探索の時間制限[ms]
   std::uint64_t hashfull_check_interval_;  ///< 置換表使用率をチェックする周期[探索局面数]
   std::uint64_t next_hashfull_check_;  ///< 次に置換表使用率をチェックするタイミング[探索局面数]
   Thread* thread_{nullptr};            ///< 探索に用いるスレッド。探索局面数の取得に用いる。
+
+  PeriodicAlarm print_alarm_;  ///< PV出力用のタイマー
+  PeriodicAlarm stop_check_;   ///< 探索停止判断用のタイマー
+  bool stop_;                  ///< 探索中止状態かどうか
 };
 }  // namespace detail
 
@@ -112,12 +111,6 @@ class KomoringHeights {
   /// 置換表の内容をすべて削除する。ベンチマーク用。
   void Clear();
 
-  /// 探索を今すぐやめさせる
-  void SetStop() { monitor_.SetStop(true); }
-  /// 探索可能な状態にする
-  void ResetStop() { monitor_.SetStop(false); }
-  /// 探索情報の出力を要請する
-  void RequestPrint() { print_flag_.store(true, std::memory_order_relaxed); }
   /**
    * @brief 詰み手順を取得する
    * @pre Search() の戻り値が `NodeState::kProven`
@@ -196,13 +189,7 @@ class KomoringHeights {
   UsiInfo CurrentInfo() const;
 
   /**
-   * @brief `print_flag_` が立っていたら off にした上で探索情報を出力する
-   * @param n 現局面
-   */
-  void PrintIfNeeded(const Node& n);
-
-  /**
-   * @brief `print_flag_` に関係なく探索情報を出力する
+   * @brief 探索情報を出力する
    * @param n 現局面
    * @param force_print show_pv_after_mate オプションがついていても構わず出力するか[default=false]
    */
@@ -217,8 +204,7 @@ class KomoringHeights {
   tt::TranspositionTable tt_;  ///< 置換表
   EngineOption option_;        ///< エンジンオプション
 
-  detail::SearchMonitor monitor_;       ///< 探索モニター
-  std::atomic_bool print_flag_{false};  ///< 標準出力フラグ
+  detail::SearchMonitor monitor_;  ///< 探索モニター
 
   std::vector<Move> best_moves_;     ///< 詰み手順
   ExpansionStack expansion_list_{};  ///< 局面展開のための一時領域
