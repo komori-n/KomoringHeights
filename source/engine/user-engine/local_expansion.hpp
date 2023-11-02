@@ -165,29 +165,31 @@ class LocalExpansion {
         result =
             query.LookUp(does_have_old_child_, len - 1, [&n, &move = move]() { return InitialPnDn(n, move.move); });
 
-        if (!result.IsFinal() && !or_node_ && first_search && result.GetUnknownData().is_first_visit) {
-          nn.DoMove(move.move);
-          if (auto res = detail::CheckObviousFinalOrNode(nn); res.has_value()) {
-            result = *res;
-            query.SetResult(*res);
-          }
-          nn.UndoMove();
-        }
-
         if (!result.IsFinal()) {
           if (!IsSumDeltaNode(n, move.move) || result.Delta(or_node_) >= detail::kForceSumPnDn) {
             sum_mask_.Reset(i_raw);
           }
 
+          bool i_is_skipped = false;
           auto next_dep = delayed_move_list_.Prev(i_raw);
           while (next_dep.has_value()) {
             if (!results_[*next_dep].IsFinal()) {
               // i_raw は next_dep の負けが確定した後で探索する
+              i_is_skipped = true;
               idx_.Pop();
               break;
             }
 
             next_dep = delayed_move_list_.Prev(*next_dep);
+          }
+
+          if (!i_is_skipped && !or_node_ && first_search && result.GetUnknownData().is_first_visit) {
+            nn.DoMove(move.move);
+            if (auto res = detail::CheckObviousFinalOrNode(nn); res.has_value()) {
+              result = *res;
+              query.SetResult(*res);
+            }
+            nn.UndoMove();
           }
         }
       }

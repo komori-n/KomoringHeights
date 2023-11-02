@@ -19,7 +19,7 @@ std::unique_ptr<KomoringHeights> MakeEngine() {
   EngineOption option{};
   option.Reload(Options);
   option.pv_interval = 0;
-  option.disable_info_print = true;
+  option.silent = true;
 
   auto kh = std::make_unique<KomoringHeights>();
   kh->Init(option, Threads.main());
