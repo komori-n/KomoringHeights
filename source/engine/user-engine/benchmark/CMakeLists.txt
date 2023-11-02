@@ -13,6 +13,7 @@ add_subdirectory(../../../../third-party/benchmark benchmark)
 add_executable(
     kh-benchmark
     node_benchmark.cpp
+    common_benchmark.cpp
     local_expansion_benchmark.cpp
     repetition_table_benchmark.cpp
     overall_benchmark.cpp
