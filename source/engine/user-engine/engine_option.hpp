@@ -165,7 +165,7 @@ struct EngineOption {
   std::string tt_write_path;  ///< TTを書き込むファイル名
 
   /// 探索結果を info string で出さない。ベンチマーク用のため `USI::OptionsMap` には登録しない
-  bool disable_info_print{false};
+  bool silent{false};
 
 #if defined(USE_DEEP_DFPN)
   Depth deep_dfpn_d;   ///< deep df-pn の D 値

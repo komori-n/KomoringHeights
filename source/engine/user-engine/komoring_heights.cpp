@@ -215,7 +215,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       best_moves_ = GetMatePath(n, result.Len());
       multi_pv_.Update(best_moves_[0], 0, ToString(best_moves_));
 
-      if (!option_.disable_info_print) {
+      if (!option_.silent) {
         sync_cout << CurrentInfo() << "# " << OrdinalNumber(i + 1) << " result: mate in " << best_moves_.size()
                   << "(upper_bound:" << result.Len() << ")" << sync_endl;
         PrintAtRoot(n);
@@ -247,7 +247,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
         node_state = result.GetNodeState();
       }
 
-      if (!option_.disable_info_print) {
+      if (!option_.silent) {
         sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
         PrintAtRoot(n);
       }
@@ -515,6 +515,10 @@ UsiInfo KomoringHeights::CurrentInfo() const {
 }
 
 void KomoringHeights::Print(const Node& n, bool force_print) {
+  if (option_.silent) {
+    return;
+  }
+
   auto usi_output = CurrentInfo();
   if (!expansion_list_.IsEmpty()) {
     // 探索中なら現在の探索情報で multi_pv_ を更新する
