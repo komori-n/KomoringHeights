@@ -8,6 +8,7 @@
 #include <limits>
 #include <vector>
 
+#include "spin_lock.hpp"
 #include "typedefs.hpp"
 
 namespace komori::tt {
@@ -35,14 +36,14 @@ class RepetitionTable {
    * @param table_size 置換表サイズ
    */
   explicit RepetitionTable(std::size_t table_size = 1) { Resize(table_size); }
-  /// Copy constructor(default)
-  RepetitionTable(const RepetitionTable&) = default;
-  /// Move constructor(default)
-  RepetitionTable(RepetitionTable&&) noexcept = default;
-  /// Copy assign operator(default)
-  RepetitionTable& operator=(const RepetitionTable&) = default;
-  /// Move assign operator(default)
-  RepetitionTable& operator=(RepetitionTable&&) noexcept = default;
+  /// Copy constructor(delete)
+  RepetitionTable(const RepetitionTable&) = delete;
+  /// Move constructor(delete)
+  RepetitionTable(RepetitionTable&&) noexcept = delete;
+  /// Copy assign operator(delete)
+  RepetitionTable& operator=(const RepetitionTable&) = delete;
+  /// Move assign operator(delete)
+  RepetitionTable& operator=(RepetitionTable&&) noexcept = delete;
   /// Destructor(default)
   ~RepetitionTable() = default;
 
@@ -82,6 +83,7 @@ class RepetitionTable {
    * @param depth    千日手判定開始深さ
    */
   void Insert(Key path_key, Depth depth) {
+    std::lock_guard lock(lock_);
     auto index = StartIndex(path_key);
     while (hash_table_[index].key != kEmptyKey && hash_table_[index].key != path_key) {
       index = Next(index);
@@ -110,6 +112,7 @@ class RepetitionTable {
    * @return `path_key` が保存されていればその深さ、なければ `std::nullopt`
    */
   std::optional<Depth> Contains(Key path_key) const {
+    std::lock_guard lock(lock_);
     for (auto index = StartIndex(path_key); hash_table_[index].key != kEmptyKey; index = Next(index)) {
       if (hash_table_[index].key == path_key) {
         return {hash_table_[index].depth};
@@ -215,6 +218,7 @@ class RepetitionTable {
     }
   }
 
+  mutable SpinLock lock_{};      ///< 排他ロック
   Generation generation_{};      ///< 現在の置換表世代
   std::uint64_t entry_count_{};  ///< 現在までにInsert()したエントリ数
 

@@ -13,7 +13,7 @@ class SpinLock {
   /**
    * @brief ロックを取得する
    */
-  void lock() {
+  void lock() noexcept {
     while (flag_.test_and_set(std::memory_order_acquire)) {
     }
   }
@@ -22,7 +22,7 @@ class SpinLock {
    * @brief ロックを解放する
    * @pre `lock()` によりロックされている
    */
-  void unlock() { flag_.clear(std::memory_order_release); }
+  void unlock() noexcept { flag_.clear(std::memory_order_release); }
 
  private:
   std::atomic_flag flag_ = ATOMIC_FLAG_INIT;  ///< ロックフラグ
