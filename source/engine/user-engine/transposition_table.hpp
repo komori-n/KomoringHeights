@@ -17,7 +17,7 @@
 namespace komori::tt {
 namespace detail {
 /// USI_Hash のうちどの程度を RegularTable に使用するかを示す割合。
-constexpr inline double kRegularRepetitionRatio = 0.90;
+constexpr inline double kRegularRepetitionRatio = 0.85;
 
 /**
  * @brief 詰将棋エンジンの置換表本体

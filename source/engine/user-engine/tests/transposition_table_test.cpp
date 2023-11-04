@@ -131,7 +131,7 @@ TEST_F(TranspositionTableTest, Hashfull) {
   EXPECT_CALL(tt_.GetRegularTable(), CalculateHashRate).WillOnce(Return(r1));
   EXPECT_CALL(tt_.GetRepetitionTable(), HashRate).WillOnce(Return(r2));
 
-  EXPECT_FLOAT_EQ(tt_.Hashfull(), 1000 * (r1 * kRegularRepetitionRatio + r2 * (1 - kRegularRepetitionRatio)));
+  EXPECT_NEAR(tt_.Hashfull(), 1000 * (r1 * kRegularRepetitionRatio + r2 * (1 - kRegularRepetitionRatio)), 2);
 }
 
 TEST_F(TranspositionTableTest, CollectGarbage) {

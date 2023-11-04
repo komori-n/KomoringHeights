@@ -12,7 +12,7 @@ constexpr double kGcRemovalRatio = 0.5;
 static_assert(kGcRemovalRatio > 0 && kGcRemovalRatio < 1.0, "kGcRemovalRatio must be greater than 0 and less than 1");
 
 /// GC をするタイミング。置換表使用率がこの値を超えていたら GC を行う。
-constexpr double kExecuteGcHashRate = 0.6;
+constexpr double kExecuteGcHashRate = 0.5;
 static_assert(kExecuteGcHashRate > 0 && kExecuteGcHashRate < 1.0,
               "kExecuteGcHashRate must be greater than 0 and less than 1");
 /// GC をする Hashfull のしきい値
