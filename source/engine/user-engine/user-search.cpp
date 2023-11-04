@@ -115,7 +115,10 @@ void MainThread::search() {
   bool is_root_or_node = IsPosOrNode(rootPos);
 
   g_searcher.NewSearch(rootPos, is_root_or_node);
+  Threads.start_searching();
   Thread::search();
+  Threads.stop = true;
+  Threads.wait_for_search_finished();
 
   Move best_move = MOVE_NONE;
   if (g_search_result == komori::NodeState::kProven) {
@@ -150,7 +153,10 @@ void MainThread::search() {
 
 // 探索本体。並列化している場合、ここがslaveのエントリーポイント。
 void Thread::search() {
-  g_search_result = g_searcher.Search(id(), rootPos, IsPosOrNode(rootPos));
+  const auto result = g_searcher.Search(id(), rootPos, IsPosOrNode(rootPos));
+  if (id() == 0) {
+    g_search_result = result;
+  }
 }
 
 #endif  // USER_ENGINE
