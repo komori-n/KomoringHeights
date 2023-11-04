@@ -71,9 +71,7 @@ jobs:
         # LLVM APT
         run: |
           # install clang-14
-          wget https://apt.llvm.org/llvm.sh
-          sudo bash ./llvm.sh 14 all
-          sudo apt install build-essential libopenblas-dev
+          sudo apt install build-essential libopenblas-dev clang-14
           sudo cat /etc/apt/sources.list
           sudo ls -R /etc/apt/sources.list.d
         if: ${{ matrix.compiler == 'clang++-14' }}
@@ -82,9 +80,7 @@ jobs:
         # LLVM APT
         run: |
           # install clang-15
-          wget https://apt.llvm.org/llvm.sh
-          sudo bash ./llvm.sh 15 all
-          sudo apt install build-essential libopenblas-dev
+          sudo apt install build-essential libopenblas-dev clang-15
           sudo cat /etc/apt/sources.list
           sudo ls -R /etc/apt/sources.list.d
         if: ${{ matrix.compiler == 'clang++-15' }}
