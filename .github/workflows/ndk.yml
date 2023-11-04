@@ -8,10 +8,7 @@ on:
 
 jobs:
   build-android:
-    # ubuntu-latest = ubuntu-20.04
-    # https://docs.github.com/ja/actions/using-github-hosted-runners/about-github-hosted-runners
-    # https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-README.md
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     strategy:
       matrix:
@@ -20,10 +17,10 @@ jobs:
 
     steps:
       # https://developer.android.com/ndk/downloads?hl=ja#stable-downloads
-      - name: Setup Android NDK r25b
+      - name: Setup Android NDK r26b
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r25b
+          ndk-version: r26b
 
       - name: Checkout own repository
         uses: actions/checkout@v2
