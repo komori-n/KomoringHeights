@@ -51,9 +51,9 @@ inline void InitBriefEvaluation(std::uint32_t thread_id) {
     std::mt19937 mt(thread_id);
     // kPtValues と kDfpnPlusParameters へ薄い乱数を加える
 
-    std::normal_distribution<int> dist(0, 200);
+    std::normal_distribution<double> dist(0, 200);
     for (auto& value : detail::kPtValues) {
-      value += dist(mt);
+      value += static_cast<int>(dist(mt));
     }
 
     std::discrete_distribution<PnDn> discrete_dist({0.7, 0.25, 0.05});
