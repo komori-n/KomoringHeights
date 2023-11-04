@@ -6,9 +6,10 @@
 
 #include <iostream>
 #include <limits>
+#include <shared_mutex>
 #include <vector>
 
-#include "spin_lock.hpp"
+#include "shared_exclusive_lock.hpp"
 #include "typedefs.hpp"
 
 namespace komori::tt {
@@ -112,7 +113,7 @@ class RepetitionTable {
    * @return `path_key` が保存されていればその深さ、なければ `std::nullopt`
    */
   std::optional<Depth> Contains(Key path_key) const {
-    std::lock_guard lock(lock_);
+    std::shared_lock lock(lock_);
     for (auto index = StartIndex(path_key); hash_table_[index].key != kEmptyKey; index = Next(index)) {
       if (hash_table_[index].key == path_key) {
         return {hash_table_[index].depth};
@@ -218,9 +219,9 @@ class RepetitionTable {
     }
   }
 
-  mutable SpinLock lock_{};      ///< 排他ロック
-  Generation generation_{};      ///< 現在の置換表世代
-  std::uint64_t entry_count_{};  ///< 現在までにInsert()したエントリ数
+  mutable SharedExclusiveLock<std::int32_t> lock_{};  ///< 排他ロック
+  Generation generation_{};                           ///< 現在の置換表世代
+  std::uint64_t entry_count_{};                       ///< 現在までにInsert()したエントリ数
 
   std::uint64_t next_generation_update_{};  ///< 次回generation_をインクリメントするタイミング
   Generation next_gc_{};                    ///< 次回GCを行うGeneration

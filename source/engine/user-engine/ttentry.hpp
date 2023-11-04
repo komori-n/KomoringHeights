@@ -9,7 +9,7 @@
 #include "bitset.hpp"
 #include "hands.hpp"
 #include "mate_len.hpp"
-#include "spin_lock.hpp"
+#include "shared_exclusive_lock.hpp"
 #include "typedefs.hpp"
 
 namespace komori::tt {
@@ -199,11 +199,13 @@ class alignas(64) Entry {
 
   /// エントリの排他ロックを取る
   void lock() const { lock_.lock(); }
+  void lock_shared() const { lock_.lock_shared(); }
   /**
    * @brief エントリの排他ロックを解除する
    * @pre `lock()` によりロックされている
    */
   void unlock() const { lock_.unlock(); }
+  void unlock_shared() const { lock_.unlock_shared(); }
   /// エントリに無効値を設定する
   void SetNull() noexcept { hand_ = kNullHand; }
   /// エントリが未使用状態かを判定する
@@ -551,8 +553,8 @@ class alignas(64) Entry {
   PnDn pn_;  ///< pn値
   PnDn dn_;  ///< dn値
 
-  mutable SpinLock lock_;             ///< スピンロック
-  RepetitionState repetition_state_;  ///< 現局面が千日手の可能性があるか
+  mutable SharedExclusiveLock<std::int8_t> lock_;  ///< スピンロック
+  RepetitionState repetition_state_;               ///< 現局面が千日手の可能性があるか
   mutable std::int16_t min_depth_;  ///< 最小探索深さ。`LookUp()` 中に書き換える可能性があるので mutable。
 
   Hand parent_hand_;      ///< 親局面の持ち駒

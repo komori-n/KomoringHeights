@@ -43,9 +43,12 @@ namespace USI {
 		// そもそもで言うとsetoptionに対してそんなに時間のかかることをするとGUI側がtimeoutになる懸念もある。
 		// Stockfishもこうすべきだと思う。
 
-		o["Threads"] << Option(4, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
 #if defined(USER_ENGINE)
+		// TTEntry の SharedExclusiveLock が int8_t の最大値までしか共有ロックを取れないので、128 スレッドが上限。
+		o["Threads"] << Option(4, 1, 128, [](const Option& o) { /* Threads.set(o); */ });
 		o["MultiPV"] << Option(1, 1, 800);
+#else
+		o["Threads"] << Option(4, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
 #endif
 #endif
 

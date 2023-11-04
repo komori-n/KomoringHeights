@@ -5,6 +5,7 @@
 #define KOMORI_TTQUERY_HPP_
 
 #include <optional>
+#include <shared_mutex>
 
 #include "board_key_hand_pair.hpp"
 #include "regular_table.hpp"
@@ -125,7 +126,7 @@ class Query {
     BitSet64 sum_mask = BitSet64::Full();
 
     for (auto itr = initial_entry_pointer_;; ++itr) {
-      std::lock_guard lock(*itr);
+      std::shared_lock lock(*itr);
       if (itr->IsNull()) {
         break;
       }
@@ -188,7 +189,7 @@ class Query {
     Key parent_board_key = kNullKey;
     Hand parent_hand = kNullHand;
     for (auto itr = initial_entry_pointer_;; ++itr) {
-      std::lock_guard lock(*itr);
+      std::shared_lock lock(*itr);
       if (itr->IsNull()) {
         break;
       }
@@ -218,7 +219,7 @@ class Query {
     bool found_rep = false;
 
     for (auto itr = initial_entry_pointer_;; ++itr) {
-      std::lock_guard lock(*itr);
+      std::shared_lock lock(*itr);
       if (itr->IsNull()) {
         break;
       }

@@ -5,6 +5,7 @@
 #define KOMORI_REGULAR_TABLE_HPP_
 
 #include <algorithm>
+#include <shared_mutex>
 #include <vector>
 
 #include "ttentry.hpp"
@@ -197,7 +198,7 @@ class RegularTable {
     std::size_t idx = 0;
     for (std::size_t i = 0; i < detail::kHashfullCalcEntries; ++i) {
       {
-        std::lock_guard lock{entries_[idx]};
+        std::shared_lock lock{entries_[idx]};
         if (!entries_[idx].IsNull()) {
           used_count++;
         }
@@ -230,7 +231,7 @@ class RegularTable {
 
     while (counted_num < detail::kGcSamplingEntries) {
       {
-        std::lock_guard lock(entries_[idx]);
+        std::shared_lock lock(entries_[idx]);
         if (!entries_[idx].IsNull()) {
           amounts.push_back(entries_[idx].Amount());
           counted_num++;
