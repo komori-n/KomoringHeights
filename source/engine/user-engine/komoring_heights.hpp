@@ -28,11 +28,6 @@ namespace detail {
 class SearchMonitor {
  public:
   /**
-   * @brief 探索スレッドを渡す（初期化時に1回だけ必要）
-   * @param thread 探索に用いるスレッド
-   */
-  void SetThread(Thread* thread) { thread_ = thread; }
-  /**
    * @brief 変数を初期化して探索を開始する。
    * @param hashfull_check_interval 置換表使用率チェック周期（/探索局面数）
    */
@@ -42,7 +37,9 @@ class SearchMonitor {
    * @brief 深さ `depth` の局面に訪れたことを報告する
    * @param depth 深さ
    */
-  void Visit(Depth depth) { max_depth_ = std::max(max_depth_, depth); }
+  void Visit(Depth depth) {
+    max_depth_.store(std::max(max_depth_.load(std::memory_order_relaxed), depth), std::memory_order_relaxed);
+  }
 
   /**
    * @brief 現在の探索情報を `UsiInfo` に詰めて返す。
@@ -51,13 +48,13 @@ class SearchMonitor {
   UsiInfo GetInfo() const;
 
   /// 現在の探索局面数
-  std::uint64_t MoveCount() const { return thread_->nodes; }
+  std::uint64_t MoveCount() const { return Threads.nodes_searched(); }
   /// 今すぐ置換表使用率をチェックすべきなら true
-  bool ShouldCheckHashfull() const { return MoveCount() >= next_hashfull_check_; }
+  bool ShouldCheckHashfull();
   /// 次回の置換表使用率チェックタイミングを更新する
   void ResetNextHashfullCheck();
   /// 今すぐ探索をやめるべきなら true
-  bool ShouldStop();
+  bool ShouldStop(std::uint32_t thread_id);
   /// 今すぐ評価値を出力すべきかどうか。定期的に呼び出す必要がある。
   bool ShouldPrint();
 
@@ -66,7 +63,6 @@ class SearchMonitor {
   static constexpr inline std::size_t kHistLen = 16;
 
   std::chrono::system_clock::time_point start_time_;  ///< 探索開始時刻
-  Depth max_depth_;                                   ///< 最大探索深さ
 
   CircularArray<std::chrono::system_clock::time_point, kHistLen> tp_hist_;  ///< mc_hist_ を観測した時刻
   CircularArray<std::uint64_t, kHistLen> mc_hist_;                          ///< 各時点での探索局面数
@@ -75,12 +71,14 @@ class SearchMonitor {
   std::uint64_t move_limit_;               ///< 探索局面数の上限
   TimePoint time_limit_;                   ///< 探索の時間制限[ms]
   std::uint64_t hashfull_check_interval_;  ///< 置換表使用率をチェックする周期[探索局面数]
+  std::uint32_t hashfull_check_skip_;      ///< next_hashfull_check_ のチェックをスキップする回数
   std::uint64_t next_hashfull_check_;  ///< 次に置換表使用率をチェックするタイミング[探索局面数]
-  Thread* thread_{nullptr};            ///< 探索に用いるスレッド。探索局面数の取得に用いる。
 
   PeriodicAlarm print_alarm_;  ///< PV出力用のタイマー
   PeriodicAlarm stop_check_;   ///< 探索停止判断用のタイマー
-  bool stop_;                  ///< 探索中止状態かどうか
+
+  alignas(64) std::atomic<bool> stop_;  ///< 探索中止状態かどうか
+  std::atomic<Depth> max_depth_;        ///< 最大探索深さ
 };
 }  // namespace detail
 
@@ -105,9 +103,9 @@ class KomoringHeights {
   /**
    * @brief エンジンを初期化する
    * @param option 探索オプション
-   * @param thread 探索スレッド
+   * @param num_threads スレッド数
    */
-  void Init(const EngineOption& option, Thread* thread);
+  void Init(const EngineOption& option, std::uint32_t num_threads);
   /// 置換表の内容をすべて削除する。ベンチマーク用。
   void Clear();
 
@@ -120,15 +118,17 @@ class KomoringHeights {
 
   /**
    * @brief 詰め探索を行う。（探索本体）
+   * @param thread_id スレッドID
    * @param n 現局面
    * @param is_root_or_node `n` が OR node かどうか
    * @return 探索結果
    */
-  NodeState Search(const Position& n, bool is_root_or_node);
+  NodeState Search(std::uint32_t thread_id, const Position& n, bool is_root_or_node);
 
  private:
   /**
    * @brief 詰み手順を探す
+   * @param thread_id スレッドID
    * @param n 現局面
    * @return 探索結果と詰み手数
    *
@@ -136,10 +136,11 @@ class KomoringHeights {
    * 「最短の詰み手順かどうか」の判定は難しい。この関数では、詰み手数を変えながら `SearchEntry()` を
    * 呼ぶことで局面 `n` の詰み手数の区間を狭めていくことが目的の関数である。
    */
-  std::pair<NodeState, MateLen> SearchMainLoop(Node& n);
+  std::pair<NodeState, MateLen> SearchMainLoop(std::uint32_t thread_id, Node& n);
 
   /**
    * @brief `n` が `len` 手以下で詰むかを探索する
+   * @param thread_id スレッドID
    * @param n 現局面
    * @param len 詰み手数
    * @return 探索結果
@@ -147,20 +148,22 @@ class KomoringHeights {
    * `SearchImpl()` による再帰探索のエントリポイント。しきい値をいい感じに変化させることで探索の途中経過を
    * 標準出力に出しながら探索を進めることができる。
    */
-  SearchResult SearchEntry(Node& n, MateLen len);
+  SearchResult SearchEntry(std::uint32_t thread_id, Node& n, MateLen len);
 
   /**
    * @brief 詰め探索の本体。root node専用の `SearchImpl()`。
+   * @param thread_id スレッドID
    * @param n 現局面（root node）
    * @param thpn pn のしきい値
    * @param thdn dn のしきい値
    * @param len  残り手数
    * @return 探索結果
    */
-  SearchResult SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, MateLen len);
+  SearchResult SearchImplForRoot(std::uint32_t thread_id, Node& n, PnDn thpn, PnDn thdn, MateLen len);
 
   /**
    * @brief 詰め探索の本体。（再帰関数）
+   * @param thread_id スレッドID
    * @param n 現局面
    * @param thpn pn のしきい値
    * @param thdn dn のしきい値
@@ -168,12 +171,13 @@ class KomoringHeights {
    * @param inc_flag TCA の探索延長フラグ
    * @return 探索結果
    */
-  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag);
+  SearchResult SearchImpl(std::uint32_t thread_id, Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag);
 
   /**
    * @brief `n` が AND node かつ不詰のとき、不詰になるような手を1つ返す
    * @param n 現局面
    * @return 不詰になる応手
+   * @pre メインスレッドから呼び出すこと
    */
   std::optional<Move> GetEvasion(Node& n);
 
@@ -182,22 +186,26 @@ class KomoringHeights {
    * @param n 現局面
    * @param len 詰み手数の上限値
    * @return 詰み手順
+   * @pre メインスレッドから呼び出すこと
    */
   std::vector<Move> GetMatePath(Node& n, MateLen len);
 
   /// 現在の探索情報を取得する
+  /// @pre メインスレッドから呼び出すこと
   UsiInfo CurrentInfo() const;
 
   /**
    * @brief 探索情報を出力する
    * @param n 現局面
    * @param force_print show_pv_after_mate オプションがついていても構わず出力するか[default=false]
+   * @pre メインスレッドから呼び出すこと
    */
   void Print(const Node& n, bool force_print = false);
 
   /**
    * @brief Root 局面 `n` における探索情報を出力する
    * @param n 探索開始局面
+   * @pre メインスレッドから呼び出すこと
    */
   void PrintAtRoot(const Node& n);
 
@@ -206,9 +214,9 @@ class KomoringHeights {
 
   detail::SearchMonitor monitor_;  ///< 探索モニター
 
-  std::vector<Move> best_moves_;     ///< 詰み手順
-  ExpansionStack expansion_list_{};  ///< 局面展開のための一時領域
-  bool after_final_{false};          ///< 余詰探索中かどうか
+  std::vector<Move> best_moves_;                 ///< 詰み手順
+  std::deque<ExpansionStack> expansion_list_{};  ///< 局面展開のための一時領域
+  bool after_final_{false};                      ///< 余詰探索中かどうか
   Score score_{};  ///< 現在の探索評価値。余詰探索中に CurrentInfo() で取得できるようにここにおいておく
 
   MultiPv multi_pv_;  ///< 各手に対する PV の一覧
