@@ -218,7 +218,7 @@ NodeState KomoringHeights::Search(std::uint32_t thread_id, const Position& n, bo
   }
 #endif  // defined(USE_TT_SAVE_AND_LOAD)
 
-  if (state == NodeState::kProven) {
+  if (thread_id == 0 && state == NodeState::kProven) {
     if (best_moves_.size() % 2 != static_cast<int>(is_root_or_node)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
