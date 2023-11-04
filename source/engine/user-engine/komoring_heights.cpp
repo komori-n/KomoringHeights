@@ -373,7 +373,7 @@ SearchResult KomoringHeights::SearchImplForRoot(std::uint32_t thread_id, Node& n
     local_expansion.UpdateBestChild(child_result);
     curr_result = local_expansion.CurrentResult(n);
 
-    if (thread_id == 0 && option_.multi_pv > 1 && len == kDepthMaxMateLen) {
+    if (thread_id == 0 && option_.multi_pv > 1 && !after_final_) {
       // Final な手を見つけたとき、multi_pv_ へその手順を記録しておく
       if (child_result.Pn() == 0) {
         n.DoMove(best_move);
