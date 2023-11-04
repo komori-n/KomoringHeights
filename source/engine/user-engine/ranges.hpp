@@ -347,9 +347,11 @@ class ZipImpl {
                                                                 std::is_nothrow_copy_assignable_v<Iterator2>)
         : itr1_{itr1}, itr2_{itr2} {}
 
-    constexpr auto operator*() noexcept(noexcept(*itr1_, *itr2_)) { return std::make_pair(*itr1_, *itr2_); }
+    constexpr auto operator*() noexcept(noexcept(*std::declval<Iterator1>(), *std::declval<Iterator2>())) {
+      return std::make_pair(*itr1_, *itr2_);
+    }
 
-    constexpr Iterator& operator++() noexcept(noexcept(itr1_++, itr2_++)) {
+    constexpr Iterator& operator++() noexcept(noexcept(std::declval<Iterator1>()++, std::declval<Iterator2>()++)) {
       itr1_++;
       itr2_++;
 
@@ -373,12 +375,13 @@ class ZipImpl {
       std::is_nothrow_constructible_v<Range2, decltype(std::forward<Range2>(range2))>)
       : range1_{std::forward<Range1>(range1)}, range2_{std::forward<Range2>(range2)} {}
 
-  constexpr auto begin() const noexcept(noexcept(call_begin(range1_), call_begin(range2_))) {
+  constexpr auto begin() const
+      noexcept(noexcept(call_begin(std::declval<Range1>()), call_begin(std::declval<Range2>()))) {
     return Iterator<decltype(call_begin(range1_)), decltype(call_begin(range2_))>(call_begin(range1_),
                                                                                   call_begin(range2_));
   }
 
-  constexpr auto end() const noexcept(noexcept(call_end(range1_), call_end(range2_))) {
+  constexpr auto end() const noexcept(noexcept(call_end(std::declval<Range1>()), call_end(std::declval<Range2>()))) {
     return Iterator<decltype(call_end(range1_)), decltype(call_end(range2_))>(call_end(range1_), call_end(range2_));
   }
 
