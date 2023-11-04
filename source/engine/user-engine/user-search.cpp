@@ -57,26 +57,10 @@ void PrintResult(bool is_root_or_node, bool is_mate_search, LoseKind kind, const
     // `KomoringHeights::Search()` 内で出力しているはずなので、ここでは何もする必要がない。
   }
 }
-
-void ShowCommand(Position& pos, std::istringstream& is) {
-  // unimplemented
-}
-
-void PvCommand(Position& pos, std::istringstream& /* is */) {
-  // unimplemented
-}
 }  // namespace
 
 // USI拡張コマンド"user"が送られてくるとこの関数が呼び出される。実験に使ってください。
-void user_test(Position& pos, std::istringstream& is) {
-  std::string cmd;
-  is >> cmd;
-  if (cmd == "show") {
-    ShowCommand(pos, is);
-  } else if (cmd == "pv") {
-    PvCommand(pos, is);
-  }
-}
+void user_test(Position& pos, std::istringstream& is) {}
 
 // USIに追加オプションを設定したいときは、この関数を定義すること。
 // USI::init()のなかからコールバックされる。
@@ -137,7 +121,6 @@ void MainThread::search() {
     }
   }
 
-  // 通常の go コマンドで呼ばれたときは resign を返す
   if (Search::Limits.mate == 0) {
     // "go infinite"に対してはstopが送られてくるまで待つ。
     while (!Threads.stop && Search::Limits.infinite) {
