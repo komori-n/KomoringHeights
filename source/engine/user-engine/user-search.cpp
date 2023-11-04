@@ -155,6 +155,7 @@ void MainThread::search() {
 // 探索本体。並列化している場合、ここがslaveのエントリーポイント。
 void Thread::search() {
   komori::InitBriefEvaluation(id());
+  komori::tt::InitializeTTNoise(id());
   const auto result = g_searcher.Search(id(), rootPos, IsPosOrNode(rootPos));
   if (id() == 0) {
     g_search_result = result;
