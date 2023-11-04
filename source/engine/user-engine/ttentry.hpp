@@ -143,7 +143,7 @@ class alignas(64) Entry {
   Entry() noexcept = default;
   /// Copy constructor
   Entry(const Entry& entry) noexcept
-      : hand_{entry.hand_},
+      : hand_{entry.hand_.load(std::memory_order_relaxed)},
         amount_{entry.amount_},
         board_key_{entry.board_key_},
         proven_len_{entry.proven_len_},
@@ -157,7 +157,7 @@ class alignas(64) Entry {
         sum_mask_{entry.sum_mask_} {}
   /// Copy assign operator
   Entry& operator=(const Entry& entry) noexcept {
-    hand_ = entry.hand_;
+    hand_.store(entry.hand_.load(std::memory_order_relaxed), std::memory_order_relaxed);
     amount_ = entry.amount_;
     board_key_ = entry.board_key_;
     proven_len_ = entry.proven_len_;
@@ -181,7 +181,7 @@ class alignas(64) Entry {
    * @param hand      持ち駒
    */
   void Init(Key board_key, Hand hand) noexcept {
-    hand_ = hand;
+    hand_.store(hand, std::memory_order_relaxed);
     amount_ = 1;
     board_key_ = board_key;
     proven_len_ = kDepthMaxPlus1MateLen16;
@@ -207,9 +207,9 @@ class alignas(64) Entry {
   void unlock() const { lock_.unlock(); }
   void unlock_shared() const { lock_.unlock_shared(); }
   /// エントリに無効値を設定する
-  void SetNull() noexcept { hand_ = kNullHand; }
-  /// エントリが未使用状態かを判定する
-  bool IsNull() const noexcept { return hand_ == kNullHand; }
+  void SetNull() noexcept { hand_.store(kNullHand, std::memory_order_relaxed); }
+  /// エントリが未使用状態かを判定する。この関数に限っては共有ロックを取得せずに使用することができる。
+  bool IsNull() const noexcept { return hand_.load(std::memory_order_relaxed) == kNullHand; }
 
   /**
    * @brief 保存されている情報が `board_key` のものかどうか判定する
@@ -230,13 +230,13 @@ class alignas(64) Entry {
    */
   bool IsFor(Key board_key, Hand hand) const noexcept {
     // hand を先にチェックしたほうが微妙に高速
-    return hand_ == hand && board_key_ == board_key;
+    return hand_.load(std::memory_order_relaxed) == hand && board_key_ == board_key;
   }
 
   /// 探索量
   SearchAmount Amount() const noexcept { return amount_; }
   /// 現局面の持ち駒
-  Hand GetHand() const noexcept { return hand_; }
+  Hand GetHand() const noexcept { return hand_.load(std::memory_order_relaxed); }
   /// 親局面の盤面ハッシュ値
   Key GetParentBoardKey() const noexcept { return parent_board_key_; }
   /// 親局面の持ち駒
@@ -352,19 +352,20 @@ class alignas(64) Entry {
     const auto depth16 = static_cast<std::int16_t>(depth);
 
     // 1. 現局面とエントリが一致
-    if (hand_ == hand) {
+    const Hand entry_hand = hand_.load(std::memory_order_relaxed);
+    if (entry_hand == hand) {
       return LookUpExact(depth16, len, pn, dn, use_old_child);
     }
 
     // 2. 現局面が劣等局面
-    const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
+    const bool is_inferior = hand_is_equal_or_superior(entry_hand, hand);
     if (is_inferior) {
       // 劣等かつ優等な局面は一致局面だけ。つまり 3. の if 文は省略できる。
       return LookUpInferior(depth16, len, pn, dn, use_old_child);
     }
 
     // 3. 現局面が優等局面
-    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+    const bool is_superior = hand_is_equal_or_superior(hand, entry_hand);
     if (is_superior) {
       return LookUpSuperior(depth16, len, pn, dn, use_old_child);
     }
@@ -382,14 +383,15 @@ class alignas(64) Entry {
    * @param parent_hand 親局面の持ち駒
    */
   void UpdateParentCandidate(Hand hand, PnDn& pn, PnDn& dn, Key& parent_board_key, Hand& parent_hand) const {
-    const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
-    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+    const Hand entry_hand = hand_.load(std::memory_order_relaxed);
+    const bool is_inferior = hand_is_equal_or_superior(entry_hand, hand);
+    const bool is_superior = hand_is_equal_or_superior(hand, entry_hand);
 
     if (is_inferior && pn_ > pn) {
       pn = pn_;
       if (parent_hand_ != kNullHand && (parent_hand == kNullHand || pn > dn)) {
         parent_board_key = parent_board_key_;
-        parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
+        parent_hand = ApplyDeltaHand(parent_hand_, entry_hand, hand);
       }
     }
 
@@ -397,7 +399,7 @@ class alignas(64) Entry {
       dn = dn_;
       if (parent_hand_ != kNullHand && (parent_hand == kNullHand || dn > pn)) {
         parent_board_key = parent_board_key_;
-        parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
+        parent_hand = ApplyDeltaHand(parent_hand_, entry_hand, hand);
       }
     }
   }
@@ -418,8 +420,9 @@ class alignas(64) Entry {
    * - 少なくとも `disproven_len` 手で詰まない
    */
   void UpdateFinalRange(Hand hand, MateLen16& disproven_len, MateLen16& proven_len) const noexcept {
-    const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
-    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+    const Hand entry_hand = hand_.load(std::memory_order_relaxed);
+    const bool is_inferior = hand_is_equal_or_superior(entry_hand, hand);
+    const bool is_superior = hand_is_equal_or_superior(hand, entry_hand);
 
     if (is_inferior) {
       disproven_len = std::max(disproven_len, disproven_len_);
@@ -543,9 +546,9 @@ class alignas(64) Entry {
     kPossibleRepetition,  ///< 千日手検出済
   };
 
-  Hand hand_{kNullHand};  ///< 現局面の持ち駒（コンストラクト時は無効値をセット）
-  SearchAmount amount_;   ///< 現局面の探索量
-  Key board_key_;         ///< 盤面ハッシュ値
+  std::atomic<Hand> hand_{kNullHand};  ///< 現局面の持ち駒（コンストラクト時は無効値をセット）
+  SearchAmount amount_;                ///< 現局面の探索量
+  Key board_key_;                      ///< 盤面ハッシュ値
 
   MateLen16 proven_len_;     ///< 詰み手数
   MateLen16 disproven_len_;  ///< 不詰手数

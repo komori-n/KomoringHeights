@@ -125,12 +125,10 @@ class Query {
     bool found_exact = false;
     BitSet64 sum_mask = BitSet64::Full();
 
-    for (auto itr = initial_entry_pointer_;; ++itr) {
+    for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
       std::shared_lock lock(*itr);
-      if (itr->IsNull()) {
-        break;
-      }
-
+      // 本来は lock 後にも !itr->Null() のチェックが必要だが、itr->Hand() == kNullHand のとき itr->LookUp() が必ず
+      // 失敗するので、このタイミングでのチェックは省略できる。
       if (itr->IsFor(board_key_)) {
         if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {
           amount = std::max(amount, itr->Amount());
@@ -188,12 +186,8 @@ class Query {
 
     Key parent_board_key = kNullKey;
     Hand parent_hand = kNullHand;
-    for (auto itr = initial_entry_pointer_;; ++itr) {
+    for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
       std::shared_lock lock(*itr);
-      if (itr->IsNull()) {
-        break;
-      }
-
       if (itr->IsFor(board_key_)) {
         itr->UpdateParentCandidate(hand_, pn, dn, parent_board_key, parent_hand);
       }
@@ -218,11 +212,8 @@ class Query {
     MateLen16 proven_len = kDepthMaxPlus1MateLen16;
     bool found_rep = false;
 
-    for (auto itr = initial_entry_pointer_;; ++itr) {
+    for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
       std::shared_lock lock(*itr);
-      if (itr->IsNull()) {
-        break;
-      }
 
       if (itr->IsFor(board_key_)) {
         itr->UpdateFinalRange(hand_, disproven_len, proven_len);

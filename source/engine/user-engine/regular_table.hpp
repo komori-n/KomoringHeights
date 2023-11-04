@@ -195,10 +195,9 @@ class RegularTable {
    */
   double CalculateHashRate() const noexcept {
     std::size_t used_count = 0;
-    std::size_t idx = 0;
+    std::size_t idx = 1;
     for (std::size_t i = 0; i < detail::kHashfullCalcEntries; ++i) {
       {
-        std::shared_lock lock{entries_[idx]};
         if (!entries_[idx].IsNull()) {
           used_count++;
         }
