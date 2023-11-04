@@ -24,6 +24,18 @@ constexpr std::uint64_t HashfullCheckInterval(std::uint64_t capacity) noexcept {
   return static_cast<std::uint64_t>(capacity * (1.0 - kExecuteGcHashRate));
 }
 
+// 反復深化のしきい値を適当に伸ばす
+constexpr std::pair<PnDn, PnDn> NextPnDnThresholds(std::uint32_t thread_id,
+                                                   PnDn pn,
+                                                   PnDn dn,
+                                                   PnDn curr_thpn,
+                                                   PnDn curr_thdn) {
+  const auto thpn = static_cast<PnDn>(static_cast<double>(pn) * (1.7 + 0.3 * thread_id));
+  const auto thdn = static_cast<PnDn>(static_cast<double>(dn) * (1.7 + 0.3 * thread_id));
+
+  return std::make_pair(ClampPnDn(curr_thpn, thpn, kInfinitePnDn), ClampPnDn(curr_thdn, thdn, kInfinitePnDn));
+}
+
 std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, MateLen len) {
   Move best_move = MOVE_NONE;
   MateLen best_len = n.IsOrNode() ? kDepthMaxMateLen : kZeroMateLen;
@@ -286,8 +298,8 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(std::uint32_t thre
 
 SearchResult KomoringHeights::SearchEntry(std::uint32_t thread_id, Node& n, MateLen len) {
   SearchResult result{};
-  PnDn thpn = (len == kDepthMaxMateLen) ? 1 : kInfinitePnDn;
-  PnDn thdn = (len == kDepthMaxMateLen) ? 1 : kInfinitePnDn;
+  PnDn thpn = (len == kDepthMaxMateLen) ? thread_id : kInfinitePnDn;
+  PnDn thdn = (len == kDepthMaxMateLen) ? thread_id : kInfinitePnDn;
 
   expansion_list_[thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
   while (!monitor_.ShouldStop(thread_id) && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
@@ -303,9 +315,7 @@ SearchResult KomoringHeights::SearchEntry(std::uint32_t thread_id, Node& n, Mate
       break;
     }
 
-    // 反復深化のしきい値を適当に伸ばす
-    thpn = ClampPnDn(thpn, SaturatedMultiply<PnDn>(result.Pn(), 2), kInfinitePnDn);
-    thdn = ClampPnDn(thdn, SaturatedMultiply<PnDn>(result.Dn(), 2), kInfinitePnDn);
+    std::tie(thpn, thdn) = NextPnDnThresholds(thread_id, result.Pn(), result.Dn(), thpn, thdn);
   }
 
   auto query = tt_.BuildQuery(n);
