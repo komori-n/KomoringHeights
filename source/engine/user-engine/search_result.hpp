@@ -247,11 +247,11 @@ class SearchResultComparer {
       return Ordering::kGreater;
     }
 
-    if (!or_node_ && lhs.Pn() == 0 /* && rhs.Pn() == 0 */) {
-      if (lhs.Len() > rhs.Len()) {
-        return Ordering::kLess;
-      } else if (lhs.Len() < rhs.Len()) {
-        return Ordering::kGreater;
+    if (lhs.Pn() == 0 /* && rhs.Pn() == 0 */) {
+      if (lhs.Len() < rhs.Len()) {
+        return or_node_ ? Ordering::kLess : Ordering::kGreater;
+      } else if (lhs.Len() > rhs.Len()) {
+        return or_node_ ? Ordering::kGreater : Ordering::kLess;
       }
     }
 
