@@ -11,6 +11,7 @@ namespace {
 class Environment : public ::testing::Environment {
  public:
   void SetUp() override {
+    Options["Threads"] = 1;
     USI::init(Options);
     Bitboards::init();
     Position::init();
