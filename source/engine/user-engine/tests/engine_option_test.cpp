@@ -25,7 +25,7 @@ TEST(EngineOptionTest, Default) {
   op.Reload(o);
 
   EXPECT_EQ(op.hash_mb, 4096);
-  EXPECT_EQ(op.threads, 1);
+  EXPECT_EQ(op.threads, 4);
   EXPECT_EQ(op.multi_pv, 1);
   EXPECT_EQ(op.nodes_limit, std::numeric_limits<std::uint64_t>::max());
   EXPECT_EQ(op.pv_interval, 1000);

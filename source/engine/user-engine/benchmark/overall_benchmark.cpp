@@ -22,7 +22,7 @@ std::unique_ptr<KomoringHeights> MakeEngine() {
   option.silent = true;
 
   auto kh = std::make_unique<KomoringHeights>();
-  kh->Init(option, Threads.main());
+  kh->Init(option, 1);
 
   return kh;
 }
@@ -43,9 +43,10 @@ void MateBenchmark(benchmark::State& state) {
   for (auto _ : state) {
     state.PauseTiming();
     kh->Clear();
+    kh->NewSearch(*pos, true);
     state.ResumeTiming();
 
-    benchmark::DoNotOptimize(kh->Search(*pos, true));
+    benchmark::DoNotOptimize(kh->Search(0, *pos, true));
   }
 }
 }  // namespace

@@ -4,6 +4,7 @@
 
 #include "../../extra/all.h"
 
+#include "initial_estimation.hpp"
 #include "komoring_heights.hpp"
 #include "path_keys.hpp"
 #include "typedefs.hpp"
@@ -88,6 +89,9 @@ void Search::init() {}
 
 // isreadyコマンドの応答中に呼び出される。時間のかかる処理はここに書くこと。
 void Search::clear() {
+  Threads.main()->wait_for_search_finished();
+  Threads.clear();
+
   if (!g_path_key_init_flag) {
     g_path_key_init_flag = true;
     komori::PathKeyInit();
@@ -100,7 +104,7 @@ void Search::clear() {
   komori::DeepDfpnInit(d, e);
 #endif  // defined(USE_DEEP_DFPN)
 
-  g_searcher.Init(g_option, Threads.main());
+  g_searcher.Init(g_option, Threads.size());
 }
 
 // 探索開始時に呼び出される。
@@ -111,7 +115,11 @@ void MainThread::search() {
   bool is_mate_search = Search::Limits.mate != 0;
   bool is_root_or_node = IsPosOrNode(rootPos);
 
-  g_search_result = g_searcher.Search(rootPos, is_root_or_node);
+  g_searcher.NewSearch(rootPos, is_root_or_node);
+  Threads.start_searching();
+  Thread::search();
+  Threads.stop = true;
+  Threads.wait_for_search_finished();
 
   Move best_move = MOVE_NONE;
   if (g_search_result == komori::NodeState::kProven) {
@@ -145,6 +153,13 @@ void MainThread::search() {
 }
 
 // 探索本体。並列化している場合、ここがslaveのエントリーポイント。
-void Thread::search() {}
+void Thread::search() {
+  komori::InitBriefEvaluation(id());
+  komori::tt::InitializeTTNoise(id());
+  const auto result = g_searcher.Search(id(), rootPos, IsPosOrNode(rootPos));
+  if (id() == 0) {
+    g_search_result = result;
+  }
+}
 
 #endif  // USER_ENGINE

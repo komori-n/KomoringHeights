@@ -5,6 +5,7 @@
 #define KOMORI_TTQUERY_HPP_
 
 #include <optional>
+#include <shared_mutex>
 
 #include "board_key_hand_pair.hpp"
 #include "regular_table.hpp"
@@ -14,6 +15,27 @@
 #include "typedefs.hpp"
 
 namespace komori::tt {
+namespace detail {
+/// LookUp() 時に加えるノイズの周期。スレッドごとに値を変えることで探索順序がばらつくようにする。
+thread_local inline std::uint32_t tt_noise_interval = 5;
+/// 次にノイズを加えるまでの残り LookUp() 回数。この値が 0 になったらノイズを加える。
+// ただし、numeric_limits::max() であれば一生ノイズを加えない。
+thread_local inline std::uint32_t tt_noise_timing = std::numeric_limits<std::uint32_t>::max();
+}  // namespace detail
+
+/**
+ * @brief LookUp() のノイズ周期を初期化する
+ * @param thread_id スレッド番号
+ */
+inline void InitializeTTNoise(std::uint32_t thread_id) {
+  // main thread にはノイズを載せない
+  if (thread_id != 0) {
+    // thread_id をもとにノイズ周期を変えることで、探索順序をバラバラにさせる
+    detail::tt_noise_interval += thread_id - 1;
+    detail::tt_noise_timing = detail::tt_noise_interval;
+  }
+}
+
 /**
  * @brief 連続する複数エントリを束ねてまとめて読み書きするためのクラス。
  *
@@ -104,6 +126,9 @@ class Query {
     BitSet64 sum_mask = BitSet64::Full();
 
     for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
+      std::shared_lock lock(*itr);
+      // 本来は lock 後にも !itr->Null() のチェックが必要だが、itr->Hand() == kNullHand のとき itr->LookUp() が必ず
+      // 失敗するので、このタイミングでのチェックは省略できる。
       if (itr->IsFor(board_key_)) {
         if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {
           amount = std::max(amount, itr->Amount());
@@ -123,6 +148,16 @@ class Query {
             cached_entry_ = &*itr;
           }
         }
+      }
+    }
+
+    // LookUp() 結果が final でないとき、スレッドごとに決められた周期で pn, dn へノイズを載せる
+    if (detail::tt_noise_timing != std::numeric_limits<std::uint32_t>::max()) {
+      if (detail::tt_noise_timing-- == 0) {
+        detail::tt_noise_timing = detail::tt_noise_interval;
+        // (pn, dn) へノイズを載せる
+        pn++;
+        dn++;
       }
     }
 
@@ -146,12 +181,13 @@ class Query {
    * @param[out] dn 現局面のdn
    * @return 現局面の親局面
    */
-  constexpr std::optional<BoardKeyHandPair> LookUpParent(PnDn& pn, PnDn& dn) const noexcept {
+  std::optional<BoardKeyHandPair> LookUpParent(PnDn& pn, PnDn& dn) const noexcept {
     pn = dn = 1;
 
     Key parent_board_key = kNullKey;
     Hand parent_hand = kNullHand;
     for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
+      std::shared_lock lock(*itr);
       if (itr->IsFor(board_key_)) {
         itr->UpdateParentCandidate(hand_, pn, dn, parent_board_key, parent_hand);
       }
@@ -171,12 +207,14 @@ class Query {
    * 現局面の最長不詰手数および最短詰み手数を得る関数。LookUp() を単純に使うと、詰み手数と不詰手数を同時に得るのは
    * 難しいため、専用関数として提供する。詰み探索終了後の手順の復元に用いることを想定している。
    */
-  constexpr std::pair<MateLen, MateLen> FinalRange() const noexcept {
+  std::pair<MateLen, MateLen> FinalRange() const noexcept {
     MateLen16 disproven_len = kMinus1MateLen16;
     MateLen16 proven_len = kDepthMaxPlus1MateLen16;
     bool found_rep = false;
 
     for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
+      std::shared_lock lock(*itr);
+
       if (itr->IsFor(board_key_)) {
         itr->UpdateFinalRange(hand_, disproven_len, proven_len);
 
@@ -218,18 +256,27 @@ class Query {
   /**
    * @brief 置換表に `hand` に一致するエントリがあればそれを返し、なければ作って返す
    * @param hand 持ち駒
-   * @return 見つけた or 作成したエントリ
+   * @return 見つけた or 作成したエントリ。`lock()` された状態で返るので、参照が完了したら必ず `unlock()` を呼ぶこと。
    */
   Entry* FindOrCreate(Hand hand) const noexcept {
+    // 高速化のために、見つけたエントリを lock() された状態のまま返す
+    cached_entry_->lock();
     if (cached_entry_->IsFor(board_key_, hand)) {
       return cached_entry_;
     }
+    cached_entry_->unlock();
 
     auto itr = initial_entry_pointer_;
-    for (; !itr->IsNull(); ++itr) {
+    for (;; ++itr) {
+      itr->lock();
+      if (itr->IsNull()) {
+        break;
+      }
+
       if (itr->IsFor(board_key_, hand)) {
         return cached_entry_ = &*itr;
       }
+      itr->unlock();
     }
     itr->Init(board_key_, hand);
     return cached_entry_ = &*itr;
@@ -252,6 +299,7 @@ class Query {
     } else {
       entry->UpdateDisproven(MateLen16{len}, amount);
     }
+    entry->unlock();
   }
 
   /**
@@ -262,6 +310,7 @@ class Query {
     auto entry = FindOrCreate(hand_);
 
     entry->SetPossibleRepetition();
+    entry->unlock();
     rep_table_->Insert(path_key_, result.GetFinalData().repetition_start);
   }
 
@@ -278,6 +327,7 @@ class Query {
 
     auto entry = FindOrCreate(hand_);
     entry->UpdateUnknown(depth_, pn, dn, amount, sum_mask, parent_board_key, parent_hand);
+    entry->unlock();
   }
 
   RepetitionTable* rep_table_;                  ///< 千日手テーブル。千日手判定に用いる。

@@ -9,6 +9,7 @@
 #include "bitset.hpp"
 #include "hands.hpp"
 #include "mate_len.hpp"
+#include "shared_exclusive_lock.hpp"
 #include "typedefs.hpp"
 
 namespace komori::tt {
@@ -46,7 +47,7 @@ constexpr inline SearchAmount kFinalAmountBonus{1000};
  *                    +------+------+------+------+------+------+------+------+
  *                 32 |                          dn_                          |
  *                    +------+------+------+------+------+------+------+------+
- *                 40 |  min_depth_ | rep  | ==== |        parent_hand_       |
+ *                 40 | lock | rep  | min_depth_  |        parent_hand_       |
  *                    +------+------+------+------+------+------+------+------+
  *                 48 |                  parent_board_key_                    |
  *                    +------+------+------+------+------+------+------+------+
@@ -140,14 +141,37 @@ class alignas(64) Entry {
  public:
   /// Default constructor(default)
   Entry() noexcept = default;
-  /// Copy constructor(default)
-  constexpr Entry(const Entry&) noexcept = default;
-  /// Move constructor(default)
-  constexpr Entry(Entry&&) noexcept = default;
-  /// Copy assign operator(default)
-  Entry& operator=(const Entry&) noexcept = default;
-  /// Move assign operator(default)
-  Entry& operator=(Entry&&) noexcept = default;
+  /// Copy constructor
+  Entry(const Entry& entry) noexcept
+      : hand_{entry.hand_.load(std::memory_order_relaxed)},
+        amount_{entry.amount_},
+        board_key_{entry.board_key_},
+        proven_len_{entry.proven_len_},
+        disproven_len_{entry.disproven_len_},
+        pn_{entry.pn_},
+        dn_{entry.dn_},
+        repetition_state_{entry.repetition_state_},
+        min_depth_{entry.min_depth_},
+        parent_hand_{entry.parent_hand_},
+        parent_board_key_{entry.parent_board_key_},
+        sum_mask_{entry.sum_mask_} {}
+  /// Copy assign operator
+  Entry& operator=(const Entry& entry) noexcept {
+    hand_.store(entry.hand_.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    amount_ = entry.amount_;
+    board_key_ = entry.board_key_;
+    proven_len_ = entry.proven_len_;
+    disproven_len_ = entry.disproven_len_;
+    pn_ = entry.pn_;
+    dn_ = entry.dn_;
+    repetition_state_ = entry.repetition_state_;
+    min_depth_ = entry.min_depth_;
+    parent_hand_ = entry.parent_hand_;
+    parent_board_key_ = entry.parent_board_key_;
+    sum_mask_ = entry.sum_mask_;
+
+    return *this;
+  }
   /// Destructor(default)
   ~Entry() noexcept = default;
 
@@ -156,8 +180,8 @@ class alignas(64) Entry {
    * @param board_key 盤面ハッシュ値
    * @param hand      持ち駒
    */
-  constexpr void Init(Key board_key, Hand hand) noexcept {
-    hand_ = hand;
+  void Init(Key board_key, Hand hand) noexcept {
+    hand_.store(hand, std::memory_order_relaxed);
     amount_ = 1;
     board_key_ = board_key;
     proven_len_ = kDepthMaxPlus1MateLen16;
@@ -165,18 +189,27 @@ class alignas(64) Entry {
 
     pn_ = 1;
     dn_ = 1;
-    min_depth_ = static_cast<std::int16_t>(kDepthMax);
     repetition_state_ = RepetitionState::kNone;
+    min_depth_ = static_cast<std::int16_t>(kDepthMax);
 
     parent_hand_ = kNullHand;
     parent_board_key_ = kNullKey;
     sum_mask_ = BitSet64::Full();
   }
 
+  /// エントリの排他ロックを取る
+  void lock() const { lock_.lock(); }
+  void lock_shared() const { lock_.lock_shared(); }
+  /**
+   * @brief エントリの排他ロックを解除する
+   * @pre `lock()` によりロックされている
+   */
+  void unlock() const { lock_.unlock(); }
+  void unlock_shared() const { lock_.unlock_shared(); }
   /// エントリに無効値を設定する
-  constexpr void SetNull() noexcept { hand_ = kNullHand; }
-  /// エントリが未使用状態かを判定する
-  constexpr bool IsNull() const noexcept { return hand_ == kNullHand; }
+  void SetNull() noexcept { hand_.store(kNullHand, std::memory_order_relaxed); }
+  /// エントリが未使用状態かを判定する。この関数に限っては共有ロックを取得せずに使用することができる。
+  bool IsNull() const noexcept { return hand_.load(std::memory_order_relaxed) == kNullHand; }
 
   /**
    * @brief 保存されている情報が `board_key` のものかどうか判定する
@@ -184,7 +217,7 @@ class alignas(64) Entry {
    * @return エントリが `board_key` のものなら `true`
    * @pre `!IsNull()`
    */
-  constexpr bool IsFor(Key board_key) const noexcept { return board_key_ == board_key; }
+  bool IsFor(Key board_key) const noexcept { return board_key_ == board_key; }
   /**
    * @brief 保存されている情報が (`board_key`, `hand`) のものかどうか判定する
    * @param board_key 盤面ハッシュ値
@@ -195,32 +228,32 @@ class alignas(64) Entry {
    *
    * @note エントリが無効かどうかは `hand` に格納されているので、無効状態でも正しく動作する
    */
-  constexpr bool IsFor(Key board_key, Hand hand) const noexcept {
+  bool IsFor(Key board_key, Hand hand) const noexcept {
     // hand を先にチェックしたほうが微妙に高速
-    return hand_ == hand && board_key_ == board_key;
+    return hand_.load(std::memory_order_relaxed) == hand && board_key_ == board_key;
   }
 
   /// 探索量
-  constexpr SearchAmount Amount() const noexcept { return amount_; }
+  SearchAmount Amount() const noexcept { return amount_; }
   /// 現局面の持ち駒
-  constexpr Hand GetHand() const noexcept { return hand_; }
+  Hand GetHand() const noexcept { return hand_.load(std::memory_order_relaxed); }
   /// 親局面の盤面ハッシュ値
-  constexpr Key GetParentBoardKey() const noexcept { return parent_board_key_; }
+  Key GetParentBoardKey() const noexcept { return parent_board_key_; }
   /// 親局面の持ち駒
-  constexpr Hand GetParentHand() const noexcept { return parent_hand_; }
+  Hand GetParentHand() const noexcept { return parent_hand_; }
   /// δ値を和で計算すべき子の集合
-  constexpr BitSet64 SumMask() const noexcept { return sum_mask_; }
+  BitSet64 SumMask() const noexcept { return sum_mask_; }
   /// 盤面ハッシュ値（コンパクション用）
-  constexpr Key BoardKey() const noexcept { return board_key_; }
+  Key BoardKey() const noexcept { return board_key_; }
 
   /// 探索量を小さくする。ただし 0 以下にはならない。
-  constexpr void CutAmount() noexcept { amount_ = std::max<SearchAmount>(amount_ / 2, 1); }
+  void CutAmount() noexcept { amount_ = std::max<SearchAmount>(amount_ / 2, 1); }
 
   /**
    * @brief 千日手の可能性ありフラグの設定および pn/dn の再初期化を行う。
    * @pre `!IsNull()`
    */
-  constexpr void SetPossibleRepetition() noexcept {
+  void SetPossibleRepetition() noexcept {
     repetition_state_ = RepetitionState::kPossibleRepetition;
     // 千日手探索中の pn/dn は信用できないのでいったん初期化し直す
     pn_ = dn_ = 1;
@@ -230,9 +263,7 @@ class alignas(64) Entry {
    * @brief 千日手可能性フラグが立っているかどうか判定する。
    * @pre `!IsNull()`
    */
-  constexpr bool IsPossibleRepetition() const noexcept {
-    return repetition_state_ == RepetitionState::kPossibleRepetition;
-  }
+  bool IsPossibleRepetition() const noexcept { return repetition_state_ == RepetitionState::kPossibleRepetition; }
 
   /**
    * @brief 探索結果を書き込む（未解決局面）
@@ -245,13 +276,13 @@ class alignas(64) Entry {
    * @param parent_hand 親局面の攻め方の持ち駒
    * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
    */
-  constexpr void UpdateUnknown(Depth depth,
-                               PnDn pn,
-                               PnDn dn,
-                               SearchAmount amount,
-                               BitSet64 sum_mask,
-                               Key parent_board_key,
-                               Hand parent_hand) noexcept {
+  void UpdateUnknown(Depth depth,
+                     PnDn pn,
+                     PnDn dn,
+                     SearchAmount amount,
+                     BitSet64 sum_mask,
+                     Key parent_board_key,
+                     Hand parent_hand) noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
     min_depth_ = std::min(min_depth_, depth16);
     pn_ = pn;
@@ -269,7 +300,7 @@ class alignas(64) Entry {
    * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
    * @pre `len` > `disproven_len_`
    */
-  constexpr void UpdateProven(MateLen16 len, SearchAmount amount) noexcept {
+  void UpdateProven(MateLen16 len, SearchAmount amount) noexcept {
     KOMORI_PRECONDITION(disproven_len_ < len);
     proven_len_ = std::min(proven_len_, len);
     amount_ = std::max(amount_, SaturatedAdd(amount, detail::kFinalAmountBonus));
@@ -282,7 +313,7 @@ class alignas(64) Entry {
    * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
    * @pre `len` < `proven_len_`
    */
-  constexpr void UpdateDisproven(MateLen16 len, SearchAmount amount) noexcept {
+  void UpdateDisproven(MateLen16 len, SearchAmount amount) noexcept {
     KOMORI_PRECONDITION(len < proven_len_);
     disproven_len_ = std::max(disproven_len_, len);
     amount_ = std::max(amount_, SaturatedAdd(amount, detail::kFinalAmountBonus));
@@ -317,24 +348,24 @@ class alignas(64) Entry {
    * が成り立つので LookUpUnknown() はそれほど必要ではないが、実際には優等局面・劣等局面よりも一致局面のほうが
    * 頻繁に現れ、かつ容易に一致局面かどうかの判定ができるため、別処理にしたほうが高速化できる。
    */
-  constexpr bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child)
-      const noexcept {
+  bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
 
     // 1. 現局面とエントリが一致
-    if (hand_ == hand) {
+    const Hand entry_hand = hand_.load(std::memory_order_relaxed);
+    if (entry_hand == hand) {
       return LookUpExact(depth16, len, pn, dn, use_old_child);
     }
 
     // 2. 現局面が劣等局面
-    const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
+    const bool is_inferior = hand_is_equal_or_superior(entry_hand, hand);
     if (is_inferior) {
       // 劣等かつ優等な局面は一致局面だけ。つまり 3. の if 文は省略できる。
       return LookUpInferior(depth16, len, pn, dn, use_old_child);
     }
 
     // 3. 現局面が優等局面
-    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+    const bool is_superior = hand_is_equal_or_superior(hand, entry_hand);
     if (is_superior) {
       return LookUpSuperior(depth16, len, pn, dn, use_old_child);
     }
@@ -351,15 +382,16 @@ class alignas(64) Entry {
    * @param parent_board_key 親局面の盤面ハッシュ値
    * @param parent_hand 親局面の持ち駒
    */
-  constexpr void UpdateParentCandidate(Hand hand, PnDn& pn, PnDn& dn, Key& parent_board_key, Hand& parent_hand) const {
-    const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
-    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+  void UpdateParentCandidate(Hand hand, PnDn& pn, PnDn& dn, Key& parent_board_key, Hand& parent_hand) const {
+    const Hand entry_hand = hand_.load(std::memory_order_relaxed);
+    const bool is_inferior = hand_is_equal_or_superior(entry_hand, hand);
+    const bool is_superior = hand_is_equal_or_superior(hand, entry_hand);
 
     if (is_inferior && pn_ > pn) {
       pn = pn_;
       if (parent_hand_ != kNullHand && (parent_hand == kNullHand || pn > dn)) {
         parent_board_key = parent_board_key_;
-        parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
+        parent_hand = ApplyDeltaHand(parent_hand_, entry_hand, hand);
       }
     }
 
@@ -367,7 +399,7 @@ class alignas(64) Entry {
       dn = dn_;
       if (parent_hand_ != kNullHand && (parent_hand == kNullHand || dn > pn)) {
         parent_board_key = parent_board_key_;
-        parent_hand = ApplyDeltaHand(parent_hand_, hand_, hand);
+        parent_hand = ApplyDeltaHand(parent_hand_, entry_hand, hand);
       }
     }
   }
@@ -387,9 +419,10 @@ class alignas(64) Entry {
    * - 高々 `proven_len` 手で詰み
    * - 少なくとも `disproven_len` 手で詰まない
    */
-  constexpr void UpdateFinalRange(Hand hand, MateLen16& disproven_len, MateLen16& proven_len) const noexcept {
-    const bool is_inferior = hand_is_equal_or_superior(hand_, hand);
-    const bool is_superior = hand_is_equal_or_superior(hand, hand_);
+  void UpdateFinalRange(Hand hand, MateLen16& disproven_len, MateLen16& proven_len) const noexcept {
+    const Hand entry_hand = hand_.load(std::memory_order_relaxed);
+    const bool is_inferior = hand_is_equal_or_superior(entry_hand, hand);
+    const bool is_superior = hand_is_equal_or_superior(hand, entry_hand);
 
     if (is_inferior) {
       disproven_len = std::max(disproven_len, disproven_len_);
@@ -404,15 +437,15 @@ class alignas(64) Entry {
   // UpdateXxx() や LookUp() など、外部から変数が観測できないとテストの際にかなり不便なので、Getter を用意しておく。
 
   /// 最小距離
-  constexpr Depth MinDepth() const noexcept { return static_cast<Depth>(min_depth_); }
+  Depth MinDepth() const noexcept { return static_cast<Depth>(min_depth_); }
   /// 詰み手数
-  constexpr MateLen16 ProvenLen() const noexcept { return proven_len_; }
+  MateLen16 ProvenLen() const noexcept { return proven_len_; }
   /// 不詰手数
-  constexpr MateLen16 DisprovenLen() const noexcept { return disproven_len_; }
+  MateLen16 DisprovenLen() const noexcept { return disproven_len_; }
   /// pn
-  constexpr PnDn Pn() const noexcept { return pn_; }
+  PnDn Pn() const noexcept { return pn_; }
   /// dn
-  constexpr PnDn Dn() const noexcept { return dn_; }
+  PnDn Dn() const noexcept { return dn_; }
   // </テスト用>
 
  private:
@@ -424,11 +457,7 @@ class alignas(64) Entry {
    * @param dn       dn
    * @return 必ず `true`
    */
-  constexpr bool LookUpExact(std::int16_t depth16,
-                             MateLen16& len,
-                             PnDn& pn,
-                             PnDn& dn,
-                             bool& use_old_child) const noexcept {
+  bool LookUpExact(std::int16_t depth16, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     if (len >= proven_len_) {
       len = proven_len_;
       pn = 0;
@@ -460,11 +489,7 @@ class alignas(64) Entry {
    * @param dn       dn
    * @return pn/dn を更新したら `true`
    */
-  constexpr bool LookUpSuperior(std::int16_t depth16,
-                                MateLen16& len,
-                                PnDn& pn,
-                                PnDn& dn,
-                                bool& use_old_child) const noexcept {
+  bool LookUpSuperior(std::int16_t depth16, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     if (len >= proven_len_) {
       // 優等局面は高々 `proven_len_` 手詰み。
       len = proven_len_;
@@ -492,11 +517,7 @@ class alignas(64) Entry {
    * @param dn       dn
    * @return pn/dn を更新したら `true`
    */
-  constexpr bool LookUpInferior(std::int16_t depth16,
-                                MateLen16& len,
-                                PnDn& pn,
-                                PnDn& dn,
-                                bool& use_old_child) const noexcept {
+  bool LookUpInferior(std::int16_t depth16, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     // LookUpしたい局面は Entry に保存されている局面の劣等局面
     if (len <= disproven_len_) {
       // 劣等局面は少なくとも `disproven_len_` 手不詰。
@@ -525,9 +546,9 @@ class alignas(64) Entry {
     kPossibleRepetition,  ///< 千日手検出済
   };
 
-  Hand hand_{kNullHand};  ///< 現局面の持ち駒（コンストラクト時は無効値をセット）
-  SearchAmount amount_;   ///< 現局面の探索量
-  Key board_key_;         ///< 盤面ハッシュ値
+  std::atomic<Hand> hand_{kNullHand};  ///< 現局面の持ち駒（コンストラクト時は無効値をセット）
+  SearchAmount amount_;                ///< 現局面の探索量
+  Key board_key_;                      ///< 盤面ハッシュ値
 
   MateLen16 proven_len_;     ///< 詰み手数
   MateLen16 disproven_len_;  ///< 不詰手数
@@ -535,8 +556,9 @@ class alignas(64) Entry {
   PnDn pn_;  ///< pn値
   PnDn dn_;  ///< dn値
 
+  mutable SharedExclusiveLock<std::int8_t> lock_;  ///< スピンロック
+  RepetitionState repetition_state_;               ///< 現局面が千日手の可能性があるか
   mutable std::int16_t min_depth_;  ///< 最小探索深さ。`LookUp()` 中に書き換える可能性があるので mutable。
-  RepetitionState repetition_state_;  ///< 現局面が千日手の可能性があるか
 
   Hand parent_hand_;      ///< 親局面の持ち駒
   Key parent_board_key_;  ///< 親局面の盤面ハッシュ値

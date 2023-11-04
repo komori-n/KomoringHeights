@@ -5,6 +5,7 @@
 #define KOMORI_REGULAR_TABLE_HPP_
 
 #include <algorithm>
+#include <shared_mutex>
 #include <vector>
 
 #include "ttentry.hpp"
@@ -194,10 +195,12 @@ class RegularTable {
    */
   double CalculateHashRate() const noexcept {
     std::size_t used_count = 0;
-    std::size_t idx = 0;
+    std::size_t idx = 1;
     for (std::size_t i = 0; i < detail::kHashfullCalcEntries; ++i) {
-      if (!entries_[idx].IsNull()) {
-        used_count++;
+      {
+        if (!entries_[idx].IsNull()) {
+          used_count++;
+        }
       }
 
       // 連続領域をカウントすると偏りが出やすくなってしまうので、大きめの値を足す。
@@ -226,9 +229,12 @@ class RegularTable {
     amounts.reserve(detail::kGcSamplingEntries);
 
     while (counted_num < detail::kGcSamplingEntries) {
-      if (!entries_[idx].IsNull()) {
-        amounts.push_back(entries_[idx].Amount());
-        counted_num++;
+      {
+        std::shared_lock lock(entries_[idx]);
+        if (!entries_[idx].IsNull()) {
+          amounts.push_back(entries_[idx].Amount());
+          counted_num++;
+        }
       }
 
       idx += 334;
@@ -247,6 +253,7 @@ class RegularTable {
 
     // 探索量が amount_threshold を下回っているエントリをすべて削除する
     for (auto&& entry : entries_) {
+      std::lock_guard lock(entry);
       if (!entry.IsNull() && entry.Amount() <= amount_threshold) {
         entry.SetNull();
       } else if (!entry.IsNull() && should_cut) {
@@ -335,12 +342,14 @@ class RegularTable {
   void CompactEntries() {
     // entries_ の最初の部分が若干コンパクションしきれない可能性があるが目を瞑る
     for (auto&& entry : entries_) {
+      std::lock_guard lock(entry);
       if (entry.IsNull()) {
         continue;
       }
 
       // できるだけ手前の非 null な位置へ移動する
       for (auto ptr = PointerOf(entry.BoardKey()); &*ptr != &entry; ++ptr) {
+        std::lock_guard lock(*ptr);
         if (ptr->IsNull()) {
           *ptr = entry;
           entry.SetNull();
