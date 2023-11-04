@@ -43,11 +43,9 @@ namespace USI {
 		// そもそもで言うとsetoptionに対してそんなに時間のかかることをするとGUI側がtimeoutになる懸念もある。
 		// Stockfishもこうすべきだと思う。
 
-#if defined(USER_ENGINE)
-		o["Threads"] << Option(1, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
-		o["MultiPV"] << Option(1, 1, 800);
-#else
 		o["Threads"] << Option(4, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
+#if defined(USER_ENGINE)
+		o["MultiPV"] << Option(1, 1, 800);
 #endif
 #endif
 
