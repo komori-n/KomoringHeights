@@ -43,6 +43,7 @@ void MateBenchmark(benchmark::State& state) {
   for (auto _ : state) {
     state.PauseTiming();
     kh->Clear();
+    kh->NewSearch(*pos, true);
     state.ResumeTiming();
 
     benchmark::DoNotOptimize(kh->Search(0, *pos, true));

@@ -117,6 +117,14 @@ class KomoringHeights {
   const std::vector<Move>& BestMoves() const { return best_moves_; }
 
   /**
+   * @brief Search() の準備を行う。探索開始直前に main_thread から呼び出すこと。
+   * @param n 現局面
+   * @param is_root_or_node `n` が OR node かどうか
+   * @pre メインスレッドから呼び出すこと
+   */
+  void NewSearch(const Position& n, bool is_root_or_node);
+
+  /**
    * @brief 詰め探索を行う。（探索本体）
    * @param thread_id スレッドID
    * @param n 現局面

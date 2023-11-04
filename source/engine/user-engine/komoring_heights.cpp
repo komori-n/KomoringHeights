@@ -173,11 +173,10 @@ void KomoringHeights::Clear() {
   tt_.Clear();
 }
 
-NodeState KomoringHeights::Search(std::uint32_t thread_id, const Position& n, bool is_root_or_node) {
+void KomoringHeights::NewSearch(const Position& n, bool is_root_or_node) {
   auto& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
 
-  // <初期化>
   tt_.NewSearch();
   monitor_.NewSearch(HashfullCheckInterval(tt_.Capacity()), option_.pv_interval, option_.nodes_limit);
   best_moves_.clear();
@@ -188,7 +187,11 @@ NodeState KomoringHeights::Search(std::uint32_t thread_id, const Position& n, bo
   if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
     tt_.CollectGarbage(kGcRemovalRatio);
   }
-  // </初期化>
+}
+
+NodeState KomoringHeights::Search(std::uint32_t thread_id, const Position& n, bool is_root_or_node) {
+  auto& nn = const_cast<Position&>(n);
+  Node node{nn, is_root_or_node};
 
   auto [state, len] = SearchMainLoop(thread_id, node);
 
