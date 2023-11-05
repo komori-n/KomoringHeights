@@ -10,7 +10,6 @@ using komori::FinalData;
 using komori::kInfinitePnDn;
 using komori::kPnDnUnit;
 using komori::MateLen;
-using komori::MateLen16;
 using komori::PnDn;
 using komori::SearchAmount;
 using komori::SearchResult;
@@ -186,7 +185,7 @@ TEST_F(QueryTest, LoopUp_UnknownInferior) {
 TEST_F(QueryTest, LoopUp_Proven) {
   const auto hand = MakeHand<PAWN>();
   entries_[0].Init(board_key_, hand);
-  entries_[0].UpdateProven(MateLen16{264}, 1);
+  entries_[0].UpdateProven(MateLen{264}, 1);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -201,7 +200,7 @@ TEST_F(QueryTest, LoopUp_Proven) {
 TEST_F(QueryTest, LoopUp_Disproven) {
   const auto hand = MakeHand<PAWN, LANCE, LANCE, LANCE>();
   entries_[0].Init(board_key_, hand);
-  entries_[0].UpdateDisproven(MateLen16{3340}, 1);
+  entries_[0].UpdateDisproven(MateLen{3340}, 1);
 
   bool does_have_old_child{false};
   const auto result = query_.LookUp(does_have_old_child, MateLen{334}, kDefaultInitialEvalFunc);
@@ -247,9 +246,9 @@ TEST_F(QueryTest, FinalRange_Normal) {
   const auto len1 = MateLen{334};
   const auto len2 = MateLen{264};
   entries_[0].Init(board_key_, MakeHand<PAWN>());
-  entries_[0].UpdateProven(MateLen16{len1}, 1);
+  entries_[0].UpdateProven(len1, 1);
   entries_[1].Init(board_key_, MakeHand<PAWN, LANCE, LANCE, GOLD>());
-  entries_[1].UpdateDisproven(MateLen16{len2}, 1);
+  entries_[1].UpdateDisproven(len2, 1);
 
   entries_[2].Init(board_key_, HAND_ZERO);
   entries_[2].SetNull();
@@ -262,7 +261,7 @@ TEST_F(QueryTest, FinalRange_Normal) {
 TEST_F(QueryTest, FinalRange_Repetition) {
   const auto len = MateLen{334};
   entries_[0].Init(board_key_, hand_);
-  entries_[0].UpdateProven(MateLen16{len}, 1);
+  entries_[0].UpdateProven(len, 1);
 
   const auto [disproven_len1, proven_len1] = query_.FinalRange();
   EXPECT_EQ(disproven_len1, komori::kMinus1MateLen);
@@ -317,7 +316,7 @@ TEST_F(QueryTest, SetResult_ProvenNew) {
   const SearchResult result = SearchResult::MakeFinal<true>(hand, len, 1);
 
   query_.SetResult(result);
-  EXPECT_EQ(entries_[0].ProvenLen(), MateLen16{len});
+  EXPECT_EQ(entries_[0].ProvenLen(), len);
 }
 
 TEST_F(QueryTest, SetResult_ProvenUpdate) {
@@ -327,7 +326,7 @@ TEST_F(QueryTest, SetResult_ProvenUpdate) {
 
   entries_[0].Init(board_key_, hand);
   query_.SetResult(result);
-  EXPECT_EQ(entries_[0].ProvenLen(), MateLen16{len});
+  EXPECT_EQ(entries_[0].ProvenLen(), len);
 }
 
 TEST_F(QueryTest, SetResult_DisprovenNew) {
@@ -336,7 +335,7 @@ TEST_F(QueryTest, SetResult_DisprovenNew) {
   const SearchResult result = SearchResult::MakeFinal<false>(hand, len, 1);
 
   query_.SetResult(result);
-  EXPECT_EQ(entries_[0].DisprovenLen(), MateLen16{len});
+  EXPECT_EQ(entries_[0].DisprovenLen(), len);
 }
 
 TEST_F(QueryTest, SetResult_DisprovenUpdate) {
@@ -346,7 +345,7 @@ TEST_F(QueryTest, SetResult_DisprovenUpdate) {
 
   entries_[0].Init(board_key_, hand);
   query_.SetResult(result);
-  EXPECT_EQ(entries_[0].DisprovenLen(), MateLen16{len});
+  EXPECT_EQ(entries_[0].DisprovenLen(), len);
 }
 
 TEST_F(QueryTest, SetResult_RepetitionNew) {

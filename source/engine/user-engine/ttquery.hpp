@@ -117,7 +117,6 @@ class Query {
    */
   template <typename InitialEvalFunc>
   SearchResult LookUp(bool& does_have_old_child, MateLen len, InitialEvalFunc&& eval_func) const {
-    MateLen16 len16{len};
     PnDn pn = 1;
     PnDn dn = 1;
     SearchAmount amount = 1;
@@ -130,12 +129,12 @@ class Query {
       // 本来は lock 後にも !itr->Null() のチェックが必要だが、itr->Hand() == kNullHand のとき itr->LookUp() が必ず
       // 失敗するので、このタイミングでのチェックは省略できる。
       if (itr->IsFor(board_key_)) {
-        if (itr->LookUp(hand_, depth_, len16, pn, dn, does_have_old_child)) {
+        if (itr->LookUp(hand_, depth_, len, pn, dn, does_have_old_child)) {
           amount = std::max(amount, itr->Amount());
           if (pn == 0) {
-            return SearchResult::MakeFinal<true>(itr->GetHand(), MateLen{len16}, amount);
+            return SearchResult::MakeFinal<true>(itr->GetHand(), len, amount);
           } else if (dn == 0) {
-            return SearchResult::MakeFinal<false>(itr->GetHand(), MateLen{len16}, amount);
+            return SearchResult::MakeFinal<false>(itr->GetHand(), len, amount);
           } else if (itr->IsFor(board_key_, hand_)) {
             if (itr->IsPossibleRepetition()) {
               if (auto depth_opt = rep_table_->Contains(path_key_)) {
@@ -208,8 +207,8 @@ class Query {
    * 難しいため、専用関数として提供する。詰み探索終了後の手順の復元に用いることを想定している。
    */
   std::pair<MateLen, MateLen> FinalRange() const noexcept {
-    MateLen16 disproven_len = kMinus1MateLen16;
-    MateLen16 proven_len = kDepthMaxPlus1MateLen16;
+    MateLen disproven_len = kMinus1MateLen;
+    MateLen proven_len = kDepthMaxPlus1MateLen;
     bool found_rep = false;
 
     for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
@@ -295,9 +294,9 @@ class Query {
     const auto amount = result.Amount();
 
     if constexpr (kIsProven) {
-      entry->UpdateProven(MateLen16{len}, amount);
+      entry->UpdateProven(len, amount);
     } else {
-      entry->UpdateDisproven(MateLen16{len}, amount);
+      entry->UpdateDisproven(len, amount);
     }
     entry->unlock();
   }

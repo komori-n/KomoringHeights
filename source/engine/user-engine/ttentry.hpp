@@ -41,7 +41,7 @@ constexpr inline SearchAmount kFinalAmountBonus{1000};
  *                    +------+------+------+------+------+------+------+------+
  *                  8 |                      board_key_                       |
  *                    +------+------+------+------+------+------+------+------+
- *                 16 | proven_len_ |disproven_len|          (unused)         |
+ *                 16 |        proven_len_        |       disproven_len_      |
  *                    +------+------+------+------+------+------+------+------+
  *                 24 |                          pn_                          |
  *                    +------+------+------+------+------+------+------+------+
@@ -184,8 +184,8 @@ class alignas(64) Entry {
     hand_.store(hand, std::memory_order_relaxed);
     amount_ = 1;
     board_key_ = board_key;
-    proven_len_ = kDepthMaxPlus1MateLen16;
-    disproven_len_ = kMinus1MateLen16;
+    proven_len_ = kDepthMaxPlus1MateLen;
+    disproven_len_ = kMinus1MateLen;
 
     pn_ = 1;
     dn_ = 1;
@@ -300,7 +300,7 @@ class alignas(64) Entry {
    * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
    * @pre `len` > `disproven_len_`
    */
-  void UpdateProven(MateLen16 len, SearchAmount amount) noexcept {
+  void UpdateProven(MateLen len, SearchAmount amount) noexcept {
     KOMORI_PRECONDITION(disproven_len_ < len);
     proven_len_ = std::min(proven_len_, len);
     amount_ = std::max(amount_, SaturatedAdd(amount, detail::kFinalAmountBonus));
@@ -313,7 +313,7 @@ class alignas(64) Entry {
    * @pre `IsFor(board_key, hand)` （`board_key`, `hand` は現局面の盤面ハッシュ、持ち駒）
    * @pre `len` < `proven_len_`
    */
-  void UpdateDisproven(MateLen16 len, SearchAmount amount) noexcept {
+  void UpdateDisproven(MateLen len, SearchAmount amount) noexcept {
     KOMORI_PRECONDITION(len < proven_len_);
     disproven_len_ = std::max(disproven_len_, len);
     amount_ = std::max(amount_, SaturatedAdd(amount, detail::kFinalAmountBonus));
@@ -348,7 +348,7 @@ class alignas(64) Entry {
    * が成り立つので LookUpUnknown() はそれほど必要ではないが、実際には優等局面・劣等局面よりも一致局面のほうが
    * 頻繁に現れ、かつ容易に一致局面かどうかの判定ができるため、別処理にしたほうが高速化できる。
    */
-  bool LookUp(Hand hand, Depth depth, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
+  bool LookUp(Hand hand, Depth depth, MateLen& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
 
     // 1. 現局面とエントリが一致
@@ -419,7 +419,7 @@ class alignas(64) Entry {
    * - 高々 `proven_len` 手で詰み
    * - 少なくとも `disproven_len` 手で詰まない
    */
-  void UpdateFinalRange(Hand hand, MateLen16& disproven_len, MateLen16& proven_len) const noexcept {
+  void UpdateFinalRange(Hand hand, MateLen& disproven_len, MateLen& proven_len) const noexcept {
     const Hand entry_hand = hand_.load(std::memory_order_relaxed);
     const bool is_inferior = hand_is_equal_or_superior(entry_hand, hand);
     const bool is_superior = hand_is_equal_or_superior(hand, entry_hand);
@@ -439,9 +439,9 @@ class alignas(64) Entry {
   /// 最小距離
   Depth MinDepth() const noexcept { return static_cast<Depth>(min_depth_); }
   /// 詰み手数
-  MateLen16 ProvenLen() const noexcept { return proven_len_; }
+  MateLen ProvenLen() const noexcept { return proven_len_; }
   /// 不詰手数
-  MateLen16 DisprovenLen() const noexcept { return disproven_len_; }
+  MateLen DisprovenLen() const noexcept { return disproven_len_; }
   /// pn
   PnDn Pn() const noexcept { return pn_; }
   /// dn
@@ -457,7 +457,7 @@ class alignas(64) Entry {
    * @param dn       dn
    * @return 必ず `true`
    */
-  bool LookUpExact(std::int16_t depth16, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
+  bool LookUpExact(std::int16_t depth16, MateLen& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     if (len >= proven_len_) {
       len = proven_len_;
       pn = 0;
@@ -489,7 +489,7 @@ class alignas(64) Entry {
    * @param dn       dn
    * @return pn/dn を更新したら `true`
    */
-  bool LookUpSuperior(std::int16_t depth16, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
+  bool LookUpSuperior(std::int16_t depth16, MateLen& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     if (len >= proven_len_) {
       // 優等局面は高々 `proven_len_` 手詰み。
       len = proven_len_;
@@ -517,7 +517,7 @@ class alignas(64) Entry {
    * @param dn       dn
    * @return pn/dn を更新したら `true`
    */
-  bool LookUpInferior(std::int16_t depth16, MateLen16& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
+  bool LookUpInferior(std::int16_t depth16, MateLen& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     // LookUpしたい局面は Entry に保存されている局面の劣等局面
     if (len <= disproven_len_) {
       // 劣等局面は少なくとも `disproven_len_` 手不詰。
@@ -550,8 +550,8 @@ class alignas(64) Entry {
   SearchAmount amount_;                ///< 現局面の探索量
   Key board_key_;                      ///< 盤面ハッシュ値
 
-  MateLen16 proven_len_;     ///< 詰み手数
-  MateLen16 disproven_len_;  ///< 不詰手数
+  MateLen proven_len_;     ///< 詰み手数
+  MateLen disproven_len_;  ///< 不詰手数
 
   PnDn pn_;  ///< pn値
   PnDn dn_;  ///< dn値
