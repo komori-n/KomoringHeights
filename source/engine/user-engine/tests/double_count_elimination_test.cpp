@@ -17,8 +17,7 @@ class FindKnownAncestorTest : public ::testing::Test {
     for (const auto& move : moves) {
       const auto query = tt_.BuildChildQuery(n, move);
       const auto parent = n.GetBoardKeyHandPair();
-      const komori::UnknownData unknown_data{false, komori::BitSet64::Full()};
-      const auto result = komori::SearchResult::MakeUnknown(pn, dn, komori::MateLen{334}, 1, unknown_data);
+      const auto result = komori::SearchResult::MakeFirstVisit(pn, dn, komori::MateLen{334}, 1);
       query.SetResult(result, parent);
       n.DoMove(move);
     }

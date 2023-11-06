@@ -633,8 +633,7 @@ class LocalExpansion {
     const auto& result = FrontResult();
     const SearchAmount amount = result.Amount() + mp_.size() - 1;
 
-    const UnknownData unknown_data{false, sum_mask_};
-    return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, unknown_data);
+    return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, sum_mask_);
   }
 
   /**

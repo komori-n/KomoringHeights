@@ -282,8 +282,7 @@ TEST_F(QueryTest, SetResult_UnknownNew) {
   const PnDn pn{33};
   const PnDn dn{4};
   const SearchAmount amount{334};
-  const UnknownData unknown_data{};
-  const SearchResult result = SearchResult::MakeUnknown(pn, dn, MateLen{334}, amount, unknown_data);
+  const SearchResult result = SearchResult::MakeFirstVisit(pn, dn, MateLen{334}, amount);
 
   query_.SetResult(result);
   EXPECT_EQ(entries_[0].Pn(), pn);
@@ -298,8 +297,7 @@ TEST_F(QueryTest, SetResult_UnknownUpdate) {
     const SearchAmount amount{static_cast<SearchAmount>(334 * (i + 1))};
     entries_[i].Init(board_key_, hand_);
 
-    const UnknownData unknown_data{};
-    const SearchResult result = SearchResult::MakeUnknown(pn, dn, MateLen{334}, amount, unknown_data);
+    const SearchResult result = SearchResult::MakeFirstVisit(pn, dn, MateLen{334}, amount);
 
     query_.SetResult(result);
     EXPECT_EQ(entries_[i].Pn(), pn) << i;

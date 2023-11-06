@@ -161,16 +161,14 @@ class Query {
     }
 
     if (found_exact) {
-      const UnknownData unknown_data{false, sum_mask};
-      return SearchResult::MakeUnknown(pn, dn, len, amount, unknown_data);
+      return SearchResult::MakeUnknown(pn, dn, len, amount, sum_mask);
     }
 
     const auto [init_pn, init_dn] = std::forward<InitialEvalFunc>(eval_func)();
     pn = std::max(pn, init_pn);
     dn = std::max(dn, init_dn);
 
-    const UnknownData unknown_data{true, BitSet64::Full()};
-    return SearchResult::MakeUnknown(pn, dn, len, amount, unknown_data);
+    return SearchResult::MakeFirstVisit(pn, dn, len, amount);
   }
   // LCOV_EXCL_STOP NOLINTEND
 

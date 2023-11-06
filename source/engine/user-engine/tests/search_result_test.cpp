@@ -11,9 +11,8 @@ using komori::SearchResult;
 using komori::SearchResultComparer;
 using komori::UnknownData;
 
-TEST(SearchResultTest, ConstructUnknown) {
-  const UnknownData unknown_data{true, BitSet64{445}};
-  const auto result = SearchResult::MakeUnknown(33, 4, MateLen{264}, 10, unknown_data);
+TEST(SearchResultTest, ConstructFirstVisit) {
+  const auto result = SearchResult::MakeFirstVisit(33, 4, MateLen{264}, 10);
 
   EXPECT_EQ(result.Pn(), 33);
   EXPECT_EQ(result.Dn(), 4);
@@ -21,6 +20,19 @@ TEST(SearchResultTest, ConstructUnknown) {
   EXPECT_EQ(result.Amount(), 10);
   EXPECT_FALSE(result.IsFinal());
   EXPECT_TRUE(result.GetUnknownData().is_first_visit);
+  EXPECT_EQ(result.GetUnknownData().sum_mask, BitSet64::Full());
+  EXPECT_EQ(result.GetNodeState(), NodeState::kUnknown);
+}
+
+TEST(SearchResultTest, ConstructUnknown) {
+  const auto result = SearchResult::MakeUnknown(33, 4, MateLen{264}, 10, BitSet64{445});
+
+  EXPECT_EQ(result.Pn(), 33);
+  EXPECT_EQ(result.Dn(), 4);
+  EXPECT_EQ(result.Len(), MateLen{264});
+  EXPECT_EQ(result.Amount(), 10);
+  EXPECT_FALSE(result.IsFinal());
+  EXPECT_FALSE(result.GetUnknownData().is_first_visit);
   EXPECT_EQ(result.GetUnknownData().sum_mask, BitSet64{445});
   EXPECT_EQ(result.GetNodeState(), NodeState::kUnknown);
 }
@@ -79,8 +91,7 @@ TEST(SearchResultTest, Delta) {
 }
 
 TEST(SearchResultTest, Normal) {
-  const UnknownData unknown_data{true, BitSet64{445}};
-  const auto result = SearchResult::MakeUnknown(33, 4, MateLen{264}, 10, unknown_data);
+  const auto result = SearchResult::MakeFirstVisit(33, 4, MateLen{264}, 10);
 
   komori::PnDn thpn = 1;
   komori::PnDn thdn = 1;
@@ -101,8 +112,7 @@ TEST(SearchResultTest, Final) {
 
 TEST(SearchResultTest, Infinite) {
   using komori::kInfinitePnDn;
-  const UnknownData unknown_data{true, BitSet64{445}};
-  const auto result = SearchResult::MakeUnknown(kInfinitePnDn, kInfinitePnDn, MateLen{264}, 10, unknown_data);
+  const auto result = SearchResult::MakeFirstVisit(kInfinitePnDn, kInfinitePnDn, MateLen{264}, 10);
 
   komori::PnDn thpn = 1;
   komori::PnDn thdn = 1;
@@ -112,16 +122,18 @@ TEST(SearchResultTest, Infinite) {
 }
 
 TEST(SearchResultComparerTest, OrNode) {
-  SearchResultComparer sr_comparer{true};
+  const SearchResultComparer sr_comparer{true};
+  const SearchResultComparer sr_comparer2{false};
 
-  const UnknownData unknown_data{true, BitSet64{445}};
-  const auto u1 = SearchResult::MakeUnknown(33, 4, MateLen{264}, 10, unknown_data);
-  const auto u2 = SearchResult::MakeUnknown(26, 4, MateLen{264}, 10, unknown_data);
-  const auto u3 = SearchResult::MakeUnknown(33, 5, MateLen{264}, 10, unknown_data);
-  const auto u4 = SearchResult::MakeUnknown(33, 4, MateLen{264}, 13, unknown_data);
+  const auto u1 = SearchResult::MakeFirstVisit(33, 4, MateLen{264}, 10);
+  const auto u2 = SearchResult::MakeFirstVisit(26, 4, MateLen{264}, 10);
+  const auto u3 = SearchResult::MakeFirstVisit(33, 5, MateLen{264}, 10);
+  const auto u4 = SearchResult::MakeFirstVisit(33, 4, MateLen{264}, 13);
   const auto f1 = SearchResult::MakeFinal<false>(MakeHand<PAWN, SILVER>(), MateLen{334}, 20);
   const auto f2 = SearchResult::MakeRepetition(MakeHand<PAWN, SILVER>(), MateLen{334}, 20, 0);
   const auto f3 = SearchResult::MakeFinal<false>(MakeHand<PAWN, SILVER>(), MateLen{334}, 24);
+  const auto f4 = SearchResult::MakeFinal<true>(MakeHand<PAWN, SILVER>(), MateLen{334}, 24);
+  const auto f5 = SearchResult::MakeFinal<true>(MakeHand<PAWN, SILVER>(), MateLen{335}, 24);
 
   EXPECT_EQ(sr_comparer(u2, u1), SearchResultComparer::Ordering::kLess);
   EXPECT_EQ(sr_comparer(u1, u2), SearchResultComparer::Ordering::kGreater);
@@ -137,4 +149,9 @@ TEST(SearchResultComparerTest, OrNode) {
 
   EXPECT_EQ(sr_comparer(u1, u1), SearchResultComparer::Ordering::kEquivalent);
   EXPECT_EQ(sr_comparer(f1, f1), SearchResultComparer::Ordering::kEquivalent);
+
+  EXPECT_EQ(sr_comparer(f4, f5), SearchResultComparer::Ordering::kLess);
+  EXPECT_EQ(sr_comparer(f5, f4), SearchResultComparer::Ordering::kGreater);
+  EXPECT_EQ(sr_comparer2(f4, f5), SearchResultComparer::Ordering::kGreater);
+  EXPECT_EQ(sr_comparer2(f5, f4), SearchResultComparer::Ordering::kLess);
 }

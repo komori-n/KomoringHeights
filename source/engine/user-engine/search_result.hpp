@@ -14,8 +14,8 @@ namespace komori {
 /// 結論が出ていないノード（Unknown）の探索結果
 struct UnknownData {
   // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-  bool is_first_visit;  ///< 初めて訪れた局面かどうか
   BitSet64 sum_mask;    ///< δ値を和で計算すべき子の集合
+  bool is_first_visit;  ///< 初めて訪れた局面かどうか
   // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
 
@@ -34,30 +34,37 @@ struct FinalData {
  * @brief 探索結果をやり取りするためのクラス。
  *
  * このクラスは、置換表からの探索結果の読み込みおよび探索結果の書き込みに用いる。置換表サイズの節約および
- * 探索性能の向上のために、置換表本体とは異なるデータ構造を用いる。
+ * 並列探索性能の向上のために、置換表本体とは異なるデータ構造を用いる。
  *
  * 領域を節約するために、Unknown（結論が出ていないノード）とFinal（結論が出ているノード）専用の領域を union で
  * 共有している。
  *
- * 余計な変更を阻止するために、初期化時以外はメンバを変更できないようにしている。少し煩雑になってしまうが、
+ * 余計な変更を阻止するために、初期化時と代入時以外はメンバを変更できないようにしている。少し煩雑になってしまうが、
  * メンバへのアクセスには必ず getter method を用いなければならない。
  */
 class SearchResult {
  public:
   /**
-   * @brief Unknownな探索結果で初期化する
-   * @param pn            pn
-   * @param dn            dn
-   * @param len           探索時の残り手数
-   * @param amount        探索量
-   * @param unknown_data  Unknown部分の結果
+   * @brief Unknown（1回目）の探索結果で初期化する
+   * @param pn              pn
+   * @param dn              dn
+   * @param len             探索時の残り手数
+   * @param amount          探索量
    */
-  static constexpr SearchResult MakeUnknown(PnDn pn,
-                                            PnDn dn,
-                                            MateLen len,
-                                            SearchAmount amount,
-                                            UnknownData unknown_data) {
-    return {pn, dn, len, amount, unknown_data};
+  static constexpr SearchResult MakeFirstVisit(PnDn pn, PnDn dn, MateLen len, SearchAmount amount) {
+    return {pn, dn, len, amount, UnknownData{BitSet64::Full(), true}};
+  }
+
+  /**
+   * @brief Unknown（2回目以降）の探索結果で初期化する
+   * @param pn              pn
+   * @param dn              dn
+   * @param len             探索時の残り手数
+   * @param amount          探索量
+   * @param sum_mask        δ値を和で計算すべき子の集合
+   */
+  static constexpr SearchResult MakeUnknown(PnDn pn, PnDn dn, MateLen len, SearchAmount amount, BitSet64 sum_mask) {
+    return {pn, dn, len, amount, UnknownData{sum_mask, false}};
   }
 
   /**
@@ -89,6 +96,16 @@ class SearchResult {
 
   /// 領域を事前確保できるようにするために、デフォルト構築可能にする。
   SearchResult() = default;
+  /// Copy constructor(default)
+  constexpr SearchResult(const SearchResult&) noexcept = default;
+  /// Move constructor(default)
+  constexpr SearchResult(SearchResult&&) noexcept = default;
+  /// Copy assign operator(default)
+  constexpr SearchResult& operator=(const SearchResult&) noexcept = default;
+  /// Move assign operator(default)
+  constexpr SearchResult& operator=(SearchResult&&) noexcept = default;
+  /// Destructor(default)
+  ~SearchResult() noexcept = default;
 
   /// pn
   constexpr PnDn Pn() const { return pn_; }
@@ -185,6 +202,8 @@ class SearchResult {
   };  ///< メモリを節約するために `UnknownData` と `FinalData` を同じ領域に押し込む
 };
 
+static_assert(std::is_trivial_v<SearchResult>);
+
 /**
  * @brief `SearchResult` 同士の半順序関係。
  *
@@ -214,10 +233,10 @@ class SearchResultComparer {
   constexpr SearchResultComparer(const SearchResultComparer&) noexcept = default;
   /// Move constructor(default)
   constexpr SearchResultComparer(SearchResultComparer&&) noexcept = default;
-  /// Copy assign operator(delete)
-  constexpr SearchResultComparer& operator=(const SearchResultComparer&) noexcept = delete;
-  /// Move assign operator(delete)
-  constexpr SearchResultComparer& operator=(SearchResultComparer&&) noexcept = delete;
+  /// Copy assign operator(default)
+  constexpr SearchResultComparer& operator=(const SearchResultComparer&) noexcept = default;
+  /// Move assign operator(default)
+  constexpr SearchResultComparer& operator=(SearchResultComparer&&) noexcept = default;
   /// Destructor(default)
   ~SearchResultComparer() noexcept = default;
 
@@ -231,10 +250,12 @@ class SearchResultComparer {
    *
    * 1. φ値が異なるならその値の大小で比較
    * 2. δ値が異なるならその値の大小で比較
-   * 3. 片方が千日手でもう片方が普通の不詰なら、
+   * 3. pn==0 のとき、詰み手数の大小関係で比較（OR node なら 手数の小さい順、AND node なら手数の大きい順）
+   * 4. 片方が千日手でもう片方が普通の不詰なら、
    *   a. OR node では千日手の方を優先（Lessとする）
    *   b. AND node では普通の不詰を優先（Lessとする）
-   * 4. Equivalent を返す
+   * 5. amount の大小で比較
+   * 6. Equivalent を返す
    */
   constexpr Ordering operator()(const SearchResult& lhs, const SearchResult& rhs) const noexcept {
     if (lhs.Phi(or_node_) < rhs.Phi(or_node_)) {
@@ -269,19 +290,17 @@ class SearchResultComparer {
       }
     }
 
-    if (lhs.Amount() != rhs.Amount()) {
-      if (lhs.Amount() < rhs.Amount()) {
-        return Ordering::kLess;
-      } else {
-        return Ordering::kGreater;
-      }
+    if (lhs.Amount() < rhs.Amount()) {
+      return Ordering::kLess;
+    } else if (lhs.Amount() > rhs.Amount()) {
+      return Ordering::kGreater;
     }
 
     return Ordering::kEquivalent;
   }
 
  private:
-  const bool or_node_;  ///< 現局面が OR node なら true, AND node なら false.
+  bool or_node_;  ///< 現局面が OR node なら true, AND node なら false.
 };
 
 }  // namespace komori

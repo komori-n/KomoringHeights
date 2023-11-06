@@ -19,7 +19,7 @@ TEST(ScoreTest, MakeProven) {
 }
 
 TEST(ScoreTest, MakeUnknown_None) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeFirstVisit(33, 4, kDepthMaxMateLen, 264);
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, result, true);
   EXPECT_EQ(s1.ToString(), "cp 0");
@@ -29,7 +29,7 @@ TEST(ScoreTest, MakeUnknown_None) {
 }
 
 TEST(ScoreTest, MakeUnknown_Dn) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeFirstVisit(33, 4, kDepthMaxMateLen, 264);
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kDn, result, true);
   EXPECT_EQ(s1.ToString(), "cp 4");
@@ -39,7 +39,7 @@ TEST(ScoreTest, MakeUnknown_Dn) {
 }
 
 TEST(ScoreTest, MakeUnknown_MinusPn) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeFirstVisit(33, 4, kDepthMaxMateLen, 264);
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kMinusPn, result, true);
   EXPECT_EQ(s1.ToString(), "cp -33");
@@ -49,7 +49,7 @@ TEST(ScoreTest, MakeUnknown_MinusPn) {
 }
 
 TEST(ScoreTest, MakeUnknown_Ponanza) {
-  const SearchResult result = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult result = SearchResult::MakeFirstVisit(33, 4, kDepthMaxMateLen, 264);
 
   const auto s1 = Score::Make(ScoreCalculationMethod::kPonanza, result, true);
   EXPECT_EQ(s1.ToString(), "cp -1266");
@@ -107,7 +107,7 @@ TEST(ScoreTest, MakeUnknown_Repetition) {
 }
 
 TEST(ScoreTest, IsFinal) {
-  const SearchResult r1 = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult r1 = SearchResult::MakeFirstVisit(33, 4, kDepthMaxMateLen, 264);
   const auto s1 = Score::Make(ScoreCalculationMethod::kNone, r1, true);
   EXPECT_FALSE(s1.IsFinal());
 
@@ -121,7 +121,7 @@ TEST(ScoreTest, IsFinal) {
 }
 
 TEST(ScoreTest, AddOneIfFinal) {
-  const SearchResult r1 = SearchResult::MakeUnknown(33, 4, kDepthMaxMateLen, 264, UnknownData{});
+  const SearchResult r1 = SearchResult::MakeFirstVisit(33, 4, kDepthMaxMateLen, 264);
   auto s1 = Score::Make(ScoreCalculationMethod::kDn, r1, true);
   s1.AddOneIfFinal();
   EXPECT_EQ(s1.ToString(), "cp 4");
