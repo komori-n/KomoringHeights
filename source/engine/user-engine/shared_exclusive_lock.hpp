@@ -18,12 +18,14 @@ class SharedExclusiveLock {
    * @brief 共有ロックを取得する
    */
   void lock_shared() noexcept {
+    T state = state_.load(std::memory_order_relaxed);
     for (;;) {
-      T state = state_.load(std::memory_order_acquire);
       if (state >= 0) {
-        if (state_.compare_exchange_weak(state, state + 1, std::memory_order_acquire)) {
+        if (state_.compare_exchange_weak(state, state + 1, std::memory_order_acquire, std::memory_order_relaxed)) {
           break;
         }
+      } else {
+        state = state_.load(std::memory_order_relaxed);
       }
     }
   }
@@ -37,15 +39,10 @@ class SharedExclusiveLock {
    * @brief 排他ロックを取得する
    */
   void lock() noexcept {
-    T expected = 0;
-    if (!state_.compare_exchange_strong(expected, -1, std::memory_order_acquire)) {
-      for (;;) {
-        T state = state_.load(std::memory_order_acquire);
-        if (state == 0) {
-          if (state_.compare_exchange_weak(state, -1, std::memory_order_acquire)) {
-            break;
-          }
-        }
+    for (;;) {
+      T state = 0;
+      if (state_.compare_exchange_weak(state, -1, std::memory_order_acquire, std::memory_order_relaxed)) {
+        break;
       }
     }
   }
