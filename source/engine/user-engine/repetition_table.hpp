@@ -148,7 +148,7 @@ class RepetitionTable {
   /// 空を表す経路ハッシュ値。`kEmptyKey` ではなく 0 を用いることで、`Clear()` が倍近く高速化できる。
   static constexpr Key kEmptyKey = 0;
 
-  /// 置換表に格納するエントリ。16 bits に詰める。
+  /// 置換表に格納するエントリ。16 bytes に詰める。
   struct TableEntry {
     Key key;                ///< 経路ハッシュ値。使用していないなら kEmptyKey。
     Depth depth;            ///< 探索深さ
