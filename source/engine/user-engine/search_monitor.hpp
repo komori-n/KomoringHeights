@@ -69,7 +69,10 @@ class SearchMonitor {
    * @param depth 深さ
    */
   void Visit(Depth depth) {
-    max_depth_.store(std::max(max_depth_.load(std::memory_order_relaxed), depth), std::memory_order_relaxed);
+    const auto curr_max_depth = max_depth_.load(std::memory_order_relaxed);
+    if (depth > curr_max_depth) {
+      max_depth_.store(depth, std::memory_order_relaxed);
+    }
   }
 
   /**
