@@ -13,7 +13,7 @@
 namespace komori {
 namespace detail {
 /// 駒のざっくりとした価値。スレッドごとに微妙に乱数を加えたいので thread_local にしている。
-thread_local inline int kPtValues[] = {
+thread_local inline int tl_pt_values[] = {
     0, 10, 20, 20, 30, 50, 50, 50, 80, 50, 50, 50, 50, 80, 80, 80,
 };
 
@@ -38,7 +38,7 @@ struct DfpnPlusParameters {
 };
 
 /// df-pn+ で用いるパラメータ。スレッドごとに微妙に乱数を加えたいので thread_local にしている。
-thread_local inline DfpnPlusParameters kDfpnPlusParameters;
+thread_local inline DfpnPlusParameters tl_dfpn_plus_parameters;
 }  // namespace detail
 
 /**
@@ -49,10 +49,10 @@ inline void InitBriefEvaluation(std::uint32_t thread_id) {
   // デフォルトで設定しているパラメータはシングルスレッド版の（ほぼ）最適値なので、乱数を加える必要はない
   if (thread_id != 0) {
     std::mt19937 mt(thread_id);
-    // kPtValues と kDfpnPlusParameters へ薄い乱数を加える
+    // tl_pt_values と tl_dfpn_plus_parameters へ薄い乱数を加える
 
     std::normal_distribution<double> dist(0, 200);
-    for (auto& value : detail::kPtValues) {
+    for (auto& value : detail::tl_pt_values) {
       value += static_cast<int>(dist(mt));
     }
 
@@ -60,20 +60,20 @@ inline void InitBriefEvaluation(std::uint32_t thread_id) {
     // pn_base と dn_base はいじらないほうが強そう
     // detail::kDfpnPlusParameters.or_pn_base += discrete_dist(mt);
     // detail::kDfpnPlusParameters.or_dn_base += discrete_dist(mt);
-    detail::kDfpnPlusParameters.or_defense += discrete_dist(mt);
-    detail::kDfpnPlusParameters.or_support += discrete_dist(mt);
-    detail::kDfpnPlusParameters.or_capture_gold_silver += discrete_dist(mt);
-    detail::kDfpnPlusParameters.or_capture_others += discrete_dist(mt);
-    detail::kDfpnPlusParameters.or_others += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.or_defense += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.or_support += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.or_capture_gold_silver += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.or_capture_others += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.or_others += discrete_dist(mt);
 
-    detail::kDfpnPlusParameters.and_capture_pn += discrete_dist(mt);
-    detail::kDfpnPlusParameters.and_capture_dn += discrete_dist(mt);
-    detail::kDfpnPlusParameters.and_king_pn += discrete_dist(mt);
-    detail::kDfpnPlusParameters.and_king_dn += discrete_dist(mt);
-    detail::kDfpnPlusParameters.and_good_pn += discrete_dist(mt);
-    detail::kDfpnPlusParameters.and_good_pn += discrete_dist(mt);
-    detail::kDfpnPlusParameters.and_bad_dn += discrete_dist(mt);
-    detail::kDfpnPlusParameters.and_bad_dn += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.and_capture_pn += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.and_capture_dn += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.and_king_pn += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.and_king_dn += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.and_good_pn += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.and_good_pn += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.and_bad_dn += discrete_dist(mt);
+    detail::tl_dfpn_plus_parameters.and_bad_dn += discrete_dist(mt);
   }
 }
 
@@ -85,8 +85,8 @@ namespace detail {
  * @return `n` を `move` で動かした局面の pn/dn の初期値
  */
 inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move) {
-  PnDn pn = kDfpnPlusParameters.or_pn_base;
-  PnDn dn = kDfpnPlusParameters.or_dn_base;
+  PnDn pn = tl_dfpn_plus_parameters.or_pn_base;
+  PnDn dn = tl_dfpn_plus_parameters.or_dn_base;
 
   const Color us = n.side_to_move();
   const Color them = ~us;
@@ -98,21 +98,21 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusOrNode(const Position& n, Move move)
 
   if (defense_support >= 2) {
     // たくさん受け駒が利いている場合は後回し
-    pn += kDfpnPlusParameters.or_defense;
+    pn += tl_dfpn_plus_parameters.or_defense;
   }
 
   if (attack_support + (is_drop(move) ? 1 : 0) > defense_support) {
     // 攻め駒がたくさんあるときは探索を優先する
-    dn += kDfpnPlusParameters.or_support;
+    dn += tl_dfpn_plus_parameters.or_support;
   } else if (auto captured_pc = n.piece_on(to); captured_pc != NO_PIECE) {
     const auto captured_pr = raw_type_of(captured_pc);
     if (captured_pr == GOLD || captured_pr == SILVER) {
-      dn += kDfpnPlusParameters.or_capture_gold_silver;
+      dn += tl_dfpn_plus_parameters.or_capture_gold_silver;
     } else {
-      pn += kDfpnPlusParameters.or_capture_others;
+      pn += tl_dfpn_plus_parameters.or_capture_others;
     }
   } else {
-    pn += kDfpnPlusParameters.or_others;
+    pn += tl_dfpn_plus_parameters.or_others;
   }
 
   return {pn, dn};
@@ -132,12 +132,12 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusAndNode(const Position& n, Move move
 
   if (n.piece_on(to) != NO_PIECE) {
     // コマを取る手は探索を優先する
-    return {kDfpnPlusParameters.and_capture_pn, kDfpnPlusParameters.and_capture_dn};
+    return {tl_dfpn_plus_parameters.and_capture_pn, tl_dfpn_plus_parameters.and_capture_dn};
   }
 
   if (!is_drop(move) && from_sq(move) == king_sq) {
     // 玉を動かす手はそこそこ価値が高い
-    return {kDfpnPlusParameters.and_king_pn, kDfpnPlusParameters.and_king_dn};
+    return {tl_dfpn_plus_parameters.and_king_pn, tl_dfpn_plus_parameters.and_king_dn};
   }
 
   const auto attacker_bb = n.attackers_to(to);
@@ -145,9 +145,9 @@ inline std::pair<PnDn, PnDn> InitialPnDnPlusAndNode(const Position& n, Move move
   const auto defense_support = (attacker_bb & n.pieces(us)).pop_count();
 
   if (attack_support < defense_support + (is_drop(move) ? 1 : 0)) {
-    return {kDfpnPlusParameters.and_good_pn, kDfpnPlusParameters.and_good_dn};
+    return {tl_dfpn_plus_parameters.and_good_pn, tl_dfpn_plus_parameters.and_good_dn};
   }
-  return {kDfpnPlusParameters.and_bad_pn, kDfpnPlusParameters.and_bad_dn};
+  return {tl_dfpn_plus_parameters.and_bad_pn, tl_dfpn_plus_parameters.and_bad_dn};
 }
 }  // namespace detail
 
@@ -209,7 +209,7 @@ inline int MoveBriefEvaluation(const Node& n, Move move) {
   }
 
   auto after_pt = type_of(n.Pos().moved_piece_after(move));
-  value -= detail::kPtValues[after_pt];
+  value -= detail::tl_pt_values[after_pt];
   value += 10 * dist(king_sq, to);
 
   return value;

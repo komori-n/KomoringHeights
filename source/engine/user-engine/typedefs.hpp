@@ -69,6 +69,9 @@ namespace detail {}  // namespace detail
 }  // namespace tt
 // </namespaceコメント> NOLINTEND
 
+/// 自分の thread id
+thread_local inline std::uint32_t tl_thread_id = 0;
+
 /**
  * @brief `T` 型の値を足し合わせる。ただし、計算結果が `T` 型で表現できない場合は上限値で丸める（符号なし型）
  * @tparam T  足し合わせる型（符号なし型）

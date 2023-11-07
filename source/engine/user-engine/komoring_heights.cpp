@@ -25,13 +25,9 @@ constexpr std::uint64_t HashfullCheckInterval(std::uint64_t capacity) noexcept {
 }
 
 // 反復深化のしきい値を適当に伸ばす
-constexpr std::pair<PnDn, PnDn> NextPnDnThresholds(std::uint32_t thread_id,
-                                                   PnDn pn,
-                                                   PnDn dn,
-                                                   PnDn curr_thpn,
-                                                   PnDn curr_thdn) {
-  const auto thpn = static_cast<PnDn>(static_cast<double>(pn) * (1.7 + 0.3 * thread_id));
-  const auto thdn = static_cast<PnDn>(static_cast<double>(dn) * (1.7 + 0.3 * thread_id));
+std::pair<PnDn, PnDn> NextPnDnThresholds(PnDn pn, PnDn dn, PnDn curr_thpn, PnDn curr_thdn) {
+  const auto thpn = static_cast<PnDn>(static_cast<double>(pn) * (1.7 + 0.3 * tl_thread_id));
+  const auto thdn = static_cast<PnDn>(static_cast<double>(dn) * (1.7 + 0.3 * tl_thread_id));
 
   return std::make_pair(ClampPnDn(curr_thpn, thpn, kInfinitePnDn), ClampPnDn(curr_thdn, thdn, kInfinitePnDn));
 }
@@ -133,9 +129,9 @@ void SearchMonitor::ResetNextHashfullCheck() {
   next_hashfull_check_ = MoveCount() + hashfull_check_interval_;
 }
 
-bool SearchMonitor::ShouldStop(std::uint32_t thread_id) {
+bool SearchMonitor::ShouldStop() {
   const auto stop = stop_.load(std::memory_order_acquire);
-  if (thread_id != 0) {
+  if (tl_thread_id != 0) {
     return stop;
   } else if (stop) {
     // tick 状態に関係なく stop_ なら終了。
@@ -201,11 +197,11 @@ void KomoringHeights::NewSearch(const Position& n, bool is_root_or_node) {
   }
 }
 
-NodeState KomoringHeights::Search(std::uint32_t thread_id, const Position& n, bool is_root_or_node) {
+NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   auto& nn = const_cast<Position&>(n);
   Node node{nn, is_root_or_node};
 
-  auto [state, len] = SearchMainLoop(thread_id, node);
+  auto [state, len] = SearchMainLoop(node);
 
 #if defined(USE_TT_SAVE_AND_LOAD)
   const auto tt_write_path = option_.tt_write_path;
@@ -218,7 +214,7 @@ NodeState KomoringHeights::Search(std::uint32_t thread_id, const Position& n, bo
   }
 #endif  // defined(USE_TT_SAVE_AND_LOAD)
 
-  if (thread_id == 0 && state == NodeState::kProven) {
+  if (tl_thread_id == 0 && state == NodeState::kProven) {
     if (best_moves_.size() % 2 != static_cast<int>(is_root_or_node)) {
       sync_cout << "info string Failed to detect PV" << sync_endl;
     }
@@ -227,16 +223,16 @@ NodeState KomoringHeights::Search(std::uint32_t thread_id, const Position& n, bo
   return state;
 }
 
-std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(std::uint32_t thread_id, Node& n) {
+std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
   NodeState node_state = NodeState::kUnknown;
   auto len{kDepthMaxMateLen};
 
   for (Depth i = 0; i < kDepthMax; ++i) {
-    const auto result = SearchEntry(thread_id, n, len);
+    const auto result = SearchEntry(n, len);
     const auto old_score = score_;
     const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
 
-    if (thread_id == 0) {
+    if (tl_thread_id == 0) {
       score_ = score;
     }
     auto info = CurrentInfo();
@@ -244,7 +240,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(std::uint32_t thre
     if (result.Pn() == 0) {
       // len 以下の手数の詰みが帰ってくるはず
       KOMORI_PRECONDITION(result.Len().Len() <= len.Len());
-      if (thread_id == 0) {
+      if (tl_thread_id == 0) {
         best_moves_ = GetMatePath(n, result.Len());
         multi_pv_.Update(best_moves_[0], 0, ToString(best_moves_));
 
@@ -266,17 +262,17 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(std::uint32_t thre
       }
 
       len = result.Len() - 2;
-      if (thread_id == 0) {
+      if (tl_thread_id == 0) {
         after_final_ = true;
       }
     } else {
-      if (thread_id == 0 && result.Dn() == 0 && result.Len() < len) {
+      if (tl_thread_id == 0 && result.Dn() == 0 && result.Len() < len) {
         sync_cout << info << "Failed to detect PV" << sync_endl;
       }
 
       if (len != kDepthMaxMateLen) {
         len = len + 2;
-        if (thread_id == 0) {
+        if (tl_thread_id == 0) {
           best_moves_ = GetMatePath(n, len);
           multi_pv_.Update(best_moves_[0], 0, ToString(best_moves_));
           score_ = old_score;
@@ -285,7 +281,7 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(std::uint32_t thre
         node_state = result.GetNodeState();
       }
 
-      if (thread_id == 0 && !option_.silent) {
+      if (tl_thread_id == 0 && !option_.silent) {
         sync_cout << info << "# " << OrdinalNumber(i + 1) << " result: " << result << sync_endl;
         PrintAtRoot(n);
       }
@@ -296,47 +292,47 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(std::uint32_t thre
   return {node_state, len};
 }
 
-SearchResult KomoringHeights::SearchEntry(std::uint32_t thread_id, Node& n, MateLen len) {
+SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
   SearchResult result{};
-  PnDn thpn = (len == kDepthMaxMateLen) ? thread_id : kInfinitePnDn;
-  PnDn thdn = (len == kDepthMaxMateLen) ? thread_id : kInfinitePnDn;
+  PnDn thpn = (len == kDepthMaxMateLen) ? tl_thread_id : kInfinitePnDn;
+  PnDn thdn = (len == kDepthMaxMateLen) ? tl_thread_id : kInfinitePnDn;
 
-  expansion_list_[thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
-  while (!monitor_.ShouldStop(thread_id) && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
-    result = SearchImplForRoot(thread_id, n, thpn, thdn, len);
+  expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
+  while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
+    result = SearchImplForRoot(n, thpn, thdn, len);
     if (result.IsFinal()) {
       break;
     }
 
-    if (thread_id == 0 && (result.Pn() >= kInfinitePnDn || result.Dn() >= kInfinitePnDn)) {
+    if (tl_thread_id == 0 && (result.Pn() >= kInfinitePnDn || result.Dn() >= kInfinitePnDn)) {
       auto info = CurrentInfo();
       sync_cout << info << "error: " << (result.Pn() >= kInfinitePnDn ? "pn" : "dn") << " overflow detected"
                 << sync_endl;
       break;
     }
 
-    std::tie(thpn, thdn) = NextPnDnThresholds(thread_id, result.Pn(), result.Dn(), thpn, thdn);
+    std::tie(thpn, thdn) = NextPnDnThresholds(result.Pn(), result.Dn(), thpn, thdn);
   }
 
   auto query = tt_.BuildQuery(n);
   query.SetResult(result);
-  expansion_list_[thread_id].Pop();
+  expansion_list_[tl_thread_id].Pop();
 
   return result;
 }
 
-SearchResult KomoringHeights::SearchImplForRoot(std::uint32_t thread_id, Node& n, PnDn thpn, PnDn thdn, MateLen len) {
+SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, MateLen len) {
   // 実装内容は SearchImpl() とほぼ同様なので詳しいロジックについてはそちらも参照。
 
   const auto orig_thpn = thpn;
   const auto orig_thdn = thdn;
   std::uint32_t inc_flag = 0;
-  auto& local_expansion = expansion_list_[thread_id].Current();
+  auto& local_expansion = expansion_list_[tl_thread_id].Current();
 
-  if (thread_id == 0 && monitor_.ShouldPrint()) {
+  if (tl_thread_id == 0 && monitor_.ShouldPrint()) {
     Print(n);
   }
-  expansion_list_[thread_id].EliminateDoubleCount(tt_, n);
+  expansion_list_[tl_thread_id].EliminateDoubleCount(tt_, n);
 
   auto curr_result = local_expansion.CurrentResult(n);
   if (local_expansion.DoesHaveOldChild()) {
@@ -344,14 +340,14 @@ SearchResult KomoringHeights::SearchImplForRoot(std::uint32_t thread_id, Node& n
     ExtendSearchThreshold(curr_result, thpn, thdn);
   }
 
-  while (!monitor_.ShouldStop(thread_id) && (curr_result.Pn() < thpn && curr_result.Dn() < thdn)) {
+  while (!monitor_.ShouldStop() && (curr_result.Pn() < thpn && curr_result.Dn() < thdn)) {
     const auto best_move = local_expansion.BestMove();
     const bool is_first_search = local_expansion.FrontIsFirstVisit();
     const BitSet64 sum_mask = local_expansion.FrontSumMask();
     const auto [child_thpn, child_thdn] = local_expansion.FrontPnDnThresholds(thpn, thdn);
 
     n.DoMove(best_move);
-    auto& child_expansion = expansion_list_[thread_id].Emplace(tt_, n, len - 1, is_first_search, sum_mask);
+    auto& child_expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len - 1, is_first_search, sum_mask);
 
     SearchResult child_result;
     if (is_first_search) {
@@ -364,16 +360,16 @@ SearchResult KomoringHeights::SearchImplForRoot(std::uint32_t thread_id, Node& n
         goto CHILD_SEARCH_END;
       }
     }
-    child_result = SearchImpl(thread_id, n, child_thpn, child_thdn, len - 1, inc_flag);
+    child_result = SearchImpl(n, child_thpn, child_thdn, len - 1, inc_flag);
 
   CHILD_SEARCH_END:
-    expansion_list_[thread_id].Pop();
+    expansion_list_[tl_thread_id].Pop();
     n.UndoMove();
 
     local_expansion.UpdateBestChild(child_result);
     curr_result = local_expansion.CurrentResult(n);
 
-    if (thread_id == 0 && option_.multi_pv > 1 && !after_final_) {
+    if (tl_thread_id == 0 && option_.multi_pv > 1 && !after_final_) {
       // Final な手を見つけたとき、multi_pv_ へその手順を記録しておく
       if (child_result.Pn() == 0) {
         n.DoMove(best_move);
@@ -404,19 +400,14 @@ SearchResult KomoringHeights::SearchImplForRoot(std::uint32_t thread_id, Node& n
   return curr_result;
 }
 
-SearchResult KomoringHeights::SearchImpl(std::uint32_t thread_id,
-                                         Node& n,
-                                         PnDn thpn,
-                                         PnDn thdn,
-                                         MateLen len,
-                                         std::uint32_t& inc_flag) {
+SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag) {
   const PnDn orig_thpn = thpn;
   const PnDn orig_thdn = thdn;
   const std::uint32_t orig_inc_flag = inc_flag;
 
-  auto& local_expansion = expansion_list_[thread_id].Current();
+  auto& local_expansion = expansion_list_[tl_thread_id].Current();
   monitor_.Visit(n.GetDepth());
-  if (thread_id == 0 && monitor_.ShouldPrint()) {
+  if (tl_thread_id == 0 && monitor_.ShouldPrint()) {
     Print(n);
   }
 
@@ -424,7 +415,7 @@ SearchResult KomoringHeights::SearchImpl(std::uint32_t thread_id,
     return SearchResult::MakeRepetition(n.OrHand(), len, 1, 0);
   }
 
-  expansion_list_[thread_id].EliminateDoubleCount(tt_, n);
+  expansion_list_[tl_thread_id].EliminateDoubleCount(tt_, n);
 
   // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
   auto curr_result = local_expansion.CurrentResult(n);
@@ -438,14 +429,14 @@ SearchResult KomoringHeights::SearchImpl(std::uint32_t thread_id,
     ExtendSearchThreshold(curr_result, thpn, thdn);
   }
 
-  if (thread_id == 0 && monitor_.ShouldCheckHashfull()) {
+  if (tl_thread_id == 0 && monitor_.ShouldCheckHashfull()) {
     if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
       tt_.CollectGarbage(kGcRemovalRatio);
     }
     monitor_.ResetNextHashfullCheck();
   }
 
-  while (!monitor_.ShouldStop(thread_id) && (curr_result.Pn() < thpn && curr_result.Dn() < thdn)) {
+  while (!monitor_.ShouldStop() && (curr_result.Pn() < thpn && curr_result.Dn() < thdn)) {
     // local_expansion.BestMove() にしたがい子局面を展開する
     // （curr_result.Pn() > 0 && curr_result.Dn() > 0 なので、BestMove が必ず存在する）
     const auto best_move = local_expansion.BestMove();
@@ -456,7 +447,7 @@ SearchResult KomoringHeights::SearchImpl(std::uint32_t thread_id,
     n.DoMove(best_move);
 
     // 子局面を展開する。展開した expansion は UndoMove() の直前に忘れずに開放しなければならない。
-    auto& child_expansion = expansion_list_[thread_id].Emplace(tt_, n, len - 1, is_first_search, sum_mask);
+    auto& child_expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len - 1, is_first_search, sum_mask);
 
     SearchResult child_result;
     if (is_first_search) {
@@ -475,10 +466,10 @@ SearchResult KomoringHeights::SearchImpl(std::uint32_t thread_id,
         goto CHILD_SEARCH_END;
       }
     }
-    child_result = SearchImpl(thread_id, n, child_thpn, child_thdn, len - 1, inc_flag);
+    child_result = SearchImpl(n, child_thpn, child_thdn, len - 1, inc_flag);
 
   CHILD_SEARCH_END:
-    expansion_list_[thread_id].Pop();
+    expansion_list_[tl_thread_id].Pop();
     n.UndoMove();
 
     local_expansion.UpdateBestChild(child_result);
@@ -530,7 +521,7 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
     auto [best_move, new_len] = LookUpBestMove(tt_, n, len);
     if (best_move == MOVE_NONE) {
       tt_.NewSearch();
-      SearchEntry(0, n, len);
+      SearchEntry(n, len);
 
       std::tie(best_move, new_len) = LookUpBestMove(tt_, n, len);
       if (best_move == MOVE_NONE) {

@@ -6,6 +6,7 @@
 #include "../../tt.h"
 #include "../../usi.h"
 #include "../path_keys.hpp"
+#include "../thread_initialization.hpp"
 
 namespace {
 class Environment : public ::testing::Environment {
@@ -18,6 +19,7 @@ class Environment : public ::testing::Environment {
     Search::init();
     Threads.set(1);
     komori::PathKeyInit();
+    komori::InitializeThread(0);
   }
 
   void TearDown() override { Threads.set(0); }

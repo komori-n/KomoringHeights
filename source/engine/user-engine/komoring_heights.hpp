@@ -54,7 +54,7 @@ class SearchMonitor {
   /// 次回の置換表使用率チェックタイミングを更新する
   void ResetNextHashfullCheck();
   /// 今すぐ探索をやめるべきなら true
-  bool ShouldStop(std::uint32_t thread_id);
+  bool ShouldStop();
   /// 今すぐ評価値を出力すべきかどうか。定期的に呼び出す必要がある。
   bool ShouldPrint();
 
@@ -126,17 +126,15 @@ class KomoringHeights {
 
   /**
    * @brief 詰め探索を行う。（探索本体）
-   * @param thread_id スレッドID
    * @param n 現局面
    * @param is_root_or_node `n` が OR node かどうか
    * @return 探索結果
    */
-  NodeState Search(std::uint32_t thread_id, const Position& n, bool is_root_or_node);
+  NodeState Search(const Position& n, bool is_root_or_node);
 
  private:
   /**
    * @brief 詰み手順を探す
-   * @param thread_id スレッドID
    * @param n 現局面
    * @return 探索結果と詰み手数
    *
@@ -144,11 +142,10 @@ class KomoringHeights {
    * 「最短の詰み手順かどうか」の判定は難しい。この関数では、詰み手数を変えながら `SearchEntry()` を
    * 呼ぶことで局面 `n` の詰み手数の区間を狭めていくことが目的の関数である。
    */
-  std::pair<NodeState, MateLen> SearchMainLoop(std::uint32_t thread_id, Node& n);
+  std::pair<NodeState, MateLen> SearchMainLoop(Node& n);
 
   /**
    * @brief `n` が `len` 手以下で詰むかを探索する
-   * @param thread_id スレッドID
    * @param n 現局面
    * @param len 詰み手数
    * @return 探索結果
@@ -156,22 +153,20 @@ class KomoringHeights {
    * `SearchImpl()` による再帰探索のエントリポイント。しきい値をいい感じに変化させることで探索の途中経過を
    * 標準出力に出しながら探索を進めることができる。
    */
-  SearchResult SearchEntry(std::uint32_t thread_id, Node& n, MateLen len);
+  SearchResult SearchEntry(Node& n, MateLen len);
 
   /**
    * @brief 詰め探索の本体。root node専用の `SearchImpl()`。
-   * @param thread_id スレッドID
    * @param n 現局面（root node）
    * @param thpn pn のしきい値
    * @param thdn dn のしきい値
    * @param len  残り手数
    * @return 探索結果
    */
-  SearchResult SearchImplForRoot(std::uint32_t thread_id, Node& n, PnDn thpn, PnDn thdn, MateLen len);
+  SearchResult SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, MateLen len);
 
   /**
    * @brief 詰め探索の本体。（再帰関数）
-   * @param thread_id スレッドID
    * @param n 現局面
    * @param thpn pn のしきい値
    * @param thdn dn のしきい値
@@ -179,7 +174,7 @@ class KomoringHeights {
    * @param inc_flag TCA の探索延長フラグ
    * @return 探索結果
    */
-  SearchResult SearchImpl(std::uint32_t thread_id, Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag);
+  SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag);
 
   /**
    * @brief `n` が AND node かつ不詰のとき、不詰になるような手を1つ返す
