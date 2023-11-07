@@ -11,19 +11,6 @@ namespace {
 constexpr double kGcRemovalRatio = 0.5;
 static_assert(kGcRemovalRatio > 0 && kGcRemovalRatio < 1.0, "kGcRemovalRatio must be greater than 0 and less than 1");
 
-/// GC をするタイミング。置換表使用率がこの値を超えていたら GC を行う。
-constexpr double kExecuteGcHashRate = 0.5;
-static_assert(kExecuteGcHashRate > 0 && kExecuteGcHashRate < 1.0,
-              "kExecuteGcHashRate must be greater than 0 and less than 1");
-/// GC をする Hashfull のしきい値
-constexpr int kExecuteGcHashfullThreshold = std::max(static_cast<int>(1000 * kExecuteGcHashRate), 1);
-/// HashfullCheck をスキップする回数の割合
-constexpr std::uint32_t kHashfullCheeckSkipRatio = 4096;
-
-constexpr std::uint64_t HashfullCheckInterval(std::uint64_t capacity) noexcept {
-  return static_cast<std::uint64_t>(capacity * (1.0 - kExecuteGcHashRate));
-}
-
 // 反復深化のしきい値を適当に伸ばす
 std::pair<PnDn, PnDn> NextPnDnThresholds(PnDn pn, PnDn dn, PnDn curr_thpn, PnDn curr_thdn) {
   const auto thpn = static_cast<PnDn>(static_cast<double>(pn) * (1.7 + 0.3 * tl_thread_id));
@@ -60,105 +47,6 @@ std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, Mat
 }
 }  // namespace
 
-namespace detail {
-void SearchMonitor::NewSearch(std::uint64_t hashfull_check_interval,
-                              std::uint64_t pv_interval,
-                              std::uint64_t move_limit) {
-  start_time_ = std::chrono::system_clock::now();
-  max_depth_ = 0;
-
-  tp_hist_.Clear();
-  mc_hist_.Clear();
-  hist_idx_ = 0;
-
-  move_limit_ = move_limit;
-  if (Search::Limits.mate > 0) {
-    time_limit_ = Search::Limits.mate;
-  } else if (Search::Limits.movetime > 0) {
-    time_limit_ = Search::Limits.movetime;
-  } else {
-    time_limit_ = std::numeric_limits<TimePoint>::max();
-  }
-
-  hashfull_check_interval_ = hashfull_check_interval;
-  ResetNextHashfullCheck();
-
-  print_alarm_.Start(pv_interval);
-  stop_check_.Start(100);
-  stop_.store(false, std::memory_order_release);
-}
-
-UsiInfo SearchMonitor::GetInfo() const {
-  auto curr_time = std::chrono::system_clock::now();
-  auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - start_time_).count();
-
-  const auto move_count = MoveCount();
-  std::uint64_t nps = 0;
-  if (hist_idx_ >= kHistLen) {
-    const auto tp = tp_hist_[hist_idx_];
-    const auto mc = mc_hist_[hist_idx_];
-    const auto tp_diff = std::chrono::duration_cast<std::chrono::milliseconds>(curr_time - tp).count();
-    nps = (move_count - mc) * 1000ULL / tp_diff;
-  } else {
-    if (time_ms > 0) {
-      nps = move_count * 1000ULL / time_ms;
-    }
-  }
-
-  UsiInfo output;
-  output.Set(UsiInfoKey::kSelDepth, max_depth_.load(std::memory_order_relaxed));
-  output.Set(UsiInfoKey::kTime, time_ms);
-  output.Set(UsiInfoKey::kNodes, move_count);
-  output.Set(UsiInfoKey::kNps, nps);
-
-  return output;
-}
-
-bool SearchMonitor::ShouldCheckHashfull() {
-  hashfull_check_skip_--;
-  if (hashfull_check_skip_ > 0) {
-    return false;
-  }
-
-  hashfull_check_skip_ = kHashfullCheeckSkipRatio;
-  return MoveCount() >= next_hashfull_check_;
-}
-
-void SearchMonitor::ResetNextHashfullCheck() {
-  hashfull_check_skip_ = kHashfullCheeckSkipRatio;
-  next_hashfull_check_ = MoveCount() + hashfull_check_interval_;
-}
-
-bool SearchMonitor::ShouldStop() {
-  const auto stop = stop_.load(std::memory_order_acquire);
-  if (tl_thread_id != 0) {
-    return stop;
-  } else if (stop) {
-    // tick 状態に関係なく stop_ なら終了。
-    return true;
-  } else if (!stop_check_.Tick()) {
-    return false;
-  }
-
-  // stop_ かどうか改めて判定し直す
-  const auto elapsed = Time.elapsed_from_ponderhit();
-  stop_.store(MoveCount() >= move_limit_ || elapsed >= time_limit_ || Threads.stop, std::memory_order_release);
-  return stop_;
-}
-
-bool SearchMonitor::ShouldPrint() {
-  if (!print_alarm_.Tick()) {
-    return false;
-  }
-  // print のタイミングで nps も更新しておく
-  tp_hist_[hist_idx_] = std::chrono::system_clock::now();
-  mc_hist_[hist_idx_] = MoveCount();
-  hist_idx_++;
-
-  return true;
-}
-}  // namespace detail
-
 void KomoringHeights::Init(const EngineOption& option, std::uint32_t num_threads) {
   option_ = option;
   tt_.Resize(option_.hash_mb);
@@ -186,7 +74,7 @@ void KomoringHeights::NewSearch(const Position& n, bool is_root_or_node) {
   Node node{nn, is_root_or_node};
 
   tt_.NewSearch();
-  monitor_.NewSearch(HashfullCheckInterval(tt_.Capacity()), option_.pv_interval, option_.nodes_limit);
+  monitor_.NewSearch(tt_.Capacity(), option_.pv_interval, option_.nodes_limit);
   best_moves_.clear();
   after_final_ = false;
   score_ = Score{};

@@ -10,78 +10,16 @@
 #include <vector>
 
 #include "../../thread.h"
-#include "circular_array.hpp"
 #include "engine_option.hpp"
 #include "expansion_stack.hpp"
 #include "multi_pv.hpp"
-#include "periodic_alarm.hpp"
 #include "score.hpp"
+#include "search_monitor.hpp"
 #include "search_result.hpp"
 #include "transposition_table.hpp"
 #include "usi_info.hpp"
 
 namespace komori {
-namespace detail {
-/**
- * @brief 探索局面数を観測して nps を計算したり探索中断の判断をしたりするクラス。
- */
-class SearchMonitor {
- public:
-  /**
-   * @brief 変数を初期化して探索を開始する。
-   * @param hashfull_check_interval 置換表使用率チェック周期（/探索局面数）
-   */
-  void NewSearch(std::uint64_t hashfull_check_interval, std::uint64_t pv_interval, std::uint64_t move_limit);
-
-  /**
-   * @brief 深さ `depth` の局面に訪れたことを報告する
-   * @param depth 深さ
-   */
-  void Visit(Depth depth) {
-    max_depth_.store(std::max(max_depth_.load(std::memory_order_relaxed), depth), std::memory_order_relaxed);
-  }
-
-  /**
-   * @brief 現在の探索情報を `UsiInfo` に詰めて返す。
-   * @return 現在の探索情報
-   */
-  UsiInfo GetInfo() const;
-
-  /// 現在の探索局面数
-  std::uint64_t MoveCount() const { return Threads.nodes_searched(); }
-  /// 今すぐ置換表使用率をチェックすべきなら true
-  bool ShouldCheckHashfull();
-  /// 次回の置換表使用率チェックタイミングを更新する
-  void ResetNextHashfullCheck();
-  /// 今すぐ探索をやめるべきなら true
-  bool ShouldStop();
-  /// 今すぐ評価値を出力すべきかどうか。定期的に呼び出す必要がある。
-  bool ShouldPrint();
-
- private:
-  /// nps の計算のために保持する探索局面数の履歴数
-  static constexpr inline std::size_t kHistLen = 16;
-
-  std::chrono::system_clock::time_point start_time_;  ///< 探索開始時刻
-
-  CircularArray<std::chrono::system_clock::time_point, kHistLen> tp_hist_;  ///< mc_hist_ を観測した時刻
-  CircularArray<std::uint64_t, kHistLen> mc_hist_;                          ///< 各時点での探索局面数
-  std::size_t hist_idx_;  ///< `tp_hist_` と `mc_hist_` の現在の添字
-
-  std::uint64_t move_limit_;               ///< 探索局面数の上限
-  TimePoint time_limit_;                   ///< 探索の時間制限[ms]
-  std::uint64_t hashfull_check_interval_;  ///< 置換表使用率をチェックする周期[探索局面数]
-  std::uint32_t hashfull_check_skip_;      ///< next_hashfull_check_ のチェックをスキップする回数
-  std::uint64_t next_hashfull_check_;  ///< 次に置換表使用率をチェックするタイミング[探索局面数]
-
-  PeriodicAlarm print_alarm_;  ///< PV出力用のタイマー
-  PeriodicAlarm stop_check_;   ///< 探索停止判断用のタイマー
-
-  alignas(64) std::atomic<bool> stop_;  ///< 探索中止状態かどうか
-  std::atomic<Depth> max_depth_;        ///< 最大探索深さ
-};
-}  // namespace detail
-
 /**
  * @brief 詰将棋探索の本体
  */
@@ -215,7 +153,7 @@ class KomoringHeights {
   tt::TranspositionTable tt_;  ///< 置換表
   EngineOption option_;        ///< エンジンオプション
 
-  detail::SearchMonitor monitor_;  ///< 探索モニター
+  SearchMonitor monitor_;  ///< 探索モニター
 
   std::vector<Move> best_moves_;                 ///< 詰み手順
   std::deque<ExpansionStack> expansion_list_{};  ///< 局面展開のための一時領域
