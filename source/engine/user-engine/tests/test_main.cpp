@@ -19,7 +19,7 @@ class Environment : public ::testing::Environment {
     Search::init();
     Threads.set(1);
     komori::PathKeyInit();
-    komori::InitializeThread(0);
+    komori::InitializeThread(0, 1);
   }
 
   void TearDown() override { Threads.set(0); }

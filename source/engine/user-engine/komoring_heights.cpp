@@ -317,7 +317,7 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
     ExtendSearchThreshold(curr_result, thpn, thdn);
   }
 
-  if (tl_thread_id == 0 && monitor_.ShouldCheckHashfull()) {
+  if (tl_gc_thread && monitor_.ShouldCheckHashfull()) {
     if (tt_.Hashfull() >= kExecuteGcHashfullThreshold) {
       tt_.CollectGarbage(kGcRemovalRatio);
     }

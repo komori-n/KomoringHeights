@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
   Search::init();
   Threads.set(1);
   komori::PathKeyInit();
-  komori::InitializeThread(0);
+  komori::InitializeThread(0, 1);
 
   char arg0_default[] = "benchmark";
   char* args_default = arg0_default;
