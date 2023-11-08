@@ -199,14 +199,16 @@ class alignas(64) Entry {
 
   /// エントリの排他ロックを取る
   void lock() const { lock_.lock(); }
+  /// エントリの共有ロックを取る
   void lock_shared() const { lock_.lock_shared(); }
   /**
    * @brief エントリの排他ロックを解除する
    * @pre `lock()` によりロックされている
    */
   void unlock() const { lock_.unlock(); }
+  /// エントリの共有ロックを解除する
   void unlock_shared() const { lock_.unlock_shared(); }
-  /// エントリに無効値を設定する
+  /// エントリに無効値を設定する。この関数に限っては共有ロックを取得せずに使用することができる。
   void SetNull() noexcept { hand_.store(kNullHand, std::memory_order_relaxed); }
   /// エントリが未使用状態かを判定する。この関数に限っては共有ロックを取得せずに使用することができる。
   bool IsNull() const noexcept { return hand_.load(std::memory_order_relaxed) == kNullHand; }
