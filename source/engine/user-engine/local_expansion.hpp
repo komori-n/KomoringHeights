@@ -248,6 +248,9 @@ class LocalExpansion {
     return result.GetUnknownData().sum_mask;
   }
 
+  /**
+   * @brief (Move, SearchResult) のペアを良さげ順にすべて取得する
+   */
   std::vector<std::pair<Move, SearchResult>> GetAllResults() const {
     std::vector<std::pair<Move, SearchResult>> ret;
     ret.reserve(idx_.size());

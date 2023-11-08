@@ -119,6 +119,7 @@ class Score : DefineNotEqualByEqual<Score> {
   }
 
  private:
+  /// 詰まなかったときに表示する詰み手数
   static constexpr ScoreValue kMatePrintMax = 9999;
   /// 評価値の種別（勝ちとか負けとか）
   enum class Kind {

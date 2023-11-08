@@ -22,7 +22,7 @@ constexpr int kExecuteGcHashfullThreshold = std::max(static_cast<int>(1000 * kEx
 namespace detail {
 /// HashfullCheck をスキップする回数の割合
 constexpr std::uint32_t kHashfullCheeckSkipRatio = 4096;
-
+/// HashfullCheck の周期を計算する
 constexpr std::uint64_t HashfullCheckInterval(std::uint64_t capacity) noexcept {
   return static_cast<std::uint64_t>(static_cast<double>(capacity) * (1.0 - kExecuteGcHashRate));
 }

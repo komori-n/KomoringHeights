@@ -19,22 +19,22 @@ thread_local inline int tl_pt_values[] = {
 
 /// df-pn+ で用いるパラメータたち
 struct DfpnPlusParameters {
-  PnDn or_pn_base = kPnDnUnit;
-  PnDn or_dn_base = kPnDnUnit;
-  PnDn or_defense = kPnDnUnit;
-  PnDn or_support = kPnDnUnit;
-  PnDn or_capture_gold_silver = kPnDnUnit;
-  PnDn or_capture_others = kPnDnUnit;
-  PnDn or_others = kPnDnUnit;
+  PnDn or_pn_base = kPnDnUnit;              ///< OR node の pn 初期値
+  PnDn or_dn_base = kPnDnUnit;              ///< OR node の dn 初期値
+  PnDn or_defense = kPnDnUnit;              ///< OR node で受け駒がたくさん利いている場合の pn 増分
+  PnDn or_support = kPnDnUnit;              ///< OR node で攻め駒がたくさん利いている場合の dn 増分
+  PnDn or_capture_gold_silver = kPnDnUnit;  ///< OR node で金銀を取る場合の dn 増分
+  PnDn or_capture_others = kPnDnUnit;       ///< OR node でそれ以外の駒を取る場合の pn 増分
+  PnDn or_others = kPnDnUnit;               ///< OR node でそれ以外の場合の pn 増分
 
-  PnDn and_capture_pn = 2 * kPnDnUnit;
-  PnDn and_capture_dn = kPnDnUnit;
-  PnDn and_king_pn = kPnDnUnit;
-  PnDn and_king_dn = kPnDnUnit;
-  PnDn and_good_pn = 2 * kPnDnUnit;
-  PnDn and_good_dn = kPnDnUnit;
-  PnDn and_bad_pn = kPnDnUnit;
-  PnDn and_bad_dn = 2 * kPnDnUnit;
+  PnDn and_capture_pn = 2 * kPnDnUnit;  ///< AND node で駒を取る場合の pn
+  PnDn and_capture_dn = kPnDnUnit;      ///< AND node で駒を取る場合の dn
+  PnDn and_king_pn = kPnDnUnit;         ///< AND node で玉を動かす場合の pn
+  PnDn and_king_dn = kPnDnUnit;         ///< AND node で玉を動かす場合の dn
+  PnDn and_good_pn = 2 * kPnDnUnit;     ///< AND node で良い手の場合の pn
+  PnDn and_good_dn = kPnDnUnit;         ///< AND node で良い手の場合の dn
+  PnDn and_bad_pn = kPnDnUnit;          ///< AND node で悪い手の場合の pn
+  PnDn and_bad_dn = 2 * kPnDnUnit;      ///< AND node で悪い手の場合の dn
 };
 
 /// df-pn+ で用いるパラメータ。スレッドごとに微妙に乱数を加えたいので thread_local にしている。

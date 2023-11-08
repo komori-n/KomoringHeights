@@ -295,6 +295,10 @@ constexpr inline auto Skip(Range&& range, std::size_t skip) noexcept(noexcept(de
 }
 
 namespace detail {
+/**
+ * @brief `Take` の実装本体
+ * @tparam Range Iterable
+ */
 template <typename Range>
 class TakeImpl {
  public:
@@ -337,20 +341,35 @@ constexpr inline auto Take(Range&& range, std::size_t take) noexcept(noexcept(de
 }
 
 namespace detail {
+/**
+ * @brief `Zip` の実装本体
+ * @tparam Range1 Iterable
+ * @tparam Range2 Iterable
+ */
 template <typename Range1, typename Range2>
 class ZipImpl {
  public:
+  /**
+   * @brief zipイテレータ
+   * @tparam Iterator1 Range1 に対するイテレータ
+   * @tparam Iterator2 Range2 に対するイテレータ
+   */
   template <typename Iterator1, typename Iterator2>
   class Iterator {
    public:
+    /**
+     * @brief コンストラクタ
+     */
     constexpr Iterator(Iterator1 itr1, Iterator2 itr2) noexcept(std::is_nothrow_copy_assignable_v<Iterator1> &&
                                                                 std::is_nothrow_copy_assignable_v<Iterator2>)
         : itr1_{itr1}, itr2_{itr2} {}
 
+    /// イテレータをペアにして値を読み取る
     constexpr auto operator*() noexcept(noexcept(*std::declval<Iterator1>(), *std::declval<Iterator2>())) {
       return std::make_pair(*itr1_, *itr2_);
     }
 
+    /// イテレータを進める
     constexpr Iterator& operator++() noexcept(noexcept(std::declval<Iterator1>()++, std::declval<Iterator2>()++)) {
       itr1_++;
       itr2_++;
@@ -358,6 +377,7 @@ class ZipImpl {
       return *this;
     }
 
+    /// イテレータを比較する
     template <typename LI1, typename LI2, typename RI1, typename RI2>
     friend constexpr bool operator!=(const Iterator<LI1, LI2>& lhs,
                                      const Iterator<RI1, RI2>& rhs) noexcept(noexcept(lhs.itr1_ == rhs.itr1_ ||
@@ -366,28 +386,31 @@ class ZipImpl {
     }
 
    private:
-    Iterator1 itr1_;
-    Iterator2 itr2_;
+    Iterator1 itr1_;  ///< Range1 に対するイテレータ
+    Iterator2 itr2_;  ///< Range2 に対するイテレータ
   };
 
+  /// コンストラクタ
   constexpr ZipImpl(Range1 range1, Range2 range2) noexcept(
       std::is_nothrow_constructible_v<Range1, decltype(std::forward<Range1>(range1))> &&
       std::is_nothrow_constructible_v<Range2, decltype(std::forward<Range2>(range2))>)
       : range1_{std::forward<Range1>(range1)}, range2_{std::forward<Range2>(range2)} {}
 
+  /// 範囲の先頭
   constexpr auto begin() const
       noexcept(noexcept(call_begin(std::declval<Range1>()), call_begin(std::declval<Range2>()))) {
     return Iterator<decltype(call_begin(range1_)), decltype(call_begin(range2_))>(call_begin(range1_),
                                                                                   call_begin(range2_));
   }
 
+  /// 範囲の末尾
   constexpr auto end() const noexcept(noexcept(call_end(std::declval<Range1>()), call_end(std::declval<Range2>()))) {
     return Iterator<decltype(call_end(range1_)), decltype(call_end(range2_))>(call_end(range1_), call_end(range2_));
   }
 
  private:
-  Range1 range1_;
-  Range2 range2_;
+  Range1 range1_;  ///< Range1
+  Range2 range2_;  ///< Range2
 };
 }  // namespace detail
 

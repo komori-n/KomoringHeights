@@ -4,13 +4,8 @@
 #ifndef KOMORI_TYPEDEFS_HPP_
 #define KOMORI_TYPEDEFS_HPP_
 
-#include <cassert>
-#include <chrono>
-#include <cinttypes>
-#include <iomanip>
 #include <limits>
 #include <string>
-#include <thread>
 
 #include "../../bitboard.h"
 #include "../../position.h"
@@ -71,6 +66,7 @@ namespace detail {}  // namespace detail
 
 /// 自分の thread id
 thread_local inline std::uint32_t tl_thread_id = 0;
+/// 自分は GC 担当スレッドかどうか
 thread_local inline bool tl_gc_thread = false;
 
 /**
