@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <thread>
+
 #include "../shared_exclusive_lock.hpp"
 
 using komori::SharedExclusiveLock;

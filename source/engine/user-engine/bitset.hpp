@@ -7,7 +7,6 @@
 #include <climits>
 #include <cstdint>
 #include <limits>
-#include <numeric>
 #include <type_traits>
 
 #include "type_traits.hpp"

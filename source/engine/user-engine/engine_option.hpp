@@ -6,11 +6,9 @@
 
 #include <limits>
 #include <map>
-#include <optional>
 #include <string>
 
 #include "../../usi.h"
-#include "typedefs.hpp"
 
 namespace komori {
 /**

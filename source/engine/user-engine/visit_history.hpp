@@ -5,9 +5,9 @@
 #define KOMORI_VISIT_HISTORY_HPP_
 
 #include <array>
+#include <cstddef>
 #include <optional>
 
-#include "ranges.hpp"
 #include "typedefs.hpp"
 
 namespace komori {
@@ -133,7 +133,7 @@ class VisitHistory {
 
  private:
   /// HashTable のテーブルサイズ。2のべき乗かつ `kDepthMax` 以上の値にしなければならない
-  static constexpr std::size_t kTableSize = 4096 * 8;
+  static constexpr std::size_t kTableSize = static_cast<const std::size_t>(4096 * 8);
   /// テーブルにアクセスするための添字に対するマスク。
   static constexpr std::size_t kTableIndexMask = kTableSize - 1;
 

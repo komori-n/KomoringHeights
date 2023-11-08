@@ -4,8 +4,6 @@
 #ifndef KOMORI_SEARCH_RESULT_HPP_
 #define KOMORI_SEARCH_RESULT_HPP_
 
-#include <utility>
-
 #include "bitset.hpp"
 #include "mate_len.hpp"
 #include "typedefs.hpp"
@@ -258,6 +256,7 @@ class SearchResultComparer {
    * 6. Equivalent を返す
    */
   constexpr Ordering operator()(const SearchResult& lhs, const SearchResult& rhs) const noexcept {
+    // NOLINTBEGIN(bugprone-branch-clone)
     if (lhs.Phi(or_node_) < rhs.Phi(or_node_)) {
       return Ordering::kLess;
     } else if (lhs.Phi(or_node_) > rhs.Phi(or_node_)) {
@@ -267,6 +266,7 @@ class SearchResultComparer {
     } else if (lhs.Delta(or_node_) > rhs.Delta(or_node_)) {
       return Ordering::kGreater;
     }
+    // NOLINTEND(bugprone-branch-clone)
 
     if (lhs.Pn() == 0 /* && rhs.Pn() == 0 */) {
       if (lhs.Len() < rhs.Len()) {

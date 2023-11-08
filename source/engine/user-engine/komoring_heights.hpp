@@ -4,12 +4,8 @@
 #ifndef KOMORI_KOMORING_HEIGHTS_HPP_
 #define KOMORI_KOMORING_HEIGHTS_HPP_
 
-#include <algorithm>
-#include <chrono>
-#include <stack>
 #include <vector>
 
-#include "../../thread.h"
 #include "engine_option.hpp"
 #include "expansion_stack.hpp"
 #include "multi_pv.hpp"

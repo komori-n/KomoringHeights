@@ -111,6 +111,7 @@ NodeState KomoringHeights::Search(const Position& n, bool is_root_or_node) {
   return state;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
   NodeState node_state = NodeState::kUnknown;
   auto len{kDepthMaxMateLen};

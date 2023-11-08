@@ -271,3 +271,6 @@ doc-coverage.info
 
 # en-check
 comments.md
+
+compile_commands.json
+.cache/

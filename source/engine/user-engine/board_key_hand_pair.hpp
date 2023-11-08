@@ -6,7 +6,8 @@
 
 #include <type_traits>
 
-#include "typedefs.hpp"
+#include "../../types.h"
+#include "type_traits.hpp"
 
 namespace komori {
 /**

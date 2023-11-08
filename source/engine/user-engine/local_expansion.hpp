@@ -173,6 +173,7 @@ class LocalExpansion {
           bool i_is_skipped = false;
           auto next_dep = delayed_move_list_.Prev(i_raw);
           while (next_dep.has_value()) {
+            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
             if (!results_[*next_dep].IsFinal()) {
               // i_raw は next_dep の負けが確定した後で探索する
               i_is_skipped = true;
@@ -180,6 +181,7 @@ class LocalExpansion {
               break;
             }
 
+            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
             next_dep = delayed_move_list_.Prev(*next_dep);
           }
 
@@ -250,7 +252,7 @@ class LocalExpansion {
     std::vector<std::pair<Move, SearchResult>> ret;
     ret.reserve(idx_.size());
     for (const auto i_raw : idx_) {
-      ret.push_back(std::make_pair(mp_[i_raw].move, results_[i_raw]));
+      ret.emplace_back(mp_[i_raw].move, results_[i_raw]);
     }
 
     return ret;

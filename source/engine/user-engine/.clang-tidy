@@ -1,7 +1,5 @@
 ---
 Checks: >
-  *,
-  -*,
   bugprone-*,
   cppcoreguidelines-*
   google-*,
@@ -12,6 +10,7 @@ Checks: >
   readability-*,
   -bugprone-easily-swappable-parameters,
   -misc-no-recursion,
+  -misc-non-private-member-variables-in-classes,
   -modernize-avoid-c-arrays,
   -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
@@ -21,16 +20,17 @@ Checks: >
   -readability-named-parameter,
   -readability-magic-numbers,
   -readability-qualified-auto,
+  -performance-avoid-endl
 
 # Turn all the warnings from the checks above into errors.
 WarningsAsErrors: "*"
 
-HeaderFilterRegex: "(google/cloud/|generator/).*\\.h$"
-
 CheckOptions:
   - { key: readability-identifier-naming.NamespaceCase, value: lower_case }
-  - { key: readability-identifier-naming.ClassCase, value: aNy_CasE }
-  - { key: readability-identifier-naming.StructCase, value: aNy_CasE }
+  - { key: readability-identifier-naming.ClassCase, value: CamelCase }
+  - { key: readability-identifier-naming.StructCase, value: CamelCase }
+  - { key: readability-identifier-naming.UnionCase, value: CamelCase }
+  - { key: readability-identifier-naming.EnumCase, value: CamelCase }
   - {
       key: readability-identifier-naming.TemplateParameterCase,
       value: CamelCase,
@@ -47,8 +47,11 @@ CheckOptions:
   - { key: readability-identifier-naming.VariableCase, value: lower_case }
   - { key: readability-identifier-naming.ClassMemberCase, value: lower_case }
   - { key: readability-identifier-naming.ClassMemberSuffix, value: _ }
+  - { key: readability-identifier-naming.PrivateMemberCase, value: lower_case }
   - { key: readability-identifier-naming.PrivateMemberSuffix, value: _ }
+  - { key: readability-identifier-naming.ProtectedMemberCase, value: lower_case }
   - { key: readability-identifier-naming.ProtectedMemberSuffix, value: _ }
+  - { key: readability-identifier-naming.PublicMemberCase, value: lower_case }
   - { key: readability-identifier-naming.EnumConstantCase, value: CamelCase }
   - { key: readability-identifier-naming.EnumConstantPrefix, value: k }
   - {

@@ -4,13 +4,10 @@
 #ifndef KOMORI_TRANSPOSITION_TABLE_HPP_
 #define KOMORI_TRANSPOSITION_TABLE_HPP_
 
-#include <vector>
-
 #include "board_key_hand_pair.hpp"
 #include "node.hpp"
 #include "regular_table.hpp"
 #include "repetition_table.hpp"
-#include "ttentry.hpp"
 #include "ttquery.hpp"
 #include "typedefs.hpp"
 

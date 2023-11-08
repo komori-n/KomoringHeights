@@ -2,7 +2,6 @@
 #define KOMORI_SHARED_EXCLUSIVE_LOCK_HPP_
 
 #include <atomic>
-#include <thread>
 
 namespace komori {
 /**

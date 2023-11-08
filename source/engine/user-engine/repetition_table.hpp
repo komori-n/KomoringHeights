@@ -4,13 +4,11 @@
 #ifndef KOMORI_REPETITION_TABLE_HPP_
 #define KOMORI_REPETITION_TABLE_HPP_
 
-#include <iostream>
-#include <limits>
 #include <shared_mutex>
 #include <vector>
 
+#include "../../types.h"
 #include "shared_exclusive_lock.hpp"
-#include "typedefs.hpp"
 
 namespace komori::tt {
 /**

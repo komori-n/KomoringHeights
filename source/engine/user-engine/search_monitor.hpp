@@ -24,7 +24,7 @@ namespace detail {
 constexpr std::uint32_t kHashfullCheeckSkipRatio = 4096;
 
 constexpr std::uint64_t HashfullCheckInterval(std::uint64_t capacity) noexcept {
-  return static_cast<std::uint64_t>(capacity * (1.0 - kExecuteGcHashRate));
+  return static_cast<std::uint64_t>(static_cast<double>(capacity) * (1.0 - kExecuteGcHashRate));
 }
 }  // namespace detail
 

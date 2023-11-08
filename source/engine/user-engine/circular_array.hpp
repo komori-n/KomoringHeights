@@ -5,7 +5,6 @@
 #define KOMORI_CIRCULAR_ARRAY_HPP_
 
 #include <array>
-#include <cstdint>
 #include <type_traits>
 
 #include "type_traits.hpp"

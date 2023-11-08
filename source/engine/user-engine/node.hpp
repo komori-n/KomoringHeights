@@ -5,7 +5,6 @@
 #define KOMORI_NODE_HPP_
 
 #include <functional>
-#include <stack>
 #include <utility>
 #include <vector>
 
@@ -132,7 +131,7 @@ class Node {
     visit_history_.Visit(BoardKey(), this->OrHand(), depth_);
 
     StateInfo st;
-    st_info_.Push(std::move(st));
+    st_info_.Push(st);
     Pos().do_move(move, st_info_.back());
     depth_++;
   }

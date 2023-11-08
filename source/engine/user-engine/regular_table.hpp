@@ -245,8 +245,8 @@ class RegularTable {
       }
     }
 
-    const std::uint64_t gc_removal_pivot =
-        std::max<std::uint64_t>(static_cast<std::uint64_t>(detail::kGcSamplingEntries * gc_removal_ratio), 1);
+    const std::int64_t gc_removal_pivot =
+        std::max<std::int64_t>(static_cast<std::int64_t>(detail::kGcSamplingEntries * gc_removal_ratio), 1);
     auto pivot_itr = amounts.begin() + gc_removal_pivot;
     std::nth_element(amounts.begin(), pivot_itr, amounts.end());
     const SearchAmount max_amount = *std::max_element(amounts.begin(), amounts.end());

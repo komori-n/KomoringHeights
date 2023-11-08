@@ -4,6 +4,9 @@
 #ifndef KOMORI_TYPE_TRAITS_HPP_
 #define KOMORI_TYPE_TRAITS_HPP_
 
+#include <cstddef>
+#include <initializer_list>
+
 namespace komori {
 /**
  * @brief `T` をそのまま返すメタ関数。
