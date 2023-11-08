@@ -132,6 +132,8 @@ constexpr std::size_t kGcSamplingEntries = 20000;
  */
 class RegularTable {
  public:
+  static constexpr std::size_t kSizePerEntry = sizeof(Entry);  ///< 1エントリのサイズ(byte)
+
   /// Default constructor(default)
   RegularTable() = default;
   /// Copy constructor(delete)

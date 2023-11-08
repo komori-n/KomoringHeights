@@ -37,7 +37,7 @@ constexpr inline double kRegularRepetitionRatio = 0.85;
  * 実際には同じエントリに何回も読み書きする必要があるので、有意に高速化できる。
  *
  * また、置換表読み書きは詰将棋エンジン内で頻繁に呼び出す処理のため、現局面だけでなく1手進めた局面のクエリの
- * 構築することができる。（`CreateChildQuery()`）
+ * 構築することができる。（`BuildChildQuery()`）
  *
  * このクラスでは、Query, RegularTable, RepetitionTable をテンプレートパラメータ化している。これは、単体テスト時に
  * 外部から注入するためのトリックである。本物のクラスは外部から状態を観測しづらく、Look Up してみなければ
@@ -51,11 +51,11 @@ class TranspositionTableImpl {
   constexpr TranspositionTableImpl() = default;
   /// Copy constructor(delete)
   constexpr TranspositionTableImpl(const TranspositionTableImpl&) = delete;
-  /// Move constructor(default)
+  /// Move constructor(delete)
   constexpr TranspositionTableImpl(TranspositionTableImpl&&) noexcept = delete;
   /// Copy assign operator(delete)
   constexpr TranspositionTableImpl& operator=(const TranspositionTableImpl&) = delete;
-  /// Move assign operator(default)
+  /// Move assign operator(delete)
   constexpr TranspositionTableImpl& operator=(TranspositionTableImpl&&) noexcept = delete;
   /// Destructor(default)
   ~TranspositionTableImpl() = default;
@@ -65,17 +65,17 @@ class TranspositionTableImpl {
    * @param hash_size_mb 新しい置換表サイズ（MB）
    * @pre `hash_size_mb >= 1`
    *
-   * 置換表サイズが `hash_size_mb` 以下になるようにする。置換表は大きく分けて RegularTable と RepetitionTable に
-   * 分けられるが、それらの合計サイズが `hash_size_mb`[MB] を超えないようにする。
+   * 置換表サイズが `hash_size_mb` 以下になるようにする。通常テーブルと千日手テーブルの合計サイズが
+   * `hash_size_mb`[MB] を超えないようにする。
    */
   void Resize(std::uint64_t hash_size_mb) {
     const auto new_bytes = hash_size_mb * 1024 * 1024;
     const auto regular_bytes = static_cast<std::uint64_t>(static_cast<double>(new_bytes) * kRegularRepetitionRatio);
     const auto rep_bytes = new_bytes - regular_bytes;
     // 通常テーブルに保存する要素数
-    const auto new_num_entries = regular_bytes / sizeof(Entry);
+    const auto new_num_entries = regular_bytes / RegularTable::kSizePerEntry;
     // 千日手テーブルはキー1個あたり 16 bytes 使用する。
-    const auto rep_table_size = std::max(decltype(rep_bytes){1}, rep_bytes / 16);
+    const auto rep_table_size = std::max(decltype(rep_bytes){1}, rep_bytes / RepetitionTable::kSizePerEntry);
 
     regular_table_.Resize(new_num_entries);
     repetition_table_.Resize(rep_table_size);
@@ -170,7 +170,8 @@ class TranspositionTableImpl {
    * @brief ガベージコレクションを実行する
    * @return 削除されたエントリ数
    *
-   * 通常テーブルおよび千日手テーブルのうち、必要なさそうなエントリの削除を行う。
+   * 通常テーブルから必要なさそうなエントリの削除を行う。
+   * （千日手テーブルは都度 GC をしているのでここでは何もする必要がない）
    */
   void CollectGarbage(double gc_removal_ratio) { regular_table_.CollectGarbage(gc_removal_ratio); }
 

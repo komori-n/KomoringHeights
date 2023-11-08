@@ -22,14 +22,26 @@ namespace komori::tt {
  * LookUp速度を高速に保つために、置換表の高々 30% しか要素を格納しない。メモリ使用率が 30% を超えた場合、
  * Garbage Collectionにより古いエントリを消す。
  *
- * @note `std::unordered_map` を用いるより、`std::vector` + 線形走査法をしたほうが `Containis()` の速度が 20% ほど
+ * @note `std::unordered_map` を用いるより、`std::vector` + 線形走査法をしたほうが `Contains()` の速度が 20% ほど
  *       高速化できる。ただし、`Insert()` の速度が 20% ほど遅くなっているので注意。実用上は、
  *       `Insert()` の回数よりも `Contains()` で検索する回数の方が多いと考えられるので、全体としては早くなっているはず。
  */
 class RepetitionTable {
  public:
-  /// 置換表世代。メモリ量をケチるために32 bitsで持つ。オーバーフローに注意。
+  /// 置換表世代。メモリ量をケチるために32 bitsで持つ。
   using Generation = std::uint32_t;
+
+ private:
+  /// 置換表に格納するエントリ。16 bytes に詰める。
+  struct TableEntry {
+    Key key;                ///< 経路ハッシュ値。使用していないなら kEmptyKey。
+    Depth depth;            ///< 探索深さ
+    Generation generation;  ///< 置換表世代
+  };
+  static_assert(sizeof(TableEntry) == 16);
+
+ public:
+  static constexpr std::size_t kSizePerEntry = sizeof(TableEntry);  ///< 1エントリあたりのバイト数
 
   /**
    * @brief Construct a new Repetition Table object
@@ -65,11 +77,11 @@ class RepetitionTable {
    *
    * @param table_size 置換表サイズ
    *
-   * 置換表サイズを `table_size` へと変更する。もし `Size() == table_size` ならば、何もしない。
-   * `Size() != table_size` なら置換表のりサイズと `Clear()` を行う。
+   * 置換表サイズを `table_size` へと変更する。もし `hash_table_.size() == table_size` ならば、何もしない。
+   * `hash_table_.size() != table_size` なら置換表のりサイズと `Clear()` を行う。
    */
   void Resize(std::size_t table_size) {
-    if (Size() != table_size) {
+    if (hash_table_.size() != table_size) {
       table_size = std::max<decltype(table_size)>(table_size, 1);
       entries_per_generation_ = std::max<std::size_t>(table_size / kGenerationPerTableSize, 1);
       hash_table_.resize(table_size);
@@ -123,17 +135,16 @@ class RepetitionTable {
     return std::nullopt;
   }
 
-  std::size_t Size() const { return hash_table_.size(); }
-
   /// 置換表のメモリ使用率を求める。
   double HashRate() const {
     const auto prev_gc = (next_gc_ - kGcKeepGeneration - kGcDuration);
     const auto num_entries =
         (generation_ - prev_gc) * entries_per_generation_ + (entry_count_ % entries_per_generation_);
 
-    return static_cast<double>(num_entries) / static_cast<double>(Size());
+    return static_cast<double>(num_entries) / static_cast<double>(hash_table_.size());
   }
 
+  /// 現在の置換表世代を返す
   Generation GetGeneration() const { return generation_; }
 
  private:
@@ -147,14 +158,6 @@ class RepetitionTable {
   static constexpr Generation kGcKeepGeneration = 3;
   /// 空を表す経路ハッシュ値。`kEmptyKey` ではなく 0 を用いることで、`Clear()` が倍近く高速化できる。
   static constexpr Key kEmptyKey = 0;
-
-  /// 置換表に格納するエントリ。16 bytes に詰める。
-  struct TableEntry {
-    Key key;                ///< 経路ハッシュ値。使用していないなら kEmptyKey。
-    Depth depth;            ///< 探索深さ
-    Generation generation;  ///< 置換表世代
-  };
-  static_assert(sizeof(TableEntry) == 16);
 
   /// `path_key` に対する探索開始インデックスを求める。
   std::size_t StartIndex(Key path_key) const {

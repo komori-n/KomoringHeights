@@ -18,6 +18,8 @@ using testing::Return;
 namespace {
 
 struct RegularTableMock {
+  static constexpr std::size_t kSizePerEntry = 64;
+
   MOCK_METHOD(void, Resize, (std::uint64_t));
   MOCK_METHOD(void, Clear, ());
   MOCK_METHOD(komori::tt::CircularEntryPointer, PointerOf, (Key));
@@ -31,6 +33,8 @@ struct RegularTableMock {
 };
 
 struct RepetitionTableMock {
+  static constexpr std::size_t kSizePerEntry = 16;
+
   MOCK_METHOD(void, Resize, (std::uint64_t));
   MOCK_METHOD(void, Clear, ());
   MOCK_METHOD(double, HashRate, (), (const));

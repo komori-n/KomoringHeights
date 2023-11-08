@@ -4,14 +4,6 @@
 
 using komori::tt::RepetitionTable;
 
-TEST(RepetitionTable, Constructor) {
-  RepetitionTable rep1{};
-  EXPECT_EQ(rep1.Size(), 1);
-
-  RepetitionTable rep2(334);
-  EXPECT_EQ(rep2.Size(), 334);
-}
-
 TEST(RepetitionTable, Resize) {
   RepetitionTable rep_table{334};
   rep_table.Insert(33, 4);
