@@ -188,7 +188,12 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
 
   expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
   while (!monitor_.ShouldStop() && thpn <= kInfinitePnDn && thdn <= kInfinitePnDn) {
-    result = SearchImplForRoot(n, thpn, thdn, len);
+    if (n.GetDepth() == 0) {
+      result = SearchImplForRoot(n, thpn, thdn, len);
+    } else {
+      std::uint32_t inc_flag = 0;
+      result = SearchImpl(n, thpn, thdn, len, inc_flag);
+    }
     if (result.IsFinal()) {
       break;
     }
