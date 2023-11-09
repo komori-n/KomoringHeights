@@ -194,7 +194,7 @@ SearchResult KomoringHeights::SearchEntry(Node& n, MateLen len) {
       std::uint32_t inc_flag = 0;
       result = SearchImpl(n, thpn, thdn, len, inc_flag);
     }
-    if (result.IsFinal()) {
+    if (result.IsFinal() || monitor_.ShouldStop()) {
       break;
     }
 
