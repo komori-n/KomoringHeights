@@ -186,7 +186,7 @@ class Query {
     Key parent_board_key = kNullKey;
     Hand parent_hand = kNullHand;
     for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
-      std::shared_lock lock(*itr);
+      const std::shared_lock lock(*itr);
       if (itr->IsFor(board_key_)) {
         itr->UpdateParentCandidate(hand_, pn, dn, parent_board_key, parent_hand);
       }
@@ -211,7 +211,7 @@ class Query {
     MateLen proven_len = kDepthMaxPlus1MateLen;
 
     for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
-      std::shared_lock lock(*itr);
+      const std::shared_lock lock(*itr);
 
       if (itr->IsFor(board_key_)) {
         itr->UpdateFinalRange(hand_, disproven_len, proven_len);

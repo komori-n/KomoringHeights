@@ -232,7 +232,7 @@ class RegularTable {
 
     while (counted_num < detail::kGcSamplingEntries) {
       {
-        std::shared_lock lock(entries_[idx]);
+        const std::shared_lock lock(entries_[idx]);
         if (!entries_[idx].IsNull()) {
           amounts.push_back(entries_[idx].Amount());
           counted_num++;
@@ -255,7 +255,7 @@ class RegularTable {
 
     // 探索量が amount_threshold を下回っているエントリをすべて削除する
     for (auto&& entry : entries_) {
-      std::lock_guard lock(entry);
+      const std::lock_guard lock(entry);
       if (!entry.IsNull() && entry.Amount() <= amount_threshold) {
         entry.SetNull();
       } else if (!entry.IsNull() && should_cut) {
@@ -344,14 +344,14 @@ class RegularTable {
   void CompactEntries() {
     // entries_ の最初の部分が若干コンパクションしきれない可能性があるが目を瞑る
     for (auto&& entry : entries_) {
-      std::lock_guard lock(entry);
+      const std::lock_guard lock(entry);
       if (entry.IsNull()) {
         continue;
       }
 
       // できるだけ手前の非 null な位置へ移動する
       for (auto ptr = PointerOf(entry.BoardKey()); &*ptr != &entry; ++ptr) {
-        std::lock_guard lock(*ptr);
+        const std::lock_guard lock(*ptr);
         if (ptr->IsNull()) {
           *ptr = entry;
           entry.SetNull();

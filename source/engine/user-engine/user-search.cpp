@@ -14,8 +14,8 @@ komori::NodeState g_search_result = komori::NodeState::kUnknown;
 
 /// 局面が OR node っぽいかどうかを調べる。困ったら OR node として処理する。
 bool IsPosOrNode(const Position& root_pos) {
-  Color us = root_pos.side_to_move();
-  Color them = ~us;
+  const Color us = root_pos.side_to_move();
+  const Color them = ~us;
 
   if (root_pos.king_square(us) == SQ_NB) {
     return true;
@@ -90,8 +90,8 @@ void Search::clear() {
 // そのあとslaveスレッドを終了させ、ベストな指し手を返すこと。
 void MainThread::search() {
   // `go mate` で探索開始したときは true、`go` で探索開始したときは false
-  bool is_mate_search = Search::Limits.mate != 0;
-  bool is_root_or_node = IsPosOrNode(rootPos);
+  const bool is_mate_search = Search::Limits.mate != 0;
+  const bool is_root_or_node = IsPosOrNode(rootPos);
 
   g_searcher.NewSearch(rootPos, is_root_or_node);
   Threads.start_searching();

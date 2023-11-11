@@ -71,7 +71,7 @@ void KomoringHeights::Clear() {
 
 void KomoringHeights::NewSearch(const Position& n, bool is_root_or_node) {
   auto& nn = const_cast<Position&>(n);
-  Node node{nn, is_root_or_node};
+  const Node node{nn, is_root_or_node};
 
   tt_.NewSearch();
   monitor_.NewSearch(tt_.Capacity(), option_.pv_interval, option_.nodes_limit);

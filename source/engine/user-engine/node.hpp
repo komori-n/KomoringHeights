@@ -130,8 +130,7 @@ class Node {
     path_key_ = PathKeyAfter(move);
     visit_history_.Visit(BoardKey(), this->OrHand(), depth_);
 
-    StateInfo st;
-    st_info_.Push(st);
+    st_info_.Push(StateInfo{});
     Pos().do_move(move, st_info_.back());
     depth_++;
   }

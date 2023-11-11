@@ -100,7 +100,7 @@ class RepetitionTable {
   void Insert(Key path_key, Depth depth, MateLen len) {
     const MateLen16 len16{len};
 
-    std::lock_guard lock(lock_);
+    const std::lock_guard lock(lock_);
     auto index = StartIndex(path_key);
     while (hash_table_[index].key != kEmptyKey && hash_table_[index].key != path_key) {
       index = Next(index);
@@ -134,7 +134,7 @@ class RepetitionTable {
    */
   std::optional<std::pair<Depth, MateLen>> Contains(Key path_key, MateLen len) const {
     const MateLen16 len16{len};
-    std::shared_lock lock(lock_);
+    const std::shared_lock lock(lock_);
     for (auto index = StartIndex(path_key); hash_table_[index].key != kEmptyKey; index = Next(index)) {
       const auto table_len = hash_table_[index].len16;
       // table_len が記録されている => 詰みまでには少なくとも table_len+1 手以上かかる
