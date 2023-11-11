@@ -76,7 +76,6 @@ void KomoringHeights::NewSearch(const Position& n, bool is_root_or_node) {
   tt_.NewSearch();
   monitor_.NewSearch(tt_.Capacity(), option_.pv_interval, option_.nodes_limit);
   best_moves_.clear();
-  after_final_ = false;
   score_ = Score{};
   pv_list_.NewSearch(node);
 
@@ -121,12 +120,18 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
     const auto old_score = score_;
     const auto score = Score::Make(option_.score_method, result, n.IsRootOrNode());
 
+    if (monitor_.ShouldStop()) {
+      break;
+    }
+
     if (tl_thread_id == 0) {
       score_ = score;
     }
     auto info = CurrentInfo();
 
     if (result.Pn() == 0) {
+      node_state = NodeState::kProven;
+
       // len 以下の手数の詰みが帰ってくるはず
       KOMORI_PRECONDITION(result.Len().Len() <= len.Len());
       if (tl_thread_id == 0) {
@@ -136,22 +141,19 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
                     << "(upper_bound:" << result.Len() << ")" << sync_endl;
           Print(n);
         }
+
+        if (option_.post_search_level == PostSearchLevel::kNone ||
+            (option_.post_search_level == PostSearchLevel::kUpperBound && best_moves_.size() == result.Len().Len())) {
+          break;
+        }
       }
 
-      node_state = NodeState::kProven;
       if (result.Len().Len() <= 1) {
         break;
       }
 
-      if (option_.post_search_level == PostSearchLevel::kNone ||
-          (option_.post_search_level == PostSearchLevel::kUpperBound && best_moves_.size() == result.Len().Len())) {
-        break;
-      }
-
+      // 余詰探索に突入する
       len = result.Len() - 2;
-      if (tl_thread_id == 0) {
-        after_final_ = true;
-      }
     } else {
       if (tl_thread_id == 0 && result.Dn() == 0 && result.Len() < len) {
         sync_cout << info << "Failed to detect PV" << sync_endl;

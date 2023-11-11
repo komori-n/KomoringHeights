@@ -147,7 +147,6 @@ class KomoringHeights {
 
   std::vector<Move> best_moves_;                 ///< 詰み手順
   std::deque<ExpansionStack> expansion_list_{};  ///< 局面展開のための一時領域
-  bool after_final_{false};                      ///< 余詰探索中かどうか
   Score score_{};  ///< 現在の探索評価値。余詰探索中に CurrentInfo() で取得できるようにここにおいておく
 
   PvList pv_list_;  ///< 各手に対する PV の一覧

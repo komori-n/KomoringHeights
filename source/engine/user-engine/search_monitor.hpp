@@ -131,7 +131,7 @@ class SearchMonitor {
   bool ShouldStop() {
     const auto stop = stop_.load(std::memory_order_acquire);
     if (tl_thread_id != 0) {
-      return stop;
+      return stop || Threads.stop;
     } else if (stop) {
       // tick 状態に関係なく stop_ なら終了。
       return true;
