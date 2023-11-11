@@ -8,7 +8,7 @@
 
 #include "engine_option.hpp"
 #include "expansion_stack.hpp"
-#include "multi_pv.hpp"
+#include "pv_list.hpp"
 #include "score.hpp"
 #include "search_monitor.hpp"
 #include "search_result.hpp"
@@ -127,6 +127,8 @@ class KomoringHeights {
    */
   std::vector<Move> GetMatePath(Node& n, MateLen len);
 
+  void UpdateFinalPv(Node& n, Move move, const SearchResult& result);
+
   /// 現在の探索情報を取得する
   /// @pre メインスレッドから呼び出すこと
   UsiInfo CurrentInfo() const;
@@ -134,17 +136,9 @@ class KomoringHeights {
   /**
    * @brief 探索情報を出力する
    * @param n 現局面
-   * @param force_print show_pv_after_mate オプションがついていても構わず出力するか[default=false]
    * @pre メインスレッドから呼び出すこと
    */
-  void Print(const Node& n, bool force_print = false);
-
-  /**
-   * @brief Root 局面 `n` における探索情報を出力する
-   * @param n 探索開始局面
-   * @pre メインスレッドから呼び出すこと
-   */
-  void PrintAtRoot(const Node& n);
+  void Print(const Node& n);
 
   tt::TranspositionTable tt_;  ///< 置換表
   EngineOption option_;        ///< エンジンオプション
@@ -156,7 +150,7 @@ class KomoringHeights {
   bool after_final_{false};                      ///< 余詰探索中かどうか
   Score score_{};  ///< 現在の探索評価値。余詰探索中に CurrentInfo() で取得できるようにここにおいておく
 
-  MultiPv multi_pv_;  ///< 各手に対する PV の一覧
+  PvList pv_list_;  ///< 各手に対する PV の一覧
 };
 }  // namespace komori
 

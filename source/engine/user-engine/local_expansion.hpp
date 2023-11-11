@@ -230,6 +230,8 @@ class LocalExpansion {
    * @pre !Current().IsFinal()
    */
   Move BestMove() const { return mp_[idx_[excluded_moves_]].move; }
+  /// 最善の子の探索結果を取得する
+  const SearchResult& FrontResult() const { return results_[idx_[excluded_moves_]]; }
   /**
    * @brief unproven old child がいるかどうか
    */
@@ -420,9 +422,6 @@ class LocalExpansion {
   }
 
  private:
-  /// 最善の子の探索結果を取得する
-  const SearchResult& FrontResult() const { return results_[idx_[excluded_moves_]]; }
-
   // <PnDn>
   /// Pn を計算する
   constexpr PnDn GetPn() const {
