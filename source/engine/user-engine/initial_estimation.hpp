@@ -51,7 +51,7 @@ inline void InitBriefEvaluation(std::uint32_t thread_id) {
     std::mt19937 mt(thread_id);
     // tl_pt_values と tl_dfpn_plus_parameters へ薄い乱数を加える
 
-    std::normal_distribution<double> dist(0, 200);
+    std::normal_distribution<double> dist(0, 2000);
     for (auto& value : detail::tl_pt_values) {
       value += static_cast<int>(dist(mt));
     }

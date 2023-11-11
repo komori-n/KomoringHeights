@@ -18,7 +18,7 @@
 namespace komori::tt {
 namespace detail {
 /// LookUp() 時に加えるノイズの周期。スレッドごとに値を変えることで探索順序がばらつくようにする。
-thread_local inline std::uint32_t tt_noise_interval = 5;
+thread_local inline std::uint32_t tt_noise_interval = std::numeric_limits<std::uint32_t>::max();
 /// 次にノイズを加えるまでの残り LookUp() 回数。この値が 0 になったらノイズを加える。
 // ただし、numeric_limits::max() であれば一生ノイズを加えない。
 thread_local inline std::uint32_t tt_noise_timing = std::numeric_limits<std::uint32_t>::max();
@@ -31,9 +31,10 @@ thread_local inline std::uint32_t tt_noise_timing = std::numeric_limits<std::uin
 inline void InitializeTTNoise(std::uint32_t thread_id) {
   // main thread にはノイズを載せない
   if (thread_id != 0) {
+    static constexpr std::uint32_t kNoise[6] = {7, 6, 5, 4, 3, 2};
     // thread_id をもとにノイズ周期を変えることで、探索順序をバラバラにさせる
-    detail::tt_noise_interval += thread_id - 1;
-    detail::tt_noise_timing = detail::tt_noise_interval;
+    detail::tt_noise_interval += kNoise[(thread_id - 1) % 6];
+    detail::tt_noise_timing = thread_id;
   }
 }
 
