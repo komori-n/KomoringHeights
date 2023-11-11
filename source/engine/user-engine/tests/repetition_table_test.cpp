@@ -8,58 +8,60 @@ using komori::tt::RepetitionTable;
 TEST(RepetitionTable, Resize) {
   RepetitionTable rep_table{334};
   rep_table.Insert(33, 4, MateLen{334});
-  EXPECT_TRUE(rep_table.Contains(33));
+  EXPECT_TRUE(rep_table.Contains(33, MateLen{334}));
 
   rep_table.Resize(334);  // no effect
-  EXPECT_TRUE(rep_table.Contains(33));
+  EXPECT_TRUE(rep_table.Contains(33, MateLen{334}));
 
   rep_table.Resize(264);  // should erase Entry{33, 4}
-  EXPECT_FALSE(rep_table.Contains(33));
+  EXPECT_FALSE(rep_table.Contains(33, MateLen{334}));
 }
 
 TEST(RepetitionTable, Clear) {
   RepetitionTable rep_table;
 
   rep_table.Insert(334, 264, MateLen{334});
-  EXPECT_TRUE(rep_table.Contains(334));
+  EXPECT_TRUE(rep_table.Contains(334, MateLen{334}));
   rep_table.Clear();
-  EXPECT_FALSE(rep_table.Contains(334));
+  EXPECT_FALSE(rep_table.Contains(334, MateLen{334}));
 }
 
 TEST(RepetitionTable, Insert) {
   RepetitionTable rep_table(3340);
 
-  const MateLen len1{334};
-  const MateLen len2{264};
-  EXPECT_FALSE(rep_table.Contains(334));
+  const MateLen len1{264};
+  const MateLen len2{334};
+  EXPECT_FALSE(rep_table.Contains(334, len1));
   rep_table.Insert(334, 264, len1);
-  EXPECT_TRUE(rep_table.Contains(334));
-  EXPECT_EQ(rep_table.Contains(334)->first, 264);
-  EXPECT_EQ(rep_table.Contains(334)->second, len1);
+  EXPECT_TRUE(rep_table.Contains(334, len1));
+  EXPECT_EQ(rep_table.Contains(334, len1)->first, 264);
+  EXPECT_EQ(rep_table.Contains(334, len1)->second, len1);
+  EXPECT_FALSE(rep_table.Contains(334, len1 + 1));
   rep_table.Insert(334, 334, len2);
-  ASSERT_TRUE(rep_table.Contains(334));
-  EXPECT_EQ(rep_table.Contains(334)->first, 334);
-  EXPECT_EQ(rep_table.Contains(334)->second, len2);
+  ASSERT_TRUE(rep_table.Contains(334, len2));
+  EXPECT_EQ(rep_table.Contains(334, len2)->first, 334);
+  EXPECT_EQ(rep_table.Contains(334, len2)->second, len2);
+  EXPECT_FALSE(rep_table.Contains(334, len2 + 1));
   rep_table.Insert(334, 264, len1);
-  ASSERT_TRUE(rep_table.Contains(334));
-  EXPECT_EQ(rep_table.Contains(334)->first, 334);
-  EXPECT_EQ(rep_table.Contains(334)->second, len2);
+  ASSERT_TRUE(rep_table.Contains(334, len1));
+  EXPECT_EQ(rep_table.Contains(334, len1)->first, 334);
+  EXPECT_EQ(rep_table.Contains(334, len1)->second, len2);
 
-  EXPECT_FALSE(rep_table.Contains(335));
-  rep_table.Insert(335, 264, len1);
-  EXPECT_TRUE(rep_table.Contains(335));
+  EXPECT_FALSE(rep_table.Contains(335, len2));
+  rep_table.Insert(335, 264, len2);
+  EXPECT_TRUE(rep_table.Contains(335, len1));
 }
 
 TEST(RepetitionTable, InsertBoundary) {
   RepetitionTable rep_table(334);
   const auto max_key = std::numeric_limits<Key>::max();
   rep_table.Insert(max_key, 1, MateLen{334});
-  EXPECT_TRUE(rep_table.Contains(max_key));
-  EXPECT_FALSE(rep_table.Contains(max_key - 1));
+  EXPECT_TRUE(rep_table.Contains(max_key, MateLen{334}));
+  EXPECT_FALSE(rep_table.Contains(max_key - 1, MateLen{334}));
 
   rep_table.Insert(max_key - 1, 2, MateLen{334});
-  EXPECT_TRUE(rep_table.Contains(max_key));
-  EXPECT_TRUE(rep_table.Contains(max_key - 1));
+  EXPECT_TRUE(rep_table.Contains(max_key, MateLen{334}));
+  EXPECT_TRUE(rep_table.Contains(max_key - 1, MateLen{334}));
 }
 
 TEST(RepetitionTable, GenerationUpdate) {
@@ -92,12 +94,12 @@ TEST(RepetitionTable, CollectGarbageFirstTime) {
 
   // 0, 1, 2 should be erased
   for (std::uint32_t i = 0; i < 3; ++i) {
-    EXPECT_FALSE(rep_table.Contains(i));
+    EXPECT_FALSE(rep_table.Contains(i, MateLen{334}));
   }
 
   // 3, 4, 5 should be kept
   for (std::uint32_t i = 3; i < 6; ++i) {
-    EXPECT_TRUE(rep_table.Contains(i));
+    EXPECT_TRUE(rep_table.Contains(i, MateLen{334}));
   }
 }
 
@@ -112,11 +114,11 @@ TEST(RepetitionTable, CollectGarbageSecondTIme) {
 
   // 0-6 should be erased
   for (std::uint32_t i = 0; i < 6; ++i) {
-    EXPECT_FALSE(rep_table.Contains(i));
+    EXPECT_FALSE(rep_table.Contains(i, MateLen{334}));
   }
 
   // 6, 7, 8 should be kept
   for (std::uint32_t i = 6; i < 9; ++i) {
-    EXPECT_TRUE(rep_table.Contains(i));
+    EXPECT_TRUE(rep_table.Contains(i, MateLen{334}));
   }
 }

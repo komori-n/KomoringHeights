@@ -273,9 +273,9 @@ TEST_F(QueryTest, FinalRange_Repetition) {
   EXPECT_EQ(disproven_len2, komori::kMinus1MateLen);
   EXPECT_EQ(proven_len2, len);
 
-  rep_table_.Insert(path_key_, 264, komori::kDepthMaxMateLen);
+  rep_table_.Insert(path_key_, 264, MateLen{264});
   const auto [disproven_len3, proven_len3] = query_.FinalRange();
-  EXPECT_EQ(disproven_len3, len - 1);
+  EXPECT_EQ(disproven_len3, MateLen{264});
   EXPECT_EQ(proven_len3, len);
 }
 
@@ -355,7 +355,7 @@ TEST_F(QueryTest, SetResult_RepetitionNew) {
   EXPECT_EQ(entries_[0].Pn(), 1);
   EXPECT_EQ(entries_[0].Dn(), 1);
   EXPECT_EQ(entries_[0].Amount(), 1);
-  EXPECT_TRUE(rep_table_.Contains(path_key_));
+  EXPECT_TRUE(rep_table_.Contains(path_key_, MateLen{334}));
 }
 
 TEST_F(QueryTest, SetResult_RepetitionUpdate) {
@@ -367,5 +367,5 @@ TEST_F(QueryTest, SetResult_RepetitionUpdate) {
   EXPECT_EQ(entries_[2].Pn(), 1);
   EXPECT_EQ(entries_[2].Dn(), 1);
   EXPECT_EQ(entries_[2].Amount(), 1);
-  EXPECT_TRUE(rep_table_.Contains(path_key_));
+  EXPECT_TRUE(rep_table_.Contains(path_key_, MateLen{334}));
 }

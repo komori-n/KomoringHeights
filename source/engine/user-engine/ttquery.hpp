@@ -133,14 +133,14 @@ class Query {
         if (itr->LookUp(hand_, depth_, len, pn, dn, does_have_old_child)) {
           amount = std::max(amount, itr->Amount());
           if (pn == 0) {
-            return SearchResult::MakeFinal<true>(itr->GetHand(), itr->ProvenLen(), amount);
+            return SearchResult::MakeFinal<true>(itr->GetHand(), len, amount);
           } else if (dn == 0) {
-            return SearchResult::MakeFinal<false>(itr->GetHand(), itr->DisprovenLen(), amount);
+            return SearchResult::MakeFinal<false>(itr->GetHand(), len, amount);
           } else if (itr->IsFor(board_key_, hand_)) {
             if (itr->IsPossibleRepetition()) {
-              if (auto opt = rep_table_->Contains(path_key_)) {
-                const auto [depth, len] = opt.value();
-                return SearchResult::MakeRepetition(hand_, len, amount, depth);
+              if (auto opt = rep_table_->Contains(path_key_, len)) {
+                const auto [depth, table_len] = opt.value();
+                return SearchResult::MakeRepetition(hand_, table_len, amount, depth);
               }
             }
 
@@ -209,7 +209,6 @@ class Query {
   std::pair<MateLen, MateLen> FinalRange() const noexcept {
     MateLen disproven_len = kMinus1MateLen;
     MateLen proven_len = kDepthMaxPlus1MateLen;
-    bool found_rep = false;
 
     for (auto itr = initial_entry_pointer_; !itr->IsNull(); ++itr) {
       std::shared_lock lock(*itr);
@@ -217,14 +216,12 @@ class Query {
       if (itr->IsFor(board_key_)) {
         itr->UpdateFinalRange(hand_, disproven_len, proven_len);
 
-        if (itr->IsFor(board_key_, hand_) && itr->IsPossibleRepetition() && rep_table_->Contains(path_key_)) {
-          found_rep = true;
+        if (itr->IsFor(board_key_, hand_) && itr->IsPossibleRepetition()) {
+          if (const auto opt = rep_table_->Contains(path_key_, disproven_len)) {
+            disproven_len = std::max(disproven_len, opt->second);
+          }
         }
       }
-    }
-
-    if (found_rep) {
-      disproven_len = std::max(disproven_len, proven_len - 1);
     }
 
     return {MateLen{disproven_len}, MateLen{proven_len}};
