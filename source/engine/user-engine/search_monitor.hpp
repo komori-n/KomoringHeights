@@ -1,3 +1,6 @@
+/**
+ * @file search_monitor.hpp
+ */
 #ifndef KOMORI_SEARCH_MONITOR_HPP_
 #define KOMORI_SEARCH_MONITOR_HPP_
 

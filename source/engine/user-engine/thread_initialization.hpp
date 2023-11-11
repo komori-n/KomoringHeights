@@ -1,3 +1,6 @@
+/**
+ * @file thread_initialization.hpp
+ */
 #ifndef KOMORI_THREAD_INITIALIZATION_HPP_
 #define KOMORI_THREAD_INITIALIZATION_HPP_
 

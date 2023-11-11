@@ -1,3 +1,6 @@
+/**
+ * @file periodic_alarm.hpp
+ */
 #ifndef KOMORI_PERIODIC_ALARM_HPP_
 #define KOMORI_PERIODIC_ALARM_HPP_
 
