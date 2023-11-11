@@ -193,8 +193,6 @@ struct EngineOption {
     o["TTReadPath"] << USI::Option("");
     o["TTWritePath"] << USI::Option("");
 #endif  // defined(USE_TT_SAVE_AND_LOAD)
-
-    o["ShowPVAfterMate"] << USI::Option(false);
   }
 
   /**
