@@ -4,10 +4,12 @@
 #ifndef KOMORI_REPETITION_TABLE_HPP_
 #define KOMORI_REPETITION_TABLE_HPP_
 
+#include <optional>
 #include <shared_mutex>
 #include <vector>
 
 #include "../../types.h"
+#include "mate_len.hpp"
 #include "shared_exclusive_lock.hpp"
 
 namespace komori::tt {
@@ -26,14 +28,15 @@ namespace komori::tt {
  */
 class RepetitionTable {
  public:
-  /// 置換表世代。メモリ量をケチるために32 bitsで持つ。
-  using Generation = std::uint32_t;
+  /// 置換表世代。メモリ量をケチるために16 bitsで持つ。
+  using Generation = std::uint16_t;
 
  private:
   /// 置換表に格納するエントリ。16 bytes に詰める。
   struct TableEntry {
     Key key;                ///< 経路ハッシュ値。使用していないなら kEmptyKey。
     Depth depth;            ///< 探索深さ
+    MateLen16 len16;        ///< 不詰手数
     Generation generation;  ///< 置換表世代
   };
   static_assert(sizeof(TableEntry) == 16);
@@ -66,7 +69,7 @@ class RepetitionTable {
     next_generation_update_ = entries_per_generation_;
     next_gc_ = kInitialGcDuration;
 
-    const TableEntry initial_entry{kEmptyKey, 0, 0};
+    const TableEntry initial_entry{kEmptyKey, 0, kMinus1MateLen16, 0};
     std::fill(hash_table_.begin(), hash_table_.end(), initial_entry);
   }
 
@@ -92,8 +95,11 @@ class RepetitionTable {
    * @brief 経路ハッシュ値 `path_key` に千日手判定開始深さ `depth` を設定する
    * @param path_key 経路ハッシュ値
    * @param depth    千日手判定開始深さ
+   * @param len      詰み手数
    */
-  void Insert(Key path_key, Depth depth) {
+  void Insert(Key path_key, Depth depth, MateLen len) {
+    const MateLen16 len16{len};
+
     std::lock_guard lock(lock_);
     auto index = StartIndex(path_key);
     while (hash_table_[index].key != kEmptyKey && hash_table_[index].key != path_key) {
@@ -101,7 +107,7 @@ class RepetitionTable {
     }
 
     if (hash_table_[index].key == kEmptyKey) {
-      hash_table_[index] = TableEntry{path_key, depth, generation_};
+      hash_table_[index] = TableEntry{path_key, depth, len16, generation_};
       entry_count_++;
       if (entry_count_ >= next_generation_update_) {
         generation_++;
@@ -112,7 +118,10 @@ class RepetitionTable {
         }
       }
     } else {
-      hash_table_[index].depth = std::max(depth, hash_table_[index].depth);
+      if (depth > hash_table_[index].depth) {
+        hash_table_[index].depth = depth;
+        hash_table_[index].len16 = len16;
+      }
       hash_table_[index].generation = generation_;
     }
   }
@@ -120,13 +129,13 @@ class RepetitionTable {
   /**
    * @brief 経路ハッシュ値 `path_key` が保存されているかどうか判定する。
    * @param path_key 経路ハッシュ値
-   * @return `path_key` が保存されていればその深さ、なければ `std::nullopt`
+   * @return `path_key` が保存されていればその深さと詰み手数、なければ `std::nullopt`
    */
-  std::optional<Depth> Contains(Key path_key) const {
+  std::optional<std::pair<Depth, MateLen>> Contains(Key path_key) const {
     std::shared_lock lock(lock_);
     for (auto index = StartIndex(path_key); hash_table_[index].key != kEmptyKey; index = Next(index)) {
       if (hash_table_[index].key == path_key) {
-        return {hash_table_[index].depth};
+        return std::make_pair(hash_table_[index].depth, MateLen{hash_table_[index].len16});
       }
     }
 

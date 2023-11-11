@@ -8,6 +8,7 @@
 #include <shared_mutex>
 
 #include "board_key_hand_pair.hpp"
+#include "mate_len.hpp"
 #include "regular_table.hpp"
 #include "repetition_table.hpp"
 #include "search_result.hpp"
@@ -132,13 +133,14 @@ class Query {
         if (itr->LookUp(hand_, depth_, len, pn, dn, does_have_old_child)) {
           amount = std::max(amount, itr->Amount());
           if (pn == 0) {
-            return SearchResult::MakeFinal<true>(itr->GetHand(), len, amount);
+            return SearchResult::MakeFinal<true>(itr->GetHand(), itr->ProvenLen(), amount);
           } else if (dn == 0) {
-            return SearchResult::MakeFinal<false>(itr->GetHand(), len, amount);
+            return SearchResult::MakeFinal<false>(itr->GetHand(), itr->DisprovenLen(), amount);
           } else if (itr->IsFor(board_key_, hand_)) {
             if (itr->IsPossibleRepetition()) {
-              if (auto depth_opt = rep_table_->Contains(path_key_)) {
-                return SearchResult::MakeRepetition(hand_, len, amount, *depth_opt);
+              if (auto opt = rep_table_->Contains(path_key_)) {
+                const auto [depth, len] = opt.value();
+                return SearchResult::MakeRepetition(hand_, len, amount, depth);
               }
             }
 
@@ -308,7 +310,7 @@ class Query {
 
     entry->SetPossibleRepetition();
     entry->unlock();
-    rep_table_->Insert(path_key_, result.GetFinalData().repetition_start);
+    rep_table_->Insert(path_key_, result.GetFinalData().repetition_start, result.Len());
   }
 
   /**
