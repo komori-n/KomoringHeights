@@ -151,7 +151,7 @@ class alignas(64) Entry {
         pn_{entry.pn_},
         dn_{entry.dn_},
         repetition_state_{entry.repetition_state_},
-        min_depth_{entry.min_depth_},
+        min_depth_{entry.min_depth_.load(std::memory_order_relaxed)},
         parent_hand_{entry.parent_hand_},
         parent_board_key_{entry.parent_board_key_},
         sum_mask_{entry.sum_mask_} {}
@@ -165,7 +165,7 @@ class alignas(64) Entry {
     pn_ = entry.pn_;
     dn_ = entry.dn_;
     repetition_state_ = entry.repetition_state_;
-    min_depth_ = entry.min_depth_;
+    min_depth_.store(entry.min_depth_.load(std::memory_order_relaxed), std::memory_order_relaxed);
     parent_hand_ = entry.parent_hand_;
     parent_board_key_ = entry.parent_board_key_;
     sum_mask_ = entry.sum_mask_;
@@ -190,7 +190,7 @@ class alignas(64) Entry {
     pn_ = 1;
     dn_ = 1;
     repetition_state_ = RepetitionState::kNone;
-    min_depth_ = static_cast<std::int16_t>(kDepthMax);
+    min_depth_.store(static_cast<std::int16_t>(kDepthMax), std::memory_order_relaxed);
 
     parent_hand_ = kNullHand;
     parent_board_key_ = kNullKey;
@@ -286,7 +286,7 @@ class alignas(64) Entry {
                      Key parent_board_key,
                      Hand parent_hand) noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
-    min_depth_ = std::min(min_depth_, depth16);
+    min_depth_.store(std::min(min_depth_.load(std::memory_order_relaxed), depth16), std::memory_order_relaxed);
     pn_ = pn;
     dn_ = dn;
     parent_board_key_ = parent_board_key;
@@ -439,7 +439,7 @@ class alignas(64) Entry {
   // UpdateXxx() や LookUp() など、外部から変数が観測できないとテストの際にかなり不便なので、Getter を用意しておく。
 
   /// 最小距離
-  Depth MinDepth() const noexcept { return static_cast<Depth>(min_depth_); }
+  Depth MinDepth() const noexcept { return static_cast<Depth>(min_depth_.load(std::memory_order_relaxed)); }
   /// 詰み手数
   MateLen ProvenLen() const noexcept { return proven_len_; }
   /// 不詰手数
@@ -469,11 +469,12 @@ class alignas(64) Entry {
       pn = kInfinitePnDn;
       dn = 0;
     } else {
-      min_depth_ = std::min(min_depth_, depth16);
+      const auto min_depth = std::min(min_depth_.load(std::memory_order_relaxed), depth16);
+      min_depth_.store(min_depth, std::memory_order_relaxed);
       if (pn < pn_ || dn < dn_) {
         pn = std::max(pn, pn_);
         dn = std::max(dn, dn_);
-        if (min_depth_ < depth16) {
+        if (min_depth < depth16) {
           use_old_child = true;
         }
       }
@@ -500,9 +501,10 @@ class alignas(64) Entry {
       return true;
     }
 
-    if (min_depth_ <= depth16 && dn < dn_) {
+    const auto min_depth = min_depth_.load(std::memory_order_relaxed);
+    if (min_depth <= depth16 && dn < dn_) {
       dn = dn_;
-      if (min_depth_ < depth16) {
+      if (min_depth < depth16) {
         // unproven old child の情報を使ったときはフラグを立てておく
         use_old_child = true;
       }
@@ -529,9 +531,10 @@ class alignas(64) Entry {
       return true;
     }
 
-    if (min_depth_ <= depth16 && pn < pn_) {
+    const auto min_depth = min_depth_.load(std::memory_order_relaxed);
+    if (min_depth <= depth16 && pn < pn_) {
       pn = pn_;
-      if (min_depth_ < depth16) {
+      if (min_depth < depth16) {
         // unproven old child の情報を使ったときはフラグを立てておく
         use_old_child = true;
       }
@@ -560,7 +563,8 @@ class alignas(64) Entry {
 
   mutable SharedExclusiveLock<std::int8_t> lock_;  ///< スピンロック
   RepetitionState repetition_state_;               ///< 現局面が千日手の可能性があるか
-  mutable std::int16_t min_depth_;  ///< 最小探索深さ。`LookUp()` 中に書き換える可能性があるので mutable。
+  ///< 最小探索深さ。`LookUp()` 中に書き換える可能性があるので atomic かつ mutable。
+  mutable std::atomic<std::int16_t> min_depth_;
 
   Hand parent_hand_;      ///< 親局面の持ち駒
   Key parent_board_key_;  ///< 親局面の盤面ハッシュ値
