@@ -57,7 +57,8 @@ class PvList {
    * @brief 新しい探索を始める
    * @param n 探索開始局面
    *
-   * n における合法手によりリストを初期化する。初期状態では、すべての手の PV は {move}、探索結果は pn=1, dn=1 である。
+   * n における合法手によりリストを初期化する。初期状態では、すべての手の PV は {move}、探索結果は pn=∞/2, dn=∞/2
+   * である。
    */
   void NewSearch(const Node& n) {
     Clear();
@@ -69,7 +70,8 @@ class PvList {
     pv_info_.reserve(mp.size());
     idx_.reserve(mp.size());
     for (const auto& [i_raw, move] : WithIndex(mp)) {
-      const SearchResult result = SearchResult::MakeFirstVisit(1, 1, kDepthMaxMateLen, 1);
+      const SearchResult result =
+          SearchResult::MakeFirstVisit(kInfinitePnDn / 2, kInfinitePnDn / 2, kDepthMaxMateLen, 1);
       PvInfo info{move, 1, result, {move}};
       pv_info_.emplace_back(std::move(info));
 

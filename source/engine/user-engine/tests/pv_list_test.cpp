@@ -72,11 +72,11 @@ TEST(PvList, UpdateSecond) {
 
   pv_list.Update(move1, result1);
   const SearchResultComparer comparer{true};
-  EXPECT_EQ(comparer(result1, pv_list.GetPvList()[3].result), SearchResultComparer::Ordering::kEquivalent);
+  EXPECT_EQ(comparer(result1, pv_list.GetPvList()[0].result), SearchResultComparer::Ordering::kEquivalent);
 
   // unknown -> unknown
   pv_list.Update(move1, result2);
-  EXPECT_EQ(comparer(result2, pv_list.GetPvList()[3].result), SearchResultComparer::Ordering::kEquivalent);
+  EXPECT_EQ(comparer(result2, pv_list.GetPvList()[0].result), SearchResultComparer::Ordering::kEquivalent);
 
   // unknown -> final
   pv_list.Update(move1, result3);
