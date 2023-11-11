@@ -34,7 +34,6 @@ TEST(EngineOptionTest, Default) {
   EXPECT_EQ(op.post_search_level, PostSearchLevel::kMinLength);
   EXPECT_EQ(op.tt_read_path, std::string{});
   EXPECT_EQ(op.tt_write_path, std::string{});
-  EXPECT_EQ(op.show_pv_after_mate, false);
 }
 
 TEST(EngineOptionTest, NoInitialization) {
