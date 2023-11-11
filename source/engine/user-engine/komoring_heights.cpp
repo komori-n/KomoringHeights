@@ -480,16 +480,15 @@ void KomoringHeights::Print(const Node& n) {
     pv_list_.Update(root.BestMove(), result, n.GetDepth(), std::move(best_moves));
 
     usi_output.Set(UsiInfoKey::kCurrMove, USI::move(root.BestMove()));
-    if (!after_final_ && option_.multi_pv > 1) {
-      for (const auto& [move, result] : Take(root.GetAllResults(), option_.multi_pv)) {
-        if (move == root.BestMove() || result.IsFinal()) {
-          // best_move -> 上で更新済み
-          // final -> SearchImplForRoot で更新済み
-          continue;
-        }
-
-        pv_list_.Update(move, result);
+    // pv_list_ を昇順に並び替えるために、multi_pv_ の値に関係なくすべての子の探索結果を更新しなければならない
+    for (const auto& [move, result] : root.GetAllResults()) {
+      if (move == root.BestMove() || result.IsFinal()) {
+        // best_move -> 上で更新済み
+        // final -> SearchImplForRoot で更新済み
+        continue;
       }
+
+      pv_list_.Update(move, result);
     }
   } else if (!pv_list_.BestMoves().empty()) {
     usi_output.Set(UsiInfoKey::kCurrMove, USI::move(pv_list_.BestMoves()[0]));
