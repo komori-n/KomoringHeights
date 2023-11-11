@@ -56,7 +56,7 @@ inline void InitBriefEvaluation(std::uint32_t thread_id) {
       value += static_cast<int>(dist(mt));
     }
 
-    std::discrete_distribution<PnDn> discrete_dist({0.7, 0.25, 0.05});
+    std::discrete_distribution<PnDn> discrete_dist({0.7, 0.30});
     // pn_base と dn_base はいじらないほうが強そう
     // detail::kDfpnPlusParameters.or_pn_base += discrete_dist(mt);
     // detail::kDfpnPlusParameters.or_dn_base += discrete_dist(mt);
