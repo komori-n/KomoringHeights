@@ -45,6 +45,57 @@ std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, Mat
 
   return {best_move, best_len};
 }
+
+std::pair<Move, MateLen> LookUpBestMoveOrNode(tt::TranspositionTable& tt, Node& n) {
+  Move best_move = MOVE_NONE;
+  MateLen best_proven_len = kDepthMaxPlus1MateLen;
+  MateLen best_disproven_len = kMinus1MateLen;
+  for (const auto move : MovePicker{n}) {
+    const auto query = tt.BuildChildQuery(n, move.move);
+    const auto [disproven_len, proven_len] = query.FinalRange();
+    if (proven_len < best_proven_len || (proven_len == best_proven_len && disproven_len > best_disproven_len)) {
+      best_move = move.move;
+      best_proven_len = proven_len;
+      best_disproven_len = disproven_len;
+    }
+  }
+
+  return {best_move, best_proven_len};
+}
+
+std::pair<Move, MateLen> LookUpBestMoveAndNode(tt::TranspositionTable& tt, Node& n) {
+  Move best_move = MOVE_NONE;
+  MateLen best_proven_len = kMinus1MateLen;
+  MateLen best_disproven_len = kDepthMaxPlus1MateLen;
+  for (const auto move : MovePicker{n}) {
+    const auto query = tt.BuildChildQuery(n, move.move);
+    const auto [disproven_len, proven_len] = query.FinalRange();
+    if (proven_len > best_proven_len || (proven_len == best_proven_len && disproven_len < best_disproven_len)) {
+      best_move = move.move;
+      best_proven_len = proven_len;
+      best_disproven_len = disproven_len;
+    }
+  }
+
+  return {best_move, best_proven_len};
+}
+
+std::pair<Move, MateLen> LookUpMaxDisprovenAndNode(tt::TranspositionTable& tt, Node& n) {
+  Move best_move = MOVE_NONE;
+  MateLen best_proven_len = kDepthMaxPlus1MateLen;
+  MateLen best_disproven_len = kMinus1MateLen;
+  for (const auto move : MovePicker{n}) {
+    const auto query = tt.BuildChildQuery(n, move.move);
+    const auto [disproven_len, proven_len] = query.FinalRange();
+    if (disproven_len > best_disproven_len || (disproven_len == best_disproven_len && proven_len < best_proven_len)) {
+      best_move = move.move;
+      best_proven_len = proven_len;
+      best_disproven_len = disproven_len;
+    }
+  }
+
+  return {best_move, best_proven_len};
+}
 }  // namespace
 
 void KomoringHeights::Init(const EngineOption& option, std::uint32_t num_threads) {
@@ -162,7 +213,9 @@ std::pair<NodeState, MateLen> KomoringHeights::SearchMainLoop(Node& n) {
       if (len != kDepthMaxMateLen) {
         len = len + 2;
         if (tl_thread_id == 0) {
-          best_moves_ = pv_list_.BestMoves();
+          best_moves_ = GetMatePath(n, len, true);
+          const auto final_result = SearchResult::MakeFinal<true>(n.OrHand(), len - 1, result.Amount());
+          pv_list_.Update(best_moves_[0], final_result, 0, best_moves_);
           score_ = old_score;
         }
       } else {
@@ -394,8 +447,9 @@ std::optional<Move> KomoringHeights::GetEvasion(Node& n) {
   return std::nullopt;
 }
 
-std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
+std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len, bool exact) {
   std::vector<Move> best_moves;
+  pv_search_ = true;
   while (len.Len() > 0) {
     // 1手詰はTTに書かれていない可能性があるので先にチェックする
     const auto [move, hand] = CheckMate1Ply(n);
@@ -406,24 +460,83 @@ std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len) {
     }
 
     // 子ノードの中から最善っぽい手を選ぶ
-    auto [best_move, new_len] = LookUpBestMove(tt_, n, len);
-    if (best_move == MOVE_NONE) {
-      tt_.NewSearch();
-      SearchEntry(n, len);
+    const auto [best_move, next_len] =
+        (n.IsOrNode() ? GetBestMoveOrNode(n, len, exact) : GetBestMoveAndNode(n, len, exact));
 
-      std::tie(best_move, new_len) = LookUpBestMove(tt_, n, len);
-      if (best_move == MOVE_NONE) {
-        break;
-      }
+    if (best_move == MOVE_NONE) {
+      break;
     }
 
-    len = new_len;
+    len = next_len;
     n.DoMove(best_move);
     best_moves.push_back(best_move);
   }
+  pv_search_ = false;
 
   RollBack(n, best_moves);
   return best_moves;
+}
+
+std::pair<Move, MateLen> KomoringHeights::GetBestMoveOrNode(Node& n, MateLen len, bool exact) {
+  KOMORI_PRECONDITION(n.IsOrNode());
+  if (!exact) {
+    const auto [move, proven_len] = LookUpBestMoveOrNode(tt_, n);
+    if (proven_len + 1 <= len) {  // proven_len <= len - 1
+      return {move, proven_len};
+    }
+  }
+
+  tt_.NewSearch();
+  auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
+  std::uint32_t inc_flag = 0;
+  SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len, inc_flag);
+  const auto [move, result] = expansion.GetAllResults()[0];
+  expansion_list_[tl_thread_id].Pop();
+
+  // exact, !exact の両方のケースで len 手以下の詰みになるような手を返せば良い
+  if (result.Pn() != 0 || result.Len() + 1 > len) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    return {MOVE_NONE, kDepthMaxMateLen};
+  }
+
+  return {move, result.Len()};
+}
+
+std::pair<Move, MateLen> KomoringHeights::GetBestMoveAndNode(Node& n, MateLen len, bool exact) {
+  KOMORI_PRECONDITION(!n.IsOrNode());
+  if (exact) {
+    tt_.NewSearch();
+    auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len - 2, true, BitSet64::Full(), option_.multi_pv);
+    std::uint32_t inc_flag = 0;
+    SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len - 2, inc_flag);
+    const auto [move2, result] = expansion.GetAllResults()[0];
+    expansion_list_[tl_thread_id].Pop();
+
+    // len - 2 手の探索で詰みを逃れる手が見つかるはずなので、それを返す
+    if (result.Dn() != 0) {
+      sync_cout << "info string error: failed to get best move (and node)@" << n.GetDepth() << sync_endl;
+      return {MOVE_NONE, kDepthMaxMateLen};
+    }
+    return {move2, len - 1};
+  } else {
+    const auto [move, proven_len] = LookUpBestMoveAndNode(tt_, n);
+    if (proven_len + 1 <= len) {  // proven_len <= len - 1
+      return {move, proven_len};
+    }
+
+    tt_.NewSearch();
+    auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
+    std::uint32_t inc_flag = 0;
+    SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len, inc_flag);
+    const auto [move2, result] = expansion.GetAllResults()[0];
+    expansion_list_[tl_thread_id].Pop();
+
+    if (result.Pn() != 0 || result.Len() + 1 > len) {
+      sync_cout << "info string error: failed to get best move (and node)@" << n.GetDepth() << sync_endl;
+      return {MOVE_NONE, kDepthMaxMateLen};
+    }
+    return {move2, result.Len()};
+  }
 }
 
 void KomoringHeights::UpdateFinalPv(Node& n, Move move, const SearchResult& result) {
@@ -449,7 +562,7 @@ void KomoringHeights::UpdateFinalPv(Node& n, Move move, const SearchResult& resu
   } else {  // (child_result.Dn() == 0 && pv_list_.IsProven(move))
     std::vector<Move> pv{move};
     n.DoMove(move);
-    const auto best_moves = GetMatePath(n, kDepthMaxMateLen);
+    const auto best_moves = GetMatePath(n, kDepthMaxMateLen, false);
     pv.insert(pv.end(), best_moves.begin(), best_moves.end());
     n.UndoMove();
 
@@ -473,7 +586,7 @@ void KomoringHeights::Print(const Node& n) {
   }
 
   auto usi_output = CurrentInfo();
-  if (!expansion_list_[0].IsEmpty()) {
+  if (!expansion_list_[0].IsEmpty() && !pv_search_) {
     // 探索中なら現在の探索情報で pv_list_ を更新する
     const auto& root = expansion_list_[0].Root();
     const auto result = root.FrontResult();

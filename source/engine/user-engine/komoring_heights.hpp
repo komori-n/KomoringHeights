@@ -122,10 +122,28 @@ class KomoringHeights {
    * @brief 現時点の探索結果から詰め手順を取得する
    * @param n 現局面
    * @param len 詰み手数の上限値
+   * @param exact 正確に len 手詰を取得するか（default: false）
    * @return 詰み手順
    * @pre メインスレッドから呼び出すこと
    */
-  std::vector<Move> GetMatePath(Node& n, MateLen len);
+  std::vector<Move> GetMatePath(Node& n, MateLen len, bool exact = false);
+
+  /**
+   * @brief OR node `n` における len 手以下詰めの最善手とそのときの詰み手数を取得する
+   * @param n 現局面
+   * @param len 詰み手数の上限値
+   * @param exact 正確に len 手詰を取得するか
+   * @return 最善手とそのときの詰み手数
+   */
+  std::pair<Move, MateLen> GetBestMoveOrNode(Node& n, MateLen len, bool exact);
+  /**
+   * @brief AND node `n` における len 手以下詰めの最善手とそのときの詰み手数を取得する
+   * @param n 現局面
+   * @param len 詰み手数の上限値
+   * @param exact 正確に len 手詰を取得するか
+   * @return 最善手とそのときの詰み手数
+   */
+  std::pair<Move, MateLen> GetBestMoveAndNode(Node& n, MateLen len, bool exact);
 
   void UpdateFinalPv(Node& n, Move move, const SearchResult& result);
 
@@ -142,6 +160,7 @@ class KomoringHeights {
 
   tt::TranspositionTable tt_;  ///< 置換表
   EngineOption option_;        ///< エンジンオプション
+  bool pv_search_{false};      ///< 現在PV探索中かどうか
 
   SearchMonitor monitor_;  ///< 探索モニター
 
