@@ -63,6 +63,16 @@ constexpr inline SearchAmount kFinalAmountBonus{1000};
  * エントリが使える状態になる。エントリがもう必要なくなった場合、`SetNull()` により無効値をセットできる。
  * 無効値がセットされたエントリは `Init()` によりまた上書きして使用することができる。
  *
+ * ### 排他処理
+ *
+ * エントリは複数スレッドから同時に読み書きされる可能性があるので、mutex を用いて排他処理を行う必要がある。
+ * TTEntry では、共有排他ミューテックス（Shared-Exclusive mutex）を使用して排他処理を実現している。そのため、
+ * TTEntry を読む場合は lock_shared()/unlock_shared() を、TTEntry へ書く場合は lock()/unlock() をそれぞれ用いること。
+ * なお、ロックには `std::lock_guard` や `std::shared_lock` を用いると便利。
+ *
+ * なお、高速化のために `IsNull()` は排他処理を行わずに呼ぶことができる。これにより、ロックのタイミングを少しだけ
+ * 遅らせることができる。なお、その場合でもロック後に改めて `IsNull()` の確認が必要になるので注意すること。
+ *
  * ### 無効値判定
  *
  * 無効値の判定は `hand_` の値が `kNullHand` かどうかを調べることにより行う。無効値の判定は TT のガベージコレクションや
@@ -77,8 +87,11 @@ constexpr inline SearchAmount kFinalAmountBonus{1000};
  * - SetNull()
  * - IsNull()
  * - IsFor(key, hand)
+ * - LookUp()
  *
  * 上記以外の関数をコールしたときの挙動は未定義なので注意すること。
+ *
+ * なお、無効かどうかの判定はロックフリーで行うことができる。
  *
  * ### 千日手判定
  *
@@ -132,7 +145,7 @@ constexpr inline SearchAmount kFinalAmountBonus{1000};
  * ### SumMask
  *
  * 詰将棋探索では、pn/dn の二重カウントによる発散を防ぐために、δ値の和を取るべき箇所を max で代用したい場面がある。
- * SumMask は、現局面の子ノードのうちδ値を和で計算すべき子の集合を表す。この値は UpdateUnknown() で更新される。
+ * SumMask は、現局面の子ノードのうちδ値を和で計算すべき子の集合を表す。この値は UpdateExact() で更新される。
  *
  * SumMask のデフォルト値は `BitSet64::Full()` である。すなわち、初期状態はすべての子のδ値を和で計算する。
  * この値は探索部に依存する値なので、このファイル内で初期化を行っているのは本当は良くない。
@@ -141,7 +154,11 @@ class alignas(64) Entry {
  public:
   /// Default constructor(default)
   Entry() noexcept = default;
-  /// Copy constructor
+  /**
+   * @brief Copy constructor
+   *
+   * Atomic 変数と mutex はコピー負荷なので、明示的にコピーコンストラクタを定義する。
+   */
   Entry(const Entry& entry) noexcept
       : hand_{entry.hand_.load(std::memory_order_relaxed)},
         amount_{entry.amount_},
@@ -155,7 +172,11 @@ class alignas(64) Entry {
         parent_hand_{entry.parent_hand_},
         parent_board_key_{entry.parent_board_key_},
         sum_mask_{entry.sum_mask_} {}
-  /// Copy assign operator
+  /**
+   * @brief Copy assign operator
+   *
+   * コンパクションで使用する。Atomic 変数と mutex はコピー負荷なので、明示的にコピーコンストラクタを定義する。
+   */
   Entry& operator=(const Entry& entry) noexcept {
     hand_.store(entry.hand_.load(std::memory_order_relaxed), std::memory_order_relaxed);
     amount_ = entry.amount_;
@@ -206,7 +227,10 @@ class alignas(64) Entry {
    * @pre `lock()` によりロックされている
    */
   void unlock() const { lock_.unlock(); }
-  /// エントリの共有ロックを解除する
+  /**
+   * @brief エントリの共有ロックを解除する
+   * @pre `lock_shared()` によりロックされている
+   */
   void unlock_shared() const { lock_.unlock_shared(); }
   /// エントリに無効値を設定する。この関数に限っては共有ロックを取得せずに使用することができる。
   void SetNull() noexcept { hand_.store(kNullHand, std::memory_order_relaxed); }
@@ -347,10 +371,10 @@ class alignas(64) Entry {
    *
    * 細かいことを言うと、
    *     現局面とエントリが一致 <=> 現局面が優等局面 ∧ 現局面が劣等局面
-   * が成り立つので LookUpUnknown() はそれほど必要ではないが、実際には優等局面・劣等局面よりも一致局面のほうが
+   * が成り立つので LookUpExact() はそれほど必要ではないが、実際には優等局面・劣等局面よりも一致局面のほうが
    * 頻繁に現れ、かつ容易に一致局面かどうかの判定ができるため、別処理にしたほうが高速化できる。
    */
-  bool LookUp(Hand hand, Depth depth, MateLen& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
+  bool LookUp(Hand hand, Depth depth, MateLen len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     const auto depth16 = static_cast<std::int16_t>(depth);
 
     // 1. 現局面とエントリが一致
@@ -457,15 +481,14 @@ class alignas(64) Entry {
    * @param len      見つけたい詰み手数
    * @param pn       pn
    * @param dn       dn
+   * @param use_old_child unproven old childフラグ
    * @return 必ず `true`
    */
-  bool LookUpExact(std::int16_t depth16, MateLen& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
+  bool LookUpExact(std::int16_t depth16, MateLen len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     if (len >= proven_len_) {
-      len = proven_len_;
       pn = 0;
       dn = kInfinitePnDn;
     } else if (len <= disproven_len_) {
-      len = disproven_len_;
       pn = kInfinitePnDn;
       dn = 0;
     } else {
@@ -490,12 +513,12 @@ class alignas(64) Entry {
    * @param len      見つけたい詰み手数
    * @param pn       pn
    * @param dn       dn
+   * @param use_old_child unproven old childフラグ
    * @return pn/dn を更新したら `true`
    */
-  bool LookUpSuperior(std::int16_t depth16, MateLen& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
+  bool LookUpSuperior(std::int16_t depth16, MateLen len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     if (len >= proven_len_) {
       // 優等局面は高々 `proven_len_` 手詰み。
-      len = proven_len_;
       pn = 0;
       dn = kInfinitePnDn;
       return true;
@@ -519,13 +542,13 @@ class alignas(64) Entry {
    * @param len      見つけたい詰み手数
    * @param pn       pn
    * @param dn       dn
+   * @param use_old_child unproven old childフラグ
    * @return pn/dn を更新したら `true`
    */
-  bool LookUpInferior(std::int16_t depth16, MateLen& len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
+  bool LookUpInferior(std::int16_t depth16, MateLen len, PnDn& pn, PnDn& dn, bool& use_old_child) const noexcept {
     // LookUpしたい局面は Entry に保存されている局面の劣等局面
     if (len <= disproven_len_) {
       // 劣等局面は少なくとも `disproven_len_` 手不詰。
-      len = disproven_len_;
       pn = kInfinitePnDn;
       dn = 0;
       return true;

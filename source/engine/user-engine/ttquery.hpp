@@ -31,8 +31,8 @@ thread_local inline std::uint32_t tt_noise_timing = std::numeric_limits<std::uin
 inline void InitializeTTNoise(std::uint32_t thread_id) {
   // main thread にはノイズを載せない
   if (thread_id != 0) {
+    // 各スレッドに少しずつノイズを乗せる。
     static constexpr std::uint32_t kNoise[6] = {7, 6, 5, 4, 3, 2};
-    // thread_id をもとにノイズ周期を変えることで、探索順序をバラバラにさせる
     detail::tt_noise_interval += kNoise[(thread_id - 1) % 6];
     detail::tt_noise_timing = thread_id;
   }
@@ -113,9 +113,6 @@ class Query {
    *
    * 一般に、初期化関数の呼び出しは実行コストがかかる。そのため、初期化関数は `eval_func` に包んで渡す。
    * 必要な時のみ `eval_func` の呼び出しを行うことで、呼び出さないパスの高速化ができる。
-   *
-   * @note 詰将棋エンジンで最も最適化の効果がある関数。1回1回の呼び出し時間は大したことがないが、探索中にたくさん
-   * 呼ばれるため、ループアンローリングなどの小手先の高速化でかなり全体の処理性能向上に貢献できる。
    */
   template <typename InitialEvalFunc>
   SearchResult LookUp(bool& does_have_old_child, MateLen len, InitialEvalFunc&& eval_func) const {
@@ -134,9 +131,9 @@ class Query {
         if (itr->LookUp(hand_, depth_, len, pn, dn, does_have_old_child)) {
           amount = std::max(amount, itr->Amount());
           if (pn == 0) {
-            return SearchResult::MakeFinal<true>(itr->GetHand(), len, amount);
+            return SearchResult::MakeFinal<true>(itr->GetHand(), itr->ProvenLen(), amount);
           } else if (dn == 0) {
-            return SearchResult::MakeFinal<false>(itr->GetHand(), len, amount);
+            return SearchResult::MakeFinal<false>(itr->GetHand(), itr->DisprovenLen(), amount);
           } else if (itr->IsFor(board_key_, hand_)) {
             if (itr->IsPossibleRepetition()) {
               if (auto opt = rep_table_->Contains(path_key_, len)) {
@@ -256,18 +253,19 @@ class Query {
    * @return 見つけた or 作成したエントリ。`lock()` された状態で返るので、参照が完了したら必ず `unlock()` を呼ぶこと。
    */
   Entry* FindOrCreate(Hand hand) const noexcept {
-    // 高速化のために、見つけたエントリを lock() された状態のまま返す
-    cached_entry_->lock();
-    if (cached_entry_->IsFor(board_key_, hand)) {
-      return cached_entry_;
+    if (!cached_entry_->IsNull()) {
+      cached_entry_->lock();
+      if (cached_entry_->IsFor(board_key_, hand)) {
+        return cached_entry_;
+      }
+      cached_entry_->unlock();
     }
-    cached_entry_->unlock();
 
-    auto itr = initial_entry_pointer_;
-    for (;; ++itr) {
+    for (auto itr = initial_entry_pointer_;; ++itr) {
       itr->lock();
       if (itr->IsNull()) {
-        break;
+        itr->Init(board_key_, hand);
+        return cached_entry_ = &*itr;
       }
 
       if (itr->IsFor(board_key_, hand)) {
@@ -275,8 +273,6 @@ class Query {
       }
       itr->unlock();
     }
-    itr->Init(board_key_, hand);
-    return cached_entry_ = &*itr;
   }
 
   /**
@@ -287,7 +283,7 @@ class Query {
   template <bool kIsProven>
   void SetFinal(const SearchResult& result) const noexcept {
     const auto hand = result.GetFinalData().hand;
-    auto entry = FindOrCreate(hand);
+    auto* const entry = FindOrCreate(hand);
     const auto len = result.Len();
     const auto amount = result.Amount();
 
@@ -304,7 +300,7 @@ class Query {
    * @param result 探索結果（千日手）
    */
   void SetRepetition(const SearchResult& result) const noexcept {
-    auto entry = FindOrCreate(hand_);
+    auto* const entry = FindOrCreate(hand_);
 
     entry->SetPossibleRepetition();
     entry->unlock();
@@ -322,7 +318,7 @@ class Query {
     const auto sum_mask = result.GetUnknownData().sum_mask;
     const auto [parent_board_key, parent_hand] = parent_key_hand_pair;
 
-    auto entry = FindOrCreate(hand_);
+    auto* const entry = FindOrCreate(hand_);
     entry->UpdateUnknown(depth_, pn, dn, amount, sum_mask, parent_board_key, parent_hand);
     entry->unlock();
   }
