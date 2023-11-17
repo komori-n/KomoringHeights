@@ -4,6 +4,7 @@
 #ifndef KOMORI_TTENTRY_HPP_
 #define KOMORI_TTENTRY_HPP_
 
+#include <atomic>
 #include <cstdint>
 
 #include "bitset.hpp"
@@ -492,8 +493,10 @@ class alignas(64) Entry {
       pn = kInfinitePnDn;
       dn = 0;
     } else {
-      const auto min_depth = std::min(min_depth_.load(std::memory_order_relaxed), depth16);
-      min_depth_.store(min_depth, std::memory_order_relaxed);
+      const auto min_depth = min_depth_.load(std::memory_order_relaxed);
+      if (depth16 < min_depth) {
+        min_depth_.store(depth16, std::memory_order_relaxed);
+      }
       if (pn < pn_ || dn < dn_) {
         pn = std::max(pn, pn_);
         dn = std::max(dn, dn_);
