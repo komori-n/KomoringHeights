@@ -91,6 +91,14 @@ inline std::optional<SearchResult> CheckObviousFinalOrNode(Node& n) {
  *
  * 基本的には legacy df-pn のように和で計上するが、`IsSumDeltaNode()` に当てはまるノードと二重カウント検出された子は
  * 最大値で計算することでδ値の発散を抑える。
+ *
+ * ### MultiPV
+ *
+ * multi_pv > 1 のとき、勝ちになる手が見つかった後も multi_pv 個の勝ちが見つかるまでは探索を続ける。ここで、
+ * 勝ちになる手とは OR node では詰む手、AND node では不詰になる手のことである。
+ *
+ * 勝ちになる手は、以降の探索から除外される。除外されている手の個数は `excluded_moves_` で管理されている。
+ * `BestMove()` や `FrontResult()` で現時点の最善手を取得するとき、除外された手は最善手に含まれないので注意すること。
  */
 class LocalExpansion {
  private:
@@ -230,7 +238,10 @@ class LocalExpansion {
    * @pre !Current().IsFinal()
    */
   Move BestMove() const { return mp_[idx_[excluded_moves_]].move; }
-  /// 最善の子の探索結果を取得する
+  /**
+   * @brief 最善の子の探索結果を取得する
+   * @pre !Current().IsFinal()
+   */
   const SearchResult& FrontResult() const { return results_[idx_[excluded_moves_]]; }
   /**
    * @brief unproven old child がいるかどうか
@@ -271,10 +282,10 @@ class LocalExpansion {
    * スキップすることがある。
    */
   SearchResult CurrentResult(const Node& n) const {
-    if (GetPn() == 0) {
-      return GetProvenResult(n);
-    } else if (GetDn() == 0) {
-      return GetDisprovenResult(n);
+    if (GetPhi() == 0) {
+      return GetWinResult(n);
+    } else if (GetDelta() == 0) {
+      return GetLoseResult(n);
     } else {
       return GetUnknownResult(n);
     }
@@ -538,17 +549,83 @@ class LocalExpansion {
     }
   }
 
-  /// 探索結果を取得する（詰み局面）
-  SearchResult GetProvenResult(const Node& n) const {
-    if (or_node_) {
-      // excluded_moves_ に関係なく最も良い手がほしいので FrontResult() は使えない
-      const auto& result = results_[idx_.front()];
-      const auto best_move = mp_[idx_[0]];
-      const auto proof_hand = BeforeHand(n.Pos(), best_move, result.GetFinalData().hand);
-      const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
-      const auto amount = result.Amount() + mp_.size() - 1;
+  /// 探索結果を取得する（手番側から見て勝ち局面）
+  SearchResult GetWinResult(const Node& n) const {
+    // excluded_moves_ に関係なく最も良い手がほしいので FrontResult() は使えない
+    const auto& result = results_[idx_.front()];
+    const auto best_move = mp_[idx_[0]];
+    const auto mate_len = result.Len() + 1;
+    const auto amount = result.Amount() + mp_.size() - 1;
+    const auto after_hand = result.GetFinalData().hand;
 
+    if (or_node_) {
+      const auto proof_hand = BeforeHand(n.Pos(), best_move, after_hand);
       return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
+    } else {
+      auto disproof_hand = after_hand;
+
+      // 駒打ちならその駒を持っていないといけない
+      if (is_drop(best_move)) {
+        const auto pr = move_dropped_piece(best_move);
+        const auto pr_cnt = hand_count(MergeHand(n.OrHand(), n.AndHand()), pr);
+        const auto disproof_pr_cnt = hand_count(disproof_hand, pr);
+        if (pr_cnt - disproof_pr_cnt <= 0) {
+          // もし現局面の攻め方の持ち駒が disproof_hand だった場合、打とうとしている駒 pr が攻め方に独占されているため
+          // 受け方は BestMove() を着手することができない。そのため、攻め方の持ち駒を1枚受け方に渡す必要がある。
+
+          // 現局面で OR node + AND node の pr の持ち駒枚数を N とすると、OR node 側の pr の枚数が N-1 になるように
+          // disproof_hand を調整する。このとき、disproof_hand の pr 枚数が N より大きい可能性があるので注意。
+          sub_hand(disproof_hand, pr, disproof_pr_cnt - pr_cnt + 1);
+        }
+      }
+
+      // 千日手のときは MakeRepetition で返す
+      if (result.GetFinalData().IsRepetition()) {
+        const auto depth = result.GetFinalData().repetition_start;
+        if (depth < n.GetDepth()) {
+          return SearchResult::MakeRepetition(n.OrHand(), mate_len, amount, depth);
+        }
+      }
+      return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
+    }
+  }
+
+  /// 探索結果を取得する（手番側から見て負け局面）
+  SearchResult GetLoseResult(const Node& n) const {
+    if (or_node_) {
+      // 子局面の反証駒の極大集合を計算する
+      HandSet set{DisproofHandTag{}};
+      MateLen mate_len = len_;
+      SearchAmount amount = 1;
+      for (const auto i_raw : idx_) {
+        const auto& result = results_[i_raw];
+        const auto child_move = mp_[i_raw];
+        const auto child_disproof_hand = BeforeHand(n.Pos(), child_move, result.GetFinalData().hand);
+
+        set.Update(child_disproof_hand);
+        amount = std::max(amount, result.Amount());
+        if (result.Len() < mate_len) {
+          mate_len = result.Len();
+        }
+      }
+
+      // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
+      // なお、子の個数が空の場合があるので注意。
+      amount += std::max<SearchAmount>(mp_.size(), 1) - 1;
+
+      // 千日手のときは MakeRepetition で返す
+      if (!mp_.empty()) {
+        // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
+        if (const auto& result = results_[idx_.front()]; result.GetFinalData().IsRepetition()) {
+          const auto depth = result.GetFinalData().repetition_start;
+          const auto amount = result.Amount();
+          if (depth < n.GetDepth()) {
+            return SearchResult::MakeRepetition(n.OrHand(), mate_len + 1, amount, depth);
+          }
+        }
+      }
+      const auto disproof_hand = set.Get(n.Pos());
+      return SearchResult::MakeFinal<false>(disproof_hand, mate_len + 1, amount);
     } else {
       // 子局面の証明駒の極小集合を計算する
       HandSet set{ProofHandTag{}};
@@ -559,76 +636,14 @@ class LocalExpansion {
 
         set.Update(result.GetFinalData().hand);
         amount = std::max(amount, result.Amount());
-        if (MateLen{result.Len()} + 1 > mate_len) {
-          mate_len = std::min(MateLen{result.Len()} + 1, kDepthMaxMateLen);
+        if (result.Len() > mate_len) {
+          mate_len = result.Len();
         }
       }
 
-      // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
-      // なお、子の個数が空の場合があるので注意。
       amount += std::max<SearchAmount>(mp_.size(), 1) - 1;
-
       const auto proof_hand = set.Get(n.Pos());
-      return SearchResult::MakeFinal<true>(proof_hand, mate_len, amount);
-    }
-  }
-
-  /// 探索結果を取得する（不詰局面）
-  SearchResult GetDisprovenResult(const Node& n) const {
-    // children_ は千日手エントリが手前に来るようにソートされているので、以下のようにして千日手判定ができる
-    if (!mp_.empty()) {
-      // excluded_moves_ に関係なく最も良い手がほしいので FrontResult() は使えない
-      if (const auto& result = results_[idx_.front()]; result.GetFinalData().IsRepetition()) {
-        const auto depth = result.GetFinalData().repetition_start;
-        const auto amount = result.Amount();
-        if (depth < n.GetDepth()) {
-          return SearchResult::MakeRepetition(n.OrHand(), len_, amount, depth);
-        } else {
-          return SearchResult::MakeFinal<false>(n.OrHand(), len_, amount);
-        }
-      }
-    }
-
-    // フツーの不詰
-    if (or_node_) {
-      // 子局面の反証駒の極大集合を計算する
-      HandSet set{DisproofHandTag{}};
-      MateLen mate_len = kDepthMaxMateLen;
-      SearchAmount amount = 1;
-      for (const auto i_raw : idx_) {
-        const auto& result = results_[i_raw];
-        const auto child_move = mp_[i_raw];
-
-        set.Update(BeforeHand(n.Pos(), child_move, result.GetFinalData().hand));
-        amount = std::max(amount, result.Amount());
-        if (result.Len() + 1 < mate_len) {
-          mate_len = result.Len() + 1;
-        }
-      }
-      amount += std::max<SearchAmount>(mp_.size(), 1) - 1;
-      const auto disproof_hand = set.Get(n.Pos());
-
-      return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
-    } else {
-      const auto& result = results_[idx_.front()];
-      auto disproof_hand = result.GetFinalData().hand;
-      const auto mate_len = std::min(result.Len() + 1, kDepthMaxMateLen);
-      const auto amount = result.Amount() + mp_.size() - 1;
-
-      // 駒打ちならその駒を持っていないといけない
-      if (const auto best_move = mp_[idx_[0]]; is_drop(best_move)) {
-        const auto pr = move_dropped_piece(best_move);
-        const auto pr_cnt = hand_count(MergeHand(n.OrHand(), n.AndHand()), pr);
-        const auto disproof_pr_cnt = hand_count(disproof_hand, pr);
-        if (pr_cnt - disproof_pr_cnt <= 0) {
-          // もし現局面の攻め方の持ち駒が disproof_hand だった場合、打とうとしている駒 pr が攻め方に独占されているため
-          // 受け方は BestMove() を着手することができない。そのため、攻め方の持ち駒を何枚か受け方に渡す必要がある。
-          sub_hand(disproof_hand, pr, disproof_pr_cnt);
-          add_hand(disproof_hand, pr, pr_cnt - 1);
-        }
-      }
-
-      return SearchResult::MakeFinal<false>(disproof_hand, mate_len, amount);
+      return SearchResult::MakeFinal<true>(proof_hand, mate_len + 1, amount);
     }
   }
 
@@ -691,8 +706,8 @@ class LocalExpansion {
   /// 現局面の評価値が古い探索情報に基づくものかどうか。TCA の探索延長の判断に用いる。
   bool does_have_old_child_{false};
 
-  PnDn sum_delta_except_best_;  ///< 和でδを計上する子のうち現局面を除いたもののδ値の和
-  PnDn max_delta_except_best_;  ///< 最大値でδを計上する子のうち現局面を除いたもののδ値の最大値
+  PnDn sum_delta_except_best_;  ///< 和でδを計上する子のうち最善手・excluded_moves_ を除いたもののδ値の和
+  PnDn max_delta_except_best_;  ///< 最大値でδを計上する子のうち最善手・excluded_moves_ を除いたもののδ値の最大値
 
   /// δ値を和で計算すべき子の一覧。ビットが立っている子は和、立っていない子は最大値で計上する。
   BitSet64 sum_mask_;
@@ -701,7 +716,7 @@ class LocalExpansion {
 
   /// 勝ちになる手を見つけた個数
   /// multi_pv_ == 1 のときは、この値は常に 0 である。multi_pv_ > 1 のとき、勝ち（phi==0）を見つけた後に探索を続ける
-  /// 際に用いる。常に excluded_moves_ < multi_pv_ - 1 かつ excluded_moves_ < mp_.size() である。
+  /// 際に用いる。常に excluded_moves_ <= multi_pv_ - 1 かつ excluded_moves_ <= mp_.size() である。
   std::uint32_t excluded_moves_{0};
 };
 }  // namespace komori
