@@ -111,14 +111,6 @@ class KomoringHeights {
   SearchResult SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen len, std::uint32_t& inc_flag);
 
   /**
-   * @brief `n` が AND node かつ不詰のとき、不詰になるような手を1つ返す
-   * @param n 現局面
-   * @return 不詰になる応手
-   * @pre メインスレッドから呼び出すこと
-   */
-  std::optional<Move> GetEvasion(Node& n);
-
-  /**
    * @brief 現時点の探索結果から詰め手順を取得する
    * @param n 現局面
    * @param len 詰み手数の上限値
@@ -145,6 +137,18 @@ class KomoringHeights {
    */
   std::pair<Move, MateLen> GetBestMoveAndNode(Node& n, MateLen len, bool exact);
 
+  /**
+   * @brief `move` に対する PV を構成して `pv_list_` を更新する
+   * @param n       現局面
+   * @param move    PV に追加する手
+   * @param result  探索結果
+   *
+   * `move` が詰みのとき、詰みに至るまでの手順を1つ `pv_list_` へ登録する。このとき、`result.Len()` に書かれた
+   * 手数以下の詰み手順が登録されることは保証されているが、厳密に `result.Len()` 手詰みであることは保証されない。
+   *
+   * `move` が（余詰探索関係なく）不詰のとき、`n` が OR node であれば `move` 直後に詰みを逃れる応手を PV へ追加して
+   * 結果を登録する。
+   */
   void UpdateFinalPv(Node& n, Move move, const SearchResult& result);
 
   /// 現在の探索情報を取得する

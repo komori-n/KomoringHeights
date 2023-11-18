@@ -19,6 +19,26 @@ std::pair<PnDn, PnDn> NextPnDnThresholds(PnDn pn, PnDn dn, PnDn curr_thpn, PnDn 
   return std::make_pair(ClampPnDn(curr_thpn, thpn, kInfinitePnDn), ClampPnDn(curr_thdn, thdn, kInfinitePnDn));
 }
 
+/**
+ * @brief AND node `n` において、詰みを逃れる手を1つ任意に選んで返す
+ * @param tt  置換表
+ * @param n   現局面（AND node）
+ * @return `n` において詰みを逃れる手（あれば）
+ */
+std::optional<Move> GetEvasion(tt::TranspositionTable& tt, Node& n) {
+  for (const auto move : MovePicker{n}) {
+    const auto query = tt.BuildChildQuery(n, move);
+    bool does_have_old_child = false;
+    const auto result =
+        query.LookUp(does_have_old_child, kDepthMaxMateLen, [&n, &move = move]() { return InitialPnDn(n, move.move); });
+    if (result.Dn() == 0) {
+      return {move};
+    }
+  }
+
+  return std::nullopt;
+}
+
 std::pair<Move, MateLen> LookUpBestMove(tt::TranspositionTable& tt, Node& n, MateLen len) {
   Move best_move = MOVE_NONE;
   MateLen best_len = n.IsOrNode() ? kDepthMaxMateLen : kZeroMateLen;
@@ -433,20 +453,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   return curr_result;
 }
 
-std::optional<Move> KomoringHeights::GetEvasion(Node& n) {
-  for (const auto move : MovePicker{n}) {
-    const auto query = tt_.BuildChildQuery(n, move);
-    bool does_have_old_child = false;
-    const auto result =
-        query.LookUp(does_have_old_child, kDepthMaxMateLen, [&n, &move = move]() { return InitialPnDn(n, move.move); });
-    if (result.Dn() == 0) {
-      return {move};
-    }
-  }
-
-  return std::nullopt;
-}
-
 std::vector<Move> KomoringHeights::GetMatePath(Node& n, MateLen len, bool exact) {
   std::vector<Move> best_moves;
   pv_search_ = true;
@@ -552,7 +558,7 @@ void KomoringHeights::UpdateFinalPv(Node& n, Move move, const SearchResult& resu
     std::vector<Move> pv{move};
     if (n.IsOrNode()) {
       n.DoMove(move);
-      if (const auto evasion_move = GetEvasion(n)) {
+      if (const auto evasion_move = GetEvasion(tt_, n)) {
         pv.push_back(*evasion_move);
       }
       n.UndoMove();
@@ -560,15 +566,8 @@ void KomoringHeights::UpdateFinalPv(Node& n, Move move, const SearchResult& resu
 
     pv_list_.Update(move, result, 1, std::move(pv));
   } else {  // (child_result.Dn() == 0 && pv_list_.IsProven(move))
-    std::vector<Move> pv{move};
-    n.DoMove(move);
-    const auto best_moves = GetMatePath(n, kDepthMaxMateLen, false);
-    pv.insert(pv.end(), best_moves.begin(), best_moves.end());
-    n.UndoMove();
-
-    const auto len = MateLen{static_cast<std::uint32_t>(pv.size() - 1)};
-    const auto true_result = SearchResult::MakeFinal<true>(n.OrHand(), len, result.Amount());
-    pv_list_.Update(move, true_result, 1, std::move(pv));
+    // 余詰探索中に不詰を見つけたときは何もしない
+    // 余詰探索完了後に GetMatePath(n, len, true) を呼び出すことで最終的な詰み手順を構成する
   }
 }
 
