@@ -188,3 +188,12 @@ TEST(Zip, ZipTest) {
   }
   EXPECT_EQ(idx, 3);
 }
+
+TEST(Range, RangeTest) {
+  std::vector<int> a{0, 1, 2, 3, 4, 5};
+  std::vector<int> ans{1, 3, 5, 7, 9, 11};
+
+  for (const auto [i, x] : komori::WithIndex(komori::Apply(a, [](int x) { return 2 * x + 1; }))) {
+    EXPECT_EQ(x, ans[i]) << i;
+  }
+}

@@ -425,6 +425,86 @@ constexpr inline auto Zip(Range1&& range1, Range2&& range2) noexcept(
     noexcept(detail::ZipImpl<Range1, Range2>(std::forward<Range1>(range1), std::forward<Range2>(range2)))) {
   return detail::ZipImpl<Range1, Range2>(std::forward<Range1>(range1), std::forward<Range2>(range2));
 }
+
+namespace detail {
+/**
+ * @brief `Take` の実装本体
+ * @tparam Range Iterable
+ * @tparam Func  適用する関数の型
+ */
+template <typename Range, typename Func>
+class ApplyImpl {
+ public:
+  /**
+   * @brief Applyイテレータ
+   * @param Itr Range に対するイテレータ
+   */
+  template <typename Itr>
+  class Iterator {
+   public:
+    /**
+     * @brief コンストラクタ
+     */
+    constexpr Iterator(Itr itr, const Func& func) noexcept(std::is_nothrow_copy_assignable_v<Itr>)
+        : itr_{itr}, func_{func} {}
+
+    /// イテレータの値を読み取る
+    constexpr auto operator*() noexcept(noexcept(std::declval<Func>()(*std::declval<Itr>()))) { return func_(*itr_); }
+
+    /// イテレータを進める
+    constexpr Iterator& operator++() noexcept(noexcept(++std::declval<Itr&>())) {
+      itr_++;
+      return *this;
+    }
+
+    /// イテレータを比較する
+    template <typename LItr, typename RItr>
+    friend constexpr bool operator!=(const Iterator<LItr>& lhs,
+                                     const Iterator<RItr>& rhs) noexcept(noexcept(lhs.itr_ != rhs.itr_)) {
+      return lhs.itr_ != rhs.itr_;
+    }
+
+   private:
+    Itr itr_;                                  ///< Range に対するイテレータ
+    std::reference_wrapper<const Func> func_;  ///< 適用する関数
+  };
+
+  /**
+   * @brief `Apply` インスタンスを生成する
+   */
+  constexpr ApplyImpl(Range range, Func func) noexcept(
+      std::is_nothrow_constructible_v<Range, decltype(std::forward<Range>(range))> &&
+      std::is_nothrow_constructible_v<Func, decltype(std::forward<Func>(func))>)
+      : range_{std::forward<Range>(range)}, func_{std::forward<Func>(func)} {}
+
+  /// 範囲の先頭
+  constexpr auto begin() const noexcept(noexcept(call_begin(std::declval<Range&>()))) {
+    return Iterator<decltype(call_begin(range_))>(call_begin(range_), func_);
+  }
+
+  /// 範囲の末尾
+  constexpr auto end() const noexcept(noexcept(call_end(std::declval<Range&>()))) {
+    return Iterator<decltype(call_end(range_))>(call_end(range_), func_);
+  }
+
+ private:
+  Range range_;  ///< もとの range
+  Func func_;
+};
+}  // namespace detail
+
+/**
+ * @brief 範囲 `range` に対して関数 `func` をそれぞれ適用したような範囲を返す。
+ * @param range 範囲
+ * @param func  適用する関数
+ * @return 範囲 `range` に対して関数 `func` をそれぞれ適用したような範囲
+ */
+template <typename Range, typename Func>
+constexpr inline auto Apply(Range&& range, Func&& func) noexcept(noexcept(detail::ApplyImpl<Range, Func>{
+    std::forward<Range>(range), std::forward<Func>(func)})) {
+  return detail::ApplyImpl<Range, Func>{std::forward<Range>(range), std::forward<Func>(func)};
+}
+
 }  // namespace komori
 
 #endif  // KOMORI_RANGES_HPP_
