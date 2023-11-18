@@ -4,6 +4,8 @@
 #ifndef KOMORI_REPETITION_TABLE_HPP_
 #define KOMORI_REPETITION_TABLE_HPP_
 
+#include <atomic>
+#include <iterator>
 #include <optional>
 #include <shared_mutex>
 #include <vector>
@@ -28,16 +30,26 @@ namespace komori::tt {
  */
 class RepetitionTable {
  public:
-  /// 置換表世代。メモリ量をケチるために16 bitsで持つ。
-  using Generation = std::uint16_t;
+  /// 置換表世代。メモリ量をケチるために8 bitsで持つ。
+  using Generation = std::uint8_t;
 
  private:
   /// 置換表に格納するエントリ。16 bytes に詰める。
   struct TableEntry {
-    Key key;                ///< 経路ハッシュ値。使用していないなら kEmptyKey。
-    Depth depth;            ///< 探索深さ
-    MateLen16 len16;        ///< 不詰手数
-    Generation generation;  ///< 置換表世代
+    std::atomic<Key> key{kEmptyKey};    ///< 経路ハッシュ値。使用していないなら kEmptyKey。
+    Depth depth{};                      ///< 探索深さ
+    MateLen16 len16{kMinus1MateLen16};  ///< 不詰手数
+    Generation generation{};            ///< 置換表世代
+    mutable SharedExclusiveLock<std::int8_t> mutex{};  ///< 共有排他ロック
+
+    /// Default constructor
+    TableEntry() = default;
+    /// Copy constructor
+    TableEntry(const TableEntry& rhs)
+        : key{rhs.key.load(std::memory_order_relaxed)},
+          depth{rhs.depth},
+          len16{rhs.len16},
+          generation{rhs.generation} {}
   };
   static_assert(sizeof(TableEntry) == 16);
 
@@ -69,8 +81,9 @@ class RepetitionTable {
     next_generation_update_ = entries_per_generation_;
     next_gc_ = kInitialGcDuration;
 
-    const TableEntry initial_entry{kEmptyKey, 0, kMinus1MateLen16, 0};
-    std::fill(hash_table_.begin(), hash_table_.end(), initial_entry);
+    hash_table_.resize(0);
+    hash_table_.resize(table_size_);
+    hash_table_.shrink_to_fit();
   }
 
   /**
@@ -83,10 +96,8 @@ class RepetitionTable {
    */
   void Resize(std::size_t table_size) {
     if (hash_table_.size() != table_size) {
-      table_size = std::max<decltype(table_size)>(table_size, 1);
+      table_size_ = std::max<decltype(table_size)>(table_size, 1);
       entries_per_generation_ = std::max<std::size_t>(table_size / kGenerationPerTableSize, 1);
-      hash_table_.resize(table_size);
-      hash_table_.shrink_to_fit();
       Clear();
     }
   }
@@ -100,29 +111,48 @@ class RepetitionTable {
   void Insert(Key path_key, Depth depth, MateLen len) {
     const MateLen16 len16{len};
 
-    const std::lock_guard lock(lock_);
     auto index = StartIndex(path_key);
-    while (hash_table_[index].key != kEmptyKey && hash_table_[index].key != path_key) {
-      index = Next(index);
-    }
-
-    if (hash_table_[index].key == kEmptyKey) {
-      hash_table_[index] = TableEntry{path_key, depth, len16, generation_};
-      entry_count_++;
-      if (entry_count_ >= next_generation_update_) {
-        generation_++;
-        next_generation_update_ = entry_count_ + entries_per_generation_;
-        if (generation_ >= next_gc_) {
-          CollectGarbage();
-          next_gc_ = generation_ + kGcDuration;
+    for (;;) {
+      {  // key が kEmptyKey でも path_key でもなさそうならロックを取る必要はない
+        const auto key = hash_table_[index].key.load(std::memory_order_relaxed);
+        if (key != kEmptyKey && key != path_key) {
+          goto INSERT_LOOP_END;
         }
       }
-    } else {
-      if (depth > hash_table_[index].depth) {
-        hash_table_[index].depth = depth;
-        hash_table_[index].len16 = len16;
+
+      {
+        std::unique_lock lock(hash_table_[index].mutex);
+        const auto key = hash_table_[index].key.load(std::memory_order_relaxed);
+        if (key == kEmptyKey) {
+          hash_table_[index].key.store(path_key, std::memory_order_relaxed);
+          hash_table_[index].depth = depth;
+          hash_table_[index].len16 = len16;
+          hash_table_[index].generation = generation_;
+          // GC をするためにロック解除が必要
+          lock.unlock();
+
+          entry_count_++;
+          if (entry_count_ >= next_generation_update_) {
+            generation_++;
+            next_generation_update_ = entry_count_ + entries_per_generation_;
+            if (generation_ >= next_gc_) {
+              CollectGarbage();
+              next_gc_ = generation_ + kGcDuration;
+            }
+          }
+          break;
+        } else if (key == path_key) {
+          if (depth > hash_table_[index].depth) {
+            hash_table_[index].depth = depth;
+            hash_table_[index].len16 = len16;
+          }
+          hash_table_[index].generation = generation_;
+          break;
+        }
       }
-      hash_table_[index].generation = generation_;
+
+    INSERT_LOOP_END:
+      index = Next(index);
     }
   }
 
@@ -134,11 +164,21 @@ class RepetitionTable {
    */
   std::optional<std::pair<Depth, MateLen>> Contains(Key path_key, MateLen len) const {
     const MateLen16 len16{len};
-    const std::shared_lock lock(lock_);
-    for (auto index = StartIndex(path_key); hash_table_[index].key != kEmptyKey; index = Next(index)) {
+    for (auto index = StartIndex(path_key);; index = Next(index)) {
+      {  // ロックを取る前に key の値を確認する
+        const auto key = hash_table_[index].key.load(std::memory_order_relaxed);
+        if (key == kEmptyKey) {
+          break;
+        } else if (key != path_key) {
+          continue;
+        }
+      }
+
+      std::shared_lock lock(hash_table_[index].mutex);
+      const auto key = hash_table_[index].key.load(std::memory_order_relaxed);
       const auto table_len = hash_table_[index].len16;
       // table_len が記録されている => 詰みまでには少なくとも table_len+1 手以上かかる
-      if (hash_table_[index].key == path_key && table_len >= len16) {
+      if (key == path_key && table_len >= len16) {
         return std::make_pair(hash_table_[index].depth, MateLen{table_len});
       }
     }
@@ -212,35 +252,56 @@ class RepetitionTable {
     };
 
     for (auto& entry : hash_table_) {
-      if (entry.key != kEmptyKey && should_erase(entry)) {
-        entry.key = kEmptyKey;
+      {
+        const auto key = entry.key.load(std::memory_order_relaxed);
+        if (key == kEmptyKey) {
+          continue;
+        }
+      }
+
+      std::lock_guard lock(entry.mutex);
+      if (entry.key.load(std::memory_order_relaxed) != kEmptyKey && should_erase(entry)) {
+        entry.key.store(kEmptyKey, std::memory_order_relaxed);
       }
     }
 
     // コンパクション。配列の後ろの方で微妙に歯抜けができてエントリにアクセスできなくなる可能性があるが目をつぶる。
     for (auto& entry : hash_table_) {
-      if (entry.key == kEmptyKey) {
+      {
+        const auto key = entry.key.load(std::memory_order_relaxed);
+        if (key == kEmptyKey) {
+          continue;
+        }
+      }
+
+      std::lock_guard lock(entry.mutex);
+      const auto key = entry.key.load(std::memory_order_relaxed);
+      if (key == kEmptyKey) {
         continue;
       }
 
-      for (auto index = StartIndex(entry.key); &hash_table_[index] != &entry; index = Next(index)) {
-        if (hash_table_[index].key == kEmptyKey) {
-          hash_table_[index] = entry;
-          entry.key = kEmptyKey;
+      for (auto index = StartIndex(key); &hash_table_[index] != &entry; index = Next(index)) {
+        std::lock_guard lock(hash_table_[index].mutex);
+        if (hash_table_[index].key.load(std::memory_order_relaxed) == kEmptyKey) {
+          hash_table_[index].key.store(key, std::memory_order_relaxed);
+          hash_table_[index].depth = entry.depth;
+          hash_table_[index].len16 = entry.len16;
+          hash_table_[index].generation = entry.generation;
+          entry.key.store(kEmptyKey, std::memory_order_relaxed);
           break;
         }
       }
     }
   }
 
-  mutable SharedExclusiveLock<std::int32_t> lock_{};  ///< 排他ロック
-  Generation generation_{};                           ///< 現在の置換表世代
-  std::uint64_t entry_count_{};                       ///< 現在までにInsert()したエントリ数
+  Generation generation_{};      ///< 現在の置換表世代
+  std::uint64_t entry_count_{};  ///< 現在までにInsert()したエントリ数
 
   std::uint64_t next_generation_update_{};  ///< 次回generation_をインクリメントするタイミング
   Generation next_gc_{};                    ///< 次回GCを行うGeneration
   std::uint64_t entries_per_generation_{};  ///< 1 generationあたりのエントリ数
   std::vector<TableEntry> hash_table_{};    ///< 置換表本体
+  std::size_t table_size_{};                ///< 置換表サイズ
 };
 }  // namespace komori::tt
 
