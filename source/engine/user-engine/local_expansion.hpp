@@ -624,7 +624,7 @@ class LocalExpansion {
     } else {
       // 子局面の証明駒の極小集合を計算する
       HandSet set{ProofHandTag{}};
-      MateLen mate_len = kZeroMateLen;
+      MateLen mate_len = kMinus1MateLen;
       SearchAmount amount = 1;
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
