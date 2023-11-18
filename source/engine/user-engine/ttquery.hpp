@@ -32,8 +32,8 @@ inline void InitializeTTNoise(std::uint32_t thread_id) {
   // main thread にはノイズを載せない
   if (thread_id != 0) {
     // 各スレッドに少しずつノイズを乗せる。
-    static constexpr std::uint32_t kNoise[6] = {7, 6, 5, 4, 3, 2};
-    detail::tt_noise_interval += kNoise[(thread_id - 1) % 6];
+    static constexpr std::uint32_t kNoise[8] = {7, 6, 5, 4, 3, 2, 8, 9};
+    detail::tt_noise_interval += kNoise[(thread_id - 1) % 8];
     detail::tt_noise_timing = thread_id;
   }
 }
