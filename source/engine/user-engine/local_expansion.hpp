@@ -430,7 +430,7 @@ class LocalExpansion {
  private:
   // <PnDn>
   /// Pn を計算する
-  constexpr PnDn GetPn() const {
+  PnDn GetPn() const {
     if (or_node_) {
       return GetPhi();
     } else {
@@ -439,7 +439,7 @@ class LocalExpansion {
   }
 
   /// Dn を計算する
-  constexpr PnDn GetDn() const {
+  PnDn GetDn() const {
     if (or_node_) {
       return GetDelta();
     } else {
@@ -448,7 +448,7 @@ class LocalExpansion {
   }
 
   /// phi 値を計算する
-  constexpr PnDn GetPhi() const {
+  PnDn GetPhi() const {
     PnDn front_phi = 0;
     if (excluded_moves_ < idx_.size()) {
       front_phi = FrontResult().Phi(or_node_);
@@ -463,7 +463,7 @@ class LocalExpansion {
   }
 
   /// delta 値を計算する
-  constexpr PnDn GetDelta() const {
+  PnDn GetDelta() const {
     if (idx_.empty()) {
       return 0;
     }
