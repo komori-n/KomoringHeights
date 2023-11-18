@@ -496,6 +496,7 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveOrNode(Node& n, MateLen len
   auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
   std::uint32_t inc_flag = 0;
   SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len, inc_flag);
+  // exclude を無視して最善手を取りたいので、expansion.BestMove() は使えないので注意。
   const auto [move, result] = *expansion.GetAllResults().begin();
   expansion_list_[tl_thread_id].Pop();
 
@@ -515,6 +516,7 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveAndNode(Node& n, MateLen le
     auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len - 2, true, BitSet64::Full(), option_.multi_pv);
     std::uint32_t inc_flag = 0;
     SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len - 2, inc_flag);
+    // exclude を無視して最善手を取りたいので、expansion.BestMove() は使えないので注意。
     const auto [move2, result] = *expansion.GetAllResults().begin();
     expansion_list_[tl_thread_id].Pop();
 
@@ -534,6 +536,7 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveAndNode(Node& n, MateLen le
     auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
     std::uint32_t inc_flag = 0;
     SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len, inc_flag);
+    // exclude を無視して最善手を取りたいので、expansion.BestMove() は使えないので注意。
     const auto [move2, result] = *expansion.GetAllResults().begin();
     expansion_list_[tl_thread_id].Pop();
 
