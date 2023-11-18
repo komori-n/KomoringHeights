@@ -134,9 +134,9 @@ class Query {
             return SearchResult::MakeFinal<true>(itr->GetHand(), itr->ProvenLen(), amount);
           } else if (dn == 0) {
             return SearchResult::MakeFinal<false>(itr->GetHand(), itr->DisprovenLen(), amount);
-          } else if (itr->IsFor(board_key_, hand_)) {
+          } else if (itr->GetHand() == hand_) {
             if (itr->IsPossibleRepetition()) {
-              if (auto opt = rep_table_->Contains(path_key_, len)) {
+              if (const auto opt = rep_table_->Contains(path_key_, len)) {
                 const auto [depth, table_len] = opt.value();
                 return SearchResult::MakeRepetition(hand_, table_len, amount, depth);
               }
