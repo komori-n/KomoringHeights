@@ -496,7 +496,7 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveOrNode(Node& n, MateLen len
   auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
   std::uint32_t inc_flag = 0;
   SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len, inc_flag);
-  const auto [move, result] = expansion.GetAllResults()[0];
+  const auto [move, result] = *expansion.GetAllResults().begin();
   expansion_list_[tl_thread_id].Pop();
 
   // exact, !exact の両方のケースで len 手以下の詰みになるような手を返せば良い
@@ -515,7 +515,7 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveAndNode(Node& n, MateLen le
     auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len - 2, true, BitSet64::Full(), option_.multi_pv);
     std::uint32_t inc_flag = 0;
     SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len - 2, inc_flag);
-    const auto [move2, result] = expansion.GetAllResults()[0];
+    const auto [move2, result] = *expansion.GetAllResults().begin();
     expansion_list_[tl_thread_id].Pop();
 
     // len - 2 手の探索で詰みを逃れる手が見つかるはずなので、それを返す
@@ -534,7 +534,7 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveAndNode(Node& n, MateLen le
     auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
     std::uint32_t inc_flag = 0;
     SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len, inc_flag);
-    const auto [move2, result] = expansion.GetAllResults()[0];
+    const auto [move2, result] = *expansion.GetAllResults().begin();
     expansion_list_[tl_thread_id].Pop();
 
     if (result.Pn() != 0 || result.Len() + 1 > len) {

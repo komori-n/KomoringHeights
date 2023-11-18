@@ -264,14 +264,9 @@ class LocalExpansion {
   /**
    * @brief (Move, SearchResult) のペアを良さげ順にすべて取得する
    */
-  std::vector<std::pair<Move, SearchResult>> GetAllResults() const {
-    std::vector<std::pair<Move, SearchResult>> ret;
-    ret.reserve(idx_.size());
-    for (const auto i_raw : idx_) {
-      ret.emplace_back(mp_[i_raw].move, results_[i_raw]);
-    }
-
-    return ret;
+  auto GetAllResults() const {
+    return Zip(Apply(idx_, [this](const std::size_t i_raw) { return mp_[i_raw].move; }),
+               Apply(idx_, [this](const std::size_t i_raw) { return results_[i_raw]; }));
   }
 
   /**

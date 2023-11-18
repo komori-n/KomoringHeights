@@ -370,9 +370,9 @@ class ZipImpl {
     }
 
     /// イテレータを進める
-    constexpr Iterator& operator++() noexcept(noexcept(std::declval<Iterator1>()++, std::declval<Iterator2>()++)) {
-      itr1_++;
-      itr2_++;
+    constexpr Iterator& operator++() noexcept(noexcept(++std::declval<Iterator1>(), ++std::declval<Iterator2>())) {
+      ++itr1_;
+      ++itr2_;
 
       return *this;
     }
@@ -380,8 +380,8 @@ class ZipImpl {
     /// イテレータを比較する
     template <typename LI1, typename LI2, typename RI1, typename RI2>
     friend constexpr bool operator!=(const Iterator<LI1, LI2>& lhs,
-                                     const Iterator<RI1, RI2>& rhs) noexcept(noexcept(lhs.itr1_ == rhs.itr1_ ||
-                                                                                      lhs.itr2_ == rhs.itr2_)) {
+                                     const Iterator<RI1, RI2>& rhs) noexcept(noexcept(lhs.itr1_ != rhs.itr1_ ||
+                                                                                      lhs.itr2_ != rhs.itr2_)) {
       return lhs.itr1_ != rhs.itr1_ && lhs.itr2_ != rhs.itr2_;
     }
 
