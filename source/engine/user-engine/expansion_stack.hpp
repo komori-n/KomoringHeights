@@ -74,7 +74,7 @@ class ExpansionStack {
     }
 
     const auto best_move = current.BestMove();
-    if (auto opt = FindKnownAncestor(tt, n, best_move)) {
+    if (const auto opt = FindKnownAncestor(tt, n, best_move)) {
       const auto branch_root_edge = *opt;
       for (auto itr = list_.rbegin() + 1; itr != list_.rend(); ++itr) {
         if (itr->ResolveDoubleCountIfBranchRoot(branch_root_edge)) {
