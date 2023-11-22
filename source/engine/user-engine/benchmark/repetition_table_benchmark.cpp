@@ -25,9 +25,9 @@ void RepetitionTable_Insert(benchmark::State& state) {
   for (auto _ : state) {
     for (std::size_t i = 0; i < 10000; ++i) {
       if (rand() < collision_threshold) {
-        table.Insert(collision_key, rand());
+        table.Insert(collision_key, rand(), komori::kZeroMateLen);
       } else {
-        table.Insert(rand(), rand());
+        table.Insert(rand(), rand(), komori::kZeroMateLen);
       }
     }
   }
@@ -44,18 +44,18 @@ void RepetitionTable_Contains(benchmark::State& state) {
     state.PauseTiming();
     for (std::size_t i = 0; i < 10000; ++i) {
       if (rand() < collision_threshold) {
-        table.Insert(collision_key, rand());
+        table.Insert(collision_key, rand(), komori::kZeroMateLen);
       } else {
-        table.Insert(rand(), rand());
+        table.Insert(rand(), rand(), komori::kZeroMateLen);
       }
     }
     state.ResumeTiming();
 
     for (std::size_t i = 0; i < 10000; ++i) {
       if (rand() < collision_threshold) {
-        benchmark::DoNotOptimize(table.Contains(collision_key));
+        benchmark::DoNotOptimize(table.Contains(collision_key, komori::kZeroMateLen));
       } else {
-        benchmark::DoNotOptimize(table.Contains(rand()));
+        benchmark::DoNotOptimize(table.Contains(rand(), komori::kZeroMateLen));
       }
     }
   }
