@@ -489,7 +489,7 @@ class ApplyImpl {
 
  private:
   Range range_;  ///< もとの range
-  Func func_;
+  Func func_;    ///< 適用する関数
 };
 }  // namespace detail
 

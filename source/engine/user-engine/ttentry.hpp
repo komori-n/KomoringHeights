@@ -589,7 +589,7 @@ class alignas(64) Entry {
 
   mutable SharedExclusiveLock<std::int8_t> lock_;  ///< スピンロック
   RepetitionState repetition_state_;               ///< 現局面が千日手の可能性があるか
-  ///< 最小探索深さ。`LookUp()` 中に書き換える可能性があるので atomic かつ mutable。
+  /// 最小探索深さ。`LookUp()` 中に書き換える可能性があるので atomic かつ mutable。
   mutable std::atomic<std::int16_t> min_depth_;
 
   Hand parent_hand_;      ///< 親局面の持ち駒
