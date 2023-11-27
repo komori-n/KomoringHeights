@@ -29,8 +29,8 @@ TEST(RepetitionTable, Clear) {
 TEST(RepetitionTable, Insert) {
   RepetitionTable rep_table(3340);
 
-  const MateLen len1{264};
-  const MateLen len2{334};
+  const MateLen len1{334};
+  const MateLen len2{264};
   EXPECT_FALSE(rep_table.Contains(334, len1));
   rep_table.Insert(334, 264, len1);
   EXPECT_TRUE(rep_table.Contains(334, len1));
@@ -43,13 +43,10 @@ TEST(RepetitionTable, Insert) {
   EXPECT_EQ(rep_table.Contains(334, len2)->second, len2);
   EXPECT_FALSE(rep_table.Contains(334, len2 + 1));
   rep_table.Insert(334, 264, len1);
-  ASSERT_TRUE(rep_table.Contains(334, len1));
-  EXPECT_EQ(rep_table.Contains(334, len1)->first, 334);
-  EXPECT_EQ(rep_table.Contains(334, len1)->second, len2);
-
+  ASSERT_FALSE(rep_table.Contains(334, len1));
   EXPECT_FALSE(rep_table.Contains(335, len2));
   rep_table.Insert(335, 264, len2);
-  EXPECT_TRUE(rep_table.Contains(335, len1));
+  EXPECT_FALSE(rep_table.Contains(335, len1));
 }
 
 TEST(RepetitionTable, InsertBoundary) {

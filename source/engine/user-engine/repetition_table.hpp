@@ -118,11 +118,14 @@ class RepetitionTable {
         }
       }
     } else {
-      if (depth > hash_table_[index].depth) {
+      if (len16 < hash_table_[index].len16) {
         hash_table_[index].depth = depth;
         hash_table_[index].len16 = len16;
+        hash_table_[index].generation = generation_;
+      } else if (len16 == hash_table_[index].len16 && hash_table_[index].depth <= depth) {
+        hash_table_[index].depth = depth;
+        hash_table_[index].generation = generation_;
       }
-      hash_table_[index].generation = generation_;
     }
   }
 
