@@ -121,6 +121,16 @@ TEST(SearchResultTest, Infinite) {
   EXPECT_EQ(thdn, 1);
 }
 
+TEST(SearchResultTest, UpdateAmount) {
+  auto result = SearchResult::MakeFirstVisit(33, 4, MateLen{264}, 10);
+
+  result.UpdateAmount(334);
+  EXPECT_EQ(result.Amount(), 334);
+
+  result.UpdateAmount(264);
+  EXPECT_EQ(result.Amount(), 334);
+}
+
 TEST(SearchResultComparerTest, OrNode) {
   const SearchResultComparer sr_comparer{true};
   const SearchResultComparer sr_comparer2{false};

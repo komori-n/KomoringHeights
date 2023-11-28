@@ -368,6 +368,32 @@ class LocalExpansion {
   }
 
   /**
+   * @brief 重要そうな子局面を改めて置換表に書き直す
+   *
+   * 通常では `UpdateBestChild()` のタイミングで置換表に結果を書き出すが、
+   * 他の子を探索している間に置換表から結果が消えてしまうことが稀に発生する。
+   * この関数では、重要そうな子を改めて置換表に書くことで重複探索を防ぐことを目的にしている。
+   */
+  void RewriteImportantChildren() {
+    for (const auto i_raw : idx_) {
+      // next が存在して、かつ負けであるような局面は覚えておく
+
+      if (delayed_move_list_.Next(i_raw) == std::nullopt) {
+        continue;
+      }
+
+      auto& result = results_[i_raw];
+      if (result.Delta(or_node_) == 0 && result.Len().Len() >= 11) {
+        // result は最も探索した子と同じぐらい価値がある
+        result.UpdateAmount(max_child_amount_);
+
+        const auto& query = queries_[i_raw];
+        query.SetResult(result);
+      }
+    }
+  }
+
+  /**
    * @brief 最善手の子の探索で用いる pn と dn のしきい値
    * @pre !empty()
    * @param thpn 現局面の pn のしきい値
