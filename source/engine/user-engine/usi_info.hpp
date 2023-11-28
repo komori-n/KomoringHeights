@@ -4,11 +4,11 @@
 #ifndef KOMORI_USI_HPP_
 #define KOMORI_USI_HPP_
 
+#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 
 #include "ranges.hpp"
@@ -163,7 +163,7 @@ class UsiInfo {
   bool Has(UsiInfoKey key) const { return options_.find(key) != options_.end(); }
 
   /// オプションと設定値のペア。
-  std::unordered_map<UsiInfoKey, std::string> options_;
+  std::map<UsiInfoKey, std::string> options_;
   /// 現在のPVたち（良い順）
   std::vector<PVInfo> multi_pv_;
 };
