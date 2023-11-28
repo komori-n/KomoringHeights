@@ -666,7 +666,8 @@ class LocalExpansion {
 
   /// 探索結果を取得する（不明局面）
   SearchResult GetUnknownResult(const Node& /* n */) const {
-    const SearchAmount amount = max_child_amount_ + mp_.size() - 1;
+    const auto& result = FrontResult();
+    const SearchAmount amount = result.Amount() + mp_.size() - 1;
     return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, sum_mask_);
   }
 
