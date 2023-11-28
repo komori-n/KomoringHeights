@@ -43,7 +43,7 @@ TEST(RepetitionTable, Insert) {
   EXPECT_EQ(rep_table.Contains(334, len2)->second, len2);
   EXPECT_FALSE(rep_table.Contains(334, len2 + 1));
   rep_table.Insert(334, 264, len1);
-  ASSERT_FALSE(rep_table.Contains(334, len1));
+  ASSERT_TRUE(rep_table.Contains(334, len1));
   EXPECT_FALSE(rep_table.Contains(335, len2));
   rep_table.Insert(335, 264, len2);
   EXPECT_FALSE(rep_table.Contains(335, len1));
