@@ -36,6 +36,9 @@ struct FinalData {
  *
  * 領域を節約するために、Unknown（結論が出ていないノード）とFinal（結論が出ているノード）専用の領域を union で
  * 共有している。
+ *
+ * 余計な変更を阻止するために、初期化時と代入時以外はメンバを変更できないようにしている。少し煩雑になってしまうが、
+ * メンバへのアクセスには必ず getter method を用いなければならない。
  */
 class SearchResult {
  public:
@@ -120,9 +123,6 @@ class SearchResult {
   constexpr const UnknownData& GetUnknownData() const { return unknown_data_; }
   /// Final部分の結果。`IsFinal()` の場合のみ呼び出し可能。
   constexpr const FinalData& GetFinalData() const { return final_data_; }
-
-  /// 探索量を更新する
-  constexpr void UpdateAmount(SearchAmount amount) noexcept { amount_ = std::max(amount, amount_); }
 
   /// 探索結果に基づくノード状態（詰み／不詰／千日手／不明）
   constexpr NodeState GetNodeState() const {
