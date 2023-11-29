@@ -172,7 +172,6 @@ class LocalExpansion {
         query = tt.BuildChildQuery(n, move.move);
         result =
             query.LookUp(does_have_old_child_, len - 1, [&n, &move = move]() { return InitialPnDn(n, move.move); });
-        max_child_amount_ = std::max(max_child_amount_, result.Amount());
 
         if (!result.IsFinal()) {
           if (!IsSumDeltaNode(n, move.move) || result.Delta(or_node_) >= detail::kForceSumPnDn) {
@@ -298,7 +297,6 @@ class LocalExpansion {
     auto& result = results_[old_i_raw];
 
     result = search_result;
-    max_child_amount_ = std::max(max_child_amount_, result.Amount());
     query.SetResult(search_result, key_hand_pair_);
     if (!result.IsFinal() && result.Delta(or_node_) >= detail::kForceSumPnDn) {
       sum_mask_.Reset(old_i_raw);
@@ -591,22 +589,24 @@ class LocalExpansion {
   SearchResult GetLoseResult(const Node& n) const {
     // amount の総和を取ると値が大きくなりすぎるので子の数だけ足す
     // なお、子の個数が空の場合があるので注意。
-    const auto amount = max_child_amount_ + std::max<SearchAmount>(mp_.size(), 1) - 1;
 
     if (or_node_) {
       // 子局面の反証駒の極大集合を計算する
       HandSet set{DisproofHandTag{}};
       MateLen mate_len = len_;
+      SearchAmount amount = 1;
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
         const auto child_move = mp_[i_raw];
         const auto child_disproof_hand = BeforeHand(n.Pos(), child_move, result.GetFinalData().hand);
 
         set.Update(child_disproof_hand);
+        amount = std::max(amount, result.Amount());
         if (result.Len() < mate_len) {
           mate_len = result.Len();
         }
       }
+      amount += std::max<SearchAmount>(mp_.size(), 1) - 1;
 
       // 千日手のときは MakeRepetition で返す
       if (!mp_.empty()) {
@@ -624,14 +624,17 @@ class LocalExpansion {
       // 子局面の証明駒の極小集合を計算する
       HandSet set{ProofHandTag{}};
       MateLen mate_len = kMinus1MateLen;
+      SearchAmount amount = 1;
       for (const auto i_raw : idx_) {
         const auto& result = results_[i_raw];
 
         set.Update(result.GetFinalData().hand);
+        amount = std::max(amount, result.Amount());
         if (result.Len() > mate_len) {
           mate_len = result.Len();
         }
       }
+      amount += std::max<SearchAmount>(mp_.size(), 1) - 1;
 
       const auto proof_hand = set.Get(n.Pos());
       return SearchResult::MakeFinal<true>(proof_hand, mate_len + 1, amount);
@@ -708,8 +711,6 @@ class LocalExpansion {
   /// multi_pv_ == 1 のときは、この値は常に 0 である。multi_pv_ > 1 のとき、勝ち（phi==0）を見つけた後に探索を続ける
   /// 際に用いる。常に excluded_moves_ <= multi_pv_ - 1 かつ excluded_moves_ <= mp_.size() である。
   std::uint32_t excluded_moves_{0};
-  /// 子局面の探索量の最大値。本当は和を取りたいが、そうすると二重カウントによりオーバーフローする可能性があるのでダメ。
-  SearchAmount max_child_amount_{1};
 };
 }  // namespace komori
 
