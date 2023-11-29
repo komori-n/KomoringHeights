@@ -492,7 +492,6 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveOrNode(Node& n, MateLen len
     }
   }
 
-  tt_.NewSearch();
   auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
   std::uint32_t inc_flag = 0;
   SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len, inc_flag);
@@ -512,7 +511,6 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveOrNode(Node& n, MateLen len
 std::pair<Move, MateLen> KomoringHeights::GetBestMoveAndNode(Node& n, MateLen len, bool exact) {
   KOMORI_PRECONDITION(!n.IsOrNode());
   if (exact) {
-    tt_.NewSearch();
     auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len - 2, true, BitSet64::Full(), option_.multi_pv);
     std::uint32_t inc_flag = 0;
     SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len - 2, inc_flag);
@@ -532,7 +530,6 @@ std::pair<Move, MateLen> KomoringHeights::GetBestMoveAndNode(Node& n, MateLen le
       return {move, proven_len};
     }
 
-    tt_.NewSearch();
     auto& expansion = expansion_list_[tl_thread_id].Emplace(tt_, n, len, true, BitSet64::Full(), option_.multi_pv);
     std::uint32_t inc_flag = 0;
     SearchImpl(n, kInfinitePnDn, kInfinitePnDn, len, inc_flag);
