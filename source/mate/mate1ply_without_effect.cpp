@@ -739,7 +739,7 @@ namespace Mate {
 		Bitboard bb_attacks;
 
 		Hand ourHand  = pos.hand_of<Us  >();
-		Hand themHand = pos.hand_of<Them>();
+		// Hand themHand = pos.hand_of<Them>();
 
 		// 飛車を短く打つ場合
 		if (hand_count(ourHand, ROOK))
