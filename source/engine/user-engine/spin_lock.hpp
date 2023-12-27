@@ -1,3 +1,6 @@
+/**
+ * @file spin_lock.hpp
+ */
 #ifndef KOMORI_SPIN_LOCK_HPP_
 #define KOMORI_SPIN_LOCK_HPP_
 

@@ -1,3 +1,6 @@
+/**
+ * @file shared_exclusive_lock.hpp
+ */
 #ifndef KOMORI_SHARED_EXCLUSIVE_LOCK_HPP_
 #define KOMORI_SHARED_EXCLUSIVE_LOCK_HPP_
 
