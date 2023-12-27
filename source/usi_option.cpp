@@ -44,8 +44,8 @@ namespace USI {
 		// Stockfishもこうすべきだと思う。
 
 #if defined(USER_ENGINE)
-		// TTEntry の SharedExclusiveLock が int8_t の最大値までしか共有ロックを取れないので、128 スレッドが上限。
-		o["Threads"] << Option(4, 1, 128, [](const Option& o) { /* Threads.set(o); */ });
+		// TTEntry の SharedExclusiveLock が int8_t の最大値までしか共有ロックを取れないので、127 スレッドが上限。
+		o["Threads"] << Option(4, 1, 127, [](const Option& o) { /* Threads.set(o); */ });
 		o["MultiPV"] << Option(1, 1, 800);
 #else
 		o["Threads"] << Option(4, 1, 512, [](const Option& o) { /* Threads.set(o); */ });
