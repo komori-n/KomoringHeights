@@ -118,17 +118,17 @@ $(OBJDIR)/gmock_main.a : $(OBJDIR)/gmock-all.o $(OBJDIR)/gmock_main.o
 	$(AR) $(ARFLAGS) $@ $^
 
 coverage: test
-	lcov --rc branch_coverage=1 --directory ../../../../test_obj --base-directory . --capture -o cov.info -ignore-errors inconsistent
-	lcov --rc branch_coverage=1 -e cov.info -o cov.info "**/user-engine/*" -ignore-errors inconsistent
-	lcov --rc branch_coverage=1 -r cov.info -o cov.info "**/tests/*" -ignore-errors inconsistent
-	lcov --rc branch_coverage=1 -r cov.info -o cov.info "**/dummy_engine*" -ignore-errors inconsistent
-	genhtml --dark-mode --rc branch_coverage=1 cov.info -o coverage-html -ignore-errors inconsistent
+	lcov --rc branch_coverage=1 --directory ../../../../test_obj --base-directory . --capture -o cov.info --gcov-tool `pwd`/llvm-gcov.sh
+	lcov --rc branch_coverage=1 -e cov.info -o cov.info "**/user-engine/*" --gcov-tool `pwd`/llvm-gcov.sh
+	lcov --rc branch_coverage=1 -r cov.info -o cov.info "**/tests/*" --gcov-tool `pwd`/llvm-gcov.sh
+	lcov --rc branch_coverage=1 -r cov.info -o cov.info "**/dummy_engine*" --gcov-tool `pwd`/llvm-gcov.sh
+	genhtml --rc branch_coverage=1 cov.info -o coverage-html
 
 docs:
 	doxygen
 	python3 -m coverxygen --xml-dir docs-xml --src-dir ../ --output doc-coverage.info \
     --kind enum,enumvalue,friend,typedef,variable,function,class,struct,union,define
-	genhtml --dark-mode --no-function-coverage --no-branch-coverage doc-coverage.info -o docs-coverage
+	genhtml -no-function-coverage --no-branch-coverage doc-coverage.info -o docs-coverage
 
 en-check:
 	python3 ../../../../tools/extract_comments.py ../ > ${COMMENT_CHECK_FILE}
