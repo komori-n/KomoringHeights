@@ -98,7 +98,7 @@ jobs:
           path: ./main/build/**/*
 
   build-mac:
-    runs-on: macos-11
+    runs-on: macos-12
     strategy:
       matrix:
         edition:
