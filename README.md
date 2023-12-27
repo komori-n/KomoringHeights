@@ -40,7 +40,7 @@ make normal TARGET_CPU=AVX2 COMPILER=clang++
 `TARGET_CPU` に指定可能な文字列の一覧は `source/Makefile` を参照してください。
 
 また、ビルドには C++17 対応のコンパイラが必要になります。
-GCC 10、Clang 11 より新しいコンパイラのみ動作確認をしています。
+GCC 11、Clang 14 より新しいコンパイラのみ動作確認をしています。
 これらより古い環境ではサポート対象外となるのでご注意ください。
 
 ## References
@@ -62,4 +62,8 @@ Pull Requestも大歓迎です。Pull Requestを作成する場合、事前に `
 
 Licensed under GPLv3.
 
-`source/engine/user-engine/` 以下は komori-n、それ以外は [やねうら王](https://github.com/yaneurao/YaneuraOu/) がベースです。
+KomoringHeights実装本体は `source/engine/user-engine` に格納されています。
+それ以外のファイルについては [やねうら王](https://github.com/yaneurao/YaneuraOu/) のライセンスを併せてご確認ください。
+
+KomoringHeightsを使用してコンピュータ将棋大会等へ参加する場合、改変の有無にかかわらず事前に許可を取る必要はありません。
+もし使用していただける場合、アピール文書等で言及していただけると嬉しいです。
