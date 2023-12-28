@@ -4,34 +4,18 @@ English follows Japanese.
 
 ## 変更点
 
-[詳細](https://komorinfo.com/blog/komoring-heights-v1)
-
-### 機能改善
-
-- [エンジンオプション](source/engine/user-engine/docs/EngineOptions.txt)の整理
-
-### バグ修正
-
-- 解答手順構成の安定性向上
-- 無駄合検知の削除
-
-### その他
-
-- Doxygenコメントを追加（[ドキュメント](https://komori-n.github.io/komoring-heights-docs/index.html)）
-- 探索部以外へ単体テストを追加
+- マルチスレッド探索のサポート
+- MultiPV機能のサポート
+- シングルスレッド探索性能の改善
+- 「不詰」を-4000手詰（内部的な-∞）ではなく-9999手詰と表示するよう修正
+- 不詰のとき玉方応手を1手出力
+    - 攻方 ▲XXX が不詰のとき、玉方の最善応手のひとつ △YYY を表示する
+- コードのクリーンアップ
 
 ## Changes
 
-### Improvements
-
-- Clean up [engine options](source/engine/user-engine/docs/EngineOptions.txt)
-
-### Fixed Bugs
-
-- Improve the stability of path detection
-- Remove meaningless drop detection
-
-### Others
-
-- Add Doxygen comment([link](https://komori-n.github.io/komoring-heights-docs/index.html))
-- Add unit tests
+- Add multithreading support
+- Add MultiPV feature
+- Improve single-thread performance
+- Use `mate -9999` instead of `mate -4000` for nomate position
+- Clean up code
