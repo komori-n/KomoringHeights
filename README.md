@@ -4,6 +4,20 @@
 ![Make CI (for Mac)](https://github.com/komori-n/KomoringHeights/workflows/Make%20CI%20(for%20Mac)/badge.svg?event=push)
 ![NDK CI (for Android)](https://github.com/komori-n/KomoringHeights/workflows/NDK%20CI%20(for%20Android)/badge.svg?event=push)
 
+weak df-pnブランチ（開発中断）
+
+df-pn+ではなくweak df-pnを使ったらどうなるか試してみた。
+最適化は不十分なのでまだ高速化できる余地があるかも。
+
+- メリット
+  - `PnDn` を `uint64_t` から `uint16_t` にできて、メモリ消費量を大幅に減らせる
+  - δ値の計算や合駒の遅延展開、二重カウント対策をすべてなくせるのでコードがシンプルになる
+- デメリット
+  - やや嘘解法っぽさがある（特に子の個数をδに加えているあたり）
+  - シングルスレッド性能・マルチスレッド性能が少し落ちる？
+
+---
+
 # KomoringHeights
 
 [English](README.en.md)

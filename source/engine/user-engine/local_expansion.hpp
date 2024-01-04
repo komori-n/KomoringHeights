@@ -10,7 +10,6 @@
 
 #include "bitset.hpp"
 #include "board_key_hand_pair.hpp"
-#include "delayed_move_list.hpp"
 #include "double_count_elimination.hpp"
 #include "fixed_size_stack.hpp"
 #include "hands.hpp"
@@ -19,6 +18,7 @@
 #include "node.hpp"
 #include "ranges.hpp"
 #include "transposition_table.hpp"
+#include "typedefs.hpp"
 
 namespace komori {
 namespace detail {
@@ -141,13 +141,8 @@ class LocalExpansion {
                  bool first_search,
                  BitSet64 sum_mask = BitSet64::Full(),
                  std::uint32_t multi_pv = 1)
-      : or_node_{n.IsOrNode()},
-        mp_{n, true},
-        delayed_move_list_{n, mp_},
-        len_{len},
-        key_hand_pair_{n.GetBoardKeyHandPair()},
-        multi_pv_{multi_pv},
-        sum_mask_{sum_mask} {
+      : or_node_{n.IsOrNode()}, mp_{n, true}, len_{len}, key_hand_pair_{n.GetBoardKeyHandPair()}, multi_pv_{multi_pv} {
+    (void)sum_mask;
     // 1手詰め／1手不詰判定のために、const を一時的に外す
     Node& nn = const_cast<Node&>(n);
 
@@ -170,30 +165,11 @@ class LocalExpansion {
         }
 
         query = tt.BuildChildQuery(n, move.move);
-        result =
-            query.LookUp(does_have_old_child_, len - 1, [&n, &move = move]() { return InitialPnDn(n, move.move); });
+        result = query.LookUp(does_have_old_child_, len - 1,
+                              [&n, &move = move]() { return std::make_pair(kPnDnUnit, kPnDnUnit); });
 
         if (!result.IsFinal()) {
-          if (!IsSumDeltaNode(n, move.move) || result.Delta(or_node_) >= detail::kForceSumPnDn) {
-            sum_mask_.Reset(i_raw);
-          }
-
-          bool i_is_skipped = false;
-          auto next_dep = delayed_move_list_.Prev(i_raw);
-          while (next_dep.has_value()) {
-            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-            if (!results_[*next_dep].IsFinal()) {
-              // i_raw は next_dep の負けが確定した後で探索する
-              i_is_skipped = true;
-              idx_.Pop();
-              break;
-            }
-
-            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-            next_dep = delayed_move_list_.Prev(*next_dep);
-          }
-
-          if (!i_is_skipped && !or_node_ && first_search && result.GetUnknownData().is_first_visit) {
+          if (!or_node_ && first_search && result.GetUnknownData().is_first_visit) {
             nn.DoMove(move.move);
             if (auto res = detail::CheckObviousFinalOrNode(nn); res.has_value()) {
               result = *res;
@@ -210,6 +186,14 @@ class LocalExpansion {
           break;
         }
         excluded_moves_++;
+      }
+
+      if (!result.IsFinal()) {
+        if (is_drop(move.move)) {
+          num_drop_moves_++;
+        } else {
+          num_nondrop_moves_++;
+        }
       }
     }
 
@@ -298,10 +282,6 @@ class LocalExpansion {
 
     result = search_result;
     query.SetResult(search_result, key_hand_pair_);
-    if (!result.IsFinal() && result.Delta(or_node_) >= detail::kForceSumPnDn) {
-      sum_mask_.Reset(old_i_raw);
-    }
-
     if (search_result.Phi(or_node_) == 0) {
       // 後から見つかった手のほうがいい手かもしれないので、前半部分をソートし直しておく
       ResortExcludedBack();
@@ -316,52 +296,24 @@ class LocalExpansion {
       }
     }
 
-    if (search_result.IsFinal() && delayed_move_list_.Next(old_i_raw)) {
-      if (search_result.Delta(or_node_) == 0) {
-        // delta==0 の手は最悪手なので並び替えで最後尾へ移動させる
-        ResortFront();
-      }
-
-      // 後回しにした手があるならそれを復活させる
-      // curr_i_raw の次に調べるべき子
-      auto curr_i_raw = delayed_move_list_.Next(old_i_raw);
-      do {
-        idx_.Push(*curr_i_raw);
-        ResortBack();
-        if (results_[*curr_i_raw].Delta(or_node_) > 0) {
-          // まだ結論の出ていない子がいた
-          break;
-        }
-
-        // curr_i_raw は結論が出ているので、次の後回しにした手 next_dep を調べる
-        curr_i_raw = delayed_move_list_.Next(*curr_i_raw);
-      } while (curr_i_raw.has_value());
-
-      RecalcDelta();
-    } else {
-      if (search_result.Phi(or_node_) > 0) {
-        // 現在探索していた手が delta_except_best_ に加わるので差分計算する
-        const bool old_is_sum_delta = sum_mask_[old_i_raw];
-        if (old_is_sum_delta) {
-          sum_delta_except_best_ += result.Delta(or_node_);
-        } else {
-          max_delta_except_best_ = std::max(max_delta_except_best_, result.Delta(or_node_));
-        }
-
-        ResortFront();
-      }
-
-      const auto new_i_raw = idx_[excluded_moves_];
-      const auto new_result = results_[new_i_raw];
-      const bool new_is_sum_delta = sum_mask_[new_i_raw];
-      if (new_is_sum_delta) {
-        sum_delta_except_best_ -= new_result.Delta(or_node_);
-      } else if (new_result.Delta(or_node_) < max_delta_except_best_) {
-        // new_best_child を抜いても max_delta_except_best_ の値は変わらない
+    if (search_result.Phi(or_node_) > 0) {
+      delta_except_best_ = std::max(delta_except_best_, search_result.Delta(or_node_));
+    } else if (search_result.IsFinal()) {
+      if (is_drop(mp_[old_i_raw])) {
+        num_drop_moves_--;
       } else {
-        // max_delta_ の再計算が必要
-        RecalcDelta();
+        num_nondrop_moves_--;
       }
+    }
+    ResortFront();
+
+    const auto new_i_raw = idx_[excluded_moves_];
+    const auto new_result = results_[new_i_raw];
+    if (new_result.Delta(or_node_) < delta_except_best_) {
+      // new_best_child を抜いても max_delta_except_best_ の値は変わらない
+    } else {
+      // max_delta_ の再計算が必要
+      RecalcDelta();
     }
   }
 
@@ -393,25 +345,7 @@ class LocalExpansion {
    * @param edge 二重カウントの起点の枝
    * @return `edge` を見つけたら true
    */
-  bool ResolveDoubleCountIfBranchRoot(BranchRootEdge edge) {
-    if (edge.branch_root_key_hand_pair == key_hand_pair_) {
-      sum_mask_.Reset(idx_.front());
-      for (const auto i_raw : Skip(idx_, excluded_moves_ + 1)) {
-        const auto& query = queries_[i_raw];
-        const auto& child_key_hand_pair = query.GetBoardKeyHandPair();
-        if (child_key_hand_pair == edge.child_key_hand_pair) {
-          if (sum_mask_.Test(i_raw)) {
-            sum_mask_.Reset(i_raw);
-            RecalcDelta();
-          }
-          break;
-        }
-      }
-      return true;
-    }
-
-    return false;
-  }
+  bool ResolveDoubleCountIfBranchRoot(BranchRootEdge edge) { return false; }
 
   /**
    * @brief 二重カウント探索をやめるべきかどうか判定する
@@ -469,30 +403,15 @@ class LocalExpansion {
     }
 
     const auto& best_result = FrontResult();
-    // 差分計算用の値を予め持っているので、高速に計算できる
-    auto sum_delta = sum_delta_except_best_;
-    auto max_delta = max_delta_except_best_;
-    if (sum_mask_[idx_[excluded_moves_]]) {
-      sum_delta = ClampPnDn(sum_delta + best_result.Delta(or_node_));
+    const auto delta_base = std::max(delta_except_best_, best_result.Delta(or_node_));
+    if (delta_base == 0) {
+      return 0;
+    }
+    if (or_node_) {
+      return ClampPnDn(delta_base + kPnDnUnit * (num_drop_moves_ + num_nondrop_moves_ - 1));
     } else {
-      max_delta = std::max(max_delta, best_result.Delta(or_node_));
+      return ClampPnDn(delta_base + kPnDnUnit * ((num_drop_moves_ > 0 ? 1 : 0) + num_nondrop_moves_ - 1));
     }
-
-    // 後回しにしている子局面が存在する場合、その値をδ値に加算しないと局面を過大評価してしまう。
-    //
-    // 例） sfen +P5l2/4+S4/p1p+bpp1kp/6pgP/3n1n3/P2NP4/3P1NP2/2P2S3/3K3L1 b RGSL2Prb2gsl3p 159
-    //      1筋の合駒を考える時、玉方が合駒を微妙に変えることで読みの深さを指数関数的に大きくできてしまう
-    if (mp_.size() > idx_.size()) {
-      // 後回しにしている手1つにつき 1/8 点減点する。小数点以下は切り捨てするが、計算結果が 1 を下回る場合のみ
-      // 1 に切り上げる。
-      sum_delta += std::max<std::size_t>((mp_.size() - idx_.size()) / 8, 1);
-    }
-
-    const auto raw_delta = ClampPnDn(sum_delta + max_delta);
-    if (excluded_moves_ > 0 && raw_delta == 0) {
-      return kInfinitePnDn;
-    }
-    return raw_delta;
   }
 
   /// 2番目の子の phi 値を計算する
@@ -509,20 +428,15 @@ class LocalExpansion {
    * @param thdelta 現局面の delta しきい値
    */
   PnDn NewThdeltaForBestMove(PnDn thdelta) const {
-    PnDn delta_except_best = sum_delta_except_best_;
-    if (mp_.size() > idx_.size()) {
-      delta_except_best += std::max<std::size_t>((mp_.size() - idx_.size()) / 8, 1);
+    if (or_node_) {
+      if (thdelta > kPnDnUnit * (num_drop_moves_ + num_nondrop_moves_ - 1)) {
+        return thdelta - kPnDnUnit * (num_drop_moves_ + num_nondrop_moves_ - 1);
+      }
+    } else {
+      if (thdelta > kPnDnUnit * ((num_drop_moves_ > 0 ? 1 : 0) + num_nondrop_moves_ - 1)) {
+        return thdelta - kPnDnUnit * ((num_drop_moves_ > 0 ? 1 : 0) + num_nondrop_moves_ - 1);
+      }
     }
-
-    if (sum_mask_[idx_[excluded_moves_]]) {
-      delta_except_best = SaturatedAdd(delta_except_best, max_delta_except_best_);
-    }
-
-    // 計算の際はオーバーフローに注意
-    if (thdelta >= delta_except_best) {
-      return ClampPnDn(thdelta - delta_except_best);
-    }
-
     return 0;
   }
   // </PnDn>
@@ -531,16 +445,11 @@ class LocalExpansion {
    * @brief δ値の一時変数 `sum_delta_except_best_`, `max_delta_except_best_` を計算し直す
    */
   constexpr void RecalcDelta() {
-    sum_delta_except_best_ = 0;
-    max_delta_except_best_ = 0;
+    delta_except_best_ = 0;
 
     for (const auto& i_raw : Skip(idx_, excluded_moves_ + 1)) {
       const auto delta_i = results_[i_raw].Delta(or_node_);
-      if (sum_mask_[i_raw]) {
-        sum_delta_except_best_ = ClampPnDn(sum_delta_except_best_ + delta_i);
-      } else {
-        max_delta_except_best_ = std::max(max_delta_except_best_, delta_i);
-      }
+      delta_except_best_ = std::max(delta_except_best_, delta_i);
     }
   }
 
@@ -645,7 +554,7 @@ class LocalExpansion {
   SearchResult GetUnknownResult(const Node& /* n */) const {
     const auto& result = FrontResult();
     const SearchAmount amount = result.Amount() + mp_.size() - 1;
-    return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, sum_mask_);
+    return SearchResult::MakeUnknown(GetPn(), GetDn(), len_, amount, BitSet64::Full());
   }
 
   /**
@@ -684,10 +593,9 @@ class LocalExpansion {
     }
   }
 
-  const bool or_node_;                       ///< 現局面が OR node かどうか
-  const MovePicker mp_;                      ///< 現局面の合法手
-  const DelayedMoveList delayed_move_list_;  ///< 後回しにしている手のグラフ構造
-  const MateLen len_;                        ///< 現局面における残り探索手数
+  const bool or_node_;                    ///< 現局面が OR node かどうか
+  const MovePicker mp_;                   ///< 現局面の合法手
+  const MateLen len_;                     ///< 現局面における残り探索手数
   const BoardKeyHandPair key_hand_pair_;  ///< 現局面の盤面ハッシュ値と持ち駒。二重カウント対策で用いる。
   const std::uint32_t multi_pv_;  ///< MultiPv の値。1以上でなければならない
 
@@ -699,11 +607,10 @@ class LocalExpansion {
   /// 現局面の評価値が古い探索情報に基づくものかどうか。TCA の探索延長の判断に用いる。
   bool does_have_old_child_{false};
 
-  PnDn sum_delta_except_best_;  ///< 和でδを計上する子のうち最善手・excluded_moves_ を除いたもののδ値の和
-  PnDn max_delta_except_best_;  ///< 最大値でδを計上する子のうち最善手・excluded_moves_ を除いたもののδ値の最大値
+  PnDn delta_except_best_;
+  std::uint32_t num_drop_moves_{};
+  std::uint32_t num_nondrop_moves_{};
 
-  /// δ値を和で計算すべき子の一覧。ビットが立っている子は和、立っていない子は最大値で計上する。
-  BitSet64 sum_mask_;
   /// 現在有効な生添字の一覧。「良さ順」で並んでいる。
   FixedSizeStack<std::uint32_t, kMaxCheckMovesPerNode> idx_;
 

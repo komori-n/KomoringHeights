@@ -308,7 +308,6 @@ SearchResult KomoringHeights::SearchImplForRoot(Node& n, PnDn thpn, PnDn thdn, M
   if (tl_thread_id == 0 && monitor_.ShouldPrint()) {
     Print(n);
   }
-  expansion_list_[tl_thread_id].EliminateDoubleCount(tt_, n);
 
   auto curr_result = local_expansion.CurrentResult(n);
   if (local_expansion.DoesHaveOldChild()) {
@@ -375,8 +374,6 @@ SearchResult KomoringHeights::SearchImpl(Node& n, PnDn thpn, PnDn thdn, MateLen 
   if (n.GetDepth() >= kDepthMax) {
     return SearchResult::MakeRepetition(n.OrHand(), len, 1, 0);
   }
-
-  expansion_list_[tl_thread_id].EliminateDoubleCount(tt_, n);
 
   // 必要があれば TCA による探索延長をしたいので、このタイミングで現局面の pn/dn を取得する。
   auto curr_result = local_expansion.CurrentResult(n);
